@@ -28,6 +28,7 @@ function umRoleBadgeClass(string $role, string $label = ''): string
         'admissionoffice' => 'admission',
         'admission_office' => 'admission',
         'crad_officer' => 'crad',
+        'research_coordinator' => 'research_coordinator',
         'qa_office' => 'qa',
     ];
 

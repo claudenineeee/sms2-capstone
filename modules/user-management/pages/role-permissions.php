@@ -29,24 +29,23 @@ $roles = [
     'osa'        => ['label' => 'OSA',          'icon' => 'fa-users',            'color' => 'osa'],
     'qa'         => ['label' => 'QA',           'icon' => 'fa-award',            'color' => 'qa'],
     'crad'       => ['label' => 'CRAD',         'icon' => 'fa-flask',            'color' => 'crad'],
-    'student'    => ['label' => 'Student',      'icon' => 'fa-user-graduate',    'color' => 'student'],
 ];
 
 /* ── Default access matrix ─────────────────────────────────── */
 $defaultMatrix = [
-    'enrollment'      => ['icon'=>'fa-user-graduate',      'label'=>'Enrollment Management',    'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
-    'registrar'       => ['icon'=>'fa-folder-open',        'label'=>'Registrar',                'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
-    'curriculum'      => ['icon'=>'fa-book',               'label'=>'Curriculum & Subjects',    'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
-    'accreditation'   => ['icon'=>'fa-award',              'label'=>'Accreditation Management', 'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>true, 'crad'=>false,'student'=>false],
-    'payment'         => ['icon'=>'fa-credit-card',        'label'=>'Payment Management',       'admin'=>true,  'registrar'=>false, 'finance'=>true, 'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
-    'faculty'         => ['icon'=>'fa-chalkboard-teacher', 'label'=>'Faculty Management',       'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>true,  'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
-    'scheduling'      => ['icon'=>'fa-calendar-alt',       'label'=>'Class Schedule',           'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
-    'cocurricular'    => ['icon'=>'fa-users',              'label'=>'Co-Curricular',            'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>true, 'qa'=>false,'crad'=>false,'student'=>false],
-    'lms'             => ['icon'=>'fa-laptop',             'label'=>'Online Learning & LMS',    'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>true, 'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
-    'crad'            => ['icon'=>'fa-flask',              'label'=>'CRAD',                     'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>true, 'student'=>false],
-    'reports-analytics'=> ['icon'=>'fa-chart-bar',         'label'=>'Reports & Analytics',      'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
-    'student_portal'  => ['icon'=>'fa-user-graduate',      'label'=>'Student Portal',           'admin'=>false, 'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>true],
-    'user-management' => ['icon'=>'fa-users-cog',          'label'=>'User Management',          'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
+    'enrollment'      => ['icon'=>'fa-user-graduate',      'label'=>'Enrollment Management',    'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'registrar'       => ['icon'=>'fa-folder-open',        'label'=>'Registrar',                'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'curriculum'      => ['icon'=>'fa-book',               'label'=>'Curriculum & Subjects',    'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'accreditation'   => ['icon'=>'fa-award',              'label'=>'Accreditation Management', 'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>true, 'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'payment'         => ['icon'=>'fa-credit-card',        'label'=>'Payment Management',       'admin'=>true,  'registrar'=>false, 'finance'=>true, 'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'faculty'         => ['icon'=>'fa-chalkboard-teacher', 'label'=>'Faculty Management',       'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>true,  'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'scheduling'      => ['icon'=>'fa-calendar-alt',       'label'=>'Class Schedule',           'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'cocurricular'    => ['icon'=>'fa-users',              'label'=>'Co-Curricular',            'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>true, 'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'lms'             => ['icon'=>'fa-laptop',             'label'=>'Online Learning & LMS',    'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>true, 'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'crad'            => ['icon'=>'fa-flask',              'label'=>'CRAD',                     'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>true, 'research_coordinator'=>true, 'student'=>false],
+    'reports-analytics'=> ['icon'=>'fa-chart-bar',         'label'=>'Reports & Analytics',      'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
+    'student_portal'  => ['icon'=>'fa-user-graduate',      'label'=>'Student Portal',           'admin'=>false, 'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>true],
+    'user-management' => ['icon'=>'fa-users-cog',          'label'=>'User Management',          'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'research_coordinator'=>false,'student'=>false],
 ];
 
 foreach ($defaultMatrix as $modKey => &$modDefaults) {

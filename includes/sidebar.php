@@ -211,7 +211,7 @@ $studentNavGroups = [
                                 <?php
                                 // Super Admin: Module Security stays under User Management only.
                                 // Staff keep Security Settings on their own module sidebar.
-                                if ($roleKey !== 'admin' && $navModuleKey !== 'user-management'):
+                                if (!in_array($roleKey, ['superadmin', 'admin'], true) && $navModuleKey !== 'user-management'):
                                 ?>
                                 <li class="nav-item sidebar-group-label">
                                     <span class="nav-link sidebar-group-heading">System</span>

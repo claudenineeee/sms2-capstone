@@ -109,6 +109,7 @@ function smsDefaultModulesForRole(string $roleKey): array
         'student'      => ['student_portal'],
         'registrar'    => ['registrar', 'curriculum', 'scheduling'],
         'crad_officer' => ['crad'],
+        'research_coordinator' => ['crad'],
         'finance'      => ['payment'],
         'hr'           => ['faculty'],
         'it_office'    => ['lms'],
@@ -245,6 +246,11 @@ function getVisibleModules(array $modules): array
 {
     $allowedModules = getAllowedModuleKeys();
     $visible = array_intersect_key($modules, array_flip($allowedModules));
+
+    if (getCurrentUserRoleKey() === 'research_coordinator' && isset($visible['crad'])) {
+        $visible['crad'] = smsResearchCoordinatorCradModule();
+    }
+
     if (in_array('student_portal', $allowedModules, true) && !isset($visible['student_portal'])) {
         $visible['student_portal'] = [
             'label' => 'Student Portal',
@@ -285,6 +291,44 @@ function getVisibleModules(array $modules): array
     }
 
     return $visible;
+}
+
+function smsResearchCoordinatorCradModule(): array
+{
+    return [
+        'label' => 'Research Coordinator',
+        'icon'  => 'fa-microscope',
+        'groups' => [
+            'Approved Research' => [
+                'approved-research',
+            ],
+            'Adviser Assignment' => [
+                'find-contact-adviser',
+                'adviser-availability',
+                'assign-research-adviser',
+            ],
+            'Panel Assignment' => [
+                'find-contact-panel',
+                'panel-availability',
+                'assign-panel-members',
+            ],
+            'Coordination' => [
+                'send-notifications',
+                'manage-assignments',
+            ],
+        ],
+        'pages' => [
+            ['slug' => 'approved-research', 'title' => 'View Approved Research'],
+            ['slug' => 'find-contact-adviser', 'title' => 'Find/Contact Adviser'],
+            ['slug' => 'adviser-availability', 'title' => 'Check Adviser Availability'],
+            ['slug' => 'assign-research-adviser', 'title' => 'Assign Research Adviser'],
+            ['slug' => 'find-contact-panel', 'title' => 'Find/Contact Panel'],
+            ['slug' => 'panel-availability', 'title' => 'Check Panel Availability'],
+            ['slug' => 'assign-panel-members', 'title' => 'Assign Panel Members'],
+            ['slug' => 'send-notifications', 'title' => 'Send Notifications'],
+            ['slug' => 'manage-assignments', 'title' => 'View/Manage Assignments'],
+        ],
+    ];
 }
 
 function smsPostLoginRedirectUrl(): string
@@ -343,6 +387,32 @@ function requireModuleAccess(string $moduleKey): void
     ) {
         header('Location: ' . BASE_URL . '/account/module-unavailable.php?module=' . rawurlencode($key));
         exit;
+    }
+
+    if ($key === 'crad' && getCurrentUserRoleKey() === 'research_coordinator') {
+        $allowedCoordinatorPages = [
+            '/modules/crad/index.php',
+            '/modules/crad/pages/approved-research.php',
+            '/modules/crad/pages/find-contact-adviser.php',
+            '/modules/crad/pages/adviser-availability.php',
+            '/modules/crad/pages/assign-research-adviser.php',
+            '/modules/crad/pages/find-contact-panel.php',
+            '/modules/crad/pages/panel-availability.php',
+            '/modules/crad/pages/assign-panel-members.php',
+            '/modules/crad/pages/send-notifications.php',
+            '/modules/crad/pages/manage-assignments.php',
+        ];
+        $isAllowedCoordinatorPage = false;
+        foreach ($allowedCoordinatorPages as $allowedPath) {
+            if (str_ends_with($scriptPath, $allowedPath)) {
+                $isAllowedCoordinatorPage = true;
+                break;
+            }
+        }
+        if (!$isAllowedCoordinatorPage) {
+            header('Location: ' . BASE_URL . '/modules/crad/index.php');
+            exit;
+        }
     }
 
     if ($key === 'student_portal') {

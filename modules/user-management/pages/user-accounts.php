@@ -31,12 +31,19 @@ if ($pdo) {
             "INSERT IGNORE INTO roles (role_key, label, description, is_system)
              VALUES
                 ('superadmin', 'Super Admin', 'Full system access', 1),
-                ('admission', 'Admission', 'Admission office access', 1)"
+                ('admin', 'Super Admin', 'Legacy super admin access', 1),
+                ('admission', 'Admission', 'Admission office access', 1),
+                ('research_coordinator', 'Research Coordinator', 'Research coordination access', 1)"
+        )->execute();
+        $pdo->prepare(
+            "UPDATE roles
+             SET label = 'Super Admin', description = 'Legacy super admin access'
+             WHERE role_key = 'admin'"
         )->execute();
         $pdo->prepare(
             "UPDATE roles
              SET label = 'Admission', description = 'Admission office access'
-             WHERE role_key IN ('admin', 'admission', 'admission_office')"
+             WHERE role_key IN ('admission', 'admission_office')"
         )->execute();
         $pdo->prepare(
             "UPDATE users
@@ -162,6 +169,7 @@ function umRoleBadgeClass(string $role, string $label = ''): string
         'admissionoffice' => 'admission',
         'admission_office' => 'admission',
         'crad_officer' => 'crad',
+        'research_coordinator' => 'research_coordinator',
         'qa_office' => 'qa',
     ];
 
@@ -172,8 +180,9 @@ function umRoleBadgeClass(string $role, string $label = ''): string
 $avatarColors = ['a', 'b', 'c', 'd', 'e', 'f'];
 $csrf = csrfToken();
 $total = count($users);
-$staffUsers = array_values(array_filter($users, fn($u) => $u['role'] !== 'student'));
+$facultyUsers = array_values(array_filter($users, fn($u) => $u['role'] === 'hr'));
 $studentUsers = array_values(array_filter($users, fn($u) => $u['role'] === 'student'));
+$systemUsers = array_values(array_filter($users, fn($u) => !in_array($u['role'], ['hr', 'student'], true)));
 $accountsUrl = BASE_URL . '/modules/user-management/pages/user-accounts.php';
 $archiveUrl  = $accountsUrl . '?view=archive';
 $currentUserId = (int) getCurrentUserId();
@@ -274,6 +283,7 @@ $currentUserId = (int) getCurrentUserId();
                 <option value="osa">OSA</option>
                 <option value="qa">QA Office</option>
                 <option value="crad">CRAD Officer</option>
+                <option value="research_coordinator">Research Coordinator</option>
                 <option value="student">Student</option>
             </select>
             <select id="umStatusFilter" class="form-select form-select-sm">
@@ -320,8 +330,9 @@ $currentUserId = (int) getCurrentUserId();
                         </tr>
                     <?php else: ?>
                         <?php foreach ([
-                            ['label' => 'System / Dean Accounts', 'users' => $staffUsers],
-                            ['label' => 'Student Portal Accounts', 'users' => $studentUsers],
+                            ['label' => 'System Accounts', 'users' => $systemUsers],
+                            ['label' => 'Faculty Accounts', 'users' => $facultyUsers],
+                            ['label' => 'Students Account', 'users' => $studentUsers],
                         ] as $group): ?>
                             <?php if (empty($group['users'])) continue; ?>
                             <tr class="um-group-row" data-group-row>
@@ -478,6 +489,7 @@ $currentUserId = (int) getCurrentUserId();
                                 <option value="osa">OSA</option>
                                 <option value="qa">QA Office</option>
                                 <option value="crad">CRAD Officer</option>
+                                <option value="research_coordinator">Research Coordinator</option>
                                 <option value="student">Student</option>
                             </select>
                         </div>

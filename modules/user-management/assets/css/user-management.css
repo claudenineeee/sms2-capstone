@@ -27,6 +27,7 @@
 .role-badge.osa        { background: rgba(168,85,247,0.13); color: #c084fc; border: 1px solid rgba(168,85,247,0.22); }
 .role-badge.qa         { background: rgba(251,191,36,0.13); color: #fbbf24; border: 1px solid rgba(251,191,36,0.22); }
 .role-badge.crad       { background: rgba(248,113,113,0.13);color: #f87171; border: 1px solid rgba(248,113,113,0.22); }
+.role-badge.research_coordinator { background: rgba(20,184,166,0.13); color: #2dd4bf; border: 1px solid rgba(20,184,166,0.22); }
 .role-badge.student    { background: rgba(148,163,184,0.12);color: #94a3b8; border: 1px solid rgba(148,163,184,0.20); }
 
 [data-theme="light"] .role-badge.superadmin,
@@ -42,6 +43,7 @@
 [data-theme="light"] .role-badge.osa        { background: rgba(168,85,247,0.10); color: #9333ea; }
 [data-theme="light"] .role-badge.qa         { background: rgba(217,119,6,0.10);  color: #d97706; }
 [data-theme="light"] .role-badge.crad       { background: rgba(220,38,38,0.10);  color: #dc2626; }
+[data-theme="light"] .role-badge.research_coordinator { background: rgba(13,148,136,0.10); color: #0f766e; }
 [data-theme="light"] .role-badge.student    { background: rgba(100,116,139,0.10);color: #475569; }
 
 /* ── Status dot ─────────────────────────────────────────────── */

@@ -429,7 +429,7 @@ CREATE TABLE `roles` (
 --
 
 INSERT INTO `roles` (`id`, `role_key`, `label`, `description`, `is_system`, `created_at`) VALUES
-(1, 'admin', 'Admission', 'Admission office access', 1, '2026-07-22 22:24:44'),
+(1, 'admin', 'Super Admin', 'Legacy super admin access', 1, '2026-07-22 22:24:44'),
 (2, 'registrar', 'Registrar', 'Enrollment, records, scheduling', 1, '2026-07-22 22:24:44'),
 (3, 'finance', 'Finance', 'Payments and receivables', 1, '2026-07-22 22:24:44'),
 (4, 'hr', 'Dean', 'Dean and faculty processes', 1, '2026-07-22 22:24:44'),
@@ -439,7 +439,8 @@ INSERT INTO `roles` (`id`, `role_key`, `label`, `description`, `is_system`, `cre
 (8, 'crad_officer', 'CRAD Officer', 'Research and development', 1, '2026-07-22 22:24:44'),
 (9, 'student', 'Student', 'Student portal only', 1, '2026-07-22 22:24:44'),
 (10, 'superadmin', 'Super Admin', 'Full system access', 1, '2026-08-08 17:25:19'),
-(11, 'admission', 'Admission', 'Admission office access', 1, '2026-08-08 17:25:19');
+(11, 'admission', 'Admission', 'Admission office access', 1, '2026-08-08 17:25:19'),
+(12, 'research_coordinator', 'Research Coordinator', 'Research coordination access', 1, '2026-08-08 18:10:00');
 
 -- --------------------------------------------------------
 
@@ -476,7 +477,8 @@ INSERT INTO `role_permissions` (`id`, `role_key`, `module_key`, `granted`, `upda
 (119, 'student', 'student_portal', 1, '2026-08-08 17:55:50'),
 (130, 'superadmin', 'enrollment', 0, '2026-08-08 17:57:13'),
 (141, 'superadmin', 'student_portal', 0, '2026-08-08 18:05:07'),
-(142, 'qa', 'user-management', 0, '2026-08-08 18:04:42');
+(142, 'qa', 'user-management', 0, '2026-08-08 18:04:42'),
+(143, 'research_coordinator', 'crad', 1, '2026-08-08 18:10:00');
 
 -- --------------------------------------------------------
 
@@ -614,7 +616,8 @@ INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `r
 (7, 'qualityassurance', 'qualityassurance@bestlink.edu.ph', '$2y$10$Bm/Te5m0uFyTRDhDDV.lf.9HuUEe7qIUOfZtHXF2eufIIXL1N3IVC', 'Quality Assurance', 'qa', NULL, 'active', 0, 0, NULL, '2026-07-22 22:54:00', NULL, NULL, NULL, NULL, '2026-07-22 22:54:00', '2026-07-22 22:54:00'),
 (8, 'dean', 'dean@bestlink.edu.ph', '$2y$10$Vnny70aSsPiimmO3/u6WKelc2VvQaKgSOujmZJP4C7q3IUFsUwfcy', 'Dean', 'hr', NULL, 'active', 0, 0, NULL, '2026-08-07 14:10:53', '2026-08-07 14:11:03', NULL, '::1', NULL, '2026-07-22 22:54:00', '2026-08-08 17:15:19'),
 (9, 's230000001', 'kenlangmalakas0308@gmail.com', '$2y$10$E0IiZOWMscnUfdX8H7gxt.5YzIkUqLK.qn07WF9MCA0StJhToFn2q', 'Student User', 'student', 'S230000001', 'active', 0, 0, NULL, '2026-08-06 13:17:16', '2026-08-08 17:56:03', '2026-08-08 18:03:37', '::1', NULL, '2026-07-22 22:54:00', '2026-08-08 18:03:37'),
-(20, 'admission', 'admission@bestlink.edu.ph', '$2y$10$pF3fNVXy1Nuk01exnJobbO6lilErbTYkcG9AECZ53XNQIHA33iMv2', 'Admission', 'admission', NULL, 'active', 0, 0, NULL, '2026-08-08 17:25:20', NULL, NULL, NULL, NULL, '2026-08-08 17:25:20', '2026-08-08 17:25:20');
+(20, 'admission', 'admission@bestlink.edu.ph', '$2y$10$pF3fNVXy1Nuk01exnJobbO6lilErbTYkcG9AECZ53XNQIHA33iMv2', 'Admission', 'admission', NULL, 'active', 0, 0, NULL, '2026-08-08 17:25:20', NULL, NULL, NULL, NULL, '2026-08-08 17:25:20', '2026-08-08 17:25:20'),
+(40, 'researchcoordinator', 'researchcoordinator@bestlink.edu.ph', '$2y$10$f9DQYvDoQknpAcoA3T6u6uEMcIrMP8E704loMPERIk8N6JBDO.nyK', 'Research Coordinator', 'research_coordinator', NULL, 'active', 0, 0, NULL, '2026-08-08 18:09:48', NULL, NULL, NULL, NULL, '2026-08-08 18:09:48', '2026-08-08 18:09:48');
 
 -- --------------------------------------------------------
 
@@ -776,7 +779,7 @@ ALTER TABLE `security_otps`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
 
 --
 -- AUTO_INCREMENT for table `user_authenticators`

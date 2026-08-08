@@ -48,7 +48,7 @@ if (!$pdo) {
     exit;
 }
 
-$validRoles   = ['superadmin', 'admission', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad', 'student'];
+$validRoles   = ['superadmin', 'admission', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad', 'research_coordinator', 'student'];
 $validModules = [
     'enrollment', 'registrar', 'curriculum', 'accreditation',
     'payment', 'faculty', 'scheduling', 'cocurricular', 'lms', 'crad',
@@ -65,6 +65,7 @@ $defaults = [
     'osa'          => ['cocurricular'],
     'qa'           => ['accreditation'],
     'crad_officer' => ['crad'],
+    'research_coordinator' => ['crad'],
     'student'      => ['student_portal'],
 ];
 

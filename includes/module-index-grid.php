@@ -9,7 +9,8 @@ if (!isset($MODULES[$activeModule])) {
     return;
 }
 
-$moduleMeta = $MODULES[$activeModule];
+$visibleModulesForIndex = function_exists('getVisibleModules') ? getVisibleModules($MODULES) : $MODULES;
+$moduleMeta = $visibleModulesForIndex[$activeModule] ?? $MODULES[$activeModule];
 $moduleLabel = $moduleMeta['label'] ?? 'Module';
 $moduleIcon = $moduleMeta['icon'] ?? 'fa-th-large';
 $moduleIntro = $moduleIntro ?? 'Select a submodule below to get started.';

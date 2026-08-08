@@ -21,8 +21,17 @@ echo "Ensuring roles..." . PHP_EOL;
 
 $roles = [
     ['superadmin', 'Super Admin', 'Full system access'],
+    ['admin', 'Super Admin', 'Legacy super admin access'],
     ['admission', 'Admission', 'Admission office access'],
+    ['registrar', 'Registrar', 'Enrollment, records, scheduling'],
+    ['finance', 'Finance', 'Payments and receivables'],
     ['hr', 'Dean', 'Dean and faculty processes'],
+    ['it_office', 'IT Office', 'LMS and IT modules'],
+    ['osa', 'OSA', 'Student affairs / co-curricular'],
+    ['qa', 'QA Office', 'Accreditation and quality'],
+    ['crad_officer', 'CRAD Officer', 'Research and development'],
+    ['research_coordinator', 'Research Coordinator', 'Research coordination access'],
+    ['student', 'Student', 'Student portal only'],
 ];
 
 $insRole = $pdo->prepare(
@@ -42,6 +51,7 @@ $perms = [
     'admission'    => ['enrollment'],
     'registrar'    => ['registrar', 'curriculum', 'scheduling'],
     'crad_officer' => ['crad'],
+    'research_coordinator' => ['crad'],
     'finance'      => ['payment'],
     'osa'          => ['cocurricular'],
     'it_office'    => ['lms'],
@@ -93,6 +103,14 @@ $accounts = [
         'password' => '@cradofficer123',
         'full_name' => 'CRAD Officer',
         'role_key' => 'crad_officer',
+        'student_id' => null,
+    ],
+    [
+        'username' => 'researchcoordinator',
+        'email' => 'researchcoordinator@bestlink.edu.ph',
+        'password' => '@research123',
+        'full_name' => 'Research Coordinator',
+        'role_key' => 'research_coordinator',
         'student_id' => null,
     ],
     [

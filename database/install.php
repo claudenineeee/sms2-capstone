@@ -86,6 +86,7 @@ $roles = [
     ['osa', 'OSA', 'Student affairs / co-curricular'],
     ['qa', 'QA Office', 'Accreditation and quality'],
     ['crad_officer', 'CRAD Officer', 'Research and development'],
+    ['research_coordinator', 'Research Coordinator', 'Research coordination access'],
     ['student', 'Student', 'Student portal only'],
 ];
 
@@ -111,6 +112,7 @@ $defaults = [
     'osa'          => ['cocurricular'],
     'qa'           => ['accreditation'],
     'crad'         => ['crad'],
+    'research_coordinator' => ['crad'],
     'student'      => ['student_portal'],
 ];
 
@@ -129,6 +131,7 @@ $permRows = [
     'osa'           => ['cocurricular'],
     'qa'            => ['accreditation'],
     'crad_officer'  => ['crad'],
+    'research_coordinator' => ['crad'],
     'student'       => ['student_portal'],
 ];
 

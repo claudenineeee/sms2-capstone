@@ -592,6 +592,7 @@ function smsPrimaryModuleForRole(string $roleKey): string
         'admission'    => 'enrollment',
         'registrar'    => 'registrar',
         'crad_officer' => 'crad',
+        'research_coordinator' => 'crad',
         'finance'      => 'payment',
         'hr'           => 'faculty',
         'it_office'    => 'lms',
@@ -643,11 +644,11 @@ function smsRolesForModule(string $moduleKey): array
         'faculty'            => ['hr', 'superadmin', 'admin'],
         'cocurricular'       => ['osa', 'superadmin', 'admin'],
         'lms'                => ['it_office', 'superadmin', 'admin'],
-        'crad'               => ['crad_officer', 'superadmin', 'admin'],
+        'crad'               => ['crad_officer', 'research_coordinator', 'superadmin', 'admin'],
         'accreditation'      => ['qa', 'superadmin', 'admin'],
-        'reports-analytics'  => ['superadmin', 'admin', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad_officer'],
+        'reports-analytics'  => ['superadmin', 'admin', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad_officer', 'research_coordinator'],
         'user-management'    => ['superadmin', 'admin'],
-        'student_portal'     => ['student', 'superadmin', 'admin'],
+        'student_portal'     => ['student', 'superadmin'],
     ];
     return $map[$moduleKey] ?? ['superadmin', 'admin'];
 }
