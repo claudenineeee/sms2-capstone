@@ -77,10 +77,11 @@ out('Schema applied.');
 
 /* ── Roles ─────────────────────────────────────────────────── */
 $roles = [
-    ['admin', 'Super Admin', 'Full system access'],
+    ['superadmin', 'Super Admin', 'Full system access'],
+    ['admission', 'Admission', 'Admission office access'],
     ['registrar', 'Registrar', 'Enrollment, records, scheduling'],
     ['finance', 'Finance', 'Payments and receivables'],
-    ['hr', 'HR', 'Faculty and HR processes'],
+    ['hr', 'Dean', 'Dean and faculty processes'],
     ['it_office', 'IT Office', 'LMS and IT modules'],
     ['osa', 'OSA', 'Student affairs / co-curricular'],
     ['qa', 'QA Office', 'Accreditation and quality'],
@@ -101,13 +102,15 @@ out('Roles seeded.');
  * Session role_key remains "crad_officer".
  */
 $defaults = [
-    'registrar'    => ['enrollment', 'registrar', 'curriculum', 'scheduling', 'reports-analytics'],
-    'finance'      => ['payment', 'reports-analytics'],
-    'hr'           => ['faculty', 'reports-analytics'],
-    'it_office'    => ['lms', 'reports-analytics'],
-    'osa'          => ['cocurricular', 'reports-analytics'],
-    'qa'           => ['accreditation', 'reports-analytics'],
-    'crad'         => ['crad', 'reports-analytics'],
+    'superadmin'   => ['user-management', 'student_portal'],
+    'admission'    => ['enrollment'],
+    'registrar'    => ['registrar', 'curriculum', 'scheduling'],
+    'finance'      => ['payment'],
+    'hr'           => ['faculty'],
+    'it_office'    => ['lms'],
+    'osa'          => ['cocurricular'],
+    'qa'           => ['accreditation'],
+    'crad'         => ['crad'],
     'student'      => ['student_portal'],
 ];
 
@@ -117,7 +120,9 @@ $defaults = [
 // Simplest: store permissions with role_key = crad_officer for CRAD modules.
 
 $permRows = [
-    'registrar'     => ['enrollment', 'registrar', 'curriculum', 'scheduling'],
+    'superadmin'    => ['user-management', 'student_portal'],
+    'admission'     => ['enrollment'],
+    'registrar'     => ['registrar', 'curriculum', 'scheduling'],
     'finance'       => ['payment'],
     'hr'            => ['faculty'],
     'it_office'     => ['lms'],

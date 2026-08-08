@@ -68,7 +68,7 @@ function smsEnforceSystemMaintenance(): void
     }
 
     $role = function_exists('getCurrentUserRoleKey') ? getCurrentUserRoleKey() : '';
-    if ($role === 'admin') {
+    if (in_array($role, ['superadmin', 'admin'], true)) {
         return;
     }
 
@@ -208,7 +208,7 @@ function smsRoleTiedToModule(string $roleKey, string $moduleKey): bool
 {
     $roleKey = strtolower(trim($roleKey));
     $moduleKey = smsNormalizeModuleControlKey($moduleKey);
-    if ($roleKey === '' || $moduleKey === '' || $roleKey === 'admin') {
+    if ($roleKey === '' || $moduleKey === '' || in_array($roleKey, ['superadmin', 'admin'], true)) {
         return false;
     }
     if (function_exists('smsPrimaryModuleForRole') && smsPrimaryModuleForRole($roleKey) === $moduleKey) {
@@ -230,7 +230,7 @@ function smsEnforceModuleForceLogout(): void
         return;
     }
     $roleKey = (string) ($_SESSION['user_role_key'] ?? '');
-    if ($roleKey === 'admin') {
+    if (in_array($roleKey, ['superadmin', 'admin'], true)) {
         return;
     }
 
@@ -302,7 +302,7 @@ function smsEnforcePrimaryModuleMaintenance(): void
         return;
     }
     $roleKey = (string) ($_SESSION['user_role_key'] ?? '');
-    if ($roleKey === '' || $roleKey === 'admin') {
+    if ($roleKey === '' || in_array($roleKey, ['superadmin', 'admin'], true)) {
         return;
     }
 

@@ -264,7 +264,7 @@ if ($navRoleKey === 'student') {
                     if ($navRole === 'student') {
                         $profileHref = BASE_URL . '/modules/student-portal/pages/my-profile.php';
                         $profileLabel = 'My Profile';
-                    } elseif ($navRole === 'admin') {
+                    } elseif (in_array($navRole, ['superadmin', 'admin'], true)) {
                         $profileHref = BASE_URL . '/account/profile.php';
                         $profileLabel = 'Account Settings';
                     } else {
@@ -277,7 +277,7 @@ if ($navRoleKey === 'student') {
                             <i class="fas fa-user me-2"></i><?= htmlspecialchars($profileLabel) ?>
                         </a>
                     </li>
-                    <?php if ($navRole === 'admin'): ?>
+                    <?php if (in_array($navRole, ['superadmin', 'admin'], true)): ?>
                     <li>
                         <a class="dropdown-item" href="<?= BASE_URL ?>/account/profile.php?tab=security">
                             <i class="fas fa-key me-2"></i>Login Security

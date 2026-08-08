@@ -1,8 +1,18 @@
 {
-    "osa": {
-        "accreditation": false
+    "admission": {
+        "registrar": false
     },
     "registrar": {
-        "enrollment": true
+        "enrollment": false
+    },
+    "student": {
+        "student_portal": true
+    },
+    "superadmin": {
+        "enrollment": false,
+        "student_portal": false
+    },
+    "qa": {
+        "user-management": false
     }
 }

@@ -16,7 +16,7 @@ require_once ROOT_PATH . '/includes/security-workflow.php';
 require_once ROOT_PATH . '/includes/security-ui.php';
 
 if (isAuthenticated()) {
-    header('Location: ' . BASE_URL . '/dashboard/index.php');
+    header('Location: ' . smsPostLoginRedirectUrl());
     exit;
 }
 
@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $result = smsCompleteLoginSession($user, $username);
     if (!empty($result['ok'])) {
         require_once ROOT_PATH . '/includes/module-controls.php';
-        if (smsIsSystemInMaintenance() && getCurrentUserRoleKey() !== 'admin') {
+        if (smsIsSystemInMaintenance() && !in_array(getCurrentUserRoleKey(), ['superadmin', 'admin'], true)) {
             logout();
             header('Location: ' . BASE_URL . '/account/maintenance.php');
             exit;
@@ -166,11 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . BASE_URL . '/login/change-password.php');
             exit;
         }
-        if (getCurrentUserRoleKey() === 'student') {
-            header('Location: ' . BASE_URL . '/modules/student-portal/pages/my-profile.php');
-            exit;
-        }
-        header('Location: ' . BASE_URL . '/dashboard/index.php');
+        header('Location: ' . smsPostLoginRedirectUrl());
         exit;
     }
 

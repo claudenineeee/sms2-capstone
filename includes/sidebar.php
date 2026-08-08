@@ -13,7 +13,7 @@ require_once __DIR__ . '/nav-icons.php';
 $activeModule = $activeModule ?? '';
 $activePage   = $activePage ?? '';
 $roleKey = getCurrentUserRoleKey();
-$isStudentPortal = $roleKey === 'student';
+$isStudentPortal = $activeModule === 'student_portal';
 $visibleModules = getVisibleModules($MODULES);
 
 // ── For students: check if Research Forum is paid ───────────────────────────
@@ -123,7 +123,8 @@ $studentNavGroups = [
                     <?php
                     $isModuleActive = ($activeModule === $navModuleKey);
                     $collapseId = 'sidebar-' . $navModuleKey;
-                    $overviewUrl = BASE_URL . '/modules/' . $navModuleKey . '/index.php';
+                    $moduleFolder = $navModuleKey === 'student_portal' ? 'student-portal' : $navModuleKey;
+                    $overviewUrl = BASE_URL . '/modules/' . $moduleFolder . '/index.php';
                     $moduleInMaint = smsIsModuleInMaintenance((string) $navModuleKey);
                     ?>
                     <li class="nav-item">
@@ -172,7 +173,7 @@ $studentNavGroups = [
                                         <?php
                                         if (!isset($pageTitles[$slug])) { continue; }
                                         $isPageActive = ($isModuleActive && $activePage === $slug);
-                                        $pageHref = BASE_URL . '/modules/' . $navModuleKey . '/pages/' . $slug . '.php';
+                                        $pageHref = BASE_URL . '/modules/' . $moduleFolder . '/pages/' . $slug . '.php';
                                         ?>
                                         <li class="nav-item">
                                             <a class="nav-link sidebar-sub <?= $isPageActive ? 'active' : '' ?>"
@@ -187,7 +188,7 @@ $studentNavGroups = [
                                 <?php foreach ($module['pages'] as $page): ?>
                                     <?php
                                     $isPageActive = ($isModuleActive && $activePage === $page['slug']);
-                                    $pageHref = BASE_URL . '/modules/' . $navModuleKey . '/pages/' . $page['slug'] . '.php';
+                                    $pageHref = BASE_URL . '/modules/' . $moduleFolder . '/pages/' . $page['slug'] . '.php';
                                     // Module Security: keep CRAD/etc. focus when already inside a module.
                                     if ($navModuleKey === 'user-management' && $page['slug'] === 'module-security') {
                                         $secFocus = (string) ($_SESSION['um_sec_focus'] ?? '');

@@ -50,11 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (smsSetUserPassword((int) $userId, $password, false)) {
             $_SESSION['must_change_password'] = 0;
             logActivity('password_change', 'Password changed by user', 'System');
-            if (getCurrentUserRoleKey() === 'student') {
-                header('Location: ' . BASE_URL . '/modules/student-portal/pages/my-profile.php');
-            } else {
-                header('Location: ' . BASE_URL . '/dashboard/index.php');
-            }
+            header('Location: ' . smsPostLoginRedirectUrl());
             exit;
         } else {
             $error = 'Could not update password. Please try again.';

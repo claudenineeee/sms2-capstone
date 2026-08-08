@@ -14,7 +14,12 @@
     letter-spacing: 0.03em;
     white-space: nowrap;
 }
-.role-badge.admin      { background: rgba(99,102,241,0.14); color: #818cf8; border: 1px solid rgba(99,102,241,0.25); }
+.role-badge.superadmin,
+.role-badge.super-admin { background: rgba(99,102,241,0.14); color: #818cf8; border: 1px solid rgba(99,102,241,0.25); }
+.role-badge.admin,
+.role-badge.admission,
+.role-badge.admission_office,
+.role-badge.admissionoffice { background: rgba(16,185,129,0.13); color: #34d399; border: 1px solid rgba(16,185,129,0.24); }
 .role-badge.registrar  { background: rgba(14,165,233,0.13); color: #38bdf8; border: 1px solid rgba(14,165,233,0.22); }
 .role-badge.finance    { background: rgba(22,163,74,0.13);  color: #4ade80; border: 1px solid rgba(22,163,74,0.22); }
 .role-badge.hr         { background: rgba(234,88,12,0.13);  color: #fb923c; border: 1px solid rgba(234,88,12,0.22); }
@@ -24,7 +29,12 @@
 .role-badge.crad       { background: rgba(248,113,113,0.13);color: #f87171; border: 1px solid rgba(248,113,113,0.22); }
 .role-badge.student    { background: rgba(148,163,184,0.12);color: #94a3b8; border: 1px solid rgba(148,163,184,0.20); }
 
-[data-theme="light"] .role-badge.admin      { background: rgba(99,102,241,0.10); color: #4f46e5; }
+[data-theme="light"] .role-badge.superadmin,
+[data-theme="light"] .role-badge.super-admin { background: rgba(99,102,241,0.10); color: #4f46e5; }
+[data-theme="light"] .role-badge.admin,
+[data-theme="light"] .role-badge.admission,
+[data-theme="light"] .role-badge.admission_office,
+[data-theme="light"] .role-badge.admissionoffice { background: rgba(16,185,129,0.10); color: #059669; }
 [data-theme="light"] .role-badge.registrar  { background: rgba(14,165,233,0.10); color: #0284c7; }
 [data-theme="light"] .role-badge.finance    { background: rgba(22,163,74,0.10);  color: #16a34a; }
 [data-theme="light"] .role-badge.hr         { background: rgba(234,88,12,0.10);  color: #ea580c; }
@@ -79,6 +89,35 @@
     align-items: center;
     gap: 0.65rem;
     min-width: 0;
+}
+.um-group-row td {
+    padding: 0.78rem 1.2rem !important;
+    background: rgba(99,102,241,0.08);
+    border-top: 1px solid rgba(148,163,184,0.16);
+    border-bottom: 1px solid rgba(148,163,184,0.12);
+}
+.um-group-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.um-group-title span {
+    color: var(--sms-text);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.um-group-title small {
+    color: var(--sms-text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+[data-theme="light"] .um-group-row td {
+    background: #eef4ff;
+    border-color: #d7e1ef;
 }
 .um-user-name {
     font-size: 0.86rem;

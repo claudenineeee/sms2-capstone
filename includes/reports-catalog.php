@@ -162,13 +162,10 @@ if (!function_exists('smsReportsForRole')) {
     function smsReportsForRole(?string $roleKey = null): array
     {
         $roleKey = $roleKey ?: getCurrentUserRoleKey();
-        if ($roleKey === 'student') {
-            return [];
-        }
-
-        $allowedModules = getAllowedModuleKeys();
-        $isAdmin = ($roleKey === 'admin');
-        $hasReportsModule = $isAdmin || in_array('reports-analytics', $allowedModules, true);
+        $allowedModules = function_exists('smsAllowedModuleKeysForRole')
+            ? smsAllowedModuleKeysForRole($roleKey)
+            : getAllowedModuleKeys();
+        $hasReportsModule = in_array('reports-analytics', $allowedModules, true);
 
         if (!$hasReportsModule) {
             return [];
@@ -183,7 +180,7 @@ if (!function_exists('smsReportsForRole')) {
                 continue;
             }
 
-            if ($isAdmin || in_array($sourceModule, $allowedModules, true)) {
+            if (in_array($sourceModule, $allowedModules, true)) {
                 $items[] = $item;
             }
         }

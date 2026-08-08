@@ -11,7 +11,7 @@ require_once ROOT_PATH . '/includes/security.php';
 
 header('Content-Type: application/json');
 
-if (!isAuthenticated() || getCurrentUserRoleKey() !== 'admin') {
+if (!isAuthenticated() || !userCanAccessModule('user-management')) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'Forbidden']);
     exit;
@@ -40,7 +40,7 @@ if (!$pdo) {
 }
 
 $action = (string) ($data['action'] ?? 'save');
-$validRoles = ['admin', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad', 'crad_officer', 'student'];
+$validRoles = ['superadmin', 'admission', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad', 'crad_officer', 'student'];
 $validStatus = ['active', 'inactive', 'locked', 'suspended'];
 
 try {

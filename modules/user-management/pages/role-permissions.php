@@ -20,10 +20,11 @@ requireSuperAdmin();
 
 /* ── Role definitions ──────────────────────────────────────── */
 $roles = [
-    'admin'      => ['label' => 'Super Admin', 'icon' => 'fa-user-shield',      'color' => 'admin'],
+    'superadmin' => ['label' => 'Super Admin', 'icon' => 'fa-user-shield',      'color' => 'superadmin'],
+    'admission'  => ['label' => 'Admission',   'icon' => 'fa-user-check',       'color' => 'admission'],
     'registrar'  => ['label' => 'Registrar',   'icon' => 'fa-folder-open',      'color' => 'registrar'],
     'finance'    => ['label' => 'Finance',      'icon' => 'fa-credit-card',      'color' => 'finance'],
-    'hr'         => ['label' => 'HR',           'icon' => 'fa-user-tie',         'color' => 'hr'],
+    'hr'         => ['label' => 'Dean',         'icon' => 'fa-user-tie',         'color' => 'hr'],
     'it_office'  => ['label' => 'IT Office',    'icon' => 'fa-laptop',           'color' => 'it_office'],
     'osa'        => ['label' => 'OSA',          'icon' => 'fa-users',            'color' => 'osa'],
     'qa'         => ['label' => 'QA',           'icon' => 'fa-award',            'color' => 'qa'],
@@ -33,7 +34,7 @@ $roles = [
 
 /* ── Default access matrix ─────────────────────────────────── */
 $defaultMatrix = [
-    'enrollment'      => ['icon'=>'fa-user-graduate',      'label'=>'Enrollment Management',    'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
+    'enrollment'      => ['icon'=>'fa-user-graduate',      'label'=>'Enrollment Management',    'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
     'registrar'       => ['icon'=>'fa-folder-open',        'label'=>'Registrar',                'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
     'curriculum'      => ['icon'=>'fa-book',               'label'=>'Curriculum & Subjects',    'admin'=>true,  'registrar'=>true,  'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
     'accreditation'   => ['icon'=>'fa-award',              'label'=>'Accreditation Management', 'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>true, 'crad'=>false,'student'=>false],
@@ -44,8 +45,16 @@ $defaultMatrix = [
     'lms'             => ['icon'=>'fa-laptop',             'label'=>'Online Learning & LMS',    'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>true, 'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
     'crad'            => ['icon'=>'fa-flask',              'label'=>'CRAD',                     'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>true, 'student'=>false],
     'reports-analytics'=> ['icon'=>'fa-chart-bar',         'label'=>'Reports & Analytics',      'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
+    'student_portal'  => ['icon'=>'fa-user-graduate',      'label'=>'Student Portal',           'admin'=>false, 'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>true],
     'user-management' => ['icon'=>'fa-users-cog',          'label'=>'User Management',          'admin'=>true,  'registrar'=>false, 'finance'=>false,'hr'=>false, 'it_office'=>false,'osa'=>false,'qa'=>false,'crad'=>false,'student'=>false],
 ];
+
+foreach ($defaultMatrix as $modKey => &$modDefaults) {
+    $modDefaults['superadmin'] = in_array($modKey, ['user-management', 'student_portal'], true);
+    $modDefaults['admission'] = ($modKey === 'enrollment');
+    unset($modDefaults['admin']);
+}
+unset($modDefaults);
 
 /* ── Load permissions from DB (preferred) + JSON fallback ──── */
 $matrix = $defaultMatrix;
@@ -53,15 +62,6 @@ $pdo = db();
 if ($pdo) {
     try {
         $rows = $pdo->query('SELECT role_key, module_key, granted FROM role_permissions')->fetchAll();
-        // Reset non-admin cells to false then apply DB grants
-        foreach ($matrix as $modKey => &$row) {
-            foreach (['registrar','finance','hr','it_office','osa','qa','crad','student'] as $rk) {
-                if (array_key_exists($rk, $row)) {
-                    $row[$rk] = false;
-                }
-            }
-        }
-        unset($row);
         foreach ($rows as $r) {
             $matrixKey = smsMatrixRoleKey((string) $r['role_key']);
             $mod = (string) $r['module_key'];
@@ -69,11 +69,6 @@ if ($pdo) {
                 $matrix[$mod][$matrixKey] = ((int) $r['granted'] === 1);
             }
         }
-        // Admin always true
-        foreach ($matrix as &$row) {
-            $row['admin'] = true;
-        }
-        unset($row);
     } catch (Throwable $e) {
         // keep defaults
     }
@@ -97,6 +92,17 @@ if ($pdo) {
 }
 
 $roleKeys = array_keys($roles);
+foreach ($matrix as $modKey => &$mod) {
+    $mod['student'] = ($modKey === 'student_portal');
+    if ($modKey === 'student_portal') {
+        foreach ($roleKeys as $roleKey) {
+            if ($roleKey !== 'superadmin') {
+                $mod[$roleKey] = ($roleKey === 'student');
+            }
+        }
+    }
+}
+unset($mod);
 $csrf = csrfToken();
 ?>
 
@@ -162,8 +168,7 @@ $csrf = csrfToken();
                 </thead>
                 <tbody>
                     <?php foreach ($matrix as $modKey => $mod):
-                        $isAdminOnlyRow  = ($modKey === 'user-management');
-                        $rowClass        = $isAdminOnlyRow ? 'perm-row-admin' : '';
+                        $rowClass = ($modKey === 'user-management') ? 'perm-row-admin' : '';
                     ?>
                     <tr class="<?= $rowClass ?>">
                         <td class="module-label" style="padding-left:1.2rem;">
@@ -171,19 +176,18 @@ $csrf = csrfToken();
                             <?= htmlspecialchars($mod['label']) ?>
                         </td>
                         <?php foreach ($roleKeys as $rk):
-                            /* Lock conditions:
-                             * - admin column is always locked (always full access)
-                             * - user-management row is always locked (admin only)
-                             * - student column is locked for non-student modules
-                             */
-                            $isLocked = ($rk === 'admin') || $isAdminOnlyRow;
-                            $checked  = $mod[$rk] ? 'checked' : '';
+                            /* User Management is fixed for Super Admin; Student Portal is editable for Super Admin only. */
+                            $isLocked = ($modKey === 'user-management' && $rk === 'superadmin')
+                                || $rk === 'student'
+                                || ($modKey === 'student_portal' && $rk !== 'superadmin');
+                            $isChecked = !empty($mod[$rk]);
+                            $checked  = $isChecked ? 'checked' : '';
                         ?>
                             <td>
                                 <?php if ($isLocked): ?>
                                     <!-- Locked — always checked for admin, show static icon -->
-                                    <?php if ($rk === 'admin' || ($isAdminOnlyRow && $rk === 'admin')): ?>
-                                        <span class="perm-yes" title="Always granted">
+                                    <?php if ($isChecked): ?>
+                                        <span class="perm-yes" data-role="<?= $rk ?>" title="Always granted">
                                             <i class="fas fa-check-circle"></i>
                                         </span>
                                     <?php else: ?>
@@ -325,8 +329,8 @@ $csrf = csrfToken();
         var checkboxes = document.querySelectorAll('.perm-cb[data-role="' + roleKey + '"]');
         var checked    = 0;
         checkboxes.forEach(function (cb) { if (cb.checked) checked++; });
+        checked += document.querySelectorAll('.perm-yes[data-role="' + roleKey + '"]').length;
 
-        /* admin always shows full count (static, not editable) */
         var countEl = document.querySelector('.role-module-count[data-role="' + roleKey + '"]');
         if (countEl) countEl.textContent = checked + ' module(s)';
     }
@@ -415,12 +419,7 @@ $csrf = csrfToken();
         updateRoleCount(cb.dataset.role);
     });
 
-    /* Ensure admin card always shows correct (locked) count */
-    var adminCount = document.querySelectorAll('input.perm-cb').length; // all modules editable
-    // admin row is all static — count full matrix rows instead
-    var totalRows = document.querySelectorAll('#permMatrix tbody tr').length;
-    var adminCountEl = document.querySelector('.role-module-count[data-role="admin"]');
-    if (adminCountEl) adminCountEl.textContent = totalRows + ' module(s)';
+    /* Summary counts are based on actual checked access. */
 
 })();
 </script>

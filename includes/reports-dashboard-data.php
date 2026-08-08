@@ -44,16 +44,13 @@ if (!function_exists('smsReportDashboardData')) {
             'accreditation' => 'Accreditation Management',
         ];
 
-        $allowed = getAllowedModuleKeys();
-        $isAdmin = ($roleKey === 'admin');
+        $allowed = function_exists('smsAllowedModuleKeysForRole')
+            ? smsAllowedModuleKeysForRole($roleKey)
+            : getAllowedModuleKeys();
         $officeModules = [];
-        if ($isAdmin) {
-            $officeModules = ['enrollment', 'registrar', 'curriculum', 'scheduling', 'crad', 'payment', 'faculty', 'lms', 'cocurricular', 'accreditation'];
-        } else {
-            foreach ($allowed as $mod) {
-                if (!in_array($mod, ['reports-analytics', 'student_portal', 'user-management'], true)) {
-                    $officeModules[] = $mod;
-                }
+        foreach ($allowed as $mod) {
+            if (!in_array($mod, ['reports-analytics', 'student_portal', 'user-management'], true)) {
+                $officeModules[] = $mod;
             }
         }
 

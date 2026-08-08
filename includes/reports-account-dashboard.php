@@ -105,18 +105,15 @@ if (!function_exists('smsAccountModuleKpis')) {
 if (!function_exists('smsBuildSharedAccountDashboard')) {
     function smsBuildSharedAccountDashboard(string $kind, string $roleKey, array $profile): array
     {
-        $allowed = getAllowedModuleKeys();
-        $isAdmin = ($roleKey === 'admin');
+        $allowed = function_exists('smsAllowedModuleKeysForRole')
+            ? smsAllowedModuleKeysForRole($roleKey)
+            : getAllowedModuleKeys();
         $kpis = smsAccountModuleKpis();
         $modules = [];
 
-        if ($isAdmin) {
-            $modules = array_keys($kpis);
-        } else {
-            foreach ($allowed as $mod) {
-                if (isset($kpis[$mod])) {
-                    $modules[] = $mod;
-                }
+        foreach ($allowed as $mod) {
+            if (isset($kpis[$mod])) {
+                $modules[] = $mod;
             }
         }
 

@@ -14,7 +14,7 @@ require_once ROOT_PATH . '/includes/security.php';
 
 header('Content-Type: application/json');
 
-if (!isAuthenticated() || getCurrentUserRoleKey() !== 'admin') {
+if (!isAuthenticated() || !userCanAccessModule('user-management')) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'Forbidden']);
     exit;
@@ -48,15 +48,17 @@ if (!$pdo) {
     exit;
 }
 
-$validRoles   = ['registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad', 'student'];
+$validRoles   = ['superadmin', 'admission', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad', 'student'];
 $validModules = [
     'enrollment', 'registrar', 'curriculum', 'accreditation',
     'payment', 'faculty', 'scheduling', 'cocurricular', 'lms', 'crad',
-    'reports-analytics', 'student_portal',
+    'reports-analytics', 'student_portal', 'user-management',
 ];
 
 $defaults = [
-    'registrar'    => ['enrollment', 'registrar', 'curriculum', 'scheduling'],
+    'superadmin'   => ['user-management', 'student_portal'],
+    'admission'    => ['enrollment'],
+    'registrar'    => ['registrar', 'curriculum', 'scheduling'],
     'finance'      => ['payment'],
     'hr'           => ['faculty'],
     'it_office'    => ['lms'],
@@ -88,8 +90,18 @@ try {
         exit;
     }
 
-    if ($role === 'admin' || $module === 'user-management') {
+    if ($module === 'user-management' && $role === 'superadmin' && !$granted) {
         echo json_encode(['ok' => false, 'error' => 'This permission is locked']);
+        exit;
+    }
+
+    if ($module === 'student_portal' && !in_array($role, ['superadmin', 'student'], true)) {
+        echo json_encode(['ok' => false, 'error' => 'Student Portal is locked to Super Admin and Student only']);
+        exit;
+    }
+
+    if ($role === 'student' && ($module !== 'student_portal' || !$granted)) {
+        echo json_encode(['ok' => false, 'error' => 'Student role is locked to Student Portal only']);
         exit;
     }
 

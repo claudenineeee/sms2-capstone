@@ -548,7 +548,7 @@ function smsUsersForModuleReset(string $moduleKey): array
 
     $roles = array_values(array_filter(
         smsRolesForModule($moduleKey),
-        static fn(string $r): bool => $r !== 'admin'
+        static fn(string $r): bool => !in_array($r, ['superadmin', 'admin'], true)
     ));
     if ($roles === []) {
         return [];
@@ -571,8 +571,25 @@ function smsUsersForModuleReset(string $moduleKey): array
  */
 function smsPrimaryModuleForRole(string $roleKey): string
 {
+    if (function_exists('smsAllowedModuleKeysForRole')) {
+        $allowed = smsAllowedModuleKeysForRole($roleKey);
+        $priority = [
+            'user-management', 'enrollment', 'registrar', 'curriculum',
+            'accreditation', 'payment', 'faculty', 'scheduling',
+            'cocurricular', 'lms', 'crad', 'reports-analytics',
+            'student_portal',
+        ];
+        foreach ($priority as $moduleKey) {
+            if (in_array($moduleKey, $allowed, true)) {
+                return $moduleKey;
+            }
+        }
+    }
+
     $map = [
+        'superadmin'   => 'user-management',
         'admin'        => 'user-management',
+        'admission'    => 'enrollment',
         'registrar'    => 'registrar',
         'crad_officer' => 'crad',
         'finance'      => 'payment',
@@ -592,22 +609,47 @@ function smsPrimaryModuleForRole(string $roleKey): string
  */
 function smsRolesForModule(string $moduleKey): array
 {
+    $pdo = db();
+    if ($pdo) {
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT DISTINCT role_key FROM role_permissions WHERE module_key = ? AND granted = 1'
+            );
+            $stmt->execute([$moduleKey]);
+            $roles = array_map(
+                static function ($role): string {
+                    $roleKey = (string) $role;
+                    if (function_exists('smsNormalizeRoleKey')) {
+                        return smsNormalizeRoleKey($roleKey);
+                    }
+                    return $roleKey === 'crad' ? 'crad_officer' : $roleKey;
+                },
+                $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []
+            );
+            if ($roles !== []) {
+                return array_values(array_unique($roles));
+            }
+        } catch (Throwable $e) {
+            // fall back to static defaults below
+        }
+    }
+
     $map = [
-        'enrollment'         => ['registrar', 'admin'],
-        'registrar'          => ['registrar', 'admin'],
-        'curriculum'         => ['registrar', 'admin'],
-        'scheduling'         => ['registrar', 'admin'],
-        'payment'            => ['finance', 'admin'],
-        'faculty'            => ['hr', 'admin'],
-        'cocurricular'       => ['osa', 'admin'],
-        'lms'                => ['it_office', 'admin'],
-        'crad'               => ['crad_officer', 'admin'],
-        'accreditation'      => ['qa', 'admin'],
-        'reports-analytics'  => ['admin', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad_officer'],
-        'user-management'    => ['admin'],
-        'student_portal'     => ['student', 'admin'],
+        'enrollment'         => ['registrar', 'superadmin', 'admin'],
+        'registrar'          => ['registrar', 'superadmin', 'admin'],
+        'curriculum'         => ['registrar', 'superadmin', 'admin'],
+        'scheduling'         => ['registrar', 'superadmin', 'admin'],
+        'payment'            => ['finance', 'superadmin', 'admin'],
+        'faculty'            => ['hr', 'superadmin', 'admin'],
+        'cocurricular'       => ['osa', 'superadmin', 'admin'],
+        'lms'                => ['it_office', 'superadmin', 'admin'],
+        'crad'               => ['crad_officer', 'superadmin', 'admin'],
+        'accreditation'      => ['qa', 'superadmin', 'admin'],
+        'reports-analytics'  => ['superadmin', 'admin', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad_officer'],
+        'user-management'    => ['superadmin', 'admin'],
+        'student_portal'     => ['student', 'superadmin', 'admin'],
     ];
-    return $map[$moduleKey] ?? ['admin'];
+    return $map[$moduleKey] ?? ['superadmin', 'admin'];
 }
 
 /**

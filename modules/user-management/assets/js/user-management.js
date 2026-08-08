@@ -42,6 +42,19 @@
             if (noResults) {
                 noResults.style.display = visible === 0 ? '' : 'none';
             }
+
+            tableBody.querySelectorAll('tr[data-group-row]').forEach(function (groupRow) {
+                var hasVisibleRow = false;
+                var cursor = groupRow.nextElementSibling;
+                while (cursor && !cursor.hasAttribute('data-group-row')) {
+                    if (cursor.classList.contains('um-user-row') && cursor.style.display !== 'none') {
+                        hasVisibleRow = true;
+                        break;
+                    }
+                    cursor = cursor.nextElementSibling;
+                }
+                groupRow.style.display = hasVisibleRow ? '' : 'none';
+            });
         }
 
         if (searchInput)  searchInput.addEventListener('input',  applyFilters);

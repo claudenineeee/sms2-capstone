@@ -17,13 +17,30 @@ require_once ROOT_PATH . '/config/database.php';
 
 $pdo = getDatabaseConnection();
 
+echo "Ensuring roles..." . PHP_EOL;
+
+$roles = [
+    ['superadmin', 'Super Admin', 'Full system access'],
+    ['admission', 'Admission', 'Admission office access'],
+    ['hr', 'Dean', 'Dean and faculty processes'],
+];
+
+$insRole = $pdo->prepare(
+    'INSERT INTO roles (role_key, label, description) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE label = VALUES(label), description = VALUES(description)'
+);
+foreach ($roles as $role) {
+    $insRole->execute($role);
+}
+
 echo "Updating role permissions…" . PHP_EOL;
 
 $pdo->exec('DELETE FROM role_permissions');
 
 $perms = [
-    // admin = full access in code (no rows required)
-    'registrar'    => ['enrollment', 'registrar', 'curriculum', 'scheduling'],
+    'superadmin'   => ['user-management', 'student_portal'],
+    'admission'    => ['enrollment'],
+    'registrar'    => ['registrar', 'curriculum', 'scheduling'],
     'crad_officer' => ['crad'],
     'finance'      => ['payment'],
     'osa'          => ['cocurricular'],
@@ -51,7 +68,15 @@ $accounts = [
         'email' => 'superadmin@bestlink.edu.ph',
         'password' => '@superadmin123',
         'full_name' => 'Super Admin',
-        'role_key' => 'admin',
+        'role_key' => 'superadmin',
+        'student_id' => null,
+    ],
+    [
+        'username' => 'admission',
+        'email' => 'admission@bestlink.edu.ph',
+        'password' => '@admission123',
+        'full_name' => 'Admission',
+        'role_key' => 'admission',
         'student_id' => null,
     ],
     [
@@ -103,10 +128,10 @@ $accounts = [
         'student_id' => null,
     ],
     [
-        'username' => 'hr',
-        'email' => 'hr@bestlink.edu.ph',
-        'password' => '@hr123',
-        'full_name' => 'HR',
+        'username' => 'dean',
+        'email' => 'dean@bestlink.edu.ph',
+        'password' => '@dean123',
+        'full_name' => 'Dean',
         'role_key' => 'hr',
         'student_id' => null,
     ],

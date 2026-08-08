@@ -26,6 +26,67 @@ $archivedCount = 0;
 $activeCount = 0;
 $pdo = db();
 if ($pdo) {
+    try {
+        $pdo->prepare(
+            "INSERT IGNORE INTO roles (role_key, label, description, is_system)
+             VALUES
+                ('superadmin', 'Super Admin', 'Full system access', 1),
+                ('admission', 'Admission', 'Admission office access', 1)"
+        )->execute();
+        $pdo->prepare(
+            "UPDATE roles
+             SET label = 'Admission', description = 'Admission office access'
+             WHERE role_key IN ('admin', 'admission', 'admission_office')"
+        )->execute();
+        $pdo->prepare(
+            "UPDATE users
+             SET role_key = 'superadmin'
+             WHERE username = 'superadmin'
+               AND role_key = 'admin'"
+        )->execute();
+        $pdo->prepare(
+            "UPDATE users
+             SET full_name = 'Dean', username = 'dean', email = 'dean@bestlink.edu.ph'
+             WHERE role_key = 'hr'
+               AND username IN ('hr', 'faculty', 'dean')"
+        )->execute();
+
+        $pdo->prepare(
+            "UPDATE users
+             SET full_name = 'Admission',
+                 username = 'admission',
+                 email = 'admission@bestlink.edu.ph',
+                 role_key = 'admission',
+                 status = 'active'
+             WHERE username IN ('admission', 'admissionoffice')
+                OR role_key IN ('admission', 'admission_office')
+                OR (
+                    username = 'admin'
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM (SELECT id FROM users WHERE username = 'admission' LIMIT 1) AS existing_admission
+                    )
+                )"
+        )->execute();
+        $admissionHash = password_hash('@admission123', PASSWORD_DEFAULT);
+        $pdo->prepare(
+            "INSERT IGNORE INTO users
+                (username, email, password_hash, full_name, role_key, student_id, status, password_changed_at, must_change_password, failed_login_attempts, locked_until)
+             VALUES
+                ('admission', 'admission@bestlink.edu.ph', ?, 'Admission', 'admission', NULL, 'active', NOW(), 0, 0, NULL)"
+        )->execute([$admissionHash]);
+        $insAdmissionPerm = $pdo->prepare(
+            "INSERT INTO role_permissions (role_key, module_key, granted)
+             VALUES ('admission', ?, 1)
+             ON DUPLICATE KEY UPDATE granted = VALUES(granted)"
+        );
+        foreach (['enrollment'] as $moduleKey) {
+            $insAdmissionPerm->execute([$moduleKey]);
+        }
+    } catch (Throwable $e) {
+        error_log('Default user account ensure failed: ' . $e->getMessage());
+    }
+
     if ($isArchiveView) {
         $stmt = $pdo->query(
             'SELECT u.id, u.full_name AS name, u.username, u.email, u.role_key AS role,
@@ -64,12 +125,55 @@ foreach ($users as &$u) {
     if ($u['role'] === 'crad_officer') {
         $u['role'] = 'crad';
     }
+    if ($u['role'] === 'superadmin') {
+        $u['roleLabel'] = 'Super Admin';
+    }
+    if (
+        ($u['role'] === 'admin' && strtolower((string) $u['username']) !== 'superadmin')
+        || $u['role'] === 'admission'
+        || $u['role'] === 'admission_office'
+    ) {
+        $u['role'] = 'admission';
+        $u['roleLabel'] = 'Admission';
+        $u['name'] = 'Admission';
+        $u['username'] = 'admission';
+        $u['email'] = 'admission@bestlink.edu.ph';
+    }
+    if ($u['role'] === 'hr') {
+        $u['roleLabel'] = 'Dean';
+        if (in_array(trim((string) $u['name']), ['HR', 'Faculty'], true)) {
+            $u['name'] = 'Dean';
+        }
+        if (strtolower(trim((string) $u['email'])) === 'hr@bestlink.edu.ph') {
+            $u['email'] = 'dean@bestlink.edu.ph';
+        }
+    }
 }
 unset($u);
+
+function umRoleBadgeClass(string $role, string $label = ''): string
+{
+    $value = strtolower(trim($role !== '' ? $role : $label));
+    $value = str_replace([' ', '-'], '_', $value);
+
+    $aliases = [
+        'admin' => 'superadmin',
+        'super_admin' => 'superadmin',
+        'admissionoffice' => 'admission',
+        'admission_office' => 'admission',
+        'crad_officer' => 'crad',
+        'qa_office' => 'qa',
+    ];
+
+    $value = $aliases[$value] ?? $value;
+    return preg_replace('/[^a-z0-9_]/', '', $value) ?: 'student';
+}
 
 $avatarColors = ['a', 'b', 'c', 'd', 'e', 'f'];
 $csrf = csrfToken();
 $total = count($users);
+$staffUsers = array_values(array_filter($users, fn($u) => $u['role'] !== 'student'));
+$studentUsers = array_values(array_filter($users, fn($u) => $u['role'] === 'student'));
 $accountsUrl = BASE_URL . '/modules/user-management/pages/user-accounts.php';
 $archiveUrl  = $accountsUrl . '?view=archive';
 $currentUserId = (int) getCurrentUserId();
@@ -161,10 +265,11 @@ $currentUserId = (int) getCurrentUserId();
             <?php if (!$isArchiveView): ?>
             <select id="umRoleFilter" class="form-select form-select-sm">
                 <option value="">All Roles</option>
-                <option value="admin">Super Admin</option>
+                <option value="superadmin">Super Admin</option>
+                <option value="admission">Admission</option>
                 <option value="registrar">Registrar</option>
                 <option value="finance">Finance</option>
-                <option value="hr">HR</option>
+                <option value="hr">Dean</option>
                 <option value="it_office">IT Office</option>
                 <option value="osa">OSA</option>
                 <option value="qa">QA Office</option>
@@ -214,9 +319,23 @@ $currentUserId = (int) getCurrentUserId();
                             </td>
                         </tr>
                     <?php else: ?>
-                        <?php foreach ($users as $i => $u):
+                        <?php foreach ([
+                            ['label' => 'System / Dean Accounts', 'users' => $staffUsers],
+                            ['label' => 'Student Portal Accounts', 'users' => $studentUsers],
+                        ] as $group): ?>
+                            <?php if (empty($group['users'])) continue; ?>
+                            <tr class="um-group-row" data-group-row>
+                                <td colspan="7">
+                                    <div class="um-group-title">
+                                        <span><?= e($group['label']) ?></span>
+                                        <small><?= count($group['users']) ?> account<?= count($group['users']) === 1 ? '' : 's' ?></small>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php foreach ($group['users'] as $i => $u):
                             $col = $avatarColors[$i % count($avatarColors)];
                             $statusLabel = $u['status'] === 'inactive' ? 'Archived' : ucfirst($u['status']);
+                            $roleBadgeClass = umRoleBadgeClass((string) $u['role'], (string) $u['roleLabel']);
                         ?>
                         <tr class="um-user-row"
                             data-name="<?= htmlspecialchars($u['name']) ?>"
@@ -233,7 +352,7 @@ $currentUserId = (int) getCurrentUserId();
                                 </div>
                             </td>
                             <td><code style="font-size:.78rem;color:var(--sms-text-muted);"><?= htmlspecialchars($u['username']) ?></code></td>
-                            <td><span class="role-badge <?= $u['role'] ?>"><?= htmlspecialchars($u['roleLabel']) ?></span></td>
+                            <td><span class="role-badge <?= e($roleBadgeClass) ?>"><?= htmlspecialchars($u['roleLabel']) ?></span></td>
                             <td><span class="user-status <?= htmlspecialchars($u['status']) ?>"><?= e($statusLabel) ?></span></td>
                             <td class="text-muted" style="font-size:.78rem;white-space:nowrap;"><?= htmlspecialchars($u['last_login']) ?></td>
                             <td class="text-muted" style="font-size:.78rem;white-space:nowrap;"><?= htmlspecialchars($u['created']) ?></td>
@@ -298,6 +417,7 @@ $currentUserId = (int) getCurrentUserId();
                             </td>
                         </tr>
                         <?php endforeach; ?>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -349,10 +469,11 @@ $currentUserId = (int) getCurrentUserId();
                             <label class="form-label fw-semibold">Role <span class="text-danger">*</span></label>
                             <select class="form-select" name="role" required>
                                 <option value="">Select role…</option>
-                                <option value="admin">Super Admin</option>
+                                <option value="superadmin">Super Admin</option>
+                                <option value="admission">Admission</option>
                                 <option value="registrar">Registrar</option>
                                 <option value="finance">Finance</option>
-                                <option value="hr">HR</option>
+                                <option value="hr">Dean</option>
                                 <option value="it_office">IT Office</option>
                                 <option value="osa">OSA</option>
                                 <option value="qa">QA Office</option>
