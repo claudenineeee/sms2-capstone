@@ -40,6 +40,7 @@ function rcApprovedResearchFetch(PDO $pdo): array
             g.created_at AS group_created_at,
             p.status AS proposal_status,
             p.registration_status,
+            'Approved' AS display_status,
             p.approved_at,
             p.registered_at
          FROM research_groups g
@@ -66,7 +67,7 @@ function rcApprovedResearchPayload(): array
             'ok' => false,
             'error' => 'Failed to load approved research records.',
             'rows' => [],
-            'stats' => ['total' => 0, 'registered' => 0, 'with_adviser' => 0],
+            'stats' => ['total' => 0, 'approved' => 0, 'with_adviser' => 0],
             'last_sync' => date('M j, Y g:i:s A'),
         ];
     }
@@ -83,7 +84,7 @@ function rcApprovedResearchPayload(): array
         'rows' => $rows,
         'stats' => [
             'total' => count($rows),
-            'registered' => count(array_filter($rows, static fn($row) => (string) ($row['group_status'] ?? '') === 'Registered')),
+            'approved' => count(array_filter($rows, static fn($row) => (string) ($row['proposal_status'] ?? '') === 'Approved')),
             'with_adviser' => $withAdviser,
         ],
         'last_sync' => date('M j, Y g:i:s A'),
@@ -256,7 +257,7 @@ renderBreadcrumbs($breadcrumbs);
         </div>
         <div class="rcar-stat">
             <i class="fas fa-hashtag"></i>
-            <div><strong id="rcarRegistered"><?= (int) $stats['registered'] ?></strong><span>Registered</span></div>
+            <div><strong id="rcarApproved"><?= (int) $stats['approved'] ?></strong><span>Approved</span></div>
         </div>
         <div class="rcar-stat">
             <i class="fas fa-user-tie"></i>
@@ -300,7 +301,7 @@ renderBreadcrumbs($breadcrumbs);
     const search = document.getElementById('rcarSearch');
     const lastSync = document.getElementById('rcarLastSync');
     const total = document.getElementById('rcarTotal');
-    const registered = document.getElementById('rcarRegistered');
+    const approved = document.getElementById('rcarApproved');
     const withAdviser = document.getElementById('rcarWithAdviser');
     let rows = <?= json_encode($approvedRows, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
@@ -348,7 +349,7 @@ renderBreadcrumbs($breadcrumbs);
                 </td>
                 <td>${esc(row.adviser || 'For assignment')}</td>
                 <td>${esc(formatDate(row.date_assigned || row.group_created_at))}</td>
-                <td><span class="rcar-status"><i class="fas fa-check-circle"></i>${esc(row.group_status || 'Registered')}</span></td>
+                <td><span class="rcar-status"><i class="fas fa-check-circle"></i>${esc(row.display_status || row.proposal_status || 'Approved')}</span></td>
             </tr>
         `).join('');
         empty.hidden = visibleRows.length !== 0;
@@ -365,7 +366,7 @@ renderBreadcrumbs($breadcrumbs);
             if (!data.ok) throw new Error(data.error || 'Failed to sync.');
             rows = Array.isArray(data.rows) ? data.rows : [];
             total.textContent = data.stats?.total ?? rows.length;
-            registered.textContent = data.stats?.registered ?? 0;
+            approved.textContent = data.stats?.approved ?? 0;
             withAdviser.textContent = data.stats?.with_adviser ?? 0;
             lastSync.textContent = `Synced ${data.last_sync || 'just now'}`;
             render();

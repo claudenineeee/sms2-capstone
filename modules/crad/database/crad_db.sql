@@ -118,6 +118,81 @@ INSERT INTO `proposal_status_logs` (`id`, `proposal_id`, `old_status`, `new_stat
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `research_adviser_assignments`
+--
+
+CREATE TABLE `research_adviser_assignments` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `research_group_id` int(10) UNSIGNED DEFAULT NULL,
+  `proposal_id` int(10) UNSIGNED DEFAULT NULL,
+  `proposal_number` varchar(30) DEFAULT NULL,
+  `group_number` varchar(40) DEFAULT NULL,
+  `adviser_name` varchar(150) NOT NULL DEFAULT '',
+  `adviser_email` varchar(190) NOT NULL DEFAULT '',
+  `expertise` varchar(255) NOT NULL DEFAULT '',
+  `availability_status` varchar(40) NOT NULL DEFAULT 'Pending',
+  `assignment_status` varchar(40) NOT NULL DEFAULT 'Pending',
+  `notes` text DEFAULT NULL,
+  `assigned_by` int(10) UNSIGNED DEFAULT NULL,
+  `assigned_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_raa_group` (`research_group_id`),
+  KEY `idx_raa_proposal` (`proposal_id`),
+  KEY `idx_raa_group_number` (`group_number`),
+  KEY `idx_raa_status` (`assignment_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `research_adviser_assignments`
+--
+
+INSERT INTO `research_adviser_assignments` (`id`, `research_group_id`, `proposal_id`, `proposal_number`, `group_number`, `adviser_name`, `adviser_email`, `expertise`, `availability_status`, `assignment_status`, `notes`, `assigned_by`, `assigned_at`, `created_at`, `updated_at`) VALUES
+(1, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Dr. Roberto M. Santos', 'rsantos@bestlink.edu.ph', 'Artificial Intelligence / Machine Learning', 'Available', 'Pending', 'Matched based on AI research topic; ready for coordinator contact.', 40, '2026-08-08 18:30:00', '2026-08-08 18:30:00', '2026-08-08 18:30:00'),
+(2, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Prof. Clara T. Reyes', 'creyes@bestlink.edu.ph', 'Data Analytics / Educational Technology', 'Available', 'Pending', 'Secondary adviser match for AI-assisted title review.', 40, '2026-08-08 18:31:00', '2026-08-08 18:31:00', '2026-08-08 18:31:00');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `research_panel_assignments`
+--
+
+CREATE TABLE `research_panel_assignments` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `research_group_id` int(10) UNSIGNED DEFAULT NULL,
+  `proposal_id` int(10) UNSIGNED DEFAULT NULL,
+  `proposal_number` varchar(30) DEFAULT NULL,
+  `group_number` varchar(40) DEFAULT NULL,
+  `panel_name` varchar(150) NOT NULL DEFAULT '',
+  `panel_email` varchar(190) NOT NULL DEFAULT '',
+  `panel_role` varchar(80) NOT NULL DEFAULT '',
+  `expertise` varchar(255) NOT NULL DEFAULT '',
+  `availability_status` varchar(40) NOT NULL DEFAULT 'Pending',
+  `assignment_status` varchar(40) NOT NULL DEFAULT 'Pending',
+  `notes` text DEFAULT NULL,
+  `assigned_by` int(10) UNSIGNED DEFAULT NULL,
+  `assigned_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_rpa_group` (`research_group_id`),
+  KEY `idx_rpa_proposal` (`proposal_id`),
+  KEY `idx_rpa_group_number` (`group_number`),
+  KEY `idx_rpa_status` (`assignment_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `research_panel_assignments`
+--
+
+INSERT INTO `research_panel_assignments` (`id`, `research_group_id`, `proposal_id`, `proposal_number`, `group_number`, `panel_name`, `panel_email`, `panel_role`, `expertise`, `availability_status`, `assignment_status`, `notes`, `assigned_by`, `assigned_at`, `created_at`, `updated_at`) VALUES
+(1, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Dr. Jose B. Tan', 'jtan@bestlink.edu.ph', 'Panel Chair', 'Systems Development / AI Evaluation', 'Available', 'Pending', 'Recommended panel chair for technical AI assessment.', 40, '2026-08-08 18:32:00', '2026-08-08 18:32:00', '2026-08-08 18:32:00'),
+(2, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Prof. Nina G. Cruz', 'ncruz@bestlink.edu.ph', 'Panel Member', 'Research Methods / Data Analysis', 'Available', 'Pending', 'Recommended panel member for methodology and validation review.', 40, '2026-08-08 18:33:00', '2026-08-08 18:33:00', '2026-08-08 18:33:00');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `research_groups`
 --
 
@@ -135,18 +210,18 @@ CREATE TABLE `research_groups` (
   `leader_id` varchar(40) NOT NULL DEFAULT '',
   `leader_email` varchar(120) NOT NULL DEFAULT '',
   `leader_contact` varchar(40) NOT NULL DEFAULT '',
-  `status` varchar(40) NOT NULL DEFAULT 'Pending',
+  `status` varchar(40) NOT NULL DEFAULT 'Approved',
   `date_assigned` date NOT NULL,
   `created_by` int(10) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `research_groups`
 --
 
 INSERT INTO `research_groups` (`id`, `proposal_id`, `proposal_number`, `group_number`, `group_name`, `research_title`, `college_dept`, `adviser`, `academic_year`, `leader_name`, `leader_id`, `leader_email`, `leader_contact`, `status`, `date_assigned`, `created_by`, `created_at`) VALUES
-(7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Group 01', 'AI ASSISTEND TITLE OPENGPT', 'College of Computer Studies', 'Dr. Roberto M. Santos', 'A.Y. 2026-2027', 'User, Student A.', 'S230000001', 's230000001@bcp.edu.ph', '09171234567', 'Registered', '2026-08-08', 3, '2026-08-08 09:03:31');
+(7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Group 01', 'AI ASSISTEND TITLE OPENGPT', 'College of Computer Studies', 'Dr. Roberto M. Santos', 'A.Y. 2026-2027', 'User, Student A.', 'S230000001', 's230000001@bcp.edu.ph', '09171234567', 'Approved', '2026-08-08', 3, '2026-08-08 09:03:31');
 
 -- --------------------------------------------------------
 

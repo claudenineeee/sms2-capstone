@@ -52,7 +52,7 @@ function rgnEnsureSchema(PDO $pdo): void
             leader_id       VARCHAR(40) NOT NULL DEFAULT '',
             leader_email    VARCHAR(120) NOT NULL DEFAULT '',
             leader_contact  VARCHAR(40) NOT NULL DEFAULT '',
-            status          VARCHAR(40) NOT NULL DEFAULT 'Registered',
+            status          VARCHAR(40) NOT NULL DEFAULT 'Approved',
             date_assigned   DATE NOT NULL,
             created_by      INT UNSIGNED DEFAULT NULL,
             created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['process'] ?? '') === 'gen
                         (:proposal_id, :proposal_number, :group_number, :group_name,
                          :research_title, :college_dept, :adviser, :academic_year,
                          :leader_name, :leader_id, :leader_email, :leader_contact,
-                         'Registered', :date_assigned, :created_by)"
+                         'Approved', :date_assigned, :created_by)"
                 );
                 $ins->execute([
                     ':proposal_id'     => $proposalId,

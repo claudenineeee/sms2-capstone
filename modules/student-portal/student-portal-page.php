@@ -281,7 +281,7 @@ require_once __DIR__ . '/../../includes/layout-start.php';
                     <div>
                         <div class="text-uppercase fw-bold text-sms-primary small mb-1">New Research Group Number</div>
                         <h5 class="fw-bold mb-1"><?= htmlspecialchars($studentResearchGroup['group_number']) ?> is ready</h5>
-                        <p class="text-muted mb-0">Your registered proposal now has a research group number. Open the notification to view your status dashboard.</p>
+                        <p class="text-muted mb-0">Your approved proposal now has a research group number. Open the notification to view your status dashboard.</p>
                     </div>
                     <a class="btn btn-sms-primary" href="<?= BASE_URL ?>/modules/student-portal/pages/dashboard.php?research_group=1">
                         <i class="fas fa-bell me-2"></i>View Notification
@@ -296,18 +296,18 @@ require_once __DIR__ . '/../../includes/layout-start.php';
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                         <div>
                             <div class="text-uppercase fw-bold text-sms-primary small mb-1">Status Dashboard</div>
-                            <h5 class="fw-bold mb-0">Research Registration Status</h5>
+                            <h5 class="fw-bold mb-0">Research Approval Status</h5>
                         </div>
-                        <span class="badge text-bg-success">Registered</span>
+                        <span class="badge text-bg-success">Approved</span>
                     </div>
                     <div class="student-record-grid">
                         <div><span>Proposal Number</span><strong><?= htmlspecialchars($studentResearchGroup['proposal_number']) ?></strong></div>
                         <div><span>Research Group</span><strong><?= htmlspecialchars($studentResearchGroup['group_number']) ?></strong></div>
                         <div><span>Group Name</span><strong><?= htmlspecialchars($studentResearchGroup['group_name']) ?></strong></div>
-                        <div><span>Status</span><strong>Registered</strong></div>
+                        <div><span>Status</span><strong>Approved</strong></div>
                     </div>
                     <div class="mt-3">
-                        <span class="text-muted small fw-semibold"><?= htmlspecialchars($studentResearchGroup['research_title']) ?></span>
+                        <span class="text-muted small fw-semibold">Research Title : <strong><?= htmlspecialchars($studentResearchGroup['research_title']) ?></strong></span>
                     </div>
                 </div>
             </section>

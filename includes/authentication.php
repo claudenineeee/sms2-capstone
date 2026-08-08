@@ -302,12 +302,12 @@ function smsResearchCoordinatorCradModule(): array
             'Approved Research' => [
                 'approved-research',
             ],
-            'Adviser Assignment' => [
+            'A. Adviser Assignment' => [
                 'find-contact-adviser',
                 'adviser-availability',
                 'assign-research-adviser',
             ],
-            'Panel Assignment' => [
+            'B. Panel Assignment' => [
                 'find-contact-panel',
                 'panel-availability',
                 'assign-panel-members',
