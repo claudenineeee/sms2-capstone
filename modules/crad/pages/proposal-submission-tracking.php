@@ -307,15 +307,6 @@ a.pst-pipeline-item:hover .pst-review-arrow {
                    border:1px solid var(--sms-primary,#1e40af);border-radius:10px;">
                 <i class="fas fa-file-signature"></i> Register Proposal
             </a>
-            <a href="<?= BASE_URL ?>/modules/student-portal/pages/submit-documents.php"
-               class="pst-pipeline-filter"
-               style="
-                   display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;
-                   padding:0.5rem 0.9rem;text-decoration:none;white-space:nowrap;
-                   background:var(--sms-surface-solid,#fff);color:var(--sms-primary,#1e40af);font-weight:700;
-                   border:1px solid var(--sms-primary,#1e40af);border-radius:10px;">
-                <i class="fas fa-plus-circle"></i> New Submission
-            </a>
         </div>
 
         <div class="pst-pipeline" id="pstPipelineList">

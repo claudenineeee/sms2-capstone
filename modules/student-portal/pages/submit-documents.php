@@ -56,6 +56,9 @@ $defaultMemberName = $lastName . ', ' . $firstNames . ' A.';
 
 $uploadError = '';
 $submitted = false;
+$revisionRef = trim((string) ($_POST['revision_ref'] ?? ($_GET['revision_ref'] ?? '')));
+$revisionProposal = null;
+$revisionMembers = [];
 
 $documentSlots = [
     ['key' => 'manuscript', 'title' => 'Research Manuscript', 'desc' => 'Complete research paper manuscript.', 'required' => true],
@@ -66,6 +69,52 @@ $documentSlots = [
     ['key' => 'supporting', 'title' => 'Supporting Documents', 'desc' => 'Optional annexes and attachments.', 'required' => false],
     ['key' => 'receipt_screenshot', 'title' => 'Screenshot of the Receipt', 'desc' => 'Screenshot or photo of the payment receipt.', 'required' => true],
 ];
+
+if ($revisionRef !== '') {
+    try {
+        $cradPdo = getCradDatabaseConnection();
+        $studentEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
+        $studentNameForMatch = strtolower(trim((string) ($_SESSION['user_name'] ?? '')));
+        $stmt = $cradPdo->prepare(
+            "SELECT *
+             FROM research_proposals
+             WHERE ref_code = :ref
+               AND status = 'Returned'
+               AND (
+                    (:student_id_value <> '' AND rep_id = :student_id_rep)
+                 OR (:student_email_value <> '' AND LOWER(rep_email) = :student_email_rep)
+                 OR (:student_name_value <> '' AND LOWER(TRIM(rep_name)) = :student_name_rep)
+                 OR (:user_id_value > 0 AND submitted_by_user = :user_id_match)
+               )
+             LIMIT 1"
+        );
+        $stmt->execute([
+            ':ref' => $revisionRef,
+            ':student_id_value' => $studentId,
+            ':student_id_rep' => $studentId,
+            ':student_email_value' => $studentEmail,
+            ':student_email_rep' => $studentEmail,
+            ':student_name_value' => $studentNameForMatch,
+            ':student_name_rep' => $studentNameForMatch,
+            ':user_id_value' => $userId,
+            ':user_id_match' => $userId,
+        ]);
+        $revisionProposal = $stmt->fetch() ?: null;
+
+        if ($revisionProposal) {
+            $memberStmt = $cradPdo->prepare("SELECT * FROM proposal_members WHERE proposal_id = :pid ORDER BY sort_order ASC");
+            $memberStmt->execute([':pid' => (int) $revisionProposal['id']]);
+            $revisionMembers = $memberStmt->fetchAll() ?: [];
+        } else {
+            $uploadError = 'Returned proposal not found or you are not assigned as its representative.';
+            $revisionRef = '';
+        }
+    } catch (Throwable $e) {
+        error_log('Returned proposal load error: ' . $e->getMessage());
+        $uploadError = 'Unable to load the returned proposal. Please try again.';
+        $revisionRef = '';
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['process'] ?? '') === 'submit-documents')) {
     if (!csrfVerify()) {
@@ -111,44 +160,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['process'] ?? '') === 'sub
             try {
                 $cradPdo = getCradDatabaseConnection();
 
-                // Generate unique reference code: CRD-YYYY-NNNNN
-                $year    = date('Y');
-                $lastRow = $cradPdo->query(
-                    "SELECT MAX(id) AS max_id FROM research_proposals"
-                )->fetch();
-                $nextSeq = (int) ($lastRow['max_id'] ?? 0) + 1;
-                $refCode = 'CRD-' . $year . '-' . str_pad((string) $nextSeq, 5, '0', STR_PAD_LEFT);
+                $isRevision = $revisionRef !== '' && is_array($revisionProposal);
+                if ($isRevision) {
+                    $proposalId = (int) $revisionProposal['id'];
+                    $refCode = (string) $revisionProposal['ref_code'];
+                    $stmt = $cradPdo->prepare(
+                        "UPDATE research_proposals
+                         SET research_title = :research_title,
+                             program_course = :program_course,
+                             year_section = :year_section,
+                             college_department = :college_department,
+                             research_adviser = :research_adviser,
+                             academic_year = :academic_year,
+                             rep_name = :rep_name,
+                             rep_id = :rep_id,
+                             rep_email = :rep_email,
+                             rep_contact = :rep_contact,
+                             status = 'Submitted',
+                             progress = 0,
+                             date_submitted = :date_submitted,
+                             signature_data = :signature_data,
+                             updated_at = NOW()
+                         WHERE id = :proposal_id
+                         LIMIT 1"
+                    );
+                    $stmt->execute([
+                        ':research_title'     => trim($_POST['research_title']  ?? ''),
+                        ':program_course'     => trim($_POST['program_course']  ?? ''),
+                        ':year_section'       => trim($_POST['year_section']    ?? ''),
+                        ':college_department' => trim($_POST['college_department'] ?? ''),
+                        ':research_adviser'   => trim($_POST['research_adviser'] ?? ''),
+                        ':academic_year'      => trim($_POST['academic_year']   ?? ''),
+                        ':rep_name'           => trim($_POST['rep_name']        ?? ''),
+                        ':rep_id'             => trim($_POST['rep_id']          ?? ''),
+                        ':rep_email'          => trim($_POST['rep_email']       ?? ''),
+                        ':rep_contact'        => trim($_POST['rep_contact']     ?? ''),
+                        ':date_submitted'     => trim($_POST['date_submitted']  ?? date('Y-m-d')),
+                        ':signature_data'     => $_POST['signature_data']       ?? null,
+                        ':proposal_id'        => $proposalId,
+                    ]);
+                    $cradPdo->prepare("DELETE FROM proposal_members WHERE proposal_id = :pid")->execute([':pid' => $proposalId]);
+                    $cradPdo->prepare("DELETE FROM proposal_documents WHERE proposal_id = :pid")->execute([':pid' => $proposalId]);
+                } else {
+                    // Generate unique reference code: CRD-YYYY-NNNNN
+                    $year    = date('Y');
+                    $lastRow = $cradPdo->query(
+                        "SELECT MAX(id) AS max_id FROM research_proposals"
+                    )->fetch();
+                    $nextSeq = (int) ($lastRow['max_id'] ?? 0) + 1;
+                    $refCode = 'CRD-' . $year . '-' . str_pad((string) $nextSeq, 5, '0', STR_PAD_LEFT);
 
-                // Insert main proposal record
-                $stmt = $cradPdo->prepare(
-                    "INSERT INTO research_proposals
-                        (ref_code, research_title, program_course, year_section,
-                         college_department, research_adviser, academic_year,
-                         rep_name, rep_id, rep_email, rep_contact,
-                         status, progress, date_submitted, signature_data, submitted_by_user)
-                     VALUES
-                        (:ref_code, :research_title, :program_course, :year_section,
-                         :college_department, :research_adviser, :academic_year,
-                         :rep_name, :rep_id, :rep_email, :rep_contact,
-                         'Submitted', 0, :date_submitted, :signature_data, :submitted_by_user)"
-                );
-                $stmt->execute([
-                    ':ref_code'           => $refCode,
-                    ':research_title'     => trim($_POST['research_title']  ?? ''),
-                    ':program_course'     => trim($_POST['program_course']  ?? ''),
-                    ':year_section'       => trim($_POST['year_section']    ?? ''),
-                    ':college_department' => trim($_POST['college_department'] ?? ''),
-                    ':research_adviser'   => trim($_POST['research_adviser'] ?? ''),
-                    ':academic_year'      => trim($_POST['academic_year']   ?? ''),
-                    ':rep_name'           => trim($_POST['rep_name']        ?? ''),
-                    ':rep_id'             => trim($_POST['rep_id']          ?? ''),
-                    ':rep_email'          => trim($_POST['rep_email']       ?? ''),
-                    ':rep_contact'        => trim($_POST['rep_contact']     ?? ''),
-                    ':date_submitted'     => trim($_POST['date_submitted']  ?? date('Y-m-d')),
-                    ':signature_data'     => $_POST['signature_data']       ?? null,
-                    ':submitted_by_user'  => $userId ?: null,
-                ]);
-                $proposalId = (int) $cradPdo->lastInsertId();
+                    // Insert main proposal record
+                    $stmt = $cradPdo->prepare(
+                        "INSERT INTO research_proposals
+                            (ref_code, research_title, program_course, year_section,
+                             college_department, research_adviser, academic_year,
+                             rep_name, rep_id, rep_email, rep_contact,
+                             status, progress, date_submitted, signature_data, submitted_by_user)
+                         VALUES
+                            (:ref_code, :research_title, :program_course, :year_section,
+                             :college_department, :research_adviser, :academic_year,
+                             :rep_name, :rep_id, :rep_email, :rep_contact,
+                             'Submitted', 0, :date_submitted, :signature_data, :submitted_by_user)"
+                    );
+                    $stmt->execute([
+                        ':ref_code'           => $refCode,
+                        ':research_title'     => trim($_POST['research_title']  ?? ''),
+                        ':program_course'     => trim($_POST['program_course']  ?? ''),
+                        ':year_section'       => trim($_POST['year_section']    ?? ''),
+                        ':college_department' => trim($_POST['college_department'] ?? ''),
+                        ':research_adviser'   => trim($_POST['research_adviser'] ?? ''),
+                        ':academic_year'      => trim($_POST['academic_year']   ?? ''),
+                        ':rep_name'           => trim($_POST['rep_name']        ?? ''),
+                        ':rep_id'             => trim($_POST['rep_id']          ?? ''),
+                        ':rep_email'          => trim($_POST['rep_email']       ?? ''),
+                        ':rep_contact'        => trim($_POST['rep_contact']     ?? ''),
+                        ':date_submitted'     => trim($_POST['date_submitted']  ?? date('Y-m-d')),
+                        ':signature_data'     => $_POST['signature_data']       ?? null,
+                        ':submitted_by_user'  => $userId ?: null,
+                    ]);
+                    $proposalId = (int) $cradPdo->lastInsertId();
+                }
 
                 // Insert group members
                 $memberIds      = $_POST['member_id']      ?? [];
@@ -200,17 +292,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['process'] ?? '') === 'sub
                     "INSERT INTO proposal_status_logs
                         (proposal_id, old_status, new_status, changed_by, remarks)
                      VALUES
-                        (:proposal_id, NULL, 'Submitted', :changed_by, 'Initial submission via Student Portal')"
+                        (:proposal_id, :old_status, 'Submitted', :changed_by, :remarks)"
                 );
                 $logStmt->execute([
                     ':proposal_id' => $proposalId,
+                    ':old_status' => $isRevision ? 'Returned' : null,
                     ':changed_by'  => $userId ?: null,
+                    ':remarks' => $isRevision
+                        ? 'Student resubmitted revised document attachments after CRAD return remarks'
+                        : 'Initial submission via Student Portal',
                 ]);
 
                 if (function_exists('logActivity')) {
                     logActivity(
                         'create',
-                        'Submitted research document packet ref:' . $refCode . ' (' . count($saved) . ' files)',
+                        ($isRevision ? 'Resubmitted revised research document packet ref:' : 'Submitted research document packet ref:')
+                            . $refCode . ' (' . count($saved) . ' files)',
                         'student_portal'
                     );
                 }
@@ -273,30 +370,39 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     <form class="doc-vault-form" id="docVaultForm" method="post" action="" enctype="multipart/form-data">
         <?= csrfField() ?>
         <input type="hidden" name="process" value="submit-documents" id="docProcessField">
+        <input type="hidden" name="revision_ref" value="<?= htmlspecialchars($revisionRef) ?>">
 
         <header class="doc-vault-header">
             <div>
                 <span class="doc-vault-kicker">CRD Document Vault Sub-Module</span>
-                <h1>Research Document Attachment Form</h1>
-                <p>Formal system submission and storage matching program checklist guidelines.</p>
+                <h1><?= $revisionProposal ? 'Update Returned Document Attachments' : 'Research Document Attachment Form' ?></h1>
+                <p><?= $revisionProposal ? 'Resubmit revised files for ' . htmlspecialchars((string) $revisionProposal['ref_code']) . ' after reviewing CRAD remarks.' : 'Formal system submission and storage matching program checklist guidelines.' ?></p>
             </div>
             <a class="doc-btn doc-btn-ghost" href="<?= BASE_URL ?>/modules/student-portal/pages/my-profile.php">← Cancel &amp; Exit</a>
         </header>
+
+        <?php if ($revisionProposal): ?>
+            <div class="alert alert-danger m-3 mb-0" role="alert">
+                <div class="fw-bold mb-1"><i class="fas fa-undo me-2"></i>CRAD returned this proposal for revision.</div>
+                <div class="small mb-2">Returned on <?= htmlspecialchars(date('F j, Y h:i A', strtotime((string) $revisionProposal['updated_at']))) ?></div>
+                <div><?= nl2br(htmlspecialchars((string) ($revisionProposal['notes'] ?: 'Returned for revision. Please review the required corrections.'))) ?></div>
+            </div>
+        <?php endif; ?>
 
         <section class="doc-section">
             <h2><span></span>Research Information</h2>
             <div class="doc-field">
                 <label for="researchTitle">Research Title <em>*</em></label>
-                <input type="text" id="researchTitle" name="research_title" placeholder="ENTER COMPLETE APPROVED RESEARCH TITLE" required>
+                <input type="text" id="researchTitle" name="research_title" placeholder="ENTER COMPLETE APPROVED RESEARCH TITLE" value="<?= htmlspecialchars((string) ($revisionProposal['research_title'] ?? '')) ?>" required>
             </div>
             <div class="doc-grid-2">
                 <div class="doc-field">
                     <label for="programCourse">Program / Course <em>*</em></label>
-                    <input type="text" id="programCourse" name="program_course" value="BS in Information Technology" required>
+                    <input type="text" id="programCourse" name="program_course" value="<?= htmlspecialchars((string) ($revisionProposal['program_course'] ?? 'BS in Information Technology')) ?>" required>
                 </div>
                 <div class="doc-field">
                     <label for="yearSection">Year &amp; Section <em>*</em></label>
-                    <input type="text" id="yearSection" name="year_section" value="BSIT 4101" required>
+                    <input type="text" id="yearSection" name="year_section" value="<?= htmlspecialchars((string) ($revisionProposal['year_section'] ?? 'BSIT 4101')) ?>" required>
                 </div>
             </div>
             <div class="doc-grid-2">
@@ -304,7 +410,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     <label for="collegeDept">College / Department <em>*</em></label>
                     <select id="collegeDept" name="college_department" required>
                         <?php foreach ($departments as $dept): ?>
-                            <option value="<?= htmlspecialchars($dept) ?>" <?= $dept === 'College of Computer Studies' ? 'selected' : '' ?>>
+                            <option value="<?= htmlspecialchars($dept) ?>" <?= $dept === ($revisionProposal['college_department'] ?? 'College of Computer Studies') ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($dept) ?>
                             </option>
                         <?php endforeach; ?>
@@ -312,14 +418,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 </div>
                 <div class="doc-field">
                     <label for="researchAdviser">Research Adviser <em>*</em></label>
-                    <input type="text" id="researchAdviser" name="research_adviser" placeholder="Instructor / Doctor Name" value="Dr. Roberto M. Santos" required>
+                    <input type="text" id="researchAdviser" name="research_adviser" placeholder="Instructor / Doctor Name" value="<?= htmlspecialchars((string) ($revisionProposal['research_adviser'] ?? 'Dr. Roberto M. Santos')) ?>" required>
                 </div>
             </div>
             <div class="doc-field doc-field-half">
                 <label for="academicYear">Academic Year <em>*</em></label>
                 <select id="academicYear" name="academic_year" required>
                     <?php foreach ($academicYears as $year): ?>
-                        <option value="<?= htmlspecialchars($year) ?>" <?= $year === 'A.Y. 2026-2027' ? 'selected' : '' ?>>
+                        <option value="<?= htmlspecialchars($year) ?>" <?= $year === ($revisionProposal['academic_year'] ?? 'A.Y. 2026-2027') ? 'selected' : '' ?>>
                             <?= htmlspecialchars($year) ?>
                         </option>
                     <?php endforeach; ?>
@@ -338,12 +444,13 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     <span>Contact Number *</span>
                 </div>
                 <?php for ($i = 1; $i <= 5; $i++): ?>
+                    <?php $revisionMember = $revisionMembers[$i - 1] ?? null; ?>
                     <div class="doc-members-row">
                         <span><?= $i ?></span>
-                        <input type="text" name="member_id[]" placeholder="e.g. 2022-0451" <?= $i === 1 ? 'value="' . htmlspecialchars($studentId) . '" required' : '' ?>>
-                        <input type="text" name="member_name[]" placeholder="e.g. Dela Cruz, Juan A." <?= $i === 1 ? 'value="' . htmlspecialchars($defaultMemberName) . '" required' : '' ?>>
-                        <input type="email" name="member_email[]" placeholder="e.g. student@bcp.edu.ph" <?= $i === 1 ? 'value="s' . preg_replace('/\D+/', '', $studentId) . '@bcp.edu.ph" required' : '' ?>>
-                        <input type="text" name="member_contact[]" placeholder="e.g. 09XXXXXXXXX" <?= $i === 1 ? 'value="09171234567" required' : '' ?>>
+                        <input type="text" name="member_id[]" placeholder="e.g. 2022-0451" value="<?= htmlspecialchars((string) ($revisionMember['student_id'] ?? ($i === 1 ? $studentId : ''))) ?>" <?= $i === 1 ? 'required' : '' ?>>
+                        <input type="text" name="member_name[]" placeholder="e.g. Dela Cruz, Juan A." value="<?= htmlspecialchars((string) ($revisionMember['student_name'] ?? ($i === 1 ? $defaultMemberName : ''))) ?>" <?= $i === 1 ? 'required' : '' ?>>
+                        <input type="email" name="member_email[]" placeholder="e.g. student@bcp.edu.ph" value="<?= htmlspecialchars((string) ($revisionMember['email'] ?? ($i === 1 ? 's' . preg_replace('/\D+/', '', $studentId) . '@bcp.edu.ph' : ''))) ?>" <?= $i === 1 ? 'required' : '' ?>>
+                        <input type="text" name="member_contact[]" placeholder="e.g. 09XXXXXXXXX" value="<?= htmlspecialchars((string) ($revisionMember['contact'] ?? ($i === 1 ? '09171234567' : ''))) ?>" <?= $i === 1 ? 'required' : '' ?>>
                     </div>
                 <?php endfor; ?>
             </div>
@@ -389,19 +496,19 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             <div class="doc-grid-2">
                 <div class="doc-field">
                     <label for="repName">Representative Name <em>*</em></label>
-                    <input type="text" id="repName" name="rep_name" value="<?= htmlspecialchars($defaultMemberName) ?>" required>
+                    <input type="text" id="repName" name="rep_name" value="<?= htmlspecialchars((string) ($revisionProposal['rep_name'] ?? $defaultMemberName)) ?>" required>
                 </div>
                 <div class="doc-field">
                     <label for="repId">Student ID <em>*</em></label>
-                    <input type="text" id="repId" name="rep_id" value="<?= htmlspecialchars($studentId) ?>" required>
+                    <input type="text" id="repId" name="rep_id" value="<?= htmlspecialchars((string) ($revisionProposal['rep_id'] ?? $studentId)) ?>" required>
                 </div>
                 <div class="doc-field">
                     <label for="repEmail">Email Address <em>*</em></label>
-                    <input type="email" id="repEmail" name="rep_email" value="s<?= preg_replace('/\D+/', '', $studentId) ?>@bcp.edu.ph" required>
+                    <input type="email" id="repEmail" name="rep_email" value="<?= htmlspecialchars((string) ($revisionProposal['rep_email'] ?? ('s' . preg_replace('/\D+/', '', $studentId) . '@bcp.edu.ph'))) ?>" required>
                 </div>
                 <div class="doc-field">
                     <label for="repContact">Contact Number <em>*</em></label>
-                    <input type="text" id="repContact" name="rep_contact" value="09171234567" required>
+                    <input type="text" id="repContact" name="rep_contact" value="<?= htmlspecialchars((string) ($revisionProposal['rep_contact'] ?? '09171234567')) ?>" required>
                 </div>
             </div>
         </section>
@@ -423,14 +530,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 </div>
                 <div class="doc-field">
                     <label for="dateSubmitted">Date Submitted <em>*</em></label>
-                    <input type="date" id="dateSubmitted" name="date_submitted" value="<?= date('Y-m-d') ?>" required>
+                    <input type="date" id="dateSubmitted" name="date_submitted" value="<?= htmlspecialchars((string) ($revisionProposal['date_submitted'] ?? date('Y-m-d'))) ?>" required>
                 </div>
             </div>
         </section>
 
         <footer class="doc-form-footer">
             <button type="button" class="doc-btn doc-btn-muted" id="saveDraftBtn">Save Draft</button>
-            <button type="button" class="doc-btn doc-btn-purple" id="submitPacketBtn"><i class="fas fa-file-upload me-2"></i>Submit Form Packet</button>
+            <button type="button" class="doc-btn doc-btn-purple" id="submitPacketBtn"><i class="fas fa-file-upload me-2"></i><?= $revisionProposal ? 'Submit Revised Attachments' : 'Submit Form Packet' ?></button>
             <a class="doc-btn doc-btn-ghost" href="<?= BASE_URL ?>/modules/student-portal/pages/my-profile.php">Cancel</a>
         </footer>
     </form>

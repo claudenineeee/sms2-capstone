@@ -43,7 +43,96 @@ $studentProfile = [
     'guardian' => 'Maria Dela Cruz',
 ];
 
+$studentResearchGroup = null;
+$studentReturnedProposal = null;
+$showResearchGroupDashboard = !empty($_GET['research_group']);
+$showReturnedProposal = !empty($_GET['returned_proposal']);
+try {
+    require_once __DIR__ . '/../crad/config/config.php';
+    $cradPdo = cradDb();
+    if ($cradPdo instanceof PDO) {
+        $studentEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? $studentProfile['email'])));
+        $studentName = strtolower(trim((string) ($_SESSION['user_name'] ?? $studentProfile['name'])));
+        $studentUserId = (int) ($_SESSION['user_id'] ?? 0);
+        $stmt = $cradPdo->prepare(
+            "SELECT p.proposal_number, p.research_title, p.registration_status,
+                    p.rep_name, p.rep_id, p.rep_email, p.submitted_by_user,
+                    g.group_number, g.group_name, g.status, g.date_assigned, g.created_at
+             FROM research_groups g
+             INNER JOIN research_proposals p ON p.id = g.proposal_id
+             WHERE g.group_number IS NOT NULL
+               AND (
+                    (:student_id_value <> '' AND p.rep_id = :student_id_rep)
+                 OR (:student_email_value <> '' AND LOWER(p.rep_email) = :student_email_rep)
+                 OR (:student_name_value <> '' AND LOWER(TRIM(p.rep_name)) = :student_name_rep)
+                 OR (:user_id_value > 0 AND p.submitted_by_user = :user_id_match)
+               )
+             ORDER BY g.date_assigned DESC, g.id DESC
+             LIMIT 1"
+        );
+        $stmt->execute([
+            ':student_id_value' => $studentProfile['student_id'],
+            ':student_id_rep' => $studentProfile['student_id'],
+            ':student_email_value' => $studentEmail,
+            ':student_email_rep' => $studentEmail,
+            ':student_name_value' => $studentName,
+            ':student_name_rep' => $studentName,
+            ':user_id_value' => $studentUserId,
+            ':user_id_match' => $studentUserId,
+        ]);
+        $studentResearchGroup = $stmt->fetch() ?: null;
+
+        $returnedRef = trim((string) ($_GET['returned_proposal'] ?? ''));
+        $returnedSql = "SELECT ref_code, research_title, notes, updated_at, date_submitted, status
+             FROM research_proposals
+             WHERE status = 'Returned'
+               AND (
+                    (:student_id_value_return <> '' AND rep_id = :student_id_rep_return)
+                 OR (:student_email_value_return <> '' AND LOWER(rep_email) = :student_email_rep_return)
+                 OR (:student_name_value_return <> '' AND LOWER(TRIM(rep_name)) = :student_name_rep_return)
+                 OR (:user_id_value_return > 0 AND submitted_by_user = :user_id_match_return)
+               )";
+        if ($returnedRef !== '') {
+            $returnedSql .= " AND ref_code = :returned_ref";
+        }
+        $returnedSql .= " ORDER BY updated_at DESC, id DESC LIMIT 1";
+
+        $returnedStmt = $cradPdo->prepare($returnedSql);
+        $returnedParams = [
+            ':student_id_value_return' => $studentProfile['student_id'],
+            ':student_id_rep_return' => $studentProfile['student_id'],
+            ':student_email_value_return' => $studentEmail,
+            ':student_email_rep_return' => $studentEmail,
+            ':student_name_value_return' => $studentName,
+            ':student_name_rep_return' => $studentName,
+            ':user_id_value_return' => $studentUserId,
+            ':user_id_match_return' => $studentUserId,
+        ];
+        if ($returnedRef !== '') {
+            $returnedParams[':returned_ref'] = $returnedRef;
+        }
+        $returnedStmt->execute($returnedParams);
+        $studentReturnedProposal = $returnedStmt->fetch() ?: null;
+    }
+} catch (Throwable $e) {
+    error_log('Student portal research group notification error: ' . $e->getMessage());
+}
+
+$researchGroupNotificationSeen = false;
+if ($studentResearchGroup && !empty($studentResearchGroup['group_number'])) {
+    $researchGroupNumberKey = (string) ($studentResearchGroup['proposal_number'] ?? '') . '|' . (string) $studentResearchGroup['group_number'];
+    if ($showResearchGroupDashboard) {
+        $_SESSION['viewed_research_group_numbers'][$researchGroupNumberKey] = true;
+    }
+    $researchGroupNotificationSeen = !empty($_SESSION['viewed_research_group_numbers'][$researchGroupNumberKey]);
+}
+
 $studentPages = [
+    'dashboard' => [
+        'title' => 'Dashboard',
+        'icon' => 'fa-tachometer-alt',
+        'description' => 'View your enrollment, academic, finance, and research overview.',
+    ],
     'my-profile' => [
         'title' => 'My Profile',
         'icon' => 'fa-user',
@@ -92,7 +181,7 @@ $studentPages = [
 ];
 
 if (!isset($studentPages[$studentPortalPage])) {
-    $studentPortalPage = 'my-profile';
+    $studentPortalPage = 'dashboard';
 }
 
 $pageMeta = $studentPages[$studentPortalPage];
@@ -118,7 +207,7 @@ $pageTitle = $pageMeta['title'];
 $activeModule = 'student_portal';
 $activePage = $studentPortalPage;
 $breadcrumbs = [
-    ['label' => 'Student Portal', 'url' => BASE_URL . '/modules/student-portal/pages/my-profile.php'],
+    ['label' => 'Student Portal', 'url' => BASE_URL . '/modules/student-portal/pages/dashboard.php'],
     ['label' => $pageMeta['title'], 'url' => null],
 ];
 
@@ -152,7 +241,148 @@ require_once __DIR__ . '/../../includes/layout-start.php';
         </div>
     <?php endif; ?>
 
-    <?php if ($studentPortalPage === 'my-profile'): ?>
+    <?php if ($studentPortalPage === 'dashboard'): ?>
+        <?php if ($studentReturnedProposal && $showReturnedProposal): ?>
+            <section class="card mb-3 border-0 shadow-sm" style="border-left:4px solid #ef4444 !important;">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                        <div>
+                            <div class="text-uppercase fw-bold text-danger small mb-1">Returned Proposal</div>
+                            <h5 class="fw-bold mb-1"><?= htmlspecialchars($studentReturnedProposal['research_title']) ?></h5>
+                            <p class="text-muted mb-0">
+                                <?= htmlspecialchars($studentReturnedProposal['ref_code']) ?> returned on
+                                <?= htmlspecialchars(date('F j, Y', strtotime((string) $studentReturnedProposal['updated_at']))) ?>.
+                            </p>
+                        </div>
+                        <span class="badge text-bg-danger">Returned</span>
+                    </div>
+                    <div class="student-record-grid">
+                        <div><span>Proposal Reference</span><strong><?= htmlspecialchars($studentReturnedProposal['ref_code']) ?></strong></div>
+                        <div><span>Date Returned</span><strong><?= htmlspecialchars(date('F j, Y', strtotime((string) $studentReturnedProposal['updated_at']))) ?></strong></div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="text-uppercase fw-bold text-muted small mb-2">CRAD Remarks</div>
+                        <div class="p-3 rounded border bg-light text-dark">
+                            <?= nl2br(htmlspecialchars((string) ($studentReturnedProposal['notes'] ?: 'Returned for revision. Please review the required corrections.'))) ?>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <a class="btn btn-danger" href="<?= BASE_URL ?>/modules/student-portal/pages/submit-documents.php?revision_ref=<?= urlencode((string) $studentReturnedProposal['ref_code']) ?>">
+                            <i class="fas fa-cloud-upload-alt me-2"></i>Update Document Attachments
+                        </a>
+                    </div>
+                </div>
+            </section>
+        <?php endif; ?>
+
+        <?php if ($studentResearchGroup && !$showResearchGroupDashboard && !$researchGroupNotificationSeen): ?>
+            <section class="card mb-3 border-0 shadow-sm" style="border-left:4px solid #4f46e5 !important;">
+                <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <div>
+                        <div class="text-uppercase fw-bold text-sms-primary small mb-1">New Research Group Number</div>
+                        <h5 class="fw-bold mb-1"><?= htmlspecialchars($studentResearchGroup['group_number']) ?> is ready</h5>
+                        <p class="text-muted mb-0">Your registered proposal now has a research group number. Open the notification to view your status dashboard.</p>
+                    </div>
+                    <a class="btn btn-sms-primary" href="<?= BASE_URL ?>/modules/student-portal/pages/dashboard.php?research_group=1">
+                        <i class="fas fa-bell me-2"></i>View Notification
+                    </a>
+                </div>
+            </section>
+        <?php endif; ?>
+
+        <?php if ($studentResearchGroup && ($showResearchGroupDashboard || $researchGroupNotificationSeen)): ?>
+            <section class="card mb-3 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                        <div>
+                            <div class="text-uppercase fw-bold text-sms-primary small mb-1">Status Dashboard</div>
+                            <h5 class="fw-bold mb-0">Research Registration Status</h5>
+                        </div>
+                        <span class="badge text-bg-success">Registered</span>
+                    </div>
+                    <div class="student-record-grid">
+                        <div><span>Proposal Number</span><strong><?= htmlspecialchars($studentResearchGroup['proposal_number']) ?></strong></div>
+                        <div><span>Research Group</span><strong><?= htmlspecialchars($studentResearchGroup['group_number']) ?></strong></div>
+                        <div><span>Group Name</span><strong><?= htmlspecialchars($studentResearchGroup['group_name']) ?></strong></div>
+                        <div><span>Status</span><strong>Registered</strong></div>
+                    </div>
+                    <div class="mt-3">
+                        <span class="text-muted small fw-semibold"><?= htmlspecialchars($studentResearchGroup['research_title']) ?></span>
+                    </div>
+                </div>
+            </section>
+        <?php endif; ?>
+
+        <div class="row g-3 mb-3 dashboard-stats">
+            <div class="col-md-3">
+                <section class="card stat-card primary">
+                    <div class="card-body">
+                        <h6 class="text-muted">Enrollment Status</h6>
+                        <h4 class="fw-bold mb-0">Enrolled</h4>
+                    </div>
+                </section>
+            </div>
+            <div class="col-md-3">
+                <section class="card stat-card success">
+                    <div class="card-body">
+                        <h6 class="text-muted">Current GWA</h6>
+                        <h4 class="fw-bold mb-0">1.75</h4>
+                    </div>
+                </section>
+            </div>
+            <div class="col-md-3">
+                <section class="card stat-card warning">
+                    <div class="card-body">
+                        <h6 class="text-muted">Balance</h6>
+                        <h4 class="fw-bold mb-0">PHP 8,450.00</h4>
+                    </div>
+                </section>
+            </div>
+            <div class="col-md-3">
+                <section class="card stat-card info">
+                    <div class="card-body">
+                        <h6 class="text-muted">Current Units</h6>
+                        <h4 class="fw-bold mb-0">18</h4>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-7">
+                <section class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title fw-semibold mb-3">Today at a Glance</h5>
+                        <div class="student-list">
+                            <div><strong>Web Systems and Technologies</strong><span>8:00 AM - 9:30 AM · Lab 204</span><small>Prof. Maria Santos</small></div>
+                            <div><strong>Database Management</strong><span>10:00 AM - 11:30 AM · Room 302</span><small>Prof. Carlo Reyes</small></div>
+                            <div><strong>Systems Analysis and Design</strong><span>1:00 PM - 4:00 PM · Room 210</span><small>Hybrid session</small></div>
+                        </div>
+                        <div class="student-process-bar">
+                            <a class="btn btn-sms-primary" href="<?= BASE_URL ?>/modules/student-portal/pages/class-schedule.php"><i class="fas fa-calendar-alt me-2"></i>View Schedule</a>
+                            <a class="btn btn-outline-primary" href="<?= BASE_URL ?>/modules/student-portal/pages/grades-portal.php"><i class="fas fa-star-half-alt me-2"></i>Check Grades</a>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <div class="col-lg-5">
+                <section class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title fw-semibold mb-3">Quick Actions</h5>
+                        <div class="student-process-steps">
+                            <div><span>1</span><strong>Submit research proposal</strong><p>Prepare your title proposal for CRAD review.</p></div>
+                            <div><span>2</span><strong>Upload required documents</strong><p>Research Forum payment unlocks document submission.</p></div>
+                            <div><span>3</span><strong>Monitor records</strong><p>Review balance, receipts, and academic standing.</p></div>
+                        </div>
+                        <div class="student-process-bar">
+                            <a class="btn btn-sms-primary" href="<?= BASE_URL ?>/modules/student-portal/pages/research-proposal-submission.php"><i class="fas fa-flask me-2"></i>Research Proposal</a>
+                            <a class="btn btn-outline-primary" href="<?= BASE_URL ?>/modules/student-portal/pages/account-balance.php"><i class="fas fa-wallet me-2"></i>Account Balance</a>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    <?php elseif ($studentPortalPage === 'my-profile'): ?>
         <div class="row g-3">
             <div class="col-lg-4">
                 <section class="card student-profile-card h-100">

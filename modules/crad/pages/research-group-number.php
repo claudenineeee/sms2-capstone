@@ -2,7 +2,7 @@
 /**
  * SMS 2 - Research Group Number
  * Module: CRAD
- * Register and manage research group numbers assigned to student teams.
+ * Generates research group numbers for registered proposals.
  */
 require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../config/config.php';
@@ -15,529 +15,442 @@ $pageTitle    = 'Research Group Number';
 $activeModule = 'crad';
 $activePage   = 'research-group-number';
 $breadcrumbs  = [
-    ['label' => 'CRAD',              'url' => BASE_URL . '/modules/crad/index.php'],
+    ['label' => 'CRAD', 'url' => BASE_URL . '/modules/crad/index.php'],
     ['label' => 'Research Group Number', 'url' => null],
 ];
 
 require_once __DIR__ . '/../../../includes/breadcrumbs.php';
-require_once __DIR__ . '/../../../includes/layout-start.php';
 
-// ── Departments ───────────────────────────────────────────────────────────────
-$departments = [
-    'College of Computer Studies',
-    'College of Business Administration',
-    'College of Education',
-    'College of Criminal Justice',
-    'College of Hospitality & Tourism Management',
-    'College of Nursing and Health Sciences',
-];
+function rgnEnsureSchema(PDO $pdo): void
+{
+    $proposalColumns = [
+        'proposal_number' => "ALTER TABLE research_proposals ADD proposal_number VARCHAR(30) NULL AFTER ref_code",
+        'approved_at' => "ALTER TABLE research_proposals ADD approved_at DATETIME NULL AFTER progress",
+        'registered_at' => "ALTER TABLE research_proposals ADD registered_at DATETIME NULL AFTER approved_at",
+        'registration_status' => "ALTER TABLE research_proposals ADD registration_status ENUM('Pending','Registered') NOT NULL DEFAULT 'Pending' AFTER registered_at",
+    ];
 
-$academicYears = [
-    'A.Y. 2025-2026',
-    'A.Y. 2026-2027',
-    'A.Y. 2027-2028',
-];
+    foreach ($proposalColumns as $column => $sql) {
+        $exists = $pdo->query("SHOW COLUMNS FROM research_proposals LIKE " . $pdo->quote($column))->fetch();
+        if (!$exists) {
+            $pdo->exec($sql);
+        }
+    }
 
-// ── Fetch existing groups ─────────────────────────────────────────────────────
-$groups   = [];
-$nextSeq  = 1;
-$totalGroups  = 0;
-$totalActive  = 0;
-$totalPending = 0;
-$totalDone    = 0;
-
-try {
-    $cradPdo = getCradDatabaseConnection();
-
-    // Create table if it doesn't exist yet
-    $cradPdo->exec("
+    $pdo->exec("
         CREATE TABLE IF NOT EXISTS research_groups (
             id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            group_number    VARCHAR(40)  NOT NULL,
+            proposal_id     INT UNSIGNED DEFAULT NULL,
+            proposal_number VARCHAR(30) DEFAULT NULL,
+            group_number    VARCHAR(40) NOT NULL,
+            group_name      VARCHAR(40) NOT NULL DEFAULT '',
             research_title  VARCHAR(255) NOT NULL DEFAULT '',
             college_dept    VARCHAR(120) NOT NULL DEFAULT '',
             adviser         VARCHAR(120) NOT NULL DEFAULT '',
-            academic_year   VARCHAR(20)  NOT NULL DEFAULT '',
+            academic_year   VARCHAR(20) NOT NULL DEFAULT '',
             leader_name     VARCHAR(120) NOT NULL DEFAULT '',
-            leader_id       VARCHAR(40)  NOT NULL DEFAULT '',
+            leader_id       VARCHAR(40) NOT NULL DEFAULT '',
             leader_email    VARCHAR(120) NOT NULL DEFAULT '',
-            leader_contact  VARCHAR(40)  NOT NULL DEFAULT '',
-            status          VARCHAR(40)  NOT NULL DEFAULT 'Pending',
-            date_assigned   DATE         NOT NULL,
+            leader_contact  VARCHAR(40) NOT NULL DEFAULT '',
+            status          VARCHAR(40) NOT NULL DEFAULT 'Registered',
+            date_assigned   DATE NOT NULL,
             created_by      INT UNSIGNED DEFAULT NULL,
-            created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
-    $lastRow = $cradPdo->query("SELECT MAX(id) AS max_id FROM research_groups")->fetch();
-    $nextSeq = (int)($lastRow['max_id'] ?? 0) + 1;
+    $columns = [
+        'proposal_id' => "ALTER TABLE research_groups ADD proposal_id INT UNSIGNED DEFAULT NULL AFTER id",
+        'proposal_number' => "ALTER TABLE research_groups ADD proposal_number VARCHAR(30) DEFAULT NULL AFTER proposal_id",
+        'group_name' => "ALTER TABLE research_groups ADD group_name VARCHAR(40) NOT NULL DEFAULT '' AFTER group_number",
+    ];
 
-    $stmt   = $cradPdo->query("SELECT * FROM research_groups ORDER BY date_assigned DESC, id DESC");
-    $groups = $stmt->fetchAll();
-
-    foreach ($groups as $g) {
-        $totalGroups++;
-        match ($g['status']) {
-            'Active'     => $totalActive++,
-            'Completed'  => $totalDone++,
-            default      => $totalPending++,
-        };
+    foreach ($columns as $column => $sql) {
+        $exists = $pdo->query("SHOW COLUMNS FROM research_groups LIKE " . $pdo->quote($column))->fetch();
+        if (!$exists) {
+            $pdo->exec($sql);
+        }
     }
-} catch (Throwable $e) {
-    error_log('CRAD research-group-number error: ' . $e->getMessage());
-}
 
-$groupNumber = 'RGN-' . date('Y') . '-' . str_pad((string)$nextSeq, 4, '0', STR_PAD_LEFT);
+    $indexes = [
+        'group_number' => "ALTER TABLE research_groups ADD UNIQUE KEY group_number (group_number)",
+        'proposal_id' => "ALTER TABLE research_groups ADD UNIQUE KEY proposal_id (proposal_id)",
+        'idx_rg_proposal_number' => "ALTER TABLE research_groups ADD KEY idx_rg_proposal_number (proposal_number)",
+    ];
 
-// ── Handle form submission ────────────────────────────────────────────────────
-$formError   = '';
-$formSuccess = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['process'] ?? '') === 'register-group-number')) {
-    if (!csrfVerify()) {
-        $formError = 'Security check failed. Please try again.';
-    } else {
-        try {
-            $cradPdo = getCradDatabaseConnection();
-
-            $lastRow = $cradPdo->query("SELECT MAX(id) AS max_id FROM research_groups")->fetch();
-            $seq     = (int)($lastRow['max_id'] ?? 0) + 1;
-            $grpNo   = 'RGN-' . date('Y') . '-' . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
-
-            $ins = $cradPdo->prepare("
-                INSERT INTO research_groups
-                    (group_number, research_title, college_dept, adviser,
-                     academic_year, leader_name, leader_id, leader_email,
-                     leader_contact, status, date_assigned, created_by)
-                VALUES
-                    (:grp, :title, :dept, :adviser,
-                     :ay, :lname, :lid, :lemail,
-                     :lcontact, 'Pending', :dated, :uid)
-            ");
-            $ins->execute([
-                ':grp'      => $grpNo,
-                ':title'    => trim($_POST['research_title']   ?? ''),
-                ':dept'     => trim($_POST['college_dept']     ?? ''),
-                ':adviser'  => trim($_POST['adviser']          ?? ''),
-                ':ay'       => trim($_POST['academic_year']    ?? ''),
-                ':lname'    => trim($_POST['leader_name']      ?? ''),
-                ':lid'      => trim($_POST['leader_id']        ?? ''),
-                ':lemail'   => trim($_POST['leader_email']     ?? ''),
-                ':lcontact' => trim($_POST['leader_contact']   ?? ''),
-                ':dated'    => trim($_POST['date_assigned']    ?? date('Y-m-d')),
-                ':uid'      => (int)($_SESSION['user_id'] ?? 0) ?: null,
-            ]);
-
-            if (function_exists('logActivity')) {
-                logActivity('create', 'Registered research group number: ' . $grpNo, 'crad');
-            }
-
-            $formSuccess = 'Research group <strong>' . htmlspecialchars($grpNo) . '</strong> has been registered successfully.';
-            $groupNumber = 'RGN-' . date('Y') . '-' . str_pad((string)($seq + 1), 4, '0', STR_PAD_LEFT);
-
-            // Refresh list
-            $stmt   = $cradPdo->query("SELECT * FROM research_groups ORDER BY date_assigned DESC, id DESC");
-            $groups = $stmt->fetchAll();
-            $totalGroups  = count($groups);
-            $totalActive  = count(array_filter($groups, fn($g) => $g['status'] === 'Active'));
-            $totalDone    = count(array_filter($groups, fn($g) => $g['status'] === 'Completed'));
-            $totalPending = $totalGroups - $totalActive - $totalDone;
-
-        } catch (Throwable $e) {
-            error_log('CRAD register group error: ' . $e->getMessage());
-            $formError = 'Failed to register group. Please try again. (' . htmlspecialchars($e->getMessage()) . ')';
+    foreach ($indexes as $name => $sql) {
+        $exists = $pdo->query("SHOW INDEX FROM research_groups WHERE Key_name = " . $pdo->quote($name))->fetch();
+        if (!$exists) {
+            $pdo->exec($sql);
         }
     }
 }
+
+function rgnBuildGroupNumber(int $sequence): string
+{
+    return 'RG-' . date('Y') . '-' . str_pad((string) $sequence, 3, '0', STR_PAD_LEFT);
+}
+
+function rgnBuildGroupName(int $sequence): string
+{
+    return 'Group ' . str_pad((string) $sequence, 2, '0', STR_PAD_LEFT);
+}
+
+$formError = '';
+$formSuccess = '';
+
+try {
+    $cradPdo = getCradDatabaseConnection();
+    rgnEnsureSchema($cradPdo);
+} catch (Throwable $e) {
+    error_log('CRAD research group setup error: ' . $e->getMessage());
+    $formError = 'Failed to prepare research group database. (' . htmlspecialchars($e->getMessage()) . ')';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['process'] ?? '') === 'generate-research-group')) {
+    if (!csrfVerify()) {
+        $formError = 'Security check failed. Please try again.';
+    } else {
+        $proposalId = (int) ($_POST['proposal_id'] ?? 0);
+
+        try {
+            $cradPdo = getCradDatabaseConnection();
+            rgnEnsureSchema($cradPdo);
+            $cradPdo->beginTransaction();
+
+            $stmt = $cradPdo->prepare(
+                "SELECT id, proposal_number, research_title, college_department,
+                        research_adviser, academic_year, rep_name, rep_id,
+                        rep_email, rep_contact, registration_status
+                 FROM research_proposals
+                 WHERE id = :id
+                 LIMIT 1
+                 FOR UPDATE"
+            );
+            $stmt->execute([':id' => $proposalId]);
+            $proposal = $stmt->fetch();
+
+            if (!$proposal) {
+                throw new RuntimeException('Proposal not found.');
+            }
+            if (($proposal['registration_status'] ?? '') !== 'Registered' || empty($proposal['proposal_number'])) {
+                throw new RuntimeException('Only registered proposals can receive a research group number.');
+            }
+
+            $existing = $cradPdo->prepare("SELECT group_number FROM research_groups WHERE proposal_id = :id LIMIT 1");
+            $existing->execute([':id' => $proposalId]);
+            $existingGroup = $existing->fetch();
+
+            if ($existingGroup) {
+                $groupNumber = $existingGroup['group_number'];
+            } else {
+                $lastRow = $cradPdo->query("SELECT MAX(id) AS max_id FROM research_groups")->fetch();
+                $seq = (int) ($lastRow['max_id'] ?? 0) + 1;
+                $groupNumber = rgnBuildGroupNumber($seq);
+                $groupName = rgnBuildGroupName($seq);
+
+                $ins = $cradPdo->prepare(
+                    "INSERT INTO research_groups
+                        (proposal_id, proposal_number, group_number, group_name,
+                         research_title, college_dept, adviser, academic_year,
+                         leader_name, leader_id, leader_email, leader_contact,
+                         status, date_assigned, created_by)
+                     VALUES
+                        (:proposal_id, :proposal_number, :group_number, :group_name,
+                         :research_title, :college_dept, :adviser, :academic_year,
+                         :leader_name, :leader_id, :leader_email, :leader_contact,
+                         'Registered', :date_assigned, :created_by)"
+                );
+                $ins->execute([
+                    ':proposal_id'     => $proposalId,
+                    ':proposal_number' => $proposal['proposal_number'],
+                    ':group_number'    => $groupNumber,
+                    ':group_name'      => $groupName,
+                    ':research_title'  => $proposal['research_title'],
+                    ':college_dept'    => $proposal['college_department'],
+                    ':adviser'         => $proposal['research_adviser'],
+                    ':academic_year'   => $proposal['academic_year'],
+                    ':leader_name'     => $proposal['rep_name'],
+                    ':leader_id'       => $proposal['rep_id'],
+                    ':leader_email'    => $proposal['rep_email'],
+                    ':leader_contact'  => $proposal['rep_contact'],
+                    ':date_assigned'   => date('Y-m-d'),
+                    ':created_by'      => (int) ($_SESSION['user_id'] ?? 0) ?: null,
+                ]);
+            }
+
+            $cradPdo->commit();
+
+            if (function_exists('logActivity')) {
+                logActivity('create', 'Generated research group number: ' . $groupNumber, 'crad');
+            }
+
+            $formSuccess = 'Research group number <strong>' . htmlspecialchars($groupNumber) . '</strong> has been linked to proposal <strong>' . htmlspecialchars($proposal['proposal_number']) . '</strong>.';
+        } catch (Throwable $e) {
+            if (isset($cradPdo) && $cradPdo instanceof PDO && $cradPdo->inTransaction()) {
+                $cradPdo->rollBack();
+            }
+            error_log('CRAD generate research group error: ' . $e->getMessage());
+            $formError = 'Failed to generate research group number. ' . htmlspecialchars($e->getMessage());
+        }
+    }
+}
+
+$registeredProposals = [];
+$totalLinked = 0;
+$totalPending = 0;
+
+try {
+    $cradPdo = getCradDatabaseConnection();
+    rgnEnsureSchema($cradPdo);
+
+    $stmt = $cradPdo->query(
+        "SELECT p.id, p.proposal_number, p.research_title, p.rep_name,
+                p.college_department, p.research_adviser, p.academic_year,
+                p.registered_at, g.group_number, g.group_name, g.date_assigned
+         FROM research_proposals p
+         LEFT JOIN research_groups g ON g.proposal_id = p.id
+         WHERE p.registration_status = 'Registered'
+           AND p.proposal_number IS NOT NULL
+         ORDER BY
+           CASE WHEN g.id IS NULL THEN 0 ELSE 1 END,
+           p.registered_at DESC,
+           p.id DESC"
+    );
+    $registeredProposals = $stmt->fetchAll();
+    $totalLinked = count(array_filter($registeredProposals, fn($p) => !empty($p['group_number'])));
+    $totalPending = count($registeredProposals) - $totalLinked;
+} catch (Throwable $e) {
+    error_log('CRAD research group list error: ' . $e->getMessage());
+    if ($formError === '') {
+        $formError = 'Failed to load registered proposals. (' . htmlspecialchars($e->getMessage()) . ')';
+    }
+}
+
+require_once __DIR__ . '/../../../includes/layout-start.php';
 ?>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <?php if ($formError !== ''): ?>
-<div style="display:flex;align-items:center;gap:.75rem;padding:.85rem 1.1rem;margin-bottom:1rem;
-            border:1px solid #fecaca;border-radius:12px;background:#fef2f2;color:#991b1b;
-            font-size:.88rem;font-weight:600;" role="alert">
-    <i class="fas fa-exclamation-circle" style="font-size:1.1rem;flex-shrink:0;"></i>
+<div class="rgn-alert rgn-alert-danger" role="alert">
+    <i class="fas fa-exclamation-circle"></i>
     <span><?= $formError ?></span>
 </div>
 <?php endif; ?>
+
 <?php if ($formSuccess !== ''): ?>
-<div style="display:flex;align-items:center;gap:.75rem;padding:.85rem 1.1rem;margin-bottom:1rem;
-            border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4;color:#166534;
-            font-size:.88rem;font-weight:600;" role="alert">
-    <i class="fas fa-check-circle" style="font-size:1.1rem;flex-shrink:0;"></i>
+<div class="rgn-alert rgn-alert-success" role="alert">
+    <i class="fas fa-check-circle"></i>
     <span><?= $formSuccess ?></span>
 </div>
 <?php endif; ?>
 
 <style>
-/* ── Shared wrapper ── */
-.rgn-wrap { display:flex; flex-direction:column; gap:1.5rem; }
-
-/* ── Header banner ── */
+.rgn-wrap { display: flex; flex-direction: column; gap: 1.25rem; }
+.rgn-alert {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.85rem 1.1rem; margin-bottom: 1rem;
+    border-radius: 12px; font-size: 0.88rem; font-weight: 600;
+}
+.rgn-alert-danger { border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; }
+.rgn-alert-success { border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; }
 .rgn-header {
-    display:flex; align-items:center; justify-content:space-between; gap:1rem;
-    padding:1.25rem 1.4rem;
-    border-radius:16px;
-    background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 50%,#312e81 100%);
-    color:#fff; box-shadow:var(--sms-shadow-sm);
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 1.25rem 1.4rem;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #312e81 100%);
+    color: #fff; box-shadow: var(--sms-shadow-sm);
 }
-.rgn-header h1 { margin:0; font-size:1.35rem; font-weight:800; }
-.rgn-header p  { margin:.3rem 0 0; color:#c7d2fe; font-size:.86rem; }
-.rgn-header-actions { display:flex; gap:.6rem; flex-shrink:0; }
+.rgn-header h1 { margin: 0; font-size: 1.35rem; font-weight: 800; }
+.rgn-header p { margin: 0.3rem 0 0; color: #c7d2fe; font-size: 0.86rem; }
 .rgn-btn {
-    display:inline-flex; align-items:center; gap:.4rem;
-    min-height:40px; padding:.5rem 1rem; border-radius:10px;
-    border:1px solid transparent; font-size:.84rem; font-weight:700;
-    text-decoration:none; cursor:pointer; transition:all .15s ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.42rem;
+    min-height: 38px; padding: 0.48rem 0.9rem;
+    border: 1px solid transparent; border-radius: 10px;
+    font-size: 0.82rem; font-weight: 800; text-decoration: none;
+    cursor: pointer; white-space: nowrap;
 }
-.rgn-btn-ghost   { color:#e0e7ff; background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.25); }
-.rgn-btn-ghost:hover { background:rgba(255,255,255,.18); color:#fff; }
-.rgn-btn-primary { color:#fff; background:#4f46e5; border-color:#4f46e5; box-shadow:0 6px 16px rgba(79,70,229,.35); }
-.rgn-btn-primary:hover { background:#4338ca; border-color:#4338ca; }
-
-/* ── Stat cards ── */
-.rgn-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; }
-@media(max-width:900px){ .rgn-stats{ grid-template-columns:repeat(2,1fr); } }
-@media(max-width:540px){ .rgn-stats{ grid-template-columns:1fr; } }
+.rgn-btn-ghost { color: #e0e7ff; background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.25); }
+.rgn-btn-primary { color: #fff; background: #4f46e5; border-color: #4f46e5; box-shadow: 0 6px 16px rgba(79,70,229,0.28); }
+.rgn-btn-done { color: #047857; background: #d1fae5; border-color: #a7f3d0; cursor: default; }
+.rgn-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 0.85rem; }
 .rgn-stat {
-    display:flex; align-items:center; gap:.9rem;
-    padding:1rem 1.2rem; border-radius:14px;
-    border:1px solid var(--sms-border,#e2e8f0);
-    background:var(--sms-surface-solid,#fff);
-    box-shadow:var(--sms-shadow-sm);
+    display: flex; align-items: center; gap: 0.85rem;
+    padding: 0.95rem 1rem;
+    border: 1px solid var(--sms-border, #e2e8f0);
+    border-radius: 14px;
+    background: var(--sms-surface-solid, #fff);
+    box-shadow: var(--sms-shadow-xs);
 }
 .rgn-stat-icon {
-    width:44px; height:44px; border-radius:12px;
-    display:grid; place-items:center; font-size:1.05rem; flex-shrink:0;
+    width: 42px; height: 42px; display: grid; place-items: center;
+    border-radius: 12px; flex: 0 0 auto;
 }
-.rgn-stat-icon.blue   { color:#3b82f6; background:rgba(59,130,246,.12); }
-.rgn-stat-icon.green  { color:#22c55e; background:rgba(34,197,94,.12); }
-.rgn-stat-icon.amber  { color:#f59e0b; background:rgba(245,158,11,.12); }
-.rgn-stat-icon.purple { color:#8b5cf6; background:rgba(139,92,246,.12); }
-.rgn-stat-val  { font-size:1.5rem; font-weight:800; color:var(--sms-heading); line-height:1; }
-.rgn-stat-lbl  { font-size:.75rem; font-weight:600; color:var(--sms-text-muted); margin-top:.2rem; }
-
-/* ── Card ── */
+.rgn-stat-icon.blue { color: #2563eb; background: rgba(37,99,235,0.12); }
+.rgn-stat-icon.green { color: #059669; background: rgba(16,185,129,0.12); }
+.rgn-stat-icon.amber { color: #d97706; background: rgba(245,158,11,0.14); }
+.rgn-stat strong { display: block; color: var(--sms-heading); font-size: 1.3rem; font-weight: 850; }
+.rgn-stat span { color: var(--sms-text-muted); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
 .rgn-card {
-    border:1px solid var(--sms-border,#e2e8f0); border-radius:16px;
-    background:var(--sms-surface-solid,#fff); box-shadow:var(--sms-shadow-sm); overflow:hidden;
+    border: 1px solid var(--sms-border, #e2e8f0);
+    border-radius: 16px;
+    background: var(--sms-surface-solid, #fff);
+    box-shadow: var(--sms-shadow-sm);
+    overflow: hidden;
 }
 .rgn-card-head {
-    padding:1rem 1.25rem .75rem;
-    border-bottom:1px solid var(--sms-border,#e2e8f0);
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 1rem 1.25rem 0.75rem;
+    border-bottom: 1px solid var(--sms-border, #e2e8f0);
 }
 .rgn-card-head h2 {
-    margin:0; font-size:.72rem; font-weight:800;
-    letter-spacing:.07em; text-transform:uppercase; color:var(--sms-text-muted);
+    margin: 0; color: var(--sms-text-muted);
+    font-size: 0.78rem; font-weight: 800;
+    letter-spacing: 0.07em; text-transform: uppercase;
 }
-.rgn-card-body { padding:1.25rem; }
-
-/* ── Group number display ── */
-.rgn-number-badge {
-    display:flex; align-items:center; gap:.85rem;
-    padding:1rem 1.25rem; margin-bottom:1.25rem;
-    border:1px dashed #6366f1; border-radius:12px;
-    background:rgba(99,102,241,.06);
+.rgn-card-head span { color: var(--sms-text-muted); font-size: 0.78rem; font-weight: 700; }
+.rgn-table-wrap { overflow-x: auto; }
+.rgn-table { width: 100%; border-collapse: collapse; min-width: 900px; }
+.rgn-table th,
+.rgn-table td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--sms-border, #e2e8f0);
+    text-align: left; vertical-align: middle;
 }
-.rgn-number-badge-icon {
-    width:44px; height:44px; flex:0 0 auto; border-radius:12px;
-    display:grid; place-items:center; font-size:1.1rem;
-    color:#4f46e5; background:rgba(99,102,241,.14);
+.rgn-table th {
+    color: var(--sms-text-muted);
+    background: var(--sms-surface-muted, #f8fafc);
+    font-size: 0.72rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.04em;
 }
-.rgn-number-badge-text span {
-    display:block; color:var(--sms-text-muted);
-    font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+.rgn-title { color: var(--sms-heading); font-weight: 800; line-height: 1.35; }
+.rgn-meta { display: block; margin-top: 0.2rem; color: var(--sms-text-muted); font-size: 0.75rem; font-weight: 600; }
+.rgn-code {
+    display: inline-flex; align-items: center; gap: 0.38rem;
+    padding: 0.28rem 0.62rem;
+    border-radius: 999px;
+    color: #4338ca; background: rgba(99,102,241,0.12);
+    font-size: 0.76rem; font-weight: 900; letter-spacing: 0.03em;
 }
-.rgn-number-badge-text strong {
-    display:block; margin-top:.15rem;
-    color:#4f46e5; font-size:1.15rem; font-weight:800; letter-spacing:.02em;
+.rgn-link-box {
+    display: grid; gap: 0.45rem;
+    min-width: 170px;
 }
-
-/* ── Form grid ── */
-.rgn-grid-2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.9rem; }
-.rgn-grid-3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.9rem; }
-@media(max-width:640px){ .rgn-grid-2,.rgn-grid-3{ grid-template-columns:1fr; } }
-.rgn-field { display:grid; gap:.4rem; margin-bottom:.9rem; }
-.rgn-field label {
-    color:var(--sms-text-muted); font-size:.72rem; font-weight:700;
-    letter-spacing:.04em; text-transform:uppercase;
-}
-.rgn-field label em { color:#ef4444; font-style:normal; }
-.rgn-field input,
-.rgn-field select {
-    width:100%; min-height:42px; padding:.6rem .8rem;
-    border:1px solid var(--sms-border,#d7e1ef); border-radius:10px;
-    background:var(--sms-input-bg,#fff); color:var(--sms-text);
-    font-size:.88rem; outline:none; transition:border-color .15s,box-shadow .15s;
-}
-.rgn-field select {
-    appearance:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-    background-repeat:no-repeat; background-position:right .9rem center; padding-right:2.2rem;
-}
-.rgn-field input:focus,
-.rgn-field select:focus  { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-.rgn-field input[readonly] {
-    background:var(--sms-surface-muted,#f8fafc); color:var(--sms-text-muted);
-    font-weight:700; letter-spacing:.03em;
-}
-.rgn-section-title {
-    display:flex; align-items:center; gap:.55rem;
-    margin:1.5rem 0 1rem; padding-top:1.25rem;
-    border-top:1px solid var(--sms-border,#e2e8f0);
-    color:var(--sms-heading); font-size:.95rem; font-weight:800;
-}
-.rgn-section-title:first-child { margin-top:0; padding-top:0; border-top:none; }
-.rgn-section-title span { width:8px; height:8px; border-radius:50%; background:#6366f1; flex-shrink:0; }
-
-/* ── Table ── */
-.rgn-table-wrap { overflow-x:auto; }
-.rgn-table { width:100%; border-collapse:collapse; font-size:.85rem; }
-.rgn-table thead th {
-    padding:.7rem 1rem; text-align:left;
-    font-size:.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
-    color:var(--sms-text-muted); border-bottom:1px solid var(--sms-border,#e2e8f0);
-    background:var(--sms-surface-muted,#f8fafc); white-space:nowrap;
-}
-.rgn-table tbody tr { border-bottom:1px solid var(--sms-border,#e2e8f0); transition:background .12s; }
-.rgn-table tbody tr:last-child { border-bottom:none; }
-.rgn-table tbody tr:hover { background:var(--sms-hover,rgba(99,102,241,.04)); }
-.rgn-table td { padding:.75rem 1rem; color:var(--sms-text); vertical-align:middle; }
-.rgn-table td strong { display:block; font-weight:700; color:var(--sms-heading); }
-.rgn-table td span   { font-size:.78rem; color:var(--sms-text-muted); }
-.rgn-badge {
-    display:inline-flex; align-items:center; gap:.3rem;
-    padding:.25rem .65rem; border-radius:20px;
-    font-size:.72rem; font-weight:700; white-space:nowrap;
-}
-.rgn-badge-pending   { color:#92400e; background:#fef3c7; }
-.rgn-badge-active    { color:#166534; background:#dcfce7; }
-.rgn-badge-completed { color:#1e40af; background:#dbeafe; }
+.rgn-link-box span { color: var(--sms-text-muted); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
 .rgn-empty {
-    text-align:center; padding:3rem 1rem;
-    color:var(--sms-text-muted); font-size:.9rem;
+    padding: 2rem 1.25rem;
+    text-align: center;
+    color: var(--sms-text-muted);
+    font-size: 0.9rem;
+    font-weight: 700;
 }
-.rgn-empty i { font-size:2.5rem; display:block; margin-bottom:.75rem; opacity:.35; }
+[data-theme="dark"] .rgn-card,
+[data-theme="dark"] .rgn-stat { background: rgba(15,23,42,0.72); border-color: rgba(148,163,184,0.2); }
+[data-theme="dark"] .rgn-card-head,
+[data-theme="dark"] .rgn-table th,
+[data-theme="dark"] .rgn-table td { border-color: rgba(148,163,184,0.2); }
+[data-theme="dark"] .rgn-table th { background: rgba(148,163,184,0.06); }
+@media (max-width: 767.98px) {
+    .rgn-header { flex-direction: column; align-items: flex-start; }
+    .rgn-stats { grid-template-columns: 1fr; }
+    .rgn-btn { width: 100%; }
+}
 </style>
 
 <div class="rgn-wrap">
-
-    <!-- ── Header ─────────────────────────────────────────────────────────── -->
-    <div class="rgn-header">
+    <header class="rgn-header">
         <div>
-            <h1><i class="fas fa-users" style="margin-right:.5rem;opacity:.85;"></i>Research Group Number</h1>
-            <p>Register and manage research group numbers assigned to student research teams.</p>
+            <h1><i class="fas fa-users me-2"></i>Research Group Number</h1>
+            <p>Generate research group numbers only after a proposal has been registered.</p>
         </div>
-        <div class="rgn-header-actions">
-            <a href="<?= BASE_URL ?>/modules/crad/index.php" class="rgn-btn rgn-btn-ghost">
-                <i class="fas fa-arrow-left"></i> Back
-            </a>
-            <button type="button" class="rgn-btn rgn-btn-primary" onclick="document.getElementById('rgnFormSection').scrollIntoView({behavior:'smooth'})">
-                <i class="fas fa-plus"></i> New Group
-            </button>
-        </div>
-    </div>
+        <a href="<?= BASE_URL ?>/modules/crad/pages/register-proposal.php" class="rgn-btn rgn-btn-ghost">
+            <i class="fas fa-arrow-left"></i> Back to Register Proposal
+        </a>
+    </header>
 
-    <!-- ── Stat Cards ──────────────────────────────────────────────────────── -->
     <div class="rgn-stats">
         <div class="rgn-stat">
-            <div class="rgn-stat-icon blue"><i class="fas fa-users"></i></div>
-            <div><div class="rgn-stat-val"><?= $totalGroups ?></div><div class="rgn-stat-lbl">Total Groups</div></div>
+            <div class="rgn-stat-icon blue"><i class="fas fa-file-signature"></i></div>
+            <div><strong><?= count($registeredProposals) ?></strong><span>Registered Proposals</span></div>
         </div>
         <div class="rgn-stat">
-            <div class="rgn-stat-icon green"><i class="fas fa-check-circle"></i></div>
-            <div><div class="rgn-stat-val"><?= $totalActive ?></div><div class="rgn-stat-lbl">Active</div></div>
+            <div class="rgn-stat-icon green"><i class="fas fa-link"></i></div>
+            <div><strong><?= $totalLinked ?></strong><span>Linked Groups</span></div>
         </div>
         <div class="rgn-stat">
             <div class="rgn-stat-icon amber"><i class="fas fa-clock"></i></div>
-            <div><div class="rgn-stat-val"><?= $totalPending ?></div><div class="rgn-stat-lbl">Pending</div></div>
-        </div>
-        <div class="rgn-stat">
-            <div class="rgn-stat-icon purple"><i class="fas fa-flag-checkered"></i></div>
-            <div><div class="rgn-stat-val"><?= $totalDone ?></div><div class="rgn-stat-lbl">Completed</div></div>
+            <div><strong><?= $totalPending ?></strong><span>Waiting</span></div>
         </div>
     </div>
 
-    <!-- ── Group List ─────────────────────────────────────────────────────── -->
-    <div class="rgn-card">
+    <section class="rgn-card">
         <div class="rgn-card-head">
-            <h2><i class="fas fa-list" style="margin-right:.4rem;"></i>Registered Research Groups</h2>
+            <h2>Registered Proposals</h2>
+            <span><?= count($registeredProposals) ?> record<?= count($registeredProposals) === 1 ? '' : 's' ?></span>
         </div>
-        <div class="rgn-table-wrap">
-            <?php if (empty($groups)): ?>
+
+        <?php if (empty($registeredProposals)): ?>
             <div class="rgn-empty">
-                <i class="fas fa-users"></i>
-                No research groups registered yet. Use the form below to add the first one.
+                No registered proposals yet. A proposal must be approved and registered before a research group number can be generated.
             </div>
-            <?php else: ?>
-            <table class="rgn-table">
-                <thead>
-                    <tr>
-                        <th>Group No.</th>
-                        <th>Research Title</th>
-                        <th>Adviser</th>
-                        <th>College / Dept</th>
-                        <th>Leader</th>
-                        <th>A.Y.</th>
-                        <th>Date Assigned</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($groups as $g):
-                    $badgeCls = match($g['status']) {
-                        'Active'    => 'rgn-badge-active',
-                        'Completed' => 'rgn-badge-completed',
-                        default     => 'rgn-badge-pending',
-                    };
-                    $badgeIcon = match($g['status']) {
-                        'Active'    => 'fa-check-circle',
-                        'Completed' => 'fa-flag-checkered',
-                        default     => 'fa-clock',
-                    };
-                ?>
-                    <tr>
-                        <td><strong><?= htmlspecialchars($g['group_number']) ?></strong></td>
-                        <td><strong><?= htmlspecialchars($g['research_title']) ?></strong></td>
-                        <td><?= htmlspecialchars($g['adviser']) ?></td>
-                        <td><?= htmlspecialchars($g['college_dept']) ?></td>
-                        <td>
-                            <strong><?= htmlspecialchars($g['leader_name']) ?></strong>
-                            <span><?= htmlspecialchars($g['leader_id']) ?></span>
-                        </td>
-                        <td><?= htmlspecialchars($g['academic_year']) ?></td>
-                        <td><?= htmlspecialchars(date('M j, Y', strtotime($g['date_assigned']))) ?></td>
-                        <td>
-                            <span class="rgn-badge <?= $badgeCls ?>">
-                                <i class="fas <?= $badgeIcon ?>"></i>
-                                <?= htmlspecialchars($g['status']) ?>
-                            </span>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- ── Registration Form ─────────────────────────────────────────────── -->
-    <div class="rgn-card" id="rgnFormSection">
-        <div class="rgn-card-head">
-            <h2><i class="fas fa-plus-circle" style="margin-right:.4rem;"></i>Register New Research Group</h2>
-        </div>
-        <div class="rgn-card-body">
-            <form method="post" action="">
-                <?= csrfField() ?>
-                <input type="hidden" name="process" value="register-group-number">
-
-                <!-- Auto-generated group number -->
-                <div class="rgn-number-badge">
-                    <div class="rgn-number-badge-icon"><i class="fas fa-hashtag"></i></div>
-                    <div class="rgn-number-badge-text">
-                        <span>Auto-Generated Group Number</span>
-                        <strong><?= htmlspecialchars($groupNumber) ?></strong>
-                    </div>
-                </div>
-
-                <!-- Research Details -->
-                <p class="rgn-section-title"><span></span> Research Details</p>
-
-                <div class="rgn-field">
-                    <label for="research_title">Research Title <em>*</em></label>
-                    <input type="text" id="research_title" name="research_title"
-                           placeholder="Enter full research title" required
-                           value="<?= htmlspecialchars($_POST['research_title'] ?? '') ?>">
-                </div>
-
-                <div class="rgn-grid-2">
-                    <div class="rgn-field">
-                        <label for="college_dept">College / Department <em>*</em></label>
-                        <select id="college_dept" name="college_dept" required>
-                            <option value="">— Select Department —</option>
-                            <?php foreach ($departments as $dept): ?>
-                            <option value="<?= htmlspecialchars($dept) ?>"
-                                <?= (($_POST['college_dept'] ?? '') === $dept) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($dept) ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="rgn-field">
-                        <label for="academic_year">Academic Year <em>*</em></label>
-                        <select id="academic_year" name="academic_year" required>
-                            <option value="">— Select A.Y. —</option>
-                            <?php foreach ($academicYears as $ay): ?>
-                            <option value="<?= htmlspecialchars($ay) ?>"
-                                <?= (($_POST['academic_year'] ?? '') === $ay) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($ay) ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="rgn-grid-2">
-                    <div class="rgn-field">
-                        <label for="adviser">Research Adviser <em>*</em></label>
-                        <input type="text" id="adviser" name="adviser"
-                               placeholder="Full name of research adviser" required
-                               value="<?= htmlspecialchars($_POST['adviser'] ?? '') ?>">
-                    </div>
-                    <div class="rgn-field">
-                        <label for="date_assigned">Date Assigned <em>*</em></label>
-                        <input type="date" id="date_assigned" name="date_assigned" required
-                               value="<?= htmlspecialchars($_POST['date_assigned'] ?? date('Y-m-d')) ?>">
-                    </div>
-                </div>
-
-                <!-- Group Leader -->
-                <p class="rgn-section-title"><span></span> Group Leader / Representative</p>
-
-                <div class="rgn-grid-2">
-                    <div class="rgn-field">
-                        <label for="leader_name">Full Name <em>*</em></label>
-                        <input type="text" id="leader_name" name="leader_name"
-                               placeholder="Group leader's full name" required
-                               value="<?= htmlspecialchars($_POST['leader_name'] ?? '') ?>">
-                    </div>
-                    <div class="rgn-field">
-                        <label for="leader_id">Student ID <em>*</em></label>
-                        <input type="text" id="leader_id" name="leader_id"
-                               placeholder="e.g. 2024-00001" required
-                               value="<?= htmlspecialchars($_POST['leader_id'] ?? '') ?>">
-                    </div>
-                </div>
-
-                <div class="rgn-grid-2">
-                    <div class="rgn-field">
-                        <label for="leader_email">Email Address</label>
-                        <input type="email" id="leader_email" name="leader_email"
-                               placeholder="leader@school.edu.ph"
-                               value="<?= htmlspecialchars($_POST['leader_email'] ?? '') ?>">
-                    </div>
-                    <div class="rgn-field">
-                        <label for="leader_contact">Contact Number</label>
-                        <input type="text" id="leader_contact" name="leader_contact"
-                               placeholder="09XXXXXXXXX"
-                               value="<?= htmlspecialchars($_POST['leader_contact'] ?? '') ?>">
-                    </div>
-                </div>
-
-                <div style="display:flex;justify-content:flex-end;gap:.75rem;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--sms-border,#e2e8f0);">
-                    <button type="reset" class="rgn-btn" style="background:var(--sms-surface-muted,#f8fafc);color:var(--sms-text-muted);border-color:var(--sms-border,#e2e8f0);">
-                        <i class="fas fa-times"></i> Clear
-                    </button>
-                    <button type="submit" class="rgn-btn rgn-btn-primary">
-                        <i class="fas fa-save"></i> Register Group
-                    </button>
-                </div>
-
-            </form>
-        </div>
-    </div>
-
-</div><!-- /.rgn-wrap -->
+        <?php else: ?>
+            <div class="rgn-table-wrap">
+                <table class="rgn-table">
+                    <thead>
+                        <tr>
+                            <th>Proposal</th>
+                            <th>Researcher</th>
+                            <th>Date Registered</th>
+                            <th>Generated Link</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($registeredProposals as $proposal): ?>
+                            <?php $hasGroup = !empty($proposal['group_number']); ?>
+                            <tr>
+                                <td>
+                                    <div class="rgn-title"><?= htmlspecialchars($proposal['research_title']) ?></div>
+                                    <span class="rgn-meta"><?= htmlspecialchars($proposal['college_department']) ?> · <?= htmlspecialchars($proposal['research_adviser']) ?></span>
+                                </td>
+                                <td><?= htmlspecialchars($proposal['rep_name']) ?></td>
+                                <td><?= !empty($proposal['registered_at']) ? htmlspecialchars(date('M j, Y', strtotime($proposal['registered_at']))) : 'Registered' ?></td>
+                                <td>
+                                    <div class="rgn-link-box">
+                                        <span>Proposal Number</span>
+                                        <strong class="rgn-code"><?= htmlspecialchars($proposal['proposal_number']) ?></strong>
+                                        <?php if ($hasGroup): ?>
+                                            <span>Research Group Number</span>
+                                            <strong class="rgn-code"><?= htmlspecialchars($proposal['group_number']) ?></strong>
+                                            <span><?= htmlspecialchars($proposal['group_name']) ?></span>
+                                        <?php else: ?>
+                                            <span>Research Group Number</span>
+                                            <strong class="rgn-meta">Will be generated</strong>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <?php if ($hasGroup): ?>
+                                        <span class="rgn-btn rgn-btn-done"><i class="fas fa-check"></i> Generated</span>
+                                    <?php else: ?>
+                                        <form method="post" action="" style="margin:0;">
+                                            <?= csrfField() ?>
+                                            <input type="hidden" name="process" value="generate-research-group">
+                                            <input type="hidden" name="proposal_id" value="<?= (int) $proposal['id'] ?>">
+                                            <button type="submit" class="rgn-btn rgn-btn-primary">
+                                                <i class="fas fa-hashtag"></i> Generate
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
+</div>
 
 <?php require_once __DIR__ . '/../../../includes/layout-end.php'; ?>
