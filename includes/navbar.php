@@ -297,13 +297,73 @@ if ($navRoleKey === 'student') {
                         </button>
                     </li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="<?= BASE_URL ?>/login/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                    <li>
+                        <a class="dropdown-item text-danger"
+                           href="<?= BASE_URL ?>/login/logout.php"
+                           data-logout-confirm>
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </li>
                 </ul>
             </div>
         </div>
 
     </div>
 </nav>
+
+<style>
+    #logoutConfirmModal .modal-dialog {
+        width: min(420px, calc(100vw - 2rem));
+        max-width: 420px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    #logoutConfirmModal .modal-content {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    #logoutConfirmModal .modal-header,
+    #logoutConfirmModal .modal-body,
+    #logoutConfirmModal .modal-footer {
+        padding: 1rem 1.1rem;
+    }
+
+    #logoutConfirmModal .modal-title {
+        font-size: 1rem;
+    }
+
+    #logoutConfirmModal .modal-body {
+        color: var(--sms-text, #334155);
+        font-size: 0.95rem;
+    }
+</style>
+
+<div class="modal fade" id="logoutConfirmModal" tabindex="-1" aria-labelledby="logoutConfirmTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="logoutConfirmTitle">
+                    <i class="fas fa-sign-out-alt text-danger me-2"></i>Logout
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to logout?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <a class="btn btn-danger" href="<?= BASE_URL ?>/login/logout.php" id="logoutConfirmBtn">
+                    <span class="logout-confirm-idle"><i class="fas fa-check me-1"></i>Yes, logout</span>
+                    <span class="logout-confirm-loading d-none">
+                        <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Logging out...
+                    </span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 /* Global Search Index — built from PHP $MODULES visible to current user */
@@ -318,4 +378,30 @@ window.SMS2_SEARCH_INDEX = (function() {
     <?php endforeach; ?>
     <?php unset($navModuleKey, $module, $page); ?>    return items;
 })();
+
+document.addEventListener('DOMContentLoaded', function () {
+    const logoutLink = document.querySelector('[data-logout-confirm]');
+    const modalEl = document.getElementById('logoutConfirmModal');
+    const confirmBtn = document.getElementById('logoutConfirmBtn');
+    if (!logoutLink || !modalEl || typeof bootstrap === 'undefined') return;
+
+    const logoutModal = new bootstrap.Modal(modalEl);
+    logoutLink.addEventListener('click', function (event) {
+        event.preventDefault();
+        logoutModal.show();
+    });
+
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+            const idle = confirmBtn.querySelector('.logout-confirm-idle');
+            const loading = confirmBtn.querySelector('.logout-confirm-loading');
+            if (idle && loading) {
+                idle.classList.add('d-none');
+                loading.classList.remove('d-none');
+            }
+            confirmBtn.classList.add('disabled');
+            confirmBtn.setAttribute('aria-disabled', 'true');
+        });
+    }
+});
 </script>

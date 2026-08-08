@@ -535,6 +535,71 @@ body.login-page {
     opacity: 1;
 }
 
+.login-glass .btn-sms-primary.is-loading,
+.login-glass .btn-sms-primary.is-loading:disabled {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: #5350d6 !important;
+    box-shadow: 0 8px 18px rgba(83, 80, 214, 0.22) !important;
+    cursor: wait;
+}
+
+.login-loading-spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: loginSpin 0.75s linear infinite;
+    flex: 0 0 auto;
+}
+
+.login-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 28, 72, 0.58);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.login-loading-overlay.is-visible {
+    display: flex;
+}
+
+.login-loading-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    min-width: 180px;
+    padding: 1.25rem 1.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.92);
+    color: #0f172a;
+    font-weight: 800;
+    box-shadow: 0 22px 50px rgba(2, 10, 30, 0.35);
+}
+
+.login-loading-circle {
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 4px solid rgba(83, 80, 214, 0.18);
+    border-top-color: #5350d6;
+    border-radius: 50%;
+    animation: loginSpin 0.75s linear infinite;
+}
+
+@keyframes loginSpin {
+    to { transform: rotate(360deg); }
+}
+
 .login-links {
     margin-top: 1rem;
     text-align: center;
@@ -1232,7 +1297,11 @@ html[data-theme="dark"] .login-glass .sms-cf-widget.is-verified {
             <div class="login-field-error" id="captchaError" role="alert">Please complete the security check.</div>
             <button type="submit" class="btn btn-sms-primary disabled" id="loginSubmitBtn" aria-disabled="true"
                     title="Fill in email and password first">
-                <i class="fas fa-key me-2"></i>Sign In
+                <span class="login-submit-idle"><i class="fas fa-key me-2"></i>Sign In</span>
+                <span class="login-submit-loading d-none" aria-live="polite">
+                    <span class="login-loading-spinner" aria-hidden="true"></span>
+                    Signing in...
+                </span>
             </button>
             <div class="login-or" aria-hidden="true">or</div>
             <div id="smsPasskeyLoginMsg" class="small mb-2 text-center" hidden></div>
@@ -1273,12 +1342,20 @@ html[data-theme="dark"] .login-glass .sms-cf-widget.is-verified {
     </button>
 </aside>
 
+<div class="login-loading-overlay" id="loginLoadingOverlay" role="status" aria-live="polite" aria-hidden="true">
+    <div class="login-loading-box">
+        <span class="login-loading-circle" aria-hidden="true"></span>
+        <span>Signing in...</span>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const password = document.getElementById('password');
     const username = document.getElementById('username');
     const submitBtn = document.getElementById('loginSubmitBtn');
     const form = document.getElementById('loginForm');
+    const loadingOverlay = document.getElementById('loginLoadingOverlay');
 
     const cookieBtn = document.getElementById('cookieNoticeBtn');
     const cookiePanel = document.getElementById('cookieNoticePanel');
@@ -1476,6 +1553,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (form && submitBtn) {
         form.addEventListener('submit', function (e) {
+            if (submitBtn.classList.contains('is-loading')) {
+                e.preventDefault();
+                return;
+            }
             const userOk = validateUsername(true);
             const passOk = validatePassword(true);
             const captchaOk = isCaptchaReady();
@@ -1491,6 +1572,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 return;
             }
+            const idleLabel = submitBtn.querySelector('.login-submit-idle');
+            const loadingLabel = submitBtn.querySelector('.login-submit-loading');
+            if (idleLabel && loadingLabel) {
+                idleLabel.classList.add('d-none');
+                loadingLabel.classList.remove('d-none');
+            } else {
+                submitBtn.textContent = 'Signing in...';
+            }
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('is-visible');
+                loadingOverlay.setAttribute('aria-hidden', 'false');
+            }
+            submitBtn.classList.add('is-loading');
             submitBtn.classList.add('disabled');
             submitBtn.setAttribute('aria-disabled', 'true');
             submitBtn.disabled = true;
