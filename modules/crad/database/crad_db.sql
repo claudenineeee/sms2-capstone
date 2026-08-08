@@ -133,6 +133,23 @@ INSERT INTO `proposal_status_logs` (`id`, `proposal_id`, `old_status`, `new_stat
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `proposal_drafts`
+--
+
+CREATE TABLE `proposal_drafts` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `student_id` varchar(50) NOT NULL,
+  `user_id` int(10) UNSIGNED DEFAULT NULL COMMENT 'FK to sms2_db users (optional)',
+  `revision_ref` varchar(30) NOT NULL DEFAULT '' COMMENT 'Returned proposal ref when draft is for revision',
+  `draft_data` longtext NOT NULL COMMENT 'JSON encoded draft form fields except upload files',
+  `signature_data` mediumtext DEFAULT NULL COMMENT 'Base64 PNG of representative signature draft',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `research_groups`
 --
 
@@ -188,7 +205,7 @@ CREATE TABLE `research_proposals` (
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-g
+
 --
 -- Dumping data for table `research_proposals`
 --
@@ -224,6 +241,15 @@ ALTER TABLE `proposal_members`
 ALTER TABLE `proposal_status_logs`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_psl_proposal` (`proposal_id`);
+
+--
+-- Indexes for table `proposal_drafts`
+--
+ALTER TABLE `proposal_drafts`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_proposal_draft_student` (`student_id`),
+  ADD KEY `idx_proposal_draft_user` (`user_id`),
+  ADD KEY `idx_proposal_draft_updated` (`updated_at`);
 
 --
 -- Indexes for table `research_groups`
@@ -267,6 +293,12 @@ ALTER TABLE `proposal_members`
 --
 ALTER TABLE `proposal_status_logs`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+
+--
+-- AUTO_INCREMENT for table `proposal_drafts`
+--
+ALTER TABLE `proposal_drafts`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `research_groups`
