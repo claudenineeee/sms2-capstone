@@ -11,5 +11,10 @@ $breadcrumbs  = [
 
 require_once __DIR__ . '/../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../includes/layout-start.php';
-require_once __DIR__ . '/../../includes/module-index-grid.php';
+if (in_array(getCurrentUserRoleKey(), ['adviser', 'panel'], true)) {
+    require_once __DIR__ . '/includes/faculty-account-page.php';
+    renderFacultyAccountPage('Overview', '', 'overview');
+} else {
+    require_once __DIR__ . '/../../includes/module-index-grid.php';
+}
 require_once __DIR__ . '/../../includes/layout-end.php';

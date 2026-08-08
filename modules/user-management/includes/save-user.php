@@ -40,7 +40,7 @@ if (!$pdo) {
 }
 
 $action = (string) ($data['action'] ?? 'save');
-$validRoles = ['superadmin', 'admission', 'registrar', 'finance', 'hr', 'it_office', 'osa', 'qa', 'crad', 'crad_officer', 'research_coordinator', 'student'];
+$validRoles = ['superadmin', 'admission', 'registrar', 'finance', 'hr', 'adviser', 'panel', 'it_office', 'osa', 'qa', 'crad', 'crad_officer', 'research_coordinator', 'student'];
 $validStatus = ['active', 'inactive', 'locked', 'suspended'];
 
 try {

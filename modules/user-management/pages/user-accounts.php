@@ -33,7 +33,9 @@ if ($pdo) {
                 ('superadmin', 'Super Admin', 'Full system access', 1),
                 ('admin', 'Super Admin', 'Legacy super admin access', 1),
                 ('admission', 'Admission', 'Admission office access', 1),
-                ('research_coordinator', 'Research Coordinator', 'Research coordination access', 1)"
+                ('research_coordinator', 'Research Coordinator', 'Research coordination access', 1),
+                ('adviser', 'Adviser', 'Research adviser faculty account', 1),
+                ('panel', 'Panel', 'Research panel faculty account', 1)"
         )->execute();
         $pdo->prepare(
             "UPDATE roles
@@ -89,6 +91,23 @@ if ($pdo) {
         );
         foreach (['enrollment'] as $moduleKey) {
             $insAdmissionPerm->execute([$moduleKey]);
+        }
+        $facultyHash = password_hash('@faculty123', PASSWORD_DEFAULT);
+        $seedFaculty = $pdo->prepare(
+            "INSERT IGNORE INTO users
+                (username, email, password_hash, full_name, role_key, student_id, status, notes, password_changed_at, must_change_password, failed_login_attempts, locked_until)
+             VALUES
+                (?, ?, ?, ?, ?, NULL, 'active', ?, NOW(), 0, 0, NULL)"
+        );
+        $seedFaculty->execute(['rsantos', 'rsantos@bestlink.edu.ph', $facultyHash, 'Dr. Roberto M. Santos', 'adviser', 'Research Adviser']);
+        $seedFaculty->execute(['jtan', 'jtan@bestlink.edu.ph', $facultyHash, 'Dr. Jose B. Tan', 'panel', 'Panel Chair']);
+        $insFacultyPerm = $pdo->prepare(
+            "INSERT INTO role_permissions (role_key, module_key, granted)
+             VALUES (?, 'faculty', 1)
+             ON DUPLICATE KEY UPDATE granted = VALUES(granted)"
+        );
+        foreach (['adviser', 'panel'] as $facultyRole) {
+            $insFacultyPerm->execute([$facultyRole]);
         }
     } catch (Throwable $e) {
         error_log('Default user account ensure failed: ' . $e->getMessage());
@@ -180,15 +199,16 @@ function umRoleBadgeClass(string $role, string $label = ''): string
 $avatarColors = ['a', 'b', 'c', 'd', 'e', 'f'];
 $csrf = csrfToken();
 $total = count($users);
-$facultyUsers = array_values(array_filter($users, fn($u) => $u['role'] === 'hr'));
+$facultyAccountRoles = ['hr', 'adviser', 'panel'];
+$facultyUsers = array_values(array_filter($users, fn($u) => in_array($u['role'], $facultyAccountRoles, true)));
 $studentUsers = array_values(array_filter($users, fn($u) => $u['role'] === 'student'));
-$systemUsers = array_values(array_filter($users, fn($u) => !in_array($u['role'], ['hr', 'student'], true)));
+$systemUsers = array_values(array_filter($users, fn($u) => !in_array($u['role'], array_merge($facultyAccountRoles, ['student']), true)));
 $accountsUrl = BASE_URL . '/modules/user-management/pages/user-accounts.php';
 $archiveUrl  = $accountsUrl . '?view=archive';
 $currentUserId = (int) getCurrentUserId();
 ?>
 
-<link href="<?= BASE_URL ?>/modules/user-management/assets/css/user-management.css" rel="stylesheet">
+<link href="<?= BASE_URL ?>/modules/user-management/assets/css/user-management.css?v=faculty-role-badges-2" rel="stylesheet">
 <meta name="csrf-token" content="<?= e($csrf) ?>">
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
@@ -279,6 +299,8 @@ $currentUserId = (int) getCurrentUserId();
                 <option value="registrar">Registrar</option>
                 <option value="finance">Finance</option>
                 <option value="hr">Dean</option>
+                <option value="adviser">Adviser</option>
+                <option value="panel">Panel</option>
                 <option value="it_office">IT Office</option>
                 <option value="osa">OSA</option>
                 <option value="qa">QA Office</option>
@@ -485,6 +507,8 @@ $currentUserId = (int) getCurrentUserId();
                                 <option value="registrar">Registrar</option>
                                 <option value="finance">Finance</option>
                                 <option value="hr">Dean</option>
+                                <option value="adviser">Adviser</option>
+                                <option value="panel">Panel</option>
                                 <option value="it_office">IT Office</option>
                                 <option value="osa">OSA</option>
                                 <option value="qa">QA Office</option>

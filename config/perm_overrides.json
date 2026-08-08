@@ -1,18 +1,5 @@
 {
-    "admission": {
-        "registrar": false
-    },
-    "registrar": {
-        "enrollment": false
-    },
-    "student": {
-        "student_portal": true
-    },
     "superadmin": {
-        "enrollment": false,
         "student_portal": false
-    },
-    "qa": {
-        "user-management": false
     }
 }

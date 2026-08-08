@@ -112,6 +112,8 @@ function smsDefaultModulesForRole(string $roleKey): array
         'research_coordinator' => ['crad'],
         'finance'      => ['payment'],
         'hr'           => ['faculty'],
+        'adviser'      => ['faculty'],
+        'panel'        => ['faculty'],
         'it_office'    => ['lms'],
         'osa'          => ['cocurricular'],
         'qa'           => ['accreditation'],
