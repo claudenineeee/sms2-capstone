@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../config/config.php';
 require_once ROOT_PATH . '/includes/authentication.php';
 require_once ROOT_PATH . '/includes/breadcrumbs.php';
+require_once ROOT_PATH . '/includes/notifications.php';
 
 requireAuth();
 
@@ -96,6 +97,128 @@ function rcAssignmentEnsureSchema(PDO $pdo): void
             KEY idx_rpa_status (assignment_status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
+
+    smsAssignmentNotificationEnsureSentSchema($pdo);
+}
+
+function rcAssignmentResetStaleAssignments(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    foreach (['research_adviser_assignments', 'research_panel_assignments'] as $table) {
+        try {
+            $pdo->exec("
+                UPDATE {$table} a
+                   SET a.assignment_status = 'Pending',
+                       a.assigned_by = NULL,
+                       a.assigned_at = NULL,
+                       a.notification_sent_at = NULL,
+                       a.notification_sent_by = NULL,
+                       a.updated_at = NOW()
+                 WHERE a.assignment_status = 'Assigned'
+                   AND NOT EXISTS (
+                    SELECT 1
+                    FROM research_groups g
+                    INNER JOIN research_proposals p ON p.id = g.proposal_id
+                    WHERE p.status = 'Approved'
+                      AND p.registration_status = 'Registered'
+                      AND g.group_number IS NOT NULL
+                      AND g.group_number <> ''
+                      AND (
+                        (a.research_group_id IS NOT NULL AND a.research_group_id = g.id)
+                        OR (a.group_number IS NOT NULL AND a.group_number <> '' AND a.group_number = g.group_number)
+                        OR (a.proposal_id IS NOT NULL AND a.proposal_id = g.proposal_id)
+                        OR (a.proposal_number IS NOT NULL AND a.proposal_number <> '' AND a.proposal_number = p.proposal_number)
+                      )
+                   )
+            ");
+        } catch (Throwable $e) {
+            error_log('Assignment stale record reset failed for ' . $table . ': ' . $e->getMessage());
+        }
+    }
+
+    $defenseTables = [
+        'research_defense_schedules',
+        'research_defense_schedule',
+        'research_defenses',
+        'defense_schedules',
+    ];
+    $completedStatuses = array_map([$pdo, 'quote'], [
+        'completed',
+        'complete',
+        'passed',
+        'done',
+        'finished',
+        'closed',
+    ]);
+
+    foreach ($defenseTables as $defenseTable) {
+        try {
+            $tableExists = $pdo->query("SHOW TABLES LIKE " . $pdo->quote($defenseTable))->fetchColumn();
+            if (!$tableExists) {
+                continue;
+            }
+
+            $columns = $pdo->query("SHOW COLUMNS FROM `{$defenseTable}`")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            $columnSet = array_fill_keys(array_map('strtolower', $columns), true);
+            $statusColumn = null;
+            foreach (['status', 'defense_status', 'result', 'defense_result', 'outcome'] as $candidate) {
+                if (isset($columnSet[$candidate])) {
+                    $statusColumn = $candidate;
+                    break;
+                }
+            }
+            if (!$statusColumn) {
+                continue;
+            }
+
+            $matchParts = [];
+            if (isset($columnSet['research_group_id'])) {
+                $matchParts[] = '(a.research_group_id IS NOT NULL AND a.research_group_id = d.`research_group_id`)';
+            }
+            if (isset($columnSet['group_number'])) {
+                $matchParts[] = '(a.group_number IS NOT NULL AND a.group_number <> "" AND a.group_number = d.`group_number`)';
+            }
+            if (isset($columnSet['proposal_id'])) {
+                $matchParts[] = '(a.proposal_id IS NOT NULL AND a.proposal_id = d.`proposal_id`)';
+            }
+            if (isset($columnSet['proposal_number'])) {
+                $matchParts[] = '(a.proposal_number IS NOT NULL AND a.proposal_number <> "" AND a.proposal_number = d.`proposal_number`)';
+            }
+            if (!$matchParts) {
+                continue;
+            }
+
+            $matchesCompletedDefense = "
+                EXISTS (
+                    SELECT 1
+                    FROM `{$defenseTable}` d
+                    WHERE LOWER(TRIM(CAST(d.`{$statusColumn}` AS CHAR))) IN (" . implode(',', $completedStatuses) . ")
+                      AND (" . implode(' OR ', $matchParts) . ")
+                )
+            ";
+
+            foreach (['research_adviser_assignments', 'research_panel_assignments'] as $assignmentTable) {
+                $pdo->exec("
+                    UPDATE {$assignmentTable} a
+                       SET a.assignment_status = 'Pending',
+                           a.assigned_by = NULL,
+                           a.assigned_at = NULL,
+                           a.notification_sent_at = NULL,
+                           a.notification_sent_by = NULL,
+                           a.updated_at = NOW()
+                     WHERE a.assignment_status = 'Assigned'
+                       AND {$matchesCompletedDefense}
+                ");
+            }
+        } catch (Throwable $e) {
+            error_log('Assignment defense completion reset skipped for ' . $defenseTable . ': ' . $e->getMessage());
+        }
+    }
 }
 
 function rcAssignmentRows(PDO $pdo, string $kind): array
@@ -122,9 +245,14 @@ function rcAssignmentRows(PDO $pdo, string $kind): array
                 COALESCE(NULLIF(g.college_dept, ''), p.college_department) AS college_dept,
                 p.proposal_number
              FROM research_adviser_assignments a
-             LEFT JOIN research_groups g ON g.id = a.research_group_id
+             INNER JOIN research_groups g ON g.id = a.research_group_id
                 OR CONVERT(g.group_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(a.group_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-             LEFT JOIN research_proposals p ON p.id = COALESCE(a.proposal_id, g.proposal_id)
+             INNER JOIN research_proposals p ON p.id = COALESCE(a.proposal_id, g.proposal_id)
+             WHERE p.status = 'Approved'
+               AND p.registration_status = 'Registered'
+               AND p.proposal_number IS NOT NULL
+               AND g.group_number IS NOT NULL
+               AND g.group_number <> ''
         ";
     }
 
@@ -148,9 +276,14 @@ function rcAssignmentRows(PDO $pdo, string $kind): array
                 COALESCE(NULLIF(g.college_dept, ''), p.college_department) AS college_dept,
                 p.proposal_number
              FROM research_panel_assignments a
-             LEFT JOIN research_groups g ON g.id = a.research_group_id
+             INNER JOIN research_groups g ON g.id = a.research_group_id
                 OR CONVERT(g.group_number USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(a.group_number USING utf8mb4) COLLATE utf8mb4_unicode_ci
-             LEFT JOIN research_proposals p ON p.id = COALESCE(a.proposal_id, g.proposal_id)
+             INNER JOIN research_proposals p ON p.id = COALESCE(a.proposal_id, g.proposal_id)
+             WHERE p.status = 'Approved'
+               AND p.registration_status = 'Registered'
+               AND p.proposal_number IS NOT NULL
+               AND g.group_number IS NOT NULL
+               AND g.group_number <> ''
         ";
     }
 
@@ -259,6 +392,157 @@ function rcAssignmentApprovedGroups(PDO $pdo): array
     return $groups;
 }
 
+function rcAssignmentCandidateKey(string $email, string $name): string
+{
+    $email = strtolower(trim($email));
+    if ($email !== '') {
+        return 'email:' . $email;
+    }
+
+    return 'name:' . strtolower(trim($name));
+}
+
+function rcAssignmentCandidatePool(PDO $pdo, string $kind): array
+{
+    $table = $kind === 'panel' ? 'research_panel_assignments' : 'research_adviser_assignments';
+    $nameColumn = $kind === 'panel' ? 'panel_name' : 'adviser_name';
+    $emailColumn = $kind === 'panel' ? 'panel_email' : 'adviser_email';
+    $roleColumn = $kind === 'panel' ? 'panel_role' : "''";
+
+    $rows = $pdo->query("
+        SELECT
+            {$nameColumn} AS assignee_name,
+            {$emailColumn} AS assignee_email,
+            {$roleColumn} AS assignee_role,
+            expertise,
+            availability_status,
+            notes,
+            updated_at
+        FROM {$table}
+        WHERE {$nameColumn} <> ''
+        ORDER BY updated_at DESC, id DESC
+    ")->fetchAll() ?: [];
+
+    $pool = [];
+    foreach ($rows as $row) {
+        $key = rcAssignmentCandidateKey((string) ($row['assignee_email'] ?? ''), (string) ($row['assignee_name'] ?? ''));
+        if ($key === 'name:' || isset($pool[$key])) {
+            continue;
+        }
+        $pool[$key] = $row;
+    }
+
+    return array_values($pool);
+}
+
+function rcAssignmentEnsureGroupCandidateRows(PDO $pdo, array $groups): void
+{
+    if ($groups === []) {
+        return;
+    }
+
+    $advisers = rcAssignmentCandidatePool($pdo, 'adviser');
+    $panels = rcAssignmentCandidatePool($pdo, 'panel');
+    $adviserExists = $pdo->prepare("
+        SELECT id
+        FROM research_adviser_assignments
+        WHERE (
+                (:email_gate <> '' AND LOWER(TRIM(adviser_email)) = :email_match)
+             OR (:name_gate <> '' AND LOWER(TRIM(adviser_name)) = :name_match)
+        )
+          AND (
+                research_group_id = :research_group_id
+             OR group_number = :group_number
+             OR proposal_id = :proposal_id
+          )
+        LIMIT 1
+    ");
+    $panelExists = $pdo->prepare("
+        SELECT id
+        FROM research_panel_assignments
+        WHERE (
+                (:email_gate <> '' AND LOWER(TRIM(panel_email)) = :email_match)
+             OR (:name_gate <> '' AND LOWER(TRIM(panel_name)) = :name_match)
+        )
+          AND (
+                research_group_id = :research_group_id
+             OR group_number = :group_number
+             OR proposal_id = :proposal_id
+          )
+        LIMIT 1
+    ");
+    $insertAdviser = $pdo->prepare("
+        INSERT INTO research_adviser_assignments
+            (research_group_id, proposal_id, proposal_number, group_number, adviser_name, adviser_email, expertise, availability_status, assignment_status, notes, assigned_by, assigned_at, created_at, updated_at, notification_sent_at, notification_sent_by)
+        VALUES
+            (:research_group_id, :proposal_id, :proposal_number, :group_number, :adviser_name, :adviser_email, :expertise, :availability_status, 'Pending', :notes, NULL, NULL, NOW(), NOW(), NULL, NULL)
+    ");
+    $insertPanel = $pdo->prepare("
+        INSERT INTO research_panel_assignments
+            (research_group_id, proposal_id, proposal_number, group_number, panel_name, panel_email, panel_role, expertise, availability_status, assignment_status, notes, assigned_by, assigned_at, created_at, updated_at, notification_sent_at, notification_sent_by)
+        VALUES
+            (:research_group_id, :proposal_id, :proposal_number, :group_number, :panel_name, :panel_email, :panel_role, :expertise, :availability_status, 'Pending', :notes, NULL, NULL, NOW(), NOW(), NULL, NULL)
+    ");
+
+    foreach ($groups as $group) {
+        $groupParams = [
+            ':research_group_id' => (int) ($group['research_group_id'] ?? 0),
+            ':proposal_id' => (int) ($group['proposal_id'] ?? 0),
+            ':proposal_number' => (string) ($group['proposal_number'] ?? ''),
+            ':group_number' => (string) ($group['group_number'] ?? ''),
+        ];
+
+        foreach ($advisers as $adviser) {
+            $email = strtolower(trim((string) ($adviser['assignee_email'] ?? '')));
+            $name = strtolower(trim((string) ($adviser['assignee_name'] ?? '')));
+            $adviserExists->execute([
+                ':email_gate' => $email,
+                ':email_match' => $email,
+                ':name_gate' => $name,
+                ':name_match' => $name,
+                ':research_group_id' => $groupParams[':research_group_id'],
+                ':group_number' => $groupParams[':group_number'],
+                ':proposal_id' => $groupParams[':proposal_id'],
+            ]);
+            if ($adviserExists->fetchColumn()) {
+                continue;
+            }
+            $insertAdviser->execute($groupParams + [
+                ':adviser_name' => (string) ($adviser['assignee_name'] ?? ''),
+                ':adviser_email' => (string) ($adviser['assignee_email'] ?? ''),
+                ':expertise' => (string) (($adviser['expertise'] ?? '') ?: 'General Research Methods'),
+                ':availability_status' => (string) (($adviser['availability_status'] ?? '') ?: 'Available'),
+                ':notes' => (string) ($adviser['notes'] ?? ''),
+            ]);
+        }
+
+        foreach ($panels as $panel) {
+            $email = strtolower(trim((string) ($panel['assignee_email'] ?? '')));
+            $name = strtolower(trim((string) ($panel['assignee_name'] ?? '')));
+            $panelExists->execute([
+                ':email_gate' => $email,
+                ':email_match' => $email,
+                ':name_gate' => $name,
+                ':name_match' => $name,
+                ':research_group_id' => $groupParams[':research_group_id'],
+                ':group_number' => $groupParams[':group_number'],
+                ':proposal_id' => $groupParams[':proposal_id'],
+            ]);
+            if ($panelExists->fetchColumn()) {
+                continue;
+            }
+            $insertPanel->execute($groupParams + [
+                ':panel_name' => (string) ($panel['assignee_name'] ?? ''),
+                ':panel_email' => (string) ($panel['assignee_email'] ?? ''),
+                ':panel_role' => (string) (($panel['assignee_role'] ?? '') ?: 'Panel Member'),
+                ':expertise' => (string) (($panel['expertise'] ?? '') ?: 'General Research Methods'),
+                ':availability_status' => (string) (($panel['availability_status'] ?? '') ?: 'Available'),
+                ':notes' => (string) ($panel['notes'] ?? ''),
+            ]);
+        }
+    }
+}
+
 function rcAssignmentEnrichRows(array $rows): array
 {
     foreach ($rows as &$row) {
@@ -280,13 +564,203 @@ function rcAssignmentEnrichRows(array $rows): array
     return $rows;
 }
 
+function rcAssignmentAddRecipient(array &$recipients, array $recipient): void
+{
+    $key = smsNotificationRecipientKey($recipient);
+    if ($key === 'role:' || isset($recipients[$key])) {
+        return;
+    }
+    $recipients[$key] = $recipient;
+}
+
+function rcAssignmentCompletionGroup(PDO $pdo, array $candidate, string $groupNumber): ?array
+{
+    $stmt = $pdo->prepare("
+        SELECT
+            g.id AS research_group_id,
+            g.proposal_id,
+            g.proposal_number,
+            g.group_number,
+            g.group_name,
+            COALESCE(NULLIF(g.research_title, ''), p.research_title) AS research_title,
+            g.leader_name,
+            g.leader_id,
+            g.leader_email,
+            p.rep_name,
+            p.rep_id,
+            p.rep_email,
+            p.submitted_by_user
+         FROM research_groups g
+         LEFT JOIN research_proposals p ON p.id = g.proposal_id
+         WHERE (:research_group_gate > 0 AND g.id = :research_group_match)
+            OR (:group_number_gate <> '' AND g.group_number = :group_number_match)
+            OR (:proposal_id_gate > 0 AND g.proposal_id = :proposal_id_match)
+         ORDER BY g.id DESC
+         LIMIT 1
+    ");
+    $stmt->execute([
+        ':research_group_gate' => (int) ($candidate['research_group_id'] ?? 0),
+        ':research_group_match' => (int) ($candidate['research_group_id'] ?? 0),
+        ':group_number_gate' => $groupNumber !== '' ? $groupNumber : (string) ($candidate['group_number'] ?? ''),
+        ':group_number_match' => $groupNumber !== '' ? $groupNumber : (string) ($candidate['group_number'] ?? ''),
+        ':proposal_id_gate' => (int) ($candidate['proposal_id'] ?? 0),
+        ':proposal_id_match' => (int) ($candidate['proposal_id'] ?? 0),
+    ]);
+    $group = $stmt->fetch();
+    return $group ?: null;
+}
+
+function rcAssignmentGroupWhere(string $alias = 'a'): string
+{
+    return "(($alias.research_group_id IS NOT NULL AND $alias.research_group_id = :research_group_id)
+        OR (:group_number_gate <> '' AND $alias.group_number = :group_number_match)
+        OR ($alias.proposal_id IS NOT NULL AND $alias.proposal_id = :proposal_id))";
+}
+
+function rcAssignmentAssignedParties(PDO $pdo, array $group): array
+{
+    $params = [
+        ':research_group_id' => (int) ($group['research_group_id'] ?? 0),
+        ':group_number_gate' => (string) ($group['group_number'] ?? ''),
+        ':group_number_match' => (string) ($group['group_number'] ?? ''),
+        ':proposal_id' => (int) ($group['proposal_id'] ?? 0),
+    ];
+
+    $adviserStmt = $pdo->prepare("
+        SELECT adviser_name, adviser_email
+        FROM research_adviser_assignments a
+        WHERE assignment_status = 'Assigned' AND " . rcAssignmentGroupWhere('a') . "
+        ORDER BY assigned_at DESC, updated_at DESC, id DESC
+        LIMIT 1
+    ");
+    $adviserStmt->execute($params);
+    $adviser = $adviserStmt->fetch() ?: null;
+
+    $panelStmt = $pdo->prepare("
+        SELECT panel_name, panel_email, panel_role
+        FROM research_panel_assignments a
+        WHERE assignment_status = 'Assigned' AND " . rcAssignmentGroupWhere('a') . "
+        ORDER BY assigned_at ASC, updated_at ASC, id ASC
+    ");
+    $panelStmt->execute($params);
+    $panels = $panelStmt->fetchAll() ?: [];
+
+    return ['adviser' => $adviser, 'panels' => $panels];
+}
+
+function rcAssignmentResetOtherRowsForGroup(PDO $pdo, string $table, int $keepId, array $selectedGroup): void
+{
+    if (!in_array($table, ['research_adviser_assignments', 'research_panel_assignments'], true) || $keepId <= 0) {
+        return;
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE {$table}
+           SET assignment_status = 'Pending',
+               assigned_by = NULL,
+               assigned_at = NULL,
+               notification_sent_at = NULL,
+               notification_sent_by = NULL,
+               updated_at = NOW()
+         WHERE id <> :keep_id
+           AND assignment_status = 'Assigned'
+           AND (
+                research_group_id = :research_group_id
+             OR group_number = :group_number
+             OR proposal_id = :proposal_id
+           )
+    ");
+    $stmt->execute([
+        ':keep_id' => $keepId,
+        ':research_group_id' => (int) ($selectedGroup['id'] ?? 0),
+        ':group_number' => (string) ($selectedGroup['group_number'] ?? ''),
+        ':proposal_id' => (int) ($selectedGroup['proposal_id'] ?? 0),
+    ]);
+}
+
+function rcAssignmentFindCandidateRowForGroup(PDO $pdo, string $kind, array $candidate, array $selectedGroup): ?array
+{
+    $table = $kind === 'panel' ? 'research_panel_assignments' : 'research_adviser_assignments';
+    $nameColumn = $kind === 'panel' ? 'panel_name' : 'adviser_name';
+    $emailColumn = $kind === 'panel' ? 'panel_email' : 'adviser_email';
+    $email = strtolower(trim((string) ($candidate[$emailColumn] ?? '')));
+    $name = strtolower(trim((string) ($candidate[$nameColumn] ?? '')));
+
+    $stmt = $pdo->prepare("
+        SELECT *
+        FROM {$table}
+        WHERE (
+                (:email_gate <> '' AND LOWER(TRIM({$emailColumn})) = :email_match)
+             OR (:name_gate <> '' AND LOWER(TRIM({$nameColumn})) = :name_match)
+        )
+          AND (
+                research_group_id = :research_group_id
+             OR group_number = :group_number
+             OR proposal_id = :proposal_id
+          )
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $stmt->execute([
+        ':email_gate' => $email,
+        ':email_match' => $email,
+        ':name_gate' => $name,
+        ':name_match' => $name,
+        ':research_group_id' => (int) ($selectedGroup['id'] ?? 0),
+        ':group_number' => (string) ($selectedGroup['group_number'] ?? ''),
+        ':proposal_id' => (int) ($selectedGroup['proposal_id'] ?? 0),
+    ]);
+
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function rcAssignmentProposalStudentRecipients(PDO $pdo, array $group): array
+{
+    $proposalId = (int) ($group['proposal_id'] ?? 0);
+    if ($proposalId <= 0) {
+        return [];
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT student_id, student_name, email
+            FROM proposal_members
+            WHERE proposal_id = :proposal_id
+            ORDER BY sort_order ASC, id ASC
+        ");
+        $stmt->execute([':proposal_id' => $proposalId]);
+        return $stmt->fetchAll() ?: [];
+    } catch (Throwable $e) {
+        error_log('Assignment notification student member lookup failed: ' . $e->getMessage());
+        return [];
+    }
+}
+
+function rcAssignmentMaybeSendCompletionNotifications(PDO $pdo, array $candidate, string $groupNumber): void
+{
+    $group = rcAssignmentCompletionGroup($pdo, $candidate, $groupNumber);
+    if (!$group) {
+        return;
+    }
+
+    $parties = rcAssignmentAssignedParties($pdo, $group);
+    if (!$parties['adviser'] || count($parties['panels']) < 1) {
+        return;
+    }
+
+    smsDeleteStoredCradAssignmentNotifications($pdo);
+}
+
 function rcAssignmentPayload(string $kind): array
 {
     try {
         $pdo = getCradDatabaseConnection();
         rcAssignmentEnsureSchema($pdo);
-        $rows = rcAssignmentEnrichRows(rcAssignmentRows($pdo, $kind));
+        rcAssignmentResetStaleAssignments($pdo);
         $groups = rcAssignmentApprovedGroups($pdo);
+        rcAssignmentEnsureGroupCandidateRows($pdo, $groups);
+        $rows = rcAssignmentEnrichRows(rcAssignmentRows($pdo, $kind));
     } catch (Throwable $e) {
         error_log('Research Coordinator assignment load failed: ' . $e->getMessage());
         return [
@@ -318,6 +792,36 @@ function rcAssignmentSave(PDO $pdo, string $kind, int $assignmentId, string $gro
     if ($assignmentId <= 0) {
         throw new RuntimeException('Invalid assignment record.');
     }
+    if ($groupNumber === '') {
+        throw new RuntimeException('Please select an approved research group first.');
+    }
+
+    $groupStmt = $pdo->prepare("
+        SELECT g.id, g.proposal_id, g.proposal_number, g.group_number
+        FROM research_groups g
+        INNER JOIN research_proposals p ON p.id = g.proposal_id
+        WHERE g.group_number = :group_number
+          AND p.status = 'Approved'
+          AND p.registration_status = 'Registered'
+        LIMIT 1
+    ");
+    $groupStmt->execute([':group_number' => $groupNumber]);
+    $selectedGroup = $groupStmt->fetch();
+    if (!$selectedGroup) {
+        throw new RuntimeException('Selected research group is not available for assignment.');
+    }
+    rcAssignmentEnsureGroupCandidateRows($pdo, [[
+        'research_group_id' => (int) ($selectedGroup['id'] ?? 0),
+        'proposal_id' => (int) ($selectedGroup['proposal_id'] ?? 0),
+        'proposal_number' => (string) ($selectedGroup['proposal_number'] ?? ''),
+        'group_number' => (string) ($selectedGroup['group_number'] ?? ''),
+    ]]);
+
+    $matchesSelectedGroup = static function (array $candidate) use ($selectedGroup): bool {
+        return ((int) ($candidate['research_group_id'] ?? 0) > 0 && (int) $candidate['research_group_id'] === (int) $selectedGroup['id'])
+            || ((string) ($candidate['group_number'] ?? '') !== '' && (string) $candidate['group_number'] === (string) $selectedGroup['group_number'])
+            || ((int) ($candidate['proposal_id'] ?? 0) > 0 && (int) $candidate['proposal_id'] === (int) $selectedGroup['proposal_id']);
+    };
 
     if ($kind === 'panel') {
         $candidateStmt = $pdo->prepare("SELECT * FROM research_panel_assignments WHERE id = :id LIMIT 1");
@@ -326,24 +830,36 @@ function rcAssignmentSave(PDO $pdo, string $kind, int $assignmentId, string $gro
         if (!$candidate) {
             throw new RuntimeException('Panel candidate not found.');
         }
-        if (strcasecmp((string) ($candidate['assignment_status'] ?? ''), 'Assigned') === 0) {
+        if (!$matchesSelectedGroup($candidate)) {
+            $groupCandidate = rcAssignmentFindCandidateRowForGroup($pdo, 'panel', $candidate, $selectedGroup);
+            if (!$groupCandidate) {
+                throw new RuntimeException('Panel candidate was not prepared for the selected group.');
+            }
+            $candidate = $groupCandidate;
+            $assignmentId = (int) ($candidate['id'] ?? 0);
+        }
+        if ($matchesSelectedGroup($candidate) && strcasecmp((string) ($candidate['assignment_status'] ?? ''), 'Assigned') === 0) {
+            rcAssignmentMaybeSendCompletionNotifications($pdo, $candidate, $groupNumber);
             return ['message' => 'Panel member is already assigned.'];
         }
 
-        $stmt = $pdo->prepare("
-            UPDATE research_panel_assignments
-               SET assignment_status = 'Assigned',
-                   assigned_by = :assigned_by,
-                   assigned_at = NOW()
-             WHERE id = :id
-        ");
-        $stmt->execute([
-            ':assigned_by' => $userId,
-            ':id' => $assignmentId,
-        ]);
-        if ($stmt->rowCount() < 1) {
-            throw new RuntimeException('Panel assignment status was not updated.');
+        if ($matchesSelectedGroup($candidate)) {
+            $stmt = $pdo->prepare("
+                UPDATE research_panel_assignments
+                   SET assignment_status = 'Assigned',
+                       assigned_by = :assigned_by,
+                       assigned_at = NOW(),
+                       notification_sent_at = NULL,
+                       notification_sent_by = NULL,
+                       updated_at = NOW()
+                 WHERE id = :id
+            ");
+            $stmt->execute([
+                ':assigned_by' => $userId,
+                ':id' => $assignmentId,
+            ]);
         }
+        rcAssignmentMaybeSendCompletionNotifications($pdo, $candidate, $groupNumber);
 
         return ['message' => 'Panel member assigned successfully.'];
     }
@@ -354,24 +870,37 @@ function rcAssignmentSave(PDO $pdo, string $kind, int $assignmentId, string $gro
     if (!$candidate) {
         throw new RuntimeException('Adviser candidate not found.');
     }
-    if (strcasecmp((string) ($candidate['assignment_status'] ?? ''), 'Assigned') === 0) {
+    if (!$matchesSelectedGroup($candidate)) {
+        $groupCandidate = rcAssignmentFindCandidateRowForGroup($pdo, 'adviser', $candidate, $selectedGroup);
+        if (!$groupCandidate) {
+            throw new RuntimeException('Adviser candidate was not prepared for the selected group.');
+        }
+        $candidate = $groupCandidate;
+        $assignmentId = (int) ($candidate['id'] ?? 0);
+    }
+    if ($matchesSelectedGroup($candidate) && strcasecmp((string) ($candidate['assignment_status'] ?? ''), 'Assigned') === 0) {
+        rcAssignmentMaybeSendCompletionNotifications($pdo, $candidate, $groupNumber);
         return ['message' => 'Research adviser is already assigned.'];
     }
 
-    $stmt = $pdo->prepare("
-        UPDATE research_adviser_assignments
-           SET assignment_status = 'Assigned',
-               assigned_by = :assigned_by,
-               assigned_at = NOW()
-         WHERE id = :id
-    ");
-    $stmt->execute([
-        ':assigned_by' => $userId,
-        ':id' => $assignmentId,
-    ]);
-    if ($stmt->rowCount() < 1) {
-        throw new RuntimeException('Adviser assignment status was not updated.');
+    if ($matchesSelectedGroup($candidate)) {
+        rcAssignmentResetOtherRowsForGroup($pdo, 'research_adviser_assignments', $assignmentId, $selectedGroup);
+        $stmt = $pdo->prepare("
+            UPDATE research_adviser_assignments
+               SET assignment_status = 'Assigned',
+                   assigned_by = :assigned_by,
+                   assigned_at = NOW(),
+                   notification_sent_at = NULL,
+                   notification_sent_by = NULL,
+                   updated_at = NOW()
+             WHERE id = :id
+        ");
+        $stmt->execute([
+            ':assigned_by' => $userId,
+            ':id' => $assignmentId,
+        ]);
     }
+    rcAssignmentMaybeSendCompletionNotifications($pdo, $candidate, $groupNumber);
 
     return ['message' => 'Research adviser assigned successfully.'];
 }
@@ -712,6 +1241,8 @@ renderBreadcrumbs($breadcrumbs);
     let groups = <?= json_encode($groups, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
     let selectedGroup = '';
     let activeContact = null;
+    let refreshing = false;
+    let refreshTimer = null;
 
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -824,9 +1355,10 @@ renderBreadcrumbs($breadcrumbs);
         });
         const directMatches = selectedGroupRows();
         const sourceRows = directMatches.length ? directMatches : rows;
+        const usingSelectedGroupRows = directMatches.length > 0;
         const seenAssignees = new Set();
         const matchesForGroup = sourceRows
-            .map((row) => ({ ...row, match_score: scoreForGroup(row, group) }))
+            .map((row) => ({ ...row, match_score: scoreForGroup(row, group), selected_group_match: usingSelectedGroupRows }))
             .filter((row) => {
                 const key = `${row.assignment_kind || ''}|${row.assignee_name || ''}|${row.assignee_email || ''}`.toLowerCase();
                 if (seenAssignees.has(key)) return false;
@@ -854,7 +1386,7 @@ renderBreadcrumbs($breadcrumbs);
             const encoded = attr(JSON.stringify(row));
             const loadCount = assigneeLoadCount(row);
             if (mode === 'assign') {
-                const isAssigned = String(row.assignment_status || '').toLowerCase() === 'assigned';
+                const isAssigned = Boolean(row.selected_group_match) && String(row.assignment_status || '').toLowerCase() === 'assigned';
                 return `
                     <article class="rcas-match">
                         <div>
@@ -945,8 +1477,13 @@ renderBreadcrumbs($breadcrumbs);
     };
 
     const refresh = async () => {
+        if (refreshing) return;
+        refreshing = true;
         try {
-            const res = await fetch(endpoint, { headers: { 'Accept': 'application/json' }, cache: 'no-store', credentials: 'same-origin' });
+            const url = new URL(endpoint, window.location.href);
+            url.searchParams.set('_', Date.now().toString());
+            const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' }, cache: 'no-store', credentials: 'same-origin' });
+            if (!res.ok) throw new Error('Failed to sync.');
             const data = await res.json();
             if (!data.ok) throw new Error(data.error || 'Failed to sync.');
             rows = Array.isArray(data.rows) ? data.rows : [];
@@ -959,6 +1496,8 @@ renderBreadcrumbs($breadcrumbs);
             render();
         } catch (error) {
             lastSync.textContent = 'Sync paused';
+        } finally {
+            refreshing = false;
         }
     };
 
@@ -1036,7 +1575,17 @@ renderBreadcrumbs($breadcrumbs);
         if (event.key === 'Escape' && contactPanel && !contactPanel.hidden) closeContact();
     });
     render();
-    window.setInterval(refresh, 5000);
+    refreshTimer = window.setInterval(refresh, 5000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            if (refreshTimer) window.clearInterval(refreshTimer);
+            refreshTimer = null;
+            return;
+        }
+        if (refreshTimer) window.clearInterval(refreshTimer);
+        refresh();
+        refreshTimer = window.setInterval(refresh, 5000);
+    });
 })();
 </script>
 

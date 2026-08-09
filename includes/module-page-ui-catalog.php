@@ -520,7 +520,7 @@ if (!function_exists('smsCradPageUiCatalog')) {
                 'rows' => [],
             ],
             'adviser-panel-assignment' => [
-                'title' => 'Adviser & Panel Assignment',
+                'title' => 'Record Adviser/Panel Assignment',
                 'description' => 'Match approved research groups with faculty advisers and defense panel members by expertise, load, and college fit.',
                 'add_label' => '+ New Assignment',
                 'list_subtitle' => 'View and manage adviser and panel assignments for research groups.',

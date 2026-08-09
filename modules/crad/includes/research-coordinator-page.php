@@ -5,6 +5,8 @@
 require_once __DIR__ . '/../../../config/config.php';
 require_once ROOT_PATH . '/includes/authentication.php';
 require_once ROOT_PATH . '/includes/breadcrumbs.php';
+require_once ROOT_PATH . '/includes/notifications.php';
+require_once __DIR__ . '/../config/config.php';
 
 requireAuth();
 
@@ -134,6 +136,314 @@ $baseRecords = [
     ],
 ];
 
+function rcSendNotificationRows(): array
+{
+    $pdo = cradDb();
+    if (!$pdo) {
+        return [];
+    }
+
+    try {
+        smsAssignmentNotificationEnsureSentSchema($pdo);
+        $rows = $pdo->query("
+            SELECT
+                g.id AS research_group_id,
+                g.group_number,
+                g.group_name,
+                COALESCE(NULLIF(g.research_title, ''), p.research_title, 'Untitled research') AS research_title,
+                COALESCE(NULLIF(g.leader_name, ''), p.rep_name, 'Research Group') AS student_lead,
+                (
+                    SELECT COUNT(*)
+                    FROM proposal_members pm
+                    WHERE pm.proposal_id = g.proposal_id
+                ) AS member_count,
+                (
+                    SELECT a.adviser_name
+                    FROM research_adviser_assignments a
+                    WHERE a.assignment_status = 'Assigned'
+                      AND (a.research_group_id = g.id OR a.group_number = g.group_number OR a.proposal_id = g.proposal_id)
+                    ORDER BY a.assigned_at DESC, a.updated_at DESC, a.id DESC
+                    LIMIT 1
+                ) AS adviser_name,
+                (
+                    SELECT a.adviser_email
+                    FROM research_adviser_assignments a
+                    WHERE a.assignment_status = 'Assigned'
+                      AND (a.research_group_id = g.id OR a.group_number = g.group_number OR a.proposal_id = g.proposal_id)
+                    ORDER BY a.assigned_at DESC, a.updated_at DESC, a.id DESC
+                    LIMIT 1
+                ) AS adviser_email,
+                (
+                    SELECT COUNT(*)
+                    FROM research_adviser_assignments a
+                    WHERE a.assignment_status = 'Assigned'
+                      AND (a.research_group_id = g.id OR a.group_number = g.group_number OR a.proposal_id = g.proposal_id)
+                ) AS adviser_count,
+                (
+                    SELECT COUNT(*)
+                    FROM research_adviser_assignments a
+                    WHERE a.assignment_status = 'Assigned'
+                      AND a.notification_sent_at IS NULL
+                      AND (a.research_group_id = g.id OR a.group_number = g.group_number OR a.proposal_id = g.proposal_id)
+                ) AS adviser_unsent_count,
+                (
+                    SELECT GROUP_CONCAT(pa.panel_name ORDER BY pa.assigned_at ASC, pa.updated_at ASC, pa.id ASC SEPARATOR ', ')
+                    FROM research_panel_assignments pa
+                    WHERE pa.assignment_status = 'Assigned'
+                      AND (pa.research_group_id = g.id OR pa.group_number = g.group_number OR pa.proposal_id = g.proposal_id)
+                ) AS panel_names,
+                (
+                    SELECT GROUP_CONCAT(pa.panel_email ORDER BY pa.assigned_at ASC, pa.updated_at ASC, pa.id ASC SEPARATOR ', ')
+                    FROM research_panel_assignments pa
+                    WHERE pa.assignment_status = 'Assigned'
+                      AND (pa.research_group_id = g.id OR pa.group_number = g.group_number OR pa.proposal_id = g.proposal_id)
+                ) AS panel_emails,
+                (
+                    SELECT COUNT(*)
+                    FROM research_panel_assignments pa
+                    WHERE pa.assignment_status = 'Assigned'
+                      AND (pa.research_group_id = g.id OR pa.group_number = g.group_number OR pa.proposal_id = g.proposal_id)
+                ) AS panel_count,
+                (
+                    SELECT COUNT(*)
+                    FROM research_panel_assignments pa
+                    WHERE pa.assignment_status = 'Assigned'
+                      AND pa.notification_sent_at IS NULL
+                      AND (pa.research_group_id = g.id OR pa.group_number = g.group_number OR pa.proposal_id = g.proposal_id)
+                ) AS panel_unsent_count,
+                GREATEST(
+                    COALESCE((
+                        SELECT MAX(COALESCE(a.assigned_at, a.updated_at))
+                        FROM research_adviser_assignments a
+                        WHERE a.assignment_status = 'Assigned'
+                          AND (a.research_group_id = g.id OR a.group_number = g.group_number OR a.proposal_id = g.proposal_id)
+                    ), '1000-01-01 00:00:00'),
+                    COALESCE((
+                        SELECT MAX(COALESCE(pa.assigned_at, pa.updated_at))
+                        FROM research_panel_assignments pa
+                        WHERE pa.assignment_status = 'Assigned'
+                          AND (pa.research_group_id = g.id OR pa.group_number = g.group_number OR pa.proposal_id = g.proposal_id)
+                    ), '1000-01-01 00:00:00')
+                ) AS updated_at
+                ,
+                GREATEST(
+                    COALESCE((
+                        SELECT MAX(a.notification_sent_at)
+                        FROM research_adviser_assignments a
+                        WHERE a.assignment_status = 'Assigned'
+                          AND (a.research_group_id = g.id OR a.group_number = g.group_number OR a.proposal_id = g.proposal_id)
+                    ), '1000-01-01 00:00:00'),
+                    COALESCE((
+                        SELECT MAX(pa.notification_sent_at)
+                        FROM research_panel_assignments pa
+                        WHERE pa.assignment_status = 'Assigned'
+                          AND (pa.research_group_id = g.id OR pa.group_number = g.group_number OR pa.proposal_id = g.proposal_id)
+                    ), '1000-01-01 00:00:00')
+                ) AS notification_sent_at
+             FROM research_groups g
+             INNER JOIN research_proposals p ON p.id = g.proposal_id
+             WHERE EXISTS (
+                SELECT 1
+                FROM research_adviser_assignments a
+                WHERE a.assignment_status = 'Assigned'
+                  AND (a.research_group_id = g.id OR a.group_number = g.group_number OR a.proposal_id = g.proposal_id)
+             )
+             OR EXISTS (
+                SELECT 1
+                FROM research_panel_assignments pa
+                WHERE pa.assignment_status = 'Assigned'
+                  AND (pa.research_group_id = g.id OR pa.group_number = g.group_number OR pa.proposal_id = g.proposal_id)
+             )
+             ORDER BY updated_at DESC, g.id DESC
+        ")->fetchAll() ?: [];
+    } catch (Throwable $e) {
+        error_log('Send notification assignment list failed: ' . $e->getMessage());
+        return [];
+    }
+
+    return array_map(static function (array $row): array {
+        $updated = strtotime((string) ($row['updated_at'] ?? '')) ?: time();
+        $memberCount = max(0, (int) ($row['member_count'] ?? 0));
+        $hasAdviser = ((int) ($row['adviser_count'] ?? 0)) > 0 && trim((string) ($row['adviser_name'] ?? '')) !== '';
+        $hasPanel = ((int) ($row['panel_count'] ?? 0)) > 0 && trim((string) ($row['panel_names'] ?? '')) !== '';
+        $sentAt = (string) ($row['notification_sent_at'] ?? '');
+        $isSent = $hasAdviser
+            && $hasPanel
+            && (int) ($row['adviser_unsent_count'] ?? 0) === 0
+            && (int) ($row['panel_unsent_count'] ?? 0) === 0
+            && $sentAt !== ''
+            && $sentAt !== '1000-01-01 00:00:00';
+        if ($isSent) {
+            $status = 'Notification Sent';
+        } elseif ($hasAdviser && $hasPanel) {
+            $status = 'Ready to Notify';
+        } elseif ($hasAdviser) {
+            $status = 'Adviser Assigned';
+        } else {
+            $status = 'Panel Assigned';
+        }
+        $canSend = $hasAdviser && $hasPanel && !$isSent;
+
+        return [
+            'research_group_id' => (int) ($row['research_group_id'] ?? 0),
+            'research_group' => (string) (($row['group_name'] ?? '') ?: ($row['group_number'] ?? 'Research Group')),
+            'group_number' => (string) ($row['group_number'] ?? ''),
+            'research_title' => (string) ($row['research_title'] ?? ''),
+            'leader' => (string) (($row['student_lead'] ?? '') ?: 'Research Group Leader'),
+            'adviser' => (string) (($row['adviser_name'] ?? '') ?: 'For assignment'),
+            'adviser_email' => (string) ($row['adviser_email'] ?? ''),
+            'panels' => (string) (($row['panel_names'] ?? '') ?: 'For assignment'),
+            'panel_emails' => (string) ($row['panel_emails'] ?? ''),
+            'status' => $status,
+            'has_adviser' => $hasAdviser,
+            'has_panel' => $hasPanel,
+            'can_send' => $canSend,
+            'is_sent' => $isSent,
+            'updated' => date('M j, Y h:i A', $updated),
+        ];
+    }, $rows);
+}
+
+function rcSendNotificationStats(array $rows): array
+{
+    $readyRows = array_filter($rows, static fn(array $row): bool => !empty($row['can_send']) || !empty($row['is_sent']));
+    $adviserKeys = array_unique(array_filter(array_map(static function (array $row): string {
+        if (empty($row['has_adviser'])) {
+            return '';
+        }
+        return strtolower((string) (($row['adviser_email'] ?? '') ?: ($row['adviser'] ?? '')));
+    }, $rows)));
+    $panelCount = array_sum(array_map(static function (array $row): int {
+        if (empty($row['has_panel'])) {
+            return 0;
+        }
+        $emails = array_filter(array_map('trim', explode(',', (string) ($row['panel_emails'] ?? ''))));
+        if ($emails) {
+            return count($emails);
+        }
+        $panels = array_filter(array_map('trim', explode(',', (string) ($row['panels'] ?? ''))));
+        return count($panels);
+    }, $rows));
+
+    return [
+        'assignments' => count($readyRows),
+        'students' => count($rows),
+        'advisers' => count($adviserKeys),
+        'panels' => $panelCount,
+    ];
+}
+
+function rcSendAssignmentNotification(string $groupNumber, ?int $userId): array
+{
+    $pdo = getCradDatabaseConnection();
+    smsAssignmentNotificationEnsureSentSchema($pdo);
+
+    $groupStmt = $pdo->prepare("
+        SELECT g.id, g.proposal_id, g.group_number
+        FROM research_groups g
+        WHERE g.group_number = :group_number
+        LIMIT 1
+    ");
+    $groupStmt->execute([':group_number' => $groupNumber]);
+    $group = $groupStmt->fetch();
+    if (!$group) {
+        throw new RuntimeException('Research group not found.');
+    }
+
+    $params = [
+        ':research_group_id' => (int) ($group['id'] ?? 0),
+        ':group_number_gate' => (string) ($group['group_number'] ?? ''),
+        ':group_number_match' => (string) ($group['group_number'] ?? ''),
+        ':proposal_id' => (int) ($group['proposal_id'] ?? 0),
+    ];
+
+    $adviserStmt = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM research_adviser_assignments a
+        WHERE a.assignment_status = 'Assigned'
+          AND (
+            a.research_group_id = :research_group_id
+            OR (:group_number_gate <> '' AND a.group_number = :group_number_match)
+            OR a.proposal_id = :proposal_id
+          )
+    ");
+    $adviserStmt->execute($params);
+    $panelStmt = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM research_panel_assignments pa
+        WHERE pa.assignment_status = 'Assigned'
+          AND (
+            pa.research_group_id = :research_group_id
+            OR (:group_number_gate <> '' AND pa.group_number = :group_number_match)
+            OR pa.proposal_id = :proposal_id
+          )
+    ");
+    $panelStmt->execute($params);
+    if ((int) $adviserStmt->fetchColumn() < 1 || (int) $panelStmt->fetchColumn() < 1) {
+        throw new RuntimeException('Assign both adviser and panel members before sending notifications.');
+    }
+
+    $updateParams = $params + [
+        ':sent_by' => $userId ?: null,
+    ];
+    $pdo->prepare("
+        UPDATE research_adviser_assignments a
+           SET a.notification_sent_at = NOW(),
+               a.notification_sent_by = :sent_by,
+               a.updated_at = NOW()
+         WHERE a.assignment_status = 'Assigned'
+           AND (
+            a.research_group_id = :research_group_id
+            OR (:group_number_gate <> '' AND a.group_number = :group_number_match)
+            OR a.proposal_id = :proposal_id
+           )
+    ")->execute($updateParams);
+    $pdo->prepare("
+        UPDATE research_panel_assignments pa
+           SET pa.notification_sent_at = NOW(),
+               pa.notification_sent_by = :sent_by,
+               pa.updated_at = NOW()
+         WHERE pa.assignment_status = 'Assigned'
+           AND (
+            pa.research_group_id = :research_group_id
+            OR (:group_number_gate <> '' AND pa.group_number = :group_number_match)
+            OR pa.proposal_id = :proposal_id
+           )
+    ")->execute($updateParams);
+
+    return ['message' => 'Notification sent to students, research adviser, panel members, and CRAD staff.'];
+}
+
+if ($rcPageSlug === 'send-notifications' && (($_POST['ajax'] ?? '') === 'send-assignment-notification')) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $result = rcSendAssignmentNotification(trim((string) ($_POST['group_number'] ?? '')), getCurrentUserId());
+        $rows = rcSendNotificationRows();
+        echo json_encode([
+            'ok' => true,
+            'rows' => $rows,
+            'stats' => rcSendNotificationStats($rows),
+            'synced_at' => (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('M j, Y h:i:s A'),
+        ] + $result);
+    } catch (Throwable $e) {
+        error_log('Send assignment notification failed: ' . $e->getMessage());
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+if ($rcPageSlug === 'send-notifications' && (($_GET['ajax'] ?? '') === 'assignment-notifications')) {
+    header('Content-Type: application/json; charset=utf-8');
+    $rows = rcSendNotificationRows();
+    echo json_encode([
+        'ok' => true,
+        'rows' => $rows,
+        'stats' => rcSendNotificationStats($rows),
+        'synced_at' => (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('M j, Y h:i:s A'),
+    ]);
+    exit;
+}
+
 $cradProcess = [
     'kicker' => 'Research Coordinator',
     'description' => $pageConfig['description'],
@@ -174,5 +484,203 @@ $cradProcess = [
 
 require_once ROOT_PATH . '/includes/layout-start.php';
 renderBreadcrumbs($breadcrumbs);
+if ($rcPageSlug === 'send-notifications') {
+    $notificationRows = rcSendNotificationRows();
+    $notificationStats = rcSendNotificationStats($notificationRows);
+    $notificationEndpoint = BASE_URL . '/modules/crad/pages/send-notifications.php?ajax=assignment-notifications';
+    ?>
+    <style>
+        .rcsn-wrap { display: flex; flex-direction: column; gap: 1rem; }
+        .rcsn-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .rcsn-head h1 { color: var(--sms-heading, #0f172a); font-size: 1.25rem; font-weight: 850; margin: 0; }
+        .rcsn-head p { color: var(--sms-text-muted, #64748b); margin: .25rem 0 0; }
+        .rcsn-sync { color: #2454c6; font-size: .78rem; font-weight: 800; white-space: nowrap; }
+        .rcsn-stats { display: grid; gap: .85rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .rcsn-stat, .rcsn-card { background: var(--sms-card-bg, #fff); border: 1px solid var(--sms-border, #dbe4f0); border-radius: 8px; box-shadow: var(--sms-shadow-xs, 0 4px 14px rgba(15,23,42,.06)); }
+        .rcsn-stat { align-items: center; display: flex; gap: .75rem; padding: .9rem 1rem; }
+        .rcsn-stat i { background: rgba(37,99,235,.12); border-radius: 8px; color: #2454c6; display: grid; height: 40px; place-items: center; width: 40px; }
+        .rcsn-stat span { color: var(--sms-text-muted, #64748b); display: block; font-size: .72rem; font-weight: 800; text-transform: uppercase; }
+        .rcsn-stat strong { color: var(--sms-heading, #0f172a); display: block; font-size: 1.35rem; font-weight: 850; line-height: 1.1; }
+        .rcsn-card { overflow: hidden; }
+        .rcsn-toolbar { align-items: center; border-bottom: 1px solid var(--sms-border, #dbe4f0); display: flex; gap: .7rem; justify-content: space-between; padding: .9rem 1rem; }
+        .rcsn-toolbar h2 { color: var(--sms-heading, #0f172a); font-size: 1rem; font-weight: 850; margin: 0; }
+        .rcsn-search { background: var(--sms-surface-muted, #f8fafc); border: 1px solid var(--sms-border, #d8e2ef); border-radius: 8px; min-height: 38px; padding: .45rem .75rem; width: min(360px, 100%); }
+        .rcsn-table { margin: 0; width: 100%; }
+        .rcsn-table th { background: var(--sms-surface-muted, #f8fafc); color: var(--sms-text-muted, #64748b); font-size: .73rem; font-weight: 850; padding: .8rem 1rem; text-transform: uppercase; }
+        .rcsn-table td { border-top: 1px solid var(--sms-border, #e2e8f0); color: var(--sms-text, #334155); padding: .9rem 1rem; vertical-align: top; }
+        .rcsn-title { color: var(--sms-heading, #0f172a); display: block; font-weight: 850; }
+        .rcsn-muted { color: var(--sms-text-muted, #64748b); display: block; font-size: .8rem; margin-top: .15rem; }
+        .rcsn-badge { background: #d1fae5; border-radius: 999px; color: #047857; display: inline-flex; font-size: .75rem; font-weight: 850; padding: .25rem .65rem; white-space: nowrap; }
+        .rcsn-action { align-items: center; background: #2454c6; border: 1px solid #2454c6; border-radius: 8px; color: #fff; display: inline-flex; font-size: .78rem; font-weight: 850; gap: .35rem; min-height: 34px; padding: .4rem .7rem; white-space: nowrap; }
+        .rcsn-action[disabled] { background: #e2e8f0; border-color: #e2e8f0; color: #64748b; cursor: not-allowed; }
+        .rcsn-notice { border-radius: 8px; display: none; font-size: .84rem; font-weight: 800; margin: 0 0 1rem; padding: .75rem .9rem; }
+        .rcsn-notice.show { display: block; }
+        .rcsn-notice.ok { background: #d1fae5; border: 1px solid #a7f3d0; color: #047857; }
+        .rcsn-notice.error { background: #fee2e2; border: 1px solid #fecaca; color: #991b1b; }
+        .rcsn-empty { color: var(--sms-text-muted, #64748b); padding: 2rem 1rem; text-align: center; }
+        @media (max-width: 980px) { .rcsn-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rcsn-head, .rcsn-toolbar { align-items: flex-start; flex-direction: column; } }
+        @media (max-width: 560px) { .rcsn-stats { grid-template-columns: 1fr; } }
+    </style>
+    <div class="rcsn-wrap" data-rcsn-root data-endpoint="<?= htmlspecialchars($notificationEndpoint) ?>">
+        <header class="rcsn-head">
+            <div>
+                <h1>Send Notifications</h1>
+                <p>Live list of assigned advisers and panel members for students, research advisers, panel members, and CRAD staff.</p>
+            </div>
+            <div class="rcsn-sync" data-rcsn-sync>Syncing...</div>
+        </header>
+        <section class="rcsn-stats">
+            <div class="rcsn-stat"><i class="fas fa-check-circle"></i><div><span>Ready Assignments</span><strong data-rcsn-stat="assignments"><?= (int) $notificationStats['assignments'] ?></strong></div></div>
+            <div class="rcsn-stat"><i class="fas fa-user-graduate"></i><div><span>Leaders</span><strong data-rcsn-stat="students"><?= (int) $notificationStats['students'] ?></strong></div></div>
+            <div class="rcsn-stat"><i class="fas fa-user-tie"></i><div><span>Advisers</span><strong data-rcsn-stat="advisers"><?= (int) $notificationStats['advisers'] ?></strong></div></div>
+            <div class="rcsn-stat"><i class="fas fa-users"></i><div><span>Panel Members</span><strong data-rcsn-stat="panels"><?= (int) $notificationStats['panels'] ?></strong></div></div>
+        </section>
+        <div class="rcsn-notice" data-rcsn-notice></div>
+        <section class="rcsn-card">
+            <div class="rcsn-toolbar">
+                <h2>Assigned Adviser and Panel Notification List</h2>
+                <input class="rcsn-search" type="search" data-rcsn-search placeholder="Search group, title, adviser, panel...">
+            </div>
+            <div class="table-responsive">
+                <table class="rcsn-table">
+                    <thead>
+                        <tr>
+                            <th>Research Group / Title</th>
+                            <th>Leader</th>
+                            <th>Research Adviser</th>
+                            <th>Panel Members</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody data-rcsn-rows></tbody>
+                </table>
+            </div>
+            <div class="rcsn-empty" data-rcsn-empty hidden>No assigned advisers or panel members yet.</div>
+        </section>
+    </div>
+    <script>
+    (() => {
+        const root = document.querySelector('[data-rcsn-root]');
+        if (!root) return;
+        const endpoint = root.dataset.endpoint;
+        const rowsBody = root.querySelector('[data-rcsn-rows]');
+        const empty = root.querySelector('[data-rcsn-empty]');
+        const search = root.querySelector('[data-rcsn-search]');
+        const sync = root.querySelector('[data-rcsn-sync]');
+        const notice = root.querySelector('[data-rcsn-notice]');
+        const stats = root.querySelectorAll('[data-rcsn-stat]');
+        let rows = <?= json_encode($notificationRows, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        let refreshing = false;
+        let timer = null;
+        const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[char]);
+        const renderStats = (data) => stats.forEach((node) => { node.textContent = String(data?.[node.dataset.rcsnStat] ?? 0); });
+        const showNotice = (message, type = 'ok') => {
+            if (!notice) return;
+            notice.textContent = message || '';
+            notice.className = 'rcsn-notice show ' + type;
+            window.setTimeout(() => {
+                notice.className = 'rcsn-notice';
+                notice.textContent = '';
+            }, 3500);
+        };
+        const filteredRows = () => {
+            const term = (search?.value || '').trim().toLowerCase();
+            if (!term) return rows;
+            return rows.filter((row) => [
+                row.research_group, row.group_number, row.research_title, row.leader,
+                row.adviser, row.adviser_email, row.panels, row.panel_emails, row.status
+            ].join(' ').toLowerCase().includes(term));
+        };
+        const render = () => {
+            const visible = filteredRows();
+            rowsBody.innerHTML = visible.map((row) => `
+                <tr>
+                    <td><span class="rcsn-title">${esc(row.research_group || 'Research Group')}</span><span class="rcsn-muted">${esc(row.group_number || '')}</span><span class="rcsn-muted">${esc(row.research_title || '')}</span></td>
+                    <td>${esc(row.leader || 'Research Group Leader')}</td>
+                    <td><span class="rcsn-title">${esc(row.adviser || 'Research Adviser')}</span><span class="rcsn-muted">${esc(row.adviser_email || '')}</span></td>
+                    <td><span class="rcsn-title">${esc(row.panels || 'Panel Members')}</span><span class="rcsn-muted">${esc(row.panel_emails || '')}</span></td>
+                    <td><span class="rcsn-badge">${esc(row.status || 'Ready to Notify')}</span></td>
+                    <td>${esc(row.updated || '')}</td>
+                    <td>
+                        <button type="button" class="rcsn-action" data-rcsn-send="${esc(row.group_number || '')}" ${row.can_send ? '' : 'disabled'}>
+                            <i class="fas ${row.is_sent ? 'fa-check' : 'fa-paper-plane'}"></i>${row.is_sent ? 'Sent' : 'Send Notification'}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            empty.hidden = visible.length !== 0;
+            empty.textContent = rows.length === 0 ? 'No assigned advisers or panel members yet.' : 'No records match your search.';
+        };
+        rowsBody?.addEventListener('click', async (event) => {
+            const button = event.target.closest('[data-rcsn-send]');
+            if (!button || button.disabled) return;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>Sending';
+            try {
+                const form = new FormData();
+                form.append('ajax', 'send-assignment-notification');
+                form.append('group_number', button.dataset.rcsnSend || '');
+                const res = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: form,
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store',
+                    credentials: 'same-origin'
+                });
+                if (!res.ok) throw new Error('Failed to send notification.');
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Failed to send notification.');
+                rows = Array.isArray(data.rows) ? data.rows : [];
+                renderStats(data.stats || {});
+                render();
+                sync.textContent = 'Synced ' + (data.synced_at || 'just now');
+                showNotice(data.message || 'Notification sent.', 'ok');
+            } catch (error) {
+                showNotice(error.message || 'Failed to send notification.', 'error');
+                render();
+            }
+        });
+        const refresh = async () => {
+            if (refreshing) return;
+            refreshing = true;
+            try {
+                const url = new URL(endpoint, window.location.href);
+                url.searchParams.set('_', Date.now().toString());
+                const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' }, cache: 'no-store', credentials: 'same-origin' });
+                if (!res.ok) throw new Error('Sync failed');
+                const data = await res.json();
+                if (!data.ok) throw new Error('Sync failed');
+                rows = Array.isArray(data.rows) ? data.rows : [];
+                renderStats(data.stats || {});
+                render();
+                sync.textContent = 'Synced ' + (data.synced_at || 'just now');
+            } catch (error) {
+                sync.textContent = 'Sync paused';
+            } finally {
+                refreshing = false;
+            }
+        };
+        search?.addEventListener('input', render);
+        renderStats(<?= json_encode($notificationStats, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
+        render();
+        refresh();
+        timer = window.setInterval(refresh, 5000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (timer) window.clearInterval(timer);
+                timer = null;
+                return;
+            }
+            if (timer) window.clearInterval(timer);
+            refresh();
+            timer = window.setInterval(refresh, 5000);
+        });
+    })();
+    </script>
+    <?php
+} else {
 require ROOT_PATH . '/includes/crad-module-process.php';
+}
 require_once ROOT_PATH . '/includes/layout-end.php';

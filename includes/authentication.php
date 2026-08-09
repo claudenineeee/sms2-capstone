@@ -395,6 +395,7 @@ function requireModuleAccess(string $moduleKey): void
         $allowedCoordinatorPages = [
             '/modules/crad/index.php',
             '/modules/crad/pages/approved-research.php',
+            '/modules/crad/pages/adviser-panel-assignment.php',
             '/modules/crad/pages/find-contact-adviser.php',
             '/modules/crad/pages/adviser-availability.php',
             '/modules/crad/pages/assign-research-adviser.php',

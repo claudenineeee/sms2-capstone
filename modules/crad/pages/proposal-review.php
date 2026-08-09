@@ -266,7 +266,7 @@ if (in_array($action, ['approve', 'return', 'save_progress'], true) && $proposal
             $actionDone = 'returned';
 
         } elseif ($action === 'save_progress') {
-            // Save progress from document verdict marking (Back to Pipeline)
+            // Save progress from document verdict marking.
             // Correct count sent as GET param; max allowed via this path is 85%
             // (100% is reserved for explicit Approve)
             $correctCount = max(0, (int) ($_GET['correct'] ?? 0));
@@ -298,6 +298,21 @@ if (in_array($action, ['approve', 'return', 'save_progress'], true) && $proposal
                     ':note' => "Progress updated to {$newProgress}% after document review ({$correctCount}/{$totalDocs} correct)",
                 ]);
             }
+
+            $isAsyncProgressSave =
+                ($_GET['ajax'] ?? '') === '1'
+                || strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+
+            if ($isAsyncProgressSave) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'ok' => true,
+                    'progress' => $newProgress,
+                    'status' => statusFromProgress($newProgress, $proposal['status']),
+                ]);
+                exit;
+            }
+
             // Redirect to pipeline after saving
             header('Location: ' . BASE_URL . '/modules/crad/pages/proposal-submission-tracking.php');
             exit;
@@ -779,11 +794,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     <span class="pst-badge <?= htmlspecialchars($proposal['status_cls']) ?>"><?= htmlspecialchars($proposal['status']) ?></span>
                 </p>
             </div>
-            <div class="prv-header-actions">
-                <a class="prv-btn prv-btn-ghost" id="prvBackBtnHeader" href="<?= BASE_URL ?>/modules/crad/pages/proposal-submission-tracking.php">
-                    ← Back to Pipeline
-                </a>
-            </div>
         </header>
 
         <!-- ── Research Information ── -->
@@ -970,13 +980,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             </div>
         </section>
 
-        <!-- ── Footer Actions ── -->
+        <!-- Footer Actions -->
         <footer class="prv-footer">
-            <a class="prv-btn prv-btn-ghost"
-               id="prvBackBtn"
-               href="<?= BASE_URL ?>/modules/crad/pages/proposal-submission-tracking.php">
-                ← Back to Pipeline
-            </a>
             <div class="prv-footer-right">
                 <a class="prv-btn prv-btn-return"
                    href="#"
@@ -1146,6 +1151,7 @@ var _prvRef          = '<?= addslashes($ref) ?>';
 var _prvBaseUrl      = '<?= addslashes(BASE_URL) ?>';
 var _prvSaveBase     = '?ref=' + encodeURIComponent(_prvRef) + '&action=save_progress&correct=';
 var _prvDocVerdicts  = {};
+var _prvProgressSaveTimer = null;
 var _prvDocumentRules = <?= json_encode(array_map(static function ($doc) {
     return [
         'key' => $doc['key'],
@@ -1179,6 +1185,27 @@ function prvSyncReturnFields() {
     if (remarksTarget) {
         remarksTarget.value = remarksSource ? remarksSource.value : '';
     }
+}
+
+function prvPersistProgress() {
+    if (_prvCorrectCount <= 0) {
+        return;
+    }
+
+    var url = _prvSaveBase + encodeURIComponent(_prvCorrectCount) + '&ajax=1';
+    fetch(url, {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        keepalive: true
+    }).catch(function () {});
+}
+
+function prvQueueProgressSave() {
+    if (_prvProgressSaveTimer) {
+        clearTimeout(_prvProgressSaveTimer);
+    }
+    _prvProgressSaveTimer = setTimeout(prvPersistProgress, 350);
 }
 
 function prvShowReviewGuard(issues) {
@@ -1247,18 +1274,6 @@ function prvValidateApprovalReady(showNote) {
     return issues.length === 0;
 }
 
-function prvUpdateBackButtons() {
-    // If any verdict was marked, route through save_progress to persist progress
-    var url = (_prvCorrectCount > 0)
-        ? _prvSaveBase + _prvCorrectCount
-        : _prvBaseUrl + '/modules/crad/pages/proposal-submission-tracking.php';
-    var btns = [
-        document.getElementById('prvBackBtn'),
-        document.getElementById('prvBackBtnHeader'),
-    ];
-    btns.forEach(function (b) { if (b) { b.href = url; } });
-}
-
 function prvSetVerdict(btn, verdict) {
     var card     = btn.closest('.prv-doc-card');
     var isActive = btn.classList.contains('active');
@@ -1292,15 +1307,20 @@ function prvSetVerdict(btn, verdict) {
         card.style.borderStyle = 'dashed';
     }
 
-    // Update all Back to Pipeline hrefs to include current correct count
-    prvUpdateBackButtons();
     prvSyncApprovalFields();
+    prvQueueProgressSave();
     prvValidateApprovalReady(false);
 }
 
-// Init on load — if no verdicts yet, Back to Pipeline just goes to tracking
-prvUpdateBackButtons();
 prvSyncApprovalFields();
+
+window.addEventListener('pagehide', function () {
+    if (_prvProgressSaveTimer) {
+        clearTimeout(_prvProgressSaveTimer);
+        _prvProgressSaveTimer = null;
+    }
+    prvPersistProgress();
+});
 
 var _prvDeclaration = document.getElementById('prvDeclarationCheck');
 if (_prvDeclaration) {

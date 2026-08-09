@@ -3,6 +3,7 @@
  * SMS 2 - Top Navigation Bar
  */
 require_once __DIR__ . '/authentication.php';
+require_once __DIR__ . '/notifications.php';
 if (!isset($MODULES)) {
     require_once __DIR__ . '/../config/config.php';
 }
@@ -10,6 +11,7 @@ $visibleModulesNav = getVisibleModules($MODULES);
 $navRoleKey = getCurrentUserRoleKey();
 $navMessages = [];
 $navNotifications = [];
+smsMarkNotificationFromRequest();
 $navStudentResearchGroup = (isset($studentResearchGroup) && is_array($studentResearchGroup)) ? $studentResearchGroup : null;
 $navStudentReturnedProposals = [];
 
@@ -77,48 +79,10 @@ if ($navRoleKey === 'student') {
     }
 }
 
-if ($navRoleKey === 'student' && is_array($navStudentResearchGroup)) {
-    $navResearchGroupNumber = (string) ($navStudentResearchGroup['group_number'] ?? '');
-
-    if ($navResearchGroupNumber !== '') {
-        $navResearchGroupDateTime = !empty($navStudentResearchGroup['created_at'])
-            ? date('M j, Y h:i A', strtotime((string) $navStudentResearchGroup['created_at']))
-            : (!empty($navStudentResearchGroup['date_assigned'])
-                ? date('M j, Y h:i A', strtotime((string) $navStudentResearchGroup['date_assigned']))
-                : date('M j, Y h:i A'));
-        $navNotifications[] = [
-            'icon' => 'fa-users',
-            'class' => 'text-primary',
-            'label' => 'Research group number ' . $navResearchGroupNumber . ' is ready',
-            'time' => $navResearchGroupDateTime,
-            'url' => BASE_URL . '/modules/student-portal/pages/dashboard.php?research_group=1',
-        ];
-    }
-}
-
-foreach ($navStudentReturnedProposals as $returnedProposal) {
-    $returnedDate = !empty($returnedProposal['updated_at'])
-        ? date('M j, Y h:i A', strtotime((string) $returnedProposal['updated_at']))
-        : '';
-    $navNotifications[] = [
-        'icon' => 'fa-undo',
-        'class' => 'text-danger',
-        'label' => 'Proposal returned: ' . ($returnedProposal['ref_code'] ?? 'Research Proposal'),
-        'time' => $returnedDate,
-        'url' => BASE_URL . '/modules/student-portal/pages/dashboard.php?returned_proposal=' . urlencode((string) ($returnedProposal['ref_code'] ?? '')),
-    ];
-}
-
 $navMessageCount = count($navMessages);
+$navNotifications = array_merge(smsNotificationPayloadForCurrentUser(), $navNotifications);
 $navNotificationCount = count($navNotifications);
-$navNotificationViewAllUrl = BASE_URL . '/modules/student-portal/pages/dashboard.php';
-if ($navRoleKey === 'student') {
-    if (!empty($navStudentReturnedProposals[0]['ref_code'])) {
-        $navNotificationViewAllUrl .= '?returned_proposal=' . urlencode((string) $navStudentReturnedProposals[0]['ref_code']);
-    } elseif (is_array($navStudentResearchGroup ?? null) && !empty($navStudentResearchGroup['group_number'])) {
-        $navNotificationViewAllUrl .= '?research_group=1';
-    }
-}
+$navNotificationUnreadCount = count(array_filter($navNotifications, static fn(array $item): bool => !empty($item['is_unread'])));
 ?>
 <nav class="navbar navbar-expand-lg navbar-dark sms-navbar fixed-top">
     <div class="container-fluid navbar-inner">
@@ -139,7 +103,7 @@ if ($navRoleKey === 'student') {
             <div class="navbar-search position-relative">
                 <i class="fas fa-search navbar-search-icon"></i>
                 <input type="text" id="globalSearch" class="form-control navbar-search-input"
-                       placeholder="Search modules and pages…"
+                       placeholder="Search modules and pages..."
                        autocomplete="off"
                        aria-label="Search modules and pages"
                        aria-haspopup="listbox"
@@ -221,34 +185,45 @@ if ($navRoleKey === 'student') {
 
             <!-- Notifications -->
             <div class="dropdown">
-                <button class="btn btn-link text-white position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications: <?= $navNotificationCount ?>">
+                <button class="btn btn-link text-white position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications: <?= $navNotificationCount ?>" data-sms-notification-button>
                     <i class="fas fa-bell"></i>
-                    <?php if ($navNotificationCount > 0): ?>
-                        <span class="position-absolute badge rounded-pill bg-danger notification-badge" style="top:2px;right:-2px;transform:none;"><?= $navNotificationCount ?></span>
-                    <?php endif; ?>
+                    <span class="position-absolute badge rounded-pill bg-danger notification-badge <?= $navNotificationCount > 0 ? '' : 'd-none' ?>" style="top:2px;right:-2px;transform:none;" data-sms-notification-badge><?= $navNotificationCount ?></span>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end shadow">
-                    <li><h6 class="dropdown-header">Notifications</h6></li>
-                    <?php if ($navNotificationCount === 0): ?>
-                        <li><span class="dropdown-item-text text-muted"><i class="fas fa-bell-slash me-2"></i>No notifications</span></li>
-                    <?php else: ?>
+                <div class="dropdown-menu dropdown-menu-end shadow sms-notification-dropdown" data-sms-notification-menu>
+                    <div class="sms-notification-head">
+                        <h6>Notifications</h6>
+                    </div>
+                    <div class="sms-notification-tabs" role="tablist" aria-label="Notification filters">
+                        <button type="button" class="active" data-sms-notification-filter="all">All</button>
+                        <button type="button" data-sms-notification-filter="unread">Unread</button>
+                    </div>
+                    <div class="sms-notification-empty" data-sms-notification-empty <?= $navNotificationCount === 0 ? '' : 'hidden' ?>>
+                        <i class="fas fa-bell-slash"></i>
+                        <span>No notifications</span>
+                    </div>
+                    <div class="sms-notification-list" data-sms-notification-items>
                         <?php foreach ($navNotifications as $notification): ?>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-start gap-2" href="<?= htmlspecialchars($notification['url'] ?? '#') ?>">
-                                    <i class="fas <?= htmlspecialchars($notification['icon'] ?? 'fa-info-circle') ?> <?= htmlspecialchars($notification['class'] ?? 'text-primary') ?> mt-1"></i>
-                                    <span>
-                                        <span class="d-block"><?= htmlspecialchars($notification['label'] ?? 'Notification') ?></span>
-                                        <?php if (!empty($notification['time'])): ?>
-                                            <small class="text-muted"><?= htmlspecialchars($notification['time']) ?></small>
-                                        <?php endif; ?>
-                                    </span>
-                                </a>
-                            </li>
+                            <?php $isUnread = !empty($notification['is_unread']); ?>
+                            <a class="sms-notification-item <?= $isUnread ? 'unread' : '' ?>"
+                               href="<?= htmlspecialchars($notification['url'] ?? '#') ?>"
+                               data-sms-notification-link
+                               data-notification-id="<?= (int) ($notification['id'] ?? 0) ?>"
+                               data-notification-status="<?= $isUnread ? 'unread' : 'read' ?>">
+                                <span class="sms-notification-icon"><i class="fas <?= htmlspecialchars($notification['icon'] ?? 'fa-info-circle') ?>"></i></span>
+                                <span class="sms-notification-copy">
+                                    <span class="sms-notification-title"><?= htmlspecialchars($notification['label'] ?? 'Notification') ?></span>
+                                    <?php if (!empty($notification['preview'] ?? $notification['body'] ?? '')): ?>
+                                        <span class="sms-notification-preview"><?= htmlspecialchars((string) ($notification['preview'] ?? $notification['body'])) ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($notification['time'])): ?>
+                                        <span class="sms-notification-time"><?= htmlspecialchars($notification['time']) ?></span>
+                                    <?php endif; ?>
+                                </span>
+                                <?php if ($isUnread): ?><span class="sms-notification-dot" aria-label="Unread"></span><?php endif; ?>
+                            </a>
                         <?php endforeach; ?>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-center text-primary" href="<?= htmlspecialchars($navNotificationViewAllUrl) ?>">View all</a></li>
-                    <?php endif; ?>
-                </ul>
+                    </div>
+                </div>
             </div>
 
             <!-- User Profile -->
@@ -338,6 +313,134 @@ if ($navRoleKey === 'student') {
         color: var(--sms-text, #334155);
         font-size: 0.95rem;
     }
+
+    .sms-notification-dropdown {
+        border: 0;
+        border-radius: 14px;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, .18);
+        min-width: 380px;
+        overflow: hidden;
+        padding: 0;
+        width: min(400px, calc(100vw - 1.5rem));
+    }
+
+    .sms-notification-head {
+        padding: 1.1rem 1.1rem .55rem;
+    }
+
+    .sms-notification-head h6 {
+        color: var(--sms-heading, #0f172a);
+        font-size: 1.15rem;
+        font-weight: 800;
+        margin: 0;
+    }
+
+    .sms-notification-tabs {
+        display: flex;
+        gap: .45rem;
+        padding: 0 1.1rem .8rem;
+    }
+
+    .sms-notification-tabs button {
+        background: transparent;
+        border: 0;
+        border-radius: 999px;
+        color: var(--sms-text, #334155);
+        font-size: .84rem;
+        font-weight: 800;
+        padding: .48rem .82rem;
+    }
+
+    .sms-notification-tabs button.active {
+        background: rgba(36, 84, 198, .14);
+        color: var(--sms-primary, #2454c6);
+    }
+
+    .sms-notification-list {
+        max-height: min(520px, calc(100vh - 220px));
+        overflow-y: auto;
+        padding: 0 .65rem .65rem;
+    }
+
+    .sms-notification-item {
+        align-items: flex-start;
+        border-radius: 10px;
+        color: var(--sms-text, #334155);
+        display: grid;
+        gap: .8rem;
+        grid-template-columns: 40px minmax(0, 1fr) 10px;
+        padding: .78rem .75rem;
+        text-decoration: none;
+    }
+
+    .sms-notification-item:hover {
+        background: rgba(36, 84, 198, .08);
+        color: var(--sms-text, #334155);
+    }
+
+    .sms-notification-icon {
+        align-items: center;
+        background: rgba(37, 99, 235, .13);
+        border-radius: 50%;
+        color: #0d6efd;
+        display: inline-flex;
+        height: 40px;
+        justify-content: center;
+        width: 40px;
+    }
+
+    .sms-notification-title,
+    .sms-notification-preview,
+    .sms-notification-time {
+        display: block;
+        min-width: 0;
+    }
+
+    .sms-notification-title {
+        color: var(--sms-heading, #0f172a);
+        font-size: .94rem;
+        font-weight: 800;
+        line-height: 1.18;
+        overflow-wrap: anywhere;
+    }
+
+    .sms-notification-preview {
+        color: var(--sms-text-muted, #64748b);
+        font-size: .8rem;
+        line-height: 1.25;
+        margin-top: .2rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sms-notification-time {
+        color: var(--sms-primary, #2454c6);
+        font-size: .75rem;
+        font-weight: 700;
+        margin-top: .28rem;
+    }
+
+    .sms-notification-dot {
+        align-self: center;
+        background: #3b82f6;
+        border-radius: 50%;
+        height: 9px;
+        width: 9px;
+    }
+
+    .sms-notification-empty {
+        align-items: center;
+        color: var(--sms-text-muted, #64748b);
+        display: flex;
+        gap: .5rem;
+        padding: 1rem;
+    }
+
+    .sms-notification-empty[hidden],
+    .sms-notification-item[hidden] {
+        display: none !important;
+    }
 </style>
 
 <div class="modal fade" id="logoutConfirmModal" tabindex="-1" aria-labelledby="logoutConfirmTitle" aria-hidden="true">
@@ -380,6 +483,120 @@ window.SMS2_SEARCH_INDEX = (function() {
 })();
 
 document.addEventListener('DOMContentLoaded', function () {
+    const notificationEndpoint = '<?= BASE_URL ?>/api/notifications.php';
+    const notificationButton = document.querySelector('[data-sms-notification-button]');
+    const notificationBadge = document.querySelector('[data-sms-notification-badge]');
+    const notificationEmpty = document.querySelector('[data-sms-notification-empty]');
+    const notificationItems = document.querySelector('[data-sms-notification-items]');
+    const notificationFilters = document.querySelectorAll('[data-sms-notification-filter]');
+    let notificationFilter = 'all';
+    let notificationCache = [];
+
+    const esc = function (value) {
+        return String(value || '').replace(/[&<>"']/g, function (char) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char];
+        });
+    };
+
+    const compactPreview = function (item) {
+        const text = String(item.preview || item.body || '').replace(/\s+/g, ' ').trim();
+        return text.length > 64 ? text.slice(0, 63) + '...' : text;
+    };
+
+    const renderNotifications = function (items) {
+        notificationCache = Array.isArray(items) ? items : [];
+        const visibleItems = notificationFilter === 'unread'
+            ? notificationCache.filter(function (item) { return Boolean(item.is_unread); })
+            : notificationCache;
+        const count = Array.isArray(items) ? items.length : 0;
+        const unreadCount = notificationCache.filter(function (item) { return Boolean(item.is_unread); }).length;
+        if (notificationBadge) {
+            notificationBadge.textContent = String(count);
+            notificationBadge.classList.toggle('d-none', count === 0);
+        }
+        if (notificationButton) {
+            notificationButton.setAttribute('aria-label', 'Notifications: ' + count);
+        }
+        if (notificationEmpty) {
+            notificationEmpty.hidden = visibleItems.length !== 0;
+            const emptyText = notificationEmpty.querySelector('span');
+            if (emptyText) {
+                emptyText.textContent = notificationFilter === 'unread' ? 'No unread notifications' : 'No notifications';
+            }
+        }
+        notificationFilters.forEach(function (button) {
+            const isActive = button.dataset.smsNotificationFilter === notificationFilter;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            if (button.dataset.smsNotificationFilter === 'unread') {
+                button.textContent = unreadCount > 0 ? 'Unread ' + unreadCount : 'Unread';
+            }
+        });
+        if (!notificationItems) return;
+        notificationItems.innerHTML = visibleItems.map(function (item) {
+            const isUnread = Boolean(item.is_unread);
+            return '<a class="sms-notification-item ' + (isUnread ? 'unread' : '') + '" href="' + esc(item.url || '#') + '" data-sms-notification-link data-notification-id="' + esc(item.id || '') + '" data-notification-status="' + (isUnread ? 'unread' : 'read') + '">' +
+                '<span class="sms-notification-icon"><i class="fas ' + esc(item.icon || 'fa-info-circle') + '"></i></span>' +
+                '<span class="sms-notification-copy">' +
+                    '<span class="sms-notification-title">' + esc(item.label || 'Notification') + '</span>' +
+                    (compactPreview(item) ? '<span class="sms-notification-preview">' + esc(compactPreview(item)) + '</span>' : '') +
+                    (item.time ? '<span class="sms-notification-time">' + esc(item.time) + '</span>' : '') +
+                '</span>' +
+                (isUnread ? '<span class="sms-notification-dot" aria-label="Unread"></span>' : '<span></span>') +
+            '</a>';
+        }).join('');
+    };
+
+    notificationFilters.forEach(function (button) {
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            notificationFilter = button.dataset.smsNotificationFilter || 'all';
+            renderNotifications(notificationCache);
+        });
+    });
+
+    const refreshNotifications = async function () {
+        if (!notificationButton) return;
+        try {
+            const res = await fetch(notificationEndpoint, {
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-store',
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data && data.ok) {
+                renderNotifications(data.items || []);
+            }
+        } catch (error) {
+            return;
+        }
+    };
+
+    document.addEventListener('click', function (event) {
+        const link = event.target.closest('[data-sms-notification-link]');
+        if (!link) return;
+        const id = Number(link.dataset.notificationId || 0);
+        if (id <= 0) return;
+        notificationCache = notificationCache.map(function (item) {
+            if (Number(item.id || 0) !== id) return item;
+            return Object.assign({}, item, { is_unread: false, status: 'read' });
+        });
+        renderNotifications(notificationCache);
+        const form = new FormData();
+        form.append('notification_id', String(id));
+        fetch(notificationEndpoint, {
+            method: 'POST',
+            body: form,
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store',
+            credentials: 'same-origin'
+        }).catch(function () {});
+    });
+
+    refreshNotifications();
+    window.setInterval(refreshNotifications, 5000);
+
     const logoutLink = document.querySelector('[data-logout-confirm]');
     const modalEl = document.getElementById('logoutConfirmModal');
     const confirmBtn = document.getElementById('logoutConfirmBtn');

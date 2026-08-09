@@ -50,6 +50,7 @@ if (!function_exists('sms2_detect_base_url')) {
             '/database/',
             '/login/',
             '/modules/',
+            '/notifications/',
             '/setup/',
             '/welcome/',
         ];
@@ -428,7 +429,7 @@ $MODULES = [
             ['slug' => 'proposal-submission-tracking', 'title' => 'Research Proposal Submission & Tracking'],
             ['slug' => 'register-proposal', 'title' => 'Register Proposal'],
             ['slug' => 'research-group-number', 'title' => 'Research Group Number'],
-            ['slug' => 'adviser-panel-assignment', 'title' => 'Adviser & Panel Assignment'],
+            ['slug' => 'adviser-panel-assignment', 'title' => 'Record Adviser/Panel Assignment'],
             ['slug' => 'research-grants-funding-assistance', 'title' => 'Research Grants & Funding Assistance'],
             ['slug' => 'research-defense-scheduling', 'title' => 'Research Defense Scheduling'],
             ['slug' => 'documentation-publication-management', 'title' => 'Documentation & Publication Management'],

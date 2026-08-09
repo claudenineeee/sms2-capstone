@@ -137,6 +137,8 @@ CREATE TABLE `research_adviser_assignments` (
   `assigned_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `notification_sent_at` datetime DEFAULT NULL,
+  `notification_sent_by` int(10) UNSIGNED DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_raa_group` (`research_group_id`),
   KEY `idx_raa_proposal` (`proposal_id`),
@@ -148,9 +150,9 @@ CREATE TABLE `research_adviser_assignments` (
 -- Dumping data for table `research_adviser_assignments`
 --
 
-INSERT INTO `research_adviser_assignments` (`id`, `research_group_id`, `proposal_id`, `proposal_number`, `group_number`, `adviser_name`, `adviser_email`, `expertise`, `availability_status`, `assignment_status`, `notes`, `assigned_by`, `assigned_at`, `created_at`, `updated_at`) VALUES
-(1, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Dr. Roberto M. Santos', 'rsantos@bestlink.edu.ph', 'Artificial Intelligence / Machine Learning', 'Available', 'Pending', 'Matched based on AI research topic; ready for coordinator contact.', 40, '2026-08-08 18:30:00', '2026-08-08 18:30:00', '2026-08-08 18:30:00'),
-(2, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Prof. Clara T. Reyes', 'creyes@bestlink.edu.ph', 'Data Analytics / Educational Technology', 'Available', 'Pending', 'Secondary adviser match for AI-assisted title review.', 40, '2026-08-08 18:31:00', '2026-08-08 18:31:00', '2026-08-08 18:31:00');
+INSERT INTO `research_adviser_assignments` (`id`, `research_group_id`, `proposal_id`, `proposal_number`, `group_number`, `adviser_name`, `adviser_email`, `expertise`, `availability_status`, `assignment_status`, `notes`, `assigned_by`, `assigned_at`, `created_at`, `updated_at`, `notification_sent_at`, `notification_sent_by`) VALUES
+(1, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Dr. Roberto M. Santos', 'rsantos@bestlink.edu.ph', 'Artificial Intelligence / Machine Learning', 'Available', 'Pending', 'Matched based on AI research topic; ready for coordinator contact.', 40, '2026-08-08 18:30:00', '2026-08-08 18:30:00', '2026-08-08 18:30:00', NULL, NULL),
+(2, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Prof. Clara T. Reyes', 'creyes@bestlink.edu.ph', 'Data Analytics / Educational Technology', 'Available', 'Pending', 'Secondary adviser match for AI-assisted title review.', 40, '2026-08-08 18:31:00', '2026-08-08 18:31:00', '2026-08-08 18:31:00', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -175,6 +177,8 @@ CREATE TABLE `research_panel_assignments` (
   `assigned_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `notification_sent_at` datetime DEFAULT NULL,
+  `notification_sent_by` int(10) UNSIGNED DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_rpa_group` (`research_group_id`),
   KEY `idx_rpa_proposal` (`proposal_id`),
@@ -186,11 +190,9 @@ CREATE TABLE `research_panel_assignments` (
 -- Dumping data for table `research_panel_assignments`
 --
 
-INSERT INTO `research_panel_assignments` (`id`, `research_group_id`, `proposal_id`, `proposal_number`, `group_number`, `panel_name`, `panel_email`, `panel_role`, `expertise`, `availability_status`, `assignment_status`, `notes`, `assigned_by`, `assigned_at`, `created_at`, `updated_at`) VALUES
-(1, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Dr. Jose B. Tan', 'jtan@bestlink.edu.ph', 'Panel Chair', 'Systems Development / AI Evaluation', 'Available', 'Pending', 'Recommended panel chair for technical AI assessment.', 40, '2026-08-08 18:32:00', '2026-08-08 18:32:00', '2026-08-08 18:32:00'),
-(2, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Prof. Nina G. Cruz', 'ncruz@bestlink.edu.ph', 'Panel Member', 'Research Methods / Data Analysis', 'Available', 'Pending', 'Recommended panel member for methodology and validation review.', 40, '2026-08-08 18:33:00', '2026-08-08 18:33:00', '2026-08-08 18:33:00');
-
--- --------------------------------------------------------
+INSERT INTO `research_panel_assignments` (`id`, `research_group_id`, `proposal_id`, `proposal_number`, `group_number`, `panel_name`, `panel_email`, `panel_role`, `expertise`, `availability_status`, `assignment_status`, `notes`, `assigned_by`, `assigned_at`, `created_at`, `updated_at`, `notification_sent_at`, `notification_sent_by`) VALUES
+(1, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Dr. Jose B. Tan', 'jtan@bestlink.edu.ph', 'Panel Chair', 'Systems Development / AI Evaluation', 'Available', 'Pending', 'Recommended panel chair for technical AI assessment.', 40, '2026-08-08 18:32:00', '2026-08-08 18:32:00', '2026-08-08 18:32:00', NULL, NULL),
+(2, 7, 13, 'CRD-2026-00013', 'RG-2026-001', 'Prof. Nina G. Cruz', 'ncruz@bestlink.edu.ph', 'Panel Member', 'Research Methods / Data Analysis', 'Available', 'Pending', 'Recommended panel member for methodology and validation review.', 40, '2026-08-08 18:33:00', '2026-08-08 18:33:00', '2026-08-08 18:33:00', NULL, NULL);
 
 --
 -- Table structure for table `research_groups`
