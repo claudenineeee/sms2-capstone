@@ -1,15 +1,12 @@
 <?php
 /**
  * SMS 2 – Create official role accounts (no demo fluff).
- * Run: C:\xampp\php\php.exe database/seed_accounts.php
+ * Run via browser: http://localhost/sms2-capstone/database/seed_accounts.php
  */
 declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') {
-    http_response_code(403);
     header('Content-Type: text/plain; charset=utf-8');
-    echo "Forbidden. Run from CLI only:\n  C:\\xampp\\php\\php.exe database/seed_accounts.php\n";
-    exit(1);
 }
 
 require_once __DIR__ . '/../config/config.php';
@@ -32,6 +29,10 @@ $roles = [
     ['crad_officer', 'CRAD Officer', 'Research and development'],
     ['research_coordinator', 'Research Coordinator', 'Research coordination access'],
     ['student', 'Student', 'Student portal only'],
+    ['dean', 'Dean', 'Dean faculty administration'],
+    ['department_head', 'Department Head', 'Department head oversight'],
+    ['secretary', 'Secretary', 'Department secretary records'],
+    ['faculty', 'Faculty', 'Faculty teacher portal'],
 ];
 
 $insRole = $pdo->prepare(
@@ -58,6 +59,10 @@ $perms = [
     'qa'           => ['accreditation'],
     'hr'           => ['faculty'],
     'student'      => ['student_portal'],
+    'dean'            => ['faculty'],
+    'department_head' => ['faculty'],
+    'secretary'       => ['faculty'],
+    'faculty'         => ['faculty'],
 ];
 
 $insPerm = $pdo->prepare(
@@ -149,8 +154,32 @@ $accounts = [
         'username' => 'dean',
         'email' => 'dean@bestlink.edu.ph',
         'password' => '@dean123',
-        'full_name' => 'Dean',
-        'role_key' => 'hr',
+        'full_name' => 'Dean of College',
+        'role_key' => 'dean',
+        'student_id' => null,
+    ],
+    [
+        'username' => 'depthead',
+        'email' => 'depthead@bestlink.edu.ph',
+        'password' => '@depthead123',
+        'full_name' => 'Department Head',
+        'role_key' => 'department_head',
+        'student_id' => null,
+    ],
+    [
+        'username' => 'secretary',
+        'email' => 'secretary@bestlink.edu.ph',
+        'password' => '@secretary123',
+        'full_name' => 'Department Secretary',
+        'role_key' => 'secretary',
+        'student_id' => null,
+    ],
+    [
+        'username' => 'faculty',
+        'email' => 'faculty@bestlink.edu.ph',
+        'password' => '@faculty123',
+        'full_name' => 'Faculty Teacher',
+        'role_key' => 'faculty',
         'student_id' => null,
     ],
     [

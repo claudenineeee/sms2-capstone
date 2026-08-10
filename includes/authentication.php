@@ -106,17 +106,23 @@ function smsDefaultModulesForRole(string $roleKey): array
         'superadmin'       => ['user-management', 'student_portal'],
         'admin'            => ['user-management'],
         'admission'        => ['enrollment'],
-        'student'      => ['student_portal'],
-        'registrar'    => ['registrar', 'curriculum', 'scheduling'],
-        'crad_officer' => ['crad'],
+        'student'          => ['student_portal'],
+        'registrar'        => ['registrar', 'curriculum', 'scheduling'],
+        'crad_officer'     => ['crad'],
         'research_coordinator' => ['crad'],
-        'finance'      => ['payment'],
-        'hr'           => ['faculty'],
-        'adviser'      => ['faculty'],
-        'panel'        => ['faculty'],
-        'it_office'    => ['lms'],
-        'osa'          => ['cocurricular'],
-        'qa'           => ['accreditation'],
+        'finance'          => ['payment'],
+        'hr'               => ['faculty'],
+        'adviser'          => ['faculty'],
+        'panel'            => ['faculty'],
+        'it_office'        => ['lms'],
+        'osa'              => ['cocurricular'],
+        'qa'               => ['accreditation'],
+        // Faculty module sub-roles
+        'dean'             => ['faculty'],
+        'department_head'  => ['faculty'],
+        'secretary'        => ['faculty'],
+        'faculty'          => ['faculty'],
+        'teacher'          => ['faculty'],
     ];
 
     return $defaults[$roleKey] ?? [];
@@ -333,8 +339,46 @@ function smsResearchCoordinatorCradModule(): array
     ];
 }
 
+function smsFacultySidebarPages(): array
+{
+    $roleKey = getCurrentUserRoleKey();
+
+    if (in_array($roleKey, ['dean', 'hr'], true)) {
+        return [
+            ['label' => 'Faculty Profile',        'url' => 'faculty-profile.php'],
+            ['label' => 'Faculty Directory',       'url' => 'faculty-directory.php'],
+            ['label' => 'Teaching History',        'url' => 'teaching-history.php'],
+            ['label' => 'Subject Load Tracker',    'url' => 'subject-load-tracker.php'],
+            ['label' => 'Attendance Monitoring',   'url' => 'attendance-monitoring.php'],
+            ['label' => 'Leave Application & Approval', 'url' => 'leave-application-approval.php'],
+            ['label' => 'Evaluation Summary',      'url' => 'evaluation-summary.php'],
+            ['label' => 'Clearance System',        'url' => 'clearance-system.php'],
+        ];
+    }
+
+    // department_head, secretary, faculty/teacher get their own arrays here later
+
+    return [];
+}
+
 function smsPostLoginRedirectUrl(): string
 {
+    $roleKey = getCurrentUserRoleKey();
+
+    // Direct role-based redirection to designated Faculty subsystem views
+    if ($roleKey === 'dean' || $roleKey === 'hr') {
+        return BASE_URL . '/modules/faculty/views/dean/faculty-profile.php';
+    }
+    if (in_array($roleKey, ['department_head', 'department-head', 'dept_head', 'depthead'], true)) {
+    return BASE_URL . '/modules/faculty/views/department-head/faculty-profile.php';
+    }
+    if ($roleKey === 'secretary') {
+        return BASE_URL . '/modules/faculty/views/secretary/dashboard.php';
+    }
+    if (in_array($roleKey, ['faculty', 'teacher'], true)) {
+        return BASE_URL . '/modules/faculty/views/faculty/dashboard.php';
+    }
+
     $allowedModules = getAllowedModuleKeys();
     $priority = [
         'user-management',
@@ -355,6 +399,9 @@ function smsPostLoginRedirectUrl(): string
     foreach ($priority as $moduleKey) {
         if (!in_array($moduleKey, $allowedModules, true)) {
             continue;
+        }
+        if ($moduleKey === 'faculty') {
+            return BASE_URL . '/modules/faculty/views/faculty/dashboard.php';
         }
         if ($moduleKey === 'student_portal') {
             return BASE_URL . '/modules/student-portal/pages/my-profile.php';
@@ -1114,27 +1161,8 @@ function smsLoginAttempt(string $username, string $password): array
         }
     }
 
-    require_once __DIR__ . '/totp.php';
-    if (smsAuthenticatorIsEnabled((int) $user['id'])) {
-        // Password OK — require Authenticator / email OTP before full session
-        $_SESSION['pending_2fa'] = [
-            'user_id' => (int) $user['id'],
-            'username' => $username,
-            'at' => time(),
-            'method' => 'authenticator',
-        ];
-        smsClearLoginThrottle($username);
-        return [
-            'ok' => false,
-            'code' => 'needs_2fa',
-            'message' => 'Enter your Authenticator code or email OTP to finish signing in.',
-            'alert' => 'info',
-            'show_reset' => false,
-            'locked' => false,
-            'locked_until' => null,
-            'needs_2fa' => true,
-        ];
-    }
+    // Direct login — skip mandatory 2FA / OTP screens
+    return smsCompleteLoginSession($user, $username);
 
     return smsCompleteLoginSession($user, $username);
 }

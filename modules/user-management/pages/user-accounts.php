@@ -199,7 +199,7 @@ function umRoleBadgeClass(string $role, string $label = ''): string
 $avatarColors = ['a', 'b', 'c', 'd', 'e', 'f'];
 $csrf = csrfToken();
 $total = count($users);
-$facultyAccountRoles = ['hr', 'adviser', 'panel'];
+$facultyAccountRoles = ['hr', 'adviser', 'panel', 'department_head', 'secretary', 'faculty'];
 $facultyUsers = array_values(array_filter($users, fn($u) => in_array($u['role'], $facultyAccountRoles, true)));
 $studentUsers = array_values(array_filter($users, fn($u) => $u['role'] === 'student'));
 $systemUsers = array_values(array_filter($users, fn($u) => !in_array($u['role'], array_merge($facultyAccountRoles, ['student']), true)));
@@ -302,6 +302,9 @@ $currentUserId = (int) getCurrentUserId();
                 <option value="adviser">Adviser</option>
                 <option value="panel">Panel</option>
                 <option value="it_office">IT Office</option>
+                <option value="department_head">Department Head</option>
+                <option value="secretary">Secretary</option>
+                <option value="faculty">Faculty</option>
                 <option value="osa">OSA</option>
                 <option value="qa">QA Office</option>
                 <option value="crad">CRAD Officer</option>
@@ -510,6 +513,9 @@ $currentUserId = (int) getCurrentUserId();
                                 <option value="adviser">Adviser</option>
                                 <option value="panel">Panel</option>
                                 <option value="it_office">IT Office</option>
+                                <option value="department_head">Department Head</option>
+                                <option value="secretary">Secretary</option>
+                                <option value="faculty">Faculty</option>
                                 <option value="osa">OSA</option>
                                 <option value="qa">QA Office</option>
                                 <option value="crad">CRAD Officer</option>

@@ -108,6 +108,86 @@ $facultyAccountNavGroups = [
         ['slug' => 'security-settings', 'href' => BASE_URL . '/account/module-security.php?module=faculty', 'icon' => 'fa-shield-alt', 'label' => 'Security Settings'],
     ],
 ];
+
+$facultyDeanNavGroups = [
+    'Dashboard' => [
+        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/dean/index.php', 'icon' => 'fa-th-large', 'label' => 'Overview'],
+    ],
+    'Faculty Profiles' => [
+        ['slug' => 'faculty-profile',   'href' => BASE_URL . '/modules/faculty/views/dean/faculty-profile.php',   'icon' => 'fa-file-alt',   'label' => 'Faculty Profile'],
+        ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
+        ['slug' => 'teaching-history',  'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php',  'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
+    ],
+    'Subject & Attendance' => [
+        ['slug' => 'subject-load-tracker',  'href' => BASE_URL . '/modules/faculty/views/dean/subject-load-tracker.php',  'icon' => 'fa-list-alt', 'label' => 'Subject Load Tracker'],
+        ['slug' => 'attendance-monitoring', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-monitoring.php', 'icon' => 'fa-user-check', 'label' => 'Attendance Monitoring'],
+    ],
+    'Leave' => [
+        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/leave-application-approval.php', 'icon' => 'fa-calendar-check', 'label' => 'Leave Application & Approval'],
+    ],
+    'Evaluation & Clearance' => [
+        ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/dean/evaluation-summary.php', 'icon' => 'fa-chart-pie', 'label' => 'Evaluation Summary'],
+        ['slug' => 'clearance-system',   'href' => BASE_URL . '/modules/faculty/views/dean/clearance-system.php',   'icon' => 'fa-clipboard-check', 'label' => 'Clearance System'],
+    ],
+    'System' => [
+        ['slug' => 'security-settings', 'href' => BASE_URL . '/account/module-security.php?module=faculty', 'icon' => 'fa-shield-alt', 'label' => 'Security Settings'],
+    ],
+];
+
+$facultyDepartmentHeadNavGroups = [
+    'Dashboard' => [
+        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/department-head/dashboard.php', 'icon' => 'fa-th-large', 'label' => 'Dashboard'],
+    ],
+    'Faculty Profiles' => [
+        ['slug' => 'faculty-profile',   'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-profile.php',   'icon' => 'fa-file-alt',   'label' => 'Faculty Profile'],
+        ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
+        ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-performance.php', 'icon' => 'fa-chart-line', 'label' => 'Faculty Performance'],
+    ],
+    'Schedule & Load' => [
+        ['slug' => 'schedule-approval',      'href' => BASE_URL . '/modules/faculty/views/department-head/schedule-approval.php',      'icon' => 'fa-calendar-check', 'label' => 'Schedule Approval'],
+        ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-load-approval.php', 'icon' => 'fa-tasks', 'label' => 'Teaching Load Approval'],
+    ],
+    'Clearance & Reports' => [
+        ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
+        ['slug' => 'reports',           'href' => BASE_URL . '/modules/faculty/views/department-head/reports.php',           'icon' => 'fa-chart-pie', 'label' => 'Reports'],
+    ],
+    'System' => [
+        ['slug' => 'security-settings', 'href' => BASE_URL . '/account/module-security.php?module=faculty', 'icon' => 'fa-shield-alt', 'label' => 'Security Settings'],
+    ],
+];
+
+$facultySecretaryNavGroups = [
+    'Faculty' => [
+        ['slug' => 'dashboard',   'href' => BASE_URL . '/modules/faculty/views/secretary/dashboard.php',   'icon' => 'fa-file-alt',   'label' => 'Dashboard'],
+        ['slug' => 'faculty-records', 'href' => BASE_URL . '/modules/faculty/views/secretary/faculty-records.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Records'],
+        ['slug' => 'dailty-attendance-log', 'href' => BASE_URL . '/modules/faculty/views/secretary/daily-attendance-log.php', 'icon' => 'fa-chart-line', 'label' => 'Daily Attendance'],
+    ],
+    'DOcuments & Leave' => [
+        ['slug' => 'documents',      'href' => BASE_URL . '/modules/faculty/views/secretary/documents.php',      'icon' => 'fa-calendar-check', 'label' => 'Documents'],
+        ['slug' => 'leave-request-screening', 'href' => BASE_URL . '/modules/faculty/views/secretary/leave-request-screening.php', 'icon' => 'fa-tasks', 'label' => 'Leave Request'],
+    ],
+    'Reports' => [
+        ['slug' => 'reports',           'href' => BASE_URL . '/modules/faculty/views/secretary/reports.php',           'icon' => 'fa-chart-pie', 'label' => 'Reports'],
+    ],
+];
+$facultyTeacherNavGroups = [
+    'Faculty' => [
+        ['slug' => 'dashboard',   'href' => BASE_URL . '/modules/faculty/views/faculty/dashboard.php',   'icon' => 'fa-file-alt',   'label' => 'Dashboard'],
+        ['slug' => 'profile', 'href' => BASE_URL . '/modules/faculty/views/faculty/profile.php', 'icon' => 'fa-address-book', 'label' => 'My Profile'],
+        ['slug' => 'attendance', 'href' => BASE_URL . '/modules/faculty/views/faculty/attendance.php', 'icon' => 'fa-chart-line', 'label' => 'My Attendance'],
+        ['slug' => 'my-schedule', 'href' => BASE_URL . '/modules/faculty/views/faculty/my-schedule.php', 'icon' => 'fa-chart-line', 'label' => 'My Schedule'],
+    ],
+    'DOcuments & Leave' => [
+        ['slug' => 'leave-request',      'href' => BASE_URL . '/modules/faculty/views/faculty/leave-request.php',      'icon' => 'fa-calendar-check', 'label' => 'Leave Request'],
+        ['slug' => 'teaching-load',      'href' => BASE_URL . '/modules/faculty/views/faculty/teaching-load.php',      'icon' => 'fa-calendar-check', 'label' => 'Teaching Load'],
+        ['slug' => 'my-clearance', 'href' => BASE_URL . '/modules/faculty/views/faculty/my-clearance.php', 'icon' => 'fa-tasks', 'label' => 'My Clearance'],
+        ['slug' => 'peer-evaluation', 'href' => BASE_URL . '/modules/faculty/views/faculty/peer-evaluation.php', 'icon' => 'fa-tasks', 'label' => 'Evaluation'],
+    ],
+    'Reports' => [
+        ['slug' => 'notification',           'href' => BASE_URL . '/modules/faculty/views/faculty/notifications.php',           'icon' => 'fa-chart-pie', 'label' => 'Notification'],
+    ],
+];
+
 ?>
 <aside class="sms-sidebar" id="smsSidebar" aria-label="Main navigation">
     <nav class="sidebar-nav" id="smsSidebarAccordion">
@@ -145,9 +225,10 @@ $facultyAccountNavGroups = [
                         </li>
                     <?php endforeach; ?>
                 <?php endforeach; ?>
-
-            <?php elseif (in_array($roleKey, ['adviser', 'panel'], true) && $activeModule === 'faculty'): ?>
-                <?php foreach ($facultyAccountNavGroups as $groupLabel => $groupItems): ?>
+                
+                <!-- DEAN -->
+            <?php elseif (in_array($roleKey, ['dean', 'hr'], true)): ?>
+                <?php foreach ($facultyDeanNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
                         <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
                     </li>
@@ -155,9 +236,9 @@ $facultyAccountNavGroups = [
                         <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
                         <li class="nav-item">
                             <a class="nav-link sidebar-sub <?= $linkClass ?>"
-                               href="<?= htmlspecialchars($item['href']) ?>"
-                               data-title="<?= htmlspecialchars($item['label']) ?>"
-                               title="<?= htmlspecialchars($item['label']) ?>">
+                            href="<?= htmlspecialchars($item['href']) ?>"
+                            data-title="<?= htmlspecialchars($item['label']) ?>"
+                            title="<?= htmlspecialchars($item['label']) ?>">
                                 <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
                                 <span><?= htmlspecialchars($item['label']) ?></span>
                             </a>
@@ -165,21 +246,69 @@ $facultyAccountNavGroups = [
                     <?php endforeach; ?>
                 <?php endforeach; ?>
 
-            <?php else: ?>
-                <li class="nav-item sidebar-group-label">
-                    <span class="nav-link sidebar-group-heading">Dashboard</span>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link sidebar-sub <?= $activeModule === 'dashboard' ? 'active' : '' ?>"
-                       href="<?= BASE_URL ?>/dashboard/index.php"
-                       data-title="Overview"
-                       title="Overview">
-                        <i class="fas fa-th-large" aria-hidden="true"></i>
-                        <span>Overview</span>
-                    </a>
-                </li>
+                <!-- DEPARTMENT HEAD -->
+            <?php elseif (in_array($roleKey, ['department_head', 'department-head', 'dept_head', 'depthead'], true)): ?>
+                <?php foreach ($facultyDepartmentHeadNavGroups as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label">
+                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                    </li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                        <li class="nav-item">
+                            <a class="nav-link sidebar-sub <?= $linkClass ?>"
+                            href="<?= htmlspecialchars($item['href']) ?>"
+                            data-title="<?= htmlspecialchars($item['label']) ?>"
+                            title="<?= htmlspecialchars($item['label']) ?>">
+                                <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                <span><?= htmlspecialchars($item['label']) ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
 
-                <?php foreach ($visibleModules as $navModuleKey => $module): ?>
+                    <!-- SECRETARY -->
+                <?php elseif (in_array($roleKey, ['secretary'], true)): ?>
+                    <?php foreach ($facultySecretaryNavGroups as $groupLabel => $groupItems): ?>
+                        <li class="nav-item sidebar-group-label">
+                            <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        </li>
+                        <?php foreach ($groupItems as $item): ?>
+                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                            <li class="nav-item">
+                                <a class="nav-link sidebar-sub <?= $linkClass ?>"
+                                href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                    <span><?= htmlspecialchars($item['label']) ?></span>
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                <?php endforeach; ?>
+
+                <!-- FACULTY -->
+                 <?php elseif (in_array($roleKey, ['faculty'], true)): ?>
+                    <?php foreach ($facultyTeacherNavGroups as $groupLabel => $groupItems): ?>
+                        <li class="nav-item sidebar-group-label">
+                            <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        </li>
+                        <?php foreach ($groupItems as $item): ?>
+                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                            <li class="nav-item">
+                                <a class="nav-link sidebar-sub <?= $linkClass ?>"
+                                href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                    <span><?= htmlspecialchars($item['label']) ?></span>
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                <?php endforeach; ?>
+
+                <?php else: ?>
+                    
+                 <?php foreach ($visibleModules as $navModuleKey => $module): ?>
                     <?php
                     $isModuleActive = ($activeModule === $navModuleKey);
                     $moduleFolder = $navModuleKey === 'student_portal' ? 'student-portal' : $navModuleKey;
