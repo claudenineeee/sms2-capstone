@@ -8,11 +8,7 @@ require_once __DIR__ . '/../../../../config/config.php';
 $pageTitle    = 'Leave Request Screening';
 $activeModule = 'faculty';
 $activePage   = 'leave-request-screening';
-$breadcrumbs  = [
-    ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
-    ['label' => 'Secretary', 'url' => BASE_URL . '/modules/faculty/users/secretary/index.php'],
-    ['label' => 'Leave Request Screening', 'url' => null],
-];
+
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 
@@ -52,50 +48,91 @@ $requests = [
         border-radius: 0.75rem;
     }
     
-    /* Graduation Cap Avatar Badge Style */
+    /* Dynamic Graduation Cap Avatar Badge Style */
     .faculty-avatar-badge {
         width: 38px;
         height: 38px;
-        background: #181e36;
-        color: #8b95ff;
-        border: 1px solid rgba(139, 149, 255, 0.25);
+        background: #ffffff;
+        color: #4f46e5;
+        border: 1px solid #cbd5e1;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        box-shadow: 0 0 10px rgba(139, 149, 255, 0.15);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
-    /* Dark-Theme Pill Badges */
+    /* Light-Theme Badges (White Background with Colored Borders & Text) */
     .badge-status-complete, .badge-type-vacation {
-        background-color: #0d2822 !important;
-        color: #2be49b !important;
-        border: 1px solid #14533c !important;
+        background-color: #ffffff !important;
+        color: #10b981 !important;
+        border: 1px solid #a7f3d0 !important;
     }
 
     .badge-status-pending, .badge-type-emergency {
-        background-color: #311c08 !important;
-        color: #f3a833 !important;
-        border: 1px solid #63360b !important;
+        background-color: #ffffff !important;
+        color: #d97706 !important;
+        border: 1px solid #fde68a !important;
     }
 
     .badge-type-sick {
-        background-color: #0b1d3a !important;
-        color: #4da3ff !important;
-        border: 1px solid #163e75 !important;
+        background-color: #ffffff !important;
+        color: #2563eb !important;
+        border: 1px solid #bfdbfe !important;
     }
 
     .badge-status-incomplete, .badge-status-returned {
-        background-color: #2d1215 !important;
-        color: #ff5263 !important;
-        border: 1px solid #5a1e24 !important;
+        background-color: #ffffff !important;
+        color: #ef4444 !important;
+        border: 1px solid #fca5a5 !important;
     }
     
     .badge-type-study {
+        background-color: #ffffff !important;
+        color: #8b5cf6 !important;
+        border: 1px solid #ddd6fe !important;
+    }
+
+    /* Dark-Theme Overrides */
+    [data-theme="dark"] .faculty-avatar-badge {
+        background: #181e36;
+        color: #8b95ff;
+        border-color: rgba(139, 149, 255, 0.25);
+        box-shadow: 0 0 10px rgba(139, 149, 255, 0.15);
+    }
+
+    [data-theme="dark"] .badge-status-complete, 
+    [data-theme="dark"] .badge-type-vacation {
+        background-color: #0d2822 !important;
+        color: #2be49b !important;
+        border-color: #14533c !important;
+    }
+
+    [data-theme="dark"] .badge-status-pending, 
+    [data-theme="dark"] .badge-type-emergency {
+        background-color: #311c08 !important;
+        color: #f3a833 !important;
+        border-color: #63360b !important;
+    }
+
+    [data-theme="dark"] .badge-type-sick {
+        background-color: #0b1d3a !important;
+        color: #4da3ff !important;
+        border-color: #163e75 !important;
+    }
+
+    [data-theme="dark"] .badge-status-incomplete, 
+    [data-theme="dark"] .badge-status-returned {
+        background-color: #2d1215 !important;
+        color: #ff5263 !important;
+        border-color: #5a1e24 !important;
+    }
+    
+    [data-theme="dark"] .badge-type-study {
         background-color: #1a1528 !important;
         color: #b388ff !important;
-        border: 1px solid #3d2b5a !important;
+        border-color: #3d2b5a !important;
     }
 </style>
 
@@ -172,8 +209,6 @@ $requests = [
         </div>
     </div>
 </div>
-
-
 
 <!-- Main Section: Table & Chart -->
 <div class="row g-4 mb-4">

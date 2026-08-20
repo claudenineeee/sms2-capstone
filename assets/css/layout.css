@@ -575,6 +575,12 @@ body.sidebar-collapsed .crad-officer-sidebar .crad-sidebar-link {
    Collapsed icon rail (desktop)
    ============================================================ */
 @media (min-width: 992px) {
+    body.sidebar-collapsed .sidebar-group-label,
+    body.sidebar-collapsed .sidebar-group-heading {
+        display: none !important;
+    }
+   }
+@media (min-width: 992px) {
     body.sidebar-collapsed .sms-sidebar {
         width: var(--sms-sidebar-collapsed-width);
         transform: none;

@@ -71,15 +71,56 @@ body.login-page {
     justify-content: center;
     padding: 1.5rem;
 }
+
+/* Force light color scheme context inside card to prevent Dark Mode text overrides */
 .fp-card {
+    color-scheme: light !important;
     width: min(440px, 100%);
-    background: #fff;
+    background: #ffffff !important;
+    color: #0f172a !important;
     border-radius: 16px;
     padding: 2rem;
     box-shadow: 0 20px 50px rgba(0,0,0,.25);
 }
-.fp-card h1 { font-size: 1.6rem; font-weight: 800; margin: 0 0 .5rem; }
-.fp-card p { color: #64748b; font-size: .9rem; }
+
+.fp-card h1 { 
+    font-size: 1.6rem; 
+    font-weight: 800; 
+    margin: 0 0 .5rem; 
+    color: #0f172a !important;
+}
+
+.fp-card p { 
+    color: #64748b !important; 
+    font-size: .9rem; 
+}
+
+.fp-card label,
+.fp-card .form-label {
+    color: #1e293b !important;
+}
+
+/* Explicit input styling for dark mode compatibility */
+.fp-card .form-control,
+.fp-card input {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+}
+
+.fp-card .form-control:focus,
+.fp-card input:focus {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.25) !important;
+}
+
+.fp-card .input-group-text,
+.fp-card .btn,
+.fp-card button {
+    color-scheme: light !important;
+}
 </style>
 
 <div class="fp-card">

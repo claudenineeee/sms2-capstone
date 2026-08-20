@@ -26,15 +26,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <i class="fas fa-user-check text-primary me-2"></i>Faculty Attendance
         </h1>
         <p class="text-body-secondary mb-0">Track and manage your daily check-in logs and teaching hours</p>
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-success px-3" onclick="checkIn()">
-            <i class="fas fa-file-signature me-1"></i>Check In
-        </button>
-        <button class="btn btn-warning px-3" onclick="checkOut()">
-            <i class="fas fa-sign-out-alt me-1"></i>Check Out
-        </button>
-    </div>
+    </div>    
 </div>
 
 <!-- Summary Cards (4-Column Grid) -->
@@ -95,173 +87,127 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 </div>
-
+<!-- Side-by-Side Section: Date Selector & Teacher Subject Attendance -->
 <div class="row g-4 mb-4">
-    <!-- Today's Attendance Status -->
-    <div class="col-12 col-xl-6">
+    <!-- Left Table: Date Selection with Week/Month Filters -->
+    <div class="col-12 col-lg-5 col-xl-4">
         <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-header bg-transparent py-3 d-flex align-items-center justify-content-between border-bottom-0">
-                <h6 class="mb-0 fw-semibold text-primary d-flex align-items-center">
-                    <i class="fas fa-calendar-day me-2 fs-5"></i>Today's Attendance Status
+            <div class="card-header bg-transparent py-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <h6 class="mb-0 fw-semibold text-primary text-nowrap">
+                    <i class="fas fa-calendar-alt me-2"></i>Attendance Dates
                 </h6>
-                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill fw-medium border border-success border-opacity-25">
-                    <i class="fas fa-check-circle me-1"></i>On Time
-                </span>
+                <div class="d-flex align-items-center">
+                    <select class="form-select form-select-sm" style="width: auto;">
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                    </select>
+                </div>
             </div>
-            <div class="card-body d-flex align-items-center pt-0">
-                <div class="row g-3 w-100">
-                    <div class="col-12 col-sm-4">
-                        <div class="p-3 rounded-3 bg-success bg-opacity-10 border border-success border-opacity-25 text-center h-100 d-flex flex-column justify-content-center">
-                            <span class="text-body-secondary small d-block fw-semibold mb-1 text-uppercase tracking-wide" style="font-size: 0.75rem;">Check-in Time</span>
-                            <h4 class="text-success fw-bold mb-0">7:55 AM</h4>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-4">
-                        <div class="p-3 rounded-3 bg-body-tertiary border text-center h-100 d-flex flex-column justify-content-center">
-                            <span class="text-body-secondary small d-block fw-semibold mb-1 text-uppercase tracking-wide" style="font-size: 0.75rem;">Check-out Time</span>
-                            <h4 class="text-muted fw-bold mb-0">--:--</h4>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-4">
-                        <div class="p-3 rounded-3 bg-primary bg-opacity-10 border border-primary border-opacity-25 text-center h-100 d-flex flex-column justify-content-center">
-                            <span class="text-body-secondary small d-block fw-semibold mb-1 text-uppercase tracking-wide" style="font-size: 0.75rem;">Current Status</span>
-                            <h4 class="text-primary fw-bold mb-0">Present</h4>
-                        </div>
-                    </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="ps-3 text-body-secondary fw-semibold small text-nowrap">Date</th>
+                                <th class="text-body-secondary fw-semibold small text-nowrap">Day</th>
+                                <th class="text-end pe-3 text-body-secondary fw-semibold small text-nowrap">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $dates = [
+                                ['date' => 'Aug 01, 2025', 'day' => 'Friday', 'active' => true],
+                                ['date' => 'Jul 31, 2025', 'day' => 'Thursday', 'active' => false],
+                                ['date' => 'Jul 30, 2025', 'day' => 'Wednesday', 'active' => false],
+                                ['date' => 'Jul 29, 2025', 'day' => 'Tuesday', 'active' => false],
+                                ['date' => 'Jul 28, 2025', 'day' => 'Monday', 'active' => false],
+                                ['date' => 'Jul 25, 2025', 'day' => 'Friday', 'active' => false],
+                            ];
+                            foreach ($dates as $d): 
+                                $activeClass = $d['active'] ? 'table-primary' : '';
+                            ?>
+                                <tr class="<?= $activeClass ?>" style="cursor: pointer;">
+                                    <td class="ps-3 fw-medium small text-nowrap"><?= $d['date'] ?></td>
+                                    <td class="small text-body-secondary text-nowrap"><?= $d['day'] ?></td>
+                                    <td class="text-end pe-3 text-nowrap">
+                                        <?php if ($d['active']): ?>
+                                            <span class="badge bg-primary rounded-pill">Selected</span>
+                                        <?php else: ?>
+                                            <button class="btn btn-xs btn-outline-secondary py-0 px-2 style-tiny" style="font-size:0.75rem;">View</button>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Filter Records -->
-    <div class="col-12 col-xl-6">
+    <!-- Right Table: Teacher Class & Subject Attendance Logs -->
+    <div class="col-12 col-lg-7 col-xl-8">
         <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-header bg-transparent py-3 border-bottom-0">
-                <h6 class="mb-0 fw-semibold text-primary d-flex align-items-center">
-                    <i class="fas fa-filter me-2 fs-5"></i>Filter Records
+            <div class="card-header bg-transparent py-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <h6 class="mb-0 fw-semibold text-primary">
+                    <i class="fas fa-chalkboard-teacher me-2"></i>Class Schedule & Status — <span class="text-body-emphasis text-nowrap">Aug 01, 2025</span>
                 </h6>
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 px-sm-3 py-1 rounded-pill small text-nowrap">
+                    <i class="fas fa-check-circle me-1"></i>2 Present / 0 Absent
+                </span>
             </div>
-            <div class="card-body d-flex align-items-center pt-0">
-                <form class="row g-3 align-items-end w-100">
-                    <div class="col-12 col-sm-6 col-md-3">
-                        <label class="form-label small text-body-secondary fw-semibold mb-1">Start Date</label>
-                        <input type="date" class="form-control form-control-sm">
-                    </div>
-                    <div class="col-12 col-sm-6 col-md-3">
-                        <label class="form-label small text-body-secondary fw-semibold mb-1">End Date</label>
-                        <input type="date" class="form-control form-control-sm">
-                    </div>
-                    <div class="col-12 col-sm-6 col-md-2">
-                        <label class="form-label small text-body-secondary fw-semibold mb-1">Month</label>
-                        <select class="form-select form-select-sm">
-                            <option value="">All</option>
-                            <option selected>Aug 2025</option>
-                            <option>Jul 2025</option>
-                            <option>Jun 2025</option>
-                        </select>
-                    </div>
-                    <div class="col-12 col-sm-6 col-md-2">
-                        <label class="form-label small text-body-secondary fw-semibold mb-1">Status</label>
-                        <select class="form-select form-select-sm">
-                            <option value="">All</option>
-                            <option>Present</option>
-                            <option>Late</option>
-                            <option>Absent</option>
-                            <option>On Leave</option>
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-2 d-flex gap-1">
-                        <button type="submit" class="btn btn-primary btn-sm flex-grow-1" title="Filter">
-                            <i class="fas fa-search me-1"></i>Filter
-                        </button>
-                        <button type="reset" class="btn btn-outline-secondary btn-sm" title="Reset">
-                            <i class="fas fa-undo"></i>
-                        </button>
-                    </div>
-                </form>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3 text-body-secondary fw-semibold small text-nowrap">Time</th>
+                                <th class="text-body-secondary fw-semibold small">Subject</th>
+                                <th class="text-body-secondary fw-semibold small text-nowrap">Room</th>
+                                <th class="pe-3 text-body-secondary fw-semibold small text-end text-nowrap">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $classes = [
+                                ['time' => '08:00 - 09:30 AM', 'code' => 'CS101', 'subject' => 'Intro to Computer Science', 'room' => 'Room 201', 'status' => 'Present'],
+                                ['time' => '09:30 - 11:00 AM', 'code' => 'CS401', 'subject' => 'Software Engineering', 'room' => 'Room 203', 'status' => 'Present'],
+                                ['time' => '01:00 - 03:00 PM', 'code' => 'CS301', 'subject' => 'Design & Analysis of Algorithms', 'room' => 'Room 301', 'status' => 'Upcoming'],
+                            ];
+                            foreach ($classes as $c):
+                                $statusBadge = match($c['status']) {
+                                    'Present' => 'bg-success bg-opacity-10 text-success border-success',
+                                    'Absent'  => 'bg-danger bg-opacity-10 text-danger border-danger',
+                                    default   => 'bg-secondary bg-opacity-10 text-secondary border-secondary'
+                                };
+                            ?>
+                                <tr>
+                                    <td class="ps-3 font-monospace small fw-medium text-body-secondary text-nowrap"><?= $c['time'] ?></td>
+                                    <td style="min-width: 160px;">
+                                        <div class="fw-bold text-body small text-truncate" style="max-width: 220px;"><?= $c['code'] ?></div>
+                                        <div class="text-body-secondary style-tiny text-truncate" style="font-size:0.75rem; max-width: 220px;"><?= $c['subject'] ?></div>
+                                    </td>
+                                    <td class="small text-nowrap">
+                                        <i class="fas fa-map-marker-alt me-1 text-primary"></i><?= $c['room'] ?>
+                                    </td>
+                                    <td class="pe-3 text-end text-nowrap">
+                                        <span class="badge border border-opacity-25 rounded-pill px-2 px-sm-3 py-1 <?= $statusBadge ?>">
+                                            <?= $c['status'] ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
-</div>
-<!-- Attendance History Table -->
-<div class="card border-0 shadow-sm rounded-3 mb-4">
-    <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <h6 class="mb-0 fw-semibold text-primary">
-            <i class="fas fa-history me-2"></i>Attendance Logs
-        </h6>
-        <div class="d-flex align-items-center gap-2">
-            <span class="small text-body-secondary d-none d-sm-inline">Show:</span>
-            <select class="form-select form-select-sm w-auto">
-                <option>10 rows</option>
-                <option>25 rows</option>
-                <option>50 rows</option>
-            </select>
-        </div>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="ps-3 text-body-secondary fw-semibold small">Date</th>
-                        <th class="text-body-secondary fw-semibold small">Check-in</th>
-                        <th class="text-body-secondary fw-semibold small">Check-out</th>
-                        <th class="text-body-secondary fw-semibold small">Status</th>
-                        <th class="text-body-secondary fw-semibold small">Total Hours</th>
-                        <th class="text-body-secondary fw-semibold small pe-3">Notes / Remarks</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php
-                    $attendance = [
-                        ['date'=>'Aug 1, 2025','in'=>'7:55 AM','out'=>'--','status'=>'Present','hours'=>'-','notes'=>'On-time check-in'],
-                        ['date'=>'Jul 31, 2025','in'=>'8:00 AM','out'=>'5:00 PM','status'=>'Present','hours'=>'9.0 hrs','notes'=>'Regular day'],
-                        ['date'=>'Jul 30, 2025','in'=>'8:15 AM','out'=>'5:10 PM','status'=>'Late','hours'=>'8.9 hrs','notes'=>'Heavy morning traffic'],
-                        ['date'=>'Jul 29, 2025','in'=>'7:50 AM','out'=>'5:00 PM','status'=>'Present','hours'=>'9.2 hrs','notes'=>'Regular day'],
-                        ['date'=>'Jul 28, 2025','in'=>'-','out'=>'-','status'=>'Absent','hours'=>'0 hrs','notes'=>'Sick leave filed'],
-                        ['date'=>'Jul 25, 2025','in'=>'8:00 AM','out'=>'5:00 PM','status'=>'Present','hours'=>'9.0 hrs','notes'=>'Regular day'],
-                        ['date'=>'Jul 24, 2025','in'=>'7:55 AM','out'=>'5:05 PM','status'=>'Present','hours'=>'9.2 hrs','notes'=>'Regular day'],
-                    ];
-                    foreach ($attendance as $a) {
-                        $badgeTheme = match($a['status']) {
-                            'Present' => 'bg-success bg-opacity-10 text-success border-success',
-                            'Late' => 'bg-warning bg-opacity-10 text-warning-emphasis border-warning',
-                            'Absent' => 'bg-danger bg-opacity-10 text-danger border-danger',
-                            default => 'bg-info bg-opacity-10 text-info border-info'
-                        };
-                        echo <<<HTML
-                        <tr>
-                            <td class="ps-3 fw-medium">{$a['date']}</td>
-                            <td class="small">{$a['in']}</td>
-                            <td class="small">{$a['out']}</td>
-                            <td><span class="badge border border-opacity-25 rounded-pill px-3 py-1 {$badgeTheme}">{$a['status']}</span></td>
-                            <td class="small text-body-secondary">{$a['hours']}</td>
-                            <td class="pe-3 small text-body-secondary">{$a['notes']}</td>
-                        </tr>
-                        HTML;
-                    }
-                    ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <div class="card-footer bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <small class="text-body-secondary">Showing 1 to 7 of 22 entries</small>
-        <nav>
-            <ul class="pagination pagination-sm mb-0">
-                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
-                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                <li class="page-item"><a class="page-link" href="#">Next</a></li>
-            </ul>
-        </nav>
     </div>
 </div>
 
 <!-- Check-in Modal with Canvas Signature -->
 <div class="modal fade" id="checkInModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title fw-semibold fs-6">
@@ -270,7 +216,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="checkInForm" onsubmit="handleCheckIn(event)">
-                <div class="modal-body p-4">
+                <div class="modal-body p-3 p-sm-4">
                     <div class="text-center mb-3">
                         <span class="text-body-secondary small d-block">Current Time</span>
                         <h2 class="fw-bold text-success mb-0" id="checkInTime">--:--</h2>
@@ -298,7 +244,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <input type="text" class="form-control form-control-sm" id="checkInNotes" placeholder="e.g., Early arrival for lab setup">
                     </div>
                 </div>
-                <div class="modal-footer bg-light px-4 py-3">
+                <div class="modal-footer bg-light px-3 px-sm-4 py-3">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success px-4">Confirm Check In</button>
                 </div>
@@ -309,7 +255,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <!-- Check-out Modal -->
 <div class="modal fade" id="checkOutModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title fw-semibold fs-6">
@@ -318,7 +264,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form onsubmit="handleCheckOut(event)">
-                <div class="modal-body p-4">
+                <div class="modal-body p-3 p-sm-4">
                     <div class="text-center mb-3">
                         <span class="text-body-secondary small d-block">Current Time</span>
                         <h2 class="fw-bold text-warning-emphasis mb-0" id="checkOutTime">--:--</h2>
@@ -328,7 +274,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <i class="fas fa-exclamation-triangle me-1"></i> Are you sure you want to log out for the day?
                     </div>
                 </div>
-                <div class="modal-footer bg-light px-4 py-3">
+                <div class="modal-footer bg-light px-3 px-sm-4 py-3">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-warning px-4">Confirm Check Out</button>
                 </div>

@@ -35,97 +35,7 @@ $expiring = [
 ];
 ?>
 
-<link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-<style>
-    .stat-card {
-        border: none;
-        border-radius: 0.75rem;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.08);
-    }
-    .stat-icon {
-        width: 42px;
-        height: 42px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-    }
-    .filter-card {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 0.75rem;
-    }
-    
-    /* Faculty Avatar Badge Style */
-    .faculty-avatar-badge {
-        width: 38px;
-        height: 38px;
-        background: #181e36;
-        color: #8b95ff;
-        border: 1px solid rgba(139, 149, 255, 0.25);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        box-shadow: 0 0 10px rgba(139, 149, 255, 0.15);
-    }
-
-    /* Dark-Theme Pill Badges for Document Statuses */
-    .badge-status-valid {
-        background-color: #0d2822 !important;
-        color: #2be49b !important;
-        border: 1px solid #14533c !important;
-    }
-
-    .badge-status-expiring {
-        background-color: #311c08 !important;
-        color: #f3a833 !important;
-        border: 1px solid #63360b !important;
-    }
-
-    .badge-status-expired {
-        background-color: #2d1215 !important;
-        color: #ff5263 !important;
-        border: 1px solid #5a1e24 !important;
-    }
-
-    /* Dark-Theme Pill Badges for Document Types */
-    .badge-type-contract {
-        background-color: #0b1d3a !important;
-        color: #4da3ff !important;
-        border: 1px solid #163e75 !important;
-    }
-
-    .badge-type-certificate {
-        background-color: #1a1528 !important;
-        color: #b388ff !important;
-        border: 1px solid #3d2b5a !important;
-    }
-
-    .badge-type-training {
-        background-color: #0d2822 !important;
-        color: #2be49b !important;
-        border: 1px solid #14533c !important;
-    }
-
-    .badge-type-id {
-        background-color: #22222a !important;
-        color: #b0b0cc !important;
-        border: 1px solid #3c3c4d !important;
-    }
-
-    .expiring-alert-card {
-        border-left: 4px solid #f3a833;
-    }
-</style>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
@@ -133,7 +43,7 @@ $expiring = [
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
         <h2 class="h4 fw-bold text-dark mb-1">
-            <i class="fas fa-folder text-purple me-2"></i>Documents
+            <i class="fas fa-folder text-primary me-2"></i>Documents
         </h2>
         <p class="text-muted small mb-0">Manage faculty documents, certificates, and contracts</p>
     </div>
@@ -150,33 +60,39 @@ $expiring = [
 <!-- Summary Cards -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
-        <div class="card stat-card shadow-sm h-100">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="text-muted small fw-semibold">Total Documents</span>
-                    <div class="stat-icon bg-primary-subtle text-primary"><i class="fas fa-file"></i></div>
+                    <div class="d-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-3 fs-5" style="width: 42px; height: 42px;">
+                        <i class="fas fa-file"></i>
+                    </div>
                 </div>
                 <h3 class="fw-bold mb-0">156</h3>
             </div>
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="card stat-card shadow-sm h-100">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="text-muted small fw-semibold">Valid</span>
-                    <div class="stat-icon bg-success-subtle text-success"><i class="fas fa-check-circle"></i></div>
+                    <div class="d-flex align-items-center justify-content-center bg-success-subtle text-success rounded-3 fs-5" style="width: 42px; height: 42px;">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
                 </div>
                 <h3 class="fw-bold mb-0">142</h3>
             </div>
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="card stat-card shadow-sm h-100">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="text-muted small fw-semibold">Expiring Soon</span>
-                    <div class="stat-icon bg-warning-subtle text-warning"><i class="fas fa-exclamation-circle"></i></div>
+                    <div class="d-flex align-items-center justify-content-center bg-warning-subtle text-warning rounded-3 fs-5" style="width: 42px; height: 42px;">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
                 </div>
                 <div class="d-flex align-items-baseline gap-2">
                     <h3 class="fw-bold mb-0">8</h3>
@@ -186,11 +102,13 @@ $expiring = [
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <div class="card stat-card shadow-sm h-100">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="text-muted small fw-semibold">Expired</span>
-                    <div class="stat-icon bg-danger-subtle text-danger"><i class="fas fa-times-circle"></i></div>
+                    <div class="d-flex align-items-center justify-content-center bg-danger-subtle text-danger rounded-3 fs-5" style="width: 42px; height: 42px;">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
                 </div>
                 <h3 class="fw-bold mb-0">6</h3>
             </div>
@@ -207,16 +125,16 @@ $expiring = [
         <div class="row g-3">
             <?php foreach ($expiring as $e): ?>
             <div class="col-md-4">
-                <div class="card bg-white border shadow-sm p-3 expiring-alert-card h-100">
+                <div class="card bg-white border border-start-0 border-top-0 border-bottom-0 border-4 border-warning shadow-sm p-3 h-100">
                     <div class="d-flex align-items-center gap-2 mb-2">
-                        <div class="faculty-avatar-badge" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                        <div class="rounded-circle bg-dark text-primary border border-primary-subtle d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm" style="width: 32px; height: 32px; font-size: 0.8rem;">
                             <i class="fas fa-user-graduate"></i>
                         </div>
                         <h6 class="fw-bold text-dark mb-0 fs-6"><?= $e['faculty'] ?></h6>
                     </div>
                     <p class="small text-muted mb-2"><?= $e['doc'] ?></p>
                     <div>
-                        <span class="badge badge-status-expiring rounded-pill px-3 py-1 fw-bold">
+                        <span class="badge bg-white text-warning border border-warning-subtle rounded-pill px-3 py-1 fw-bold">
                             <i class="fas fa-clock me-1"></i>Expires: <?= $e['expiry'] ?>
                         </span>
                     </div>
@@ -227,15 +145,13 @@ $expiring = [
     </div>
 </div>
 
-
-
 <!-- Main Section: Table & Chart -->
 <div class="row g-4 mb-4">
     <!-- Documents Table Repository -->
     <div class="col-lg-8">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-bold"><i class="fas fa-list text-purple me-2"></i>Document Repository (156)</h6>
+                <h6 class="mb-0 fw-bold"><i class="fas fa-list text-primary me-2"></i>Document Repository (156)</h6>
                 <div class="d-flex gap-2">
                     <select class="form-select form-select-sm w-auto">
                         <option>10 per page</option>
@@ -261,32 +177,32 @@ $expiring = [
                         <tbody>
                             <?php foreach ($documents as $d): 
                                 $statusBadge = match($d['status']) {
-                                    'Valid'         => 'badge-status-valid',
-                                    'Expiring Soon' => 'badge-status-expiring',
-                                    default         => 'badge-status-expired'
+                                    'Valid'         => 'bg-white text-success border border-success-subtle',
+                                    'Expiring Soon' => 'bg-white text-warning border border-warning-subtle',
+                                    default         => 'bg-white text-danger border border-danger-subtle'
                                 };
 
                                 $typeBadge = match($d['type']) {
-                                    'Contract'    => 'badge-type-contract',
-                                    'Certificate' => 'badge-type-certificate',
-                                    'Training'    => 'badge-type-training',
-                                    default       => 'badge-type-id'
+                                    'Contract'    => 'bg-white text-primary border border-primary-subtle',
+                                    'Certificate' => 'bg-white text-info border border-info-subtle',
+                                    'Training'    => 'bg-white text-success border border-success-subtle',
+                                    default       => 'bg-white text-secondary border border-secondary-subtle'
                                 };
                             ?>
                             <tr>
-                                <td class="ps-3 small font-monospace text-muted"><?= $d['id'] ?></td>
+                                <td class="ps-3 small font-monospace text-body-secondary"><?= $d['id'] ?></td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <div class="faculty-avatar-badge" style="width: 30px; height: 30px; font-size: 0.75rem;">
+                                        <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center flex-shrink-0" style="width: 30px; height: 30px; font-size: 0.75rem;">
                                             <i class="fas fa-user-graduate"></i>
                                         </div>
-                                        <span class="fw-semibold text-dark small"><?= $d['faculty'] ?></span>
+                                        <span class="fw-semibold small"><?= $d['faculty'] ?></span>
                                     </div>
                                 </td>
                                 <td><span class="badge <?= $typeBadge ?> rounded-pill px-3 py-1 fw-bold"><?= $d['type'] ?></span></td>
                                 <td>
-                                    <div class="small fw-semibold text-dark"><?= $d['name'] ?></div>
-                                    <small class="text-muted d-block" style="font-size: 0.75rem;">Uploaded: <?= $d['upload'] ?></small>
+                                    <div class="small fw-semibold"><?= $d['name'] ?></div>
+                                    <small class="text-body-secondary d-block" style="font-size: 0.75rem;">Uploaded: <?= $d['upload'] ?></small>
                                 </td>
                                 <td class="small font-monospace"><?= $d['expiry'] ?></td>
                                 <td><span class="badge <?= $statusBadge ?> rounded-pill px-3 py-1 fw-bold"><?= $d['status'] ?></span></td>
@@ -313,7 +229,7 @@ $expiring = [
                 </div>
             </div>
             <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2 mt-auto">
-                <small class="text-muted">Showing 1-7 of 156 documents</small>
+                <small class="text-body-secondary">Showing 1-7 of 156 documents</small>
                 <nav>
                     <ul class="pagination pagination-sm mb-0">
                         <li class="page-item disabled"><a class="page-link" href="#">Prev</a></li>
@@ -331,7 +247,7 @@ $expiring = [
     <div class="col-lg-4">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-header bg-white py-3">
-                <h6 class="mb-0 fw-bold"><i class="fas fa-chart-pie text-purple me-2"></i>Status Overview</h6>
+                <h6 class="mb-0 fw-bold"><i class="fas fa-chart-pie text-primary me-2"></i>Status Overview</h6>
             </div>
             <div class="card-body">
                 <div class="position-relative d-flex justify-content-center mb-3">
@@ -340,15 +256,15 @@ $expiring = [
                 <hr>
                 <div class="d-flex flex-column gap-2 small">
                     <div class="d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-circle me-2" style="color: #2be49b;"></i>Valid</span>
+                        <span><i class="fas fa-circle text-success me-2"></i>Valid</span>
                         <span class="fw-bold">142 documents</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-circle me-2" style="color: #f3a833;"></i>Expiring Soon</span>
+                        <span><i class="fas fa-circle text-warning me-2"></i>Expiring Soon</span>
                         <span class="fw-bold">8 documents</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-circle me-2" style="color: #ff5263;"></i>Expired</span>
+                        <span><i class="fas fa-circle text-danger me-2"></i>Expired</span>
                         <span class="fw-bold">6 documents</span>
                     </div>
                 </div>
@@ -362,7 +278,7 @@ $expiring = [
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-light">
-                <h5 class="modal-title h6 fw-bold"><i class="fas fa-upload text-purple me-2"></i>Upload Document</h5>
+                <h5 class="modal-title h6 fw-bold"><i class="fas fa-upload text-primary me-2"></i>Upload Document</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -412,7 +328,7 @@ $expiring = [
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-light">
-                <h5 class="modal-title h6 fw-bold"><i class="fas fa-edit text-purple me-2"></i>Update Document</h5>
+                <h5 class="modal-title h6 fw-bold"><i class="fas fa-edit text-primary me-2"></i>Update Document</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -449,7 +365,7 @@ document.addEventListener("DOMContentLoaded", function() {
             labels: ['Valid', 'Expiring Soon', 'Expired'],
             datasets: [{
                 data: [142, 8, 6],
-                backgroundColor: ['#2be49b', '#f3a833', '#ff5263'],
+                backgroundColor: ['#198754', '#ffc107', '#dc3545'],
                 borderWidth: 2,
                 borderColor: '#ffffff'
             }]

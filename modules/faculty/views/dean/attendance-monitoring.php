@@ -44,7 +44,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <div class="col-12 col-md-3">
             <label class="form-label text-muted small fw-bold mb-1">Campus Location</label>
             <select id="campusLocation" class="form-select bg-body border-secondary-subtle text-body">
-                <option value="MV Campus (Main)" selected>MV Campus (Main)</option>
+                <option value="MV Campus (Main)" selected>MV Campus</option>
                 <option value="Main Campus">Main Campus</option>
                 <option value="Bulacan Campus">Bulacan Campus</option>
             </select>

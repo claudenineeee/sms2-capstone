@@ -1,5 +1,8 @@
 {
     "superadmin": {
         "student_portal": false
+    },
+    "panel": {
+        "faculty": true
     }
 }

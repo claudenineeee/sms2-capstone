@@ -68,6 +68,31 @@ function requireAuth(): void
         header('Location: ' . BASE_URL . '/login/login.php');
         exit;
     }
+
+    // Enforce live account status check on all protected pages
+    $userId = getCurrentUserId();
+    if ($userId) {
+        $pdo = db();
+        if ($pdo) {
+            try {
+                $stmt = $pdo->prepare('SELECT status FROM users WHERE id = ? LIMIT 1');
+                $stmt->execute([$userId]);
+                $status = strtolower(trim((string) ($stmt->fetchColumn() ?? '')));
+                
+                if ($status !== 'active') {
+                    logout();
+                    $_SESSION['flash_login_error'] = str_contains($status, 'pending')
+                        ? 'Your account is currently pending administrator approval.'
+                        : 'Your account is inactive or disabled.';
+                    header('Location: ' . BASE_URL . '/login/login.php');
+                    exit;
+                }
+            } catch (Throwable $e) {
+                // Ignore query failure to prevent lockouts on db error
+            }
+        }
+    }
+
     // Mark online first so status stays accurate even if we redirect next
     smsTouchUserPresence();
     require_once __DIR__ . '/module-controls.php';
@@ -78,6 +103,29 @@ function requireAuth(): void
 
 function getCurrentUserName(): string
 {
+    if (empty($_SESSION['user_id'])) {
+        return 'Guest';
+    }
+
+    $roleKey = strtolower($_SESSION['user_role_key'] ?? $_SESSION['user_role'] ?? '');
+
+    // Map of roles that should display their Role Title instead of Personal Name
+    $adminRoleTitles = [
+        'faculty_admin'      => 'Faculty Admin',
+        'admin'              => 'Faculty Admin',
+        'dean'               => 'Dean',
+        'department_head'    => 'Department Head',
+        'dept_head'          => 'Department Head',
+        'secretary'          => 'Secretary',
+        'monitoring_officer' => 'Monitoring Officer',
+    ];
+
+    // If the logged-in user has one of these admin roles, return the Role Title
+    if (array_key_exists($roleKey, $adminRoleTitles)) {
+        return $adminRoleTitles[$roleKey];
+    }
+
+    // Otherwise (Faculty / Teacher), return their actual Full Name stored in session
     return $_SESSION['user_name'] ?? 'User';
 }
 
@@ -96,6 +144,17 @@ function getCurrentUserId(): ?int
     return isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
 }
 
+function getRestrictedDepartmentId(): ?int
+{
+    $roleKey = getCurrentUserRoleKey();
+    $deptScopedRoles = ['secretary', 'monitoring_officer', 'department_head', 'dept_head'];
+
+    if (in_array($roleKey, $deptScopedRoles, true)) {
+        return $_SESSION['department_id'] ? (int) $_SESSION['department_id'] : 0;
+    }
+
+    return null;
+}
 /**
  * Default module access when DB permissions are empty (fallback).
  */
@@ -121,6 +180,7 @@ function smsDefaultModulesForRole(string $roleKey): array
         'dean'             => ['faculty'],
         'department_head'  => ['faculty'],
         'secretary'        => ['faculty'],
+        'monitoring_officer' => ['faculty'],
         'faculty'          => ['faculty'],
         'teacher'          => ['faculty'],
     ];
@@ -366,15 +426,22 @@ function smsPostLoginRedirectUrl(): string
     $roleKey = getCurrentUserRoleKey();
 
     // Direct role-based redirection to designated Faculty subsystem views
+    if ($roleKey === 'faculty_admin') {
+        return BASE_URL . '/modules/faculty/views/administrator/dashboard.php';
+    }
     if ($roleKey === 'dean' || $roleKey === 'hr') {
         return BASE_URL . '/modules/faculty/views/dean/faculty-profile.php';
     }
     if (in_array($roleKey, ['department_head', 'department-head', 'dept_head', 'depthead'], true)) {
-    return BASE_URL . '/modules/faculty/views/department-head/faculty-profile.php';
+        return BASE_URL . '/modules/faculty/views/department-head/faculty-profile.php';
     }
     if ($roleKey === 'secretary') {
         return BASE_URL . '/modules/faculty/views/secretary/dashboard.php';
     }
+    if (in_array($roleKey, ['monitoring_officer'], true)) {
+        return BASE_URL . '/modules/faculty/views/monitoring-officer/dashboard.php';
+    }
+    
     if (in_array($roleKey, ['faculty', 'teacher'], true)) {
         return BASE_URL . '/modules/faculty/views/faculty/dashboard.php';
     }
@@ -494,37 +561,21 @@ function smsFindUserByLogin(string $input): ?array
         return null;
     }
 
-    $username = $input;
-    $isStudentId = (bool) preg_match('/^s\d+$/i', $input);
-
-    if (str_ends_with($input, '@bestlink.edu.ph')) {
-        $username = substr($input, 0, (int) strpos($input, '@bestlink.edu.ph'));
-    }
+    // Extract handle if email format was entered
+    $usernameHandle = str_contains($input, '@') ? explode('@', $input)[0] : $input;
 
     try {
-        if (str_contains($input, '@')) {
-            $stmt = $pdo->prepare(
-                'SELECT u.*, r.label AS role_label
-                 FROM users u
-                 INNER JOIN roles r ON r.role_key = u.role_key
-                 WHERE LOWER(u.email) = ? OR LOWER(u.username) = ?
-                 LIMIT 1'
-            );
-            $stmt->execute([$input, $username]);
-        } else {
-            // Allow bare username (staff) or student ID
-            $stmt = $pdo->prepare(
-                'SELECT u.*, r.label AS role_label
-                 FROM users u
-                 INNER JOIN roles r ON r.role_key = u.role_key
-                 WHERE LOWER(u.username) = ?
-                    OR LOWER(u.student_id) = ?
-                    OR LOWER(u.email) = ?
-                 LIMIT 1'
-            );
-            $emailGuess = $username . '@bestlink.edu.ph';
-            $stmt->execute([$username, $username, $emailGuess]);
-        }
+        $stmt = $pdo->prepare(
+            'SELECT u.*, r.label AS role_label
+            FROM users u
+            LEFT JOIN roles r ON r.role_key = u.role_key
+            WHERE LOWER(u.email) = ? 
+               OR LOWER(u.username) = ? 
+               OR LOWER(u.username) = ?
+               OR LOWER(u.student_id) = ?
+            LIMIT 1'
+        );
+        $stmt->execute([$input, $input, $usernameHandle, $input]);
 
         $row = $stmt->fetch();
         return $row ?: null;
@@ -1064,7 +1115,27 @@ function smsLoginAttempt(string $username, string $password): array
         $user = $fresh;
     }
 
-    if (in_array($user['status'], ['inactive', 'suspended'], true)) {
+    $accountStatus = strtolower(trim((string) ($user['status'] ?? '')));
+    // Block pending approval accounts (catches any variation of 'pending')
+    if (str_contains($accountStatus, 'pending') || in_array($accountStatus, ['unapproved', 'waiting_approval'], true)) {
+        logActivity(
+            'login_failed',
+            'Login blocked — account pending approval: ' . $user['status'],
+            'System',
+            (int) $user['id'],
+            (string) $user['full_name'],
+            (string) $user['role_key'],
+            false
+        );
+        return $pack(
+            'pending',
+            'Your account is currently pending administrator approval. Please wait for an admin to activate it.',
+            'warning'
+        );
+    }
+
+    // Block all other non-active account statuses (inactive, suspended, etc.)
+    if ($accountStatus !== 'active') {
         logActivity(
             'login_failed',
             'Login blocked — account status: ' . $user['status'],
@@ -1076,29 +1147,6 @@ function smsLoginAttempt(string $username, string $password): array
         );
         return $pack('inactive', 'This login cannot be used right now. Contact your administrator.');
     }
-
-    if (smsIsAccountLocked($user)) {
-        $secs = smsLockRemainingSeconds($user);
-        if ($secs <= 0) {
-            $secs = smsLockoutSeconds();
-        }
-        logActivity(
-            'login_failed',
-            'Login blocked — login locked',
-            'System',
-            (int) $user['id'],
-            (string) $user['full_name'],
-            (string) $user['role_key'],
-            false
-        );
-        $msg = 'Login is temporarily locked after too many failed attempts. Please wait '
-            . smsFormatDuration($secs)
-            . ' before trying again. Sign-in is disabled until the cooldown ends.';
-        $until = (string) ($user['locked_until'] ?? '');
-        smsForceLoginThrottleLock($username, $secs > 0 ? $secs : null);
-        return $pack('locked', $msg, 'warning', false, true, $until !== '' ? $until : null);
-    }
-
     if (!password_verify($password, (string) $user['password_hash'])) {
         $userFail = smsRegisterFailedLogin($user);
         $ipFail = smsRegisterLoginThrottleFailure($username);
@@ -1163,8 +1211,6 @@ function smsLoginAttempt(string $username, string $password): array
 
     // Direct login — skip mandatory 2FA / OTP screens
     return smsCompleteLoginSession($user, $username);
-
-    return smsCompleteLoginSession($user, $username);
 }
 
 /**
@@ -1184,14 +1230,81 @@ function smsCompleteLoginSession(array $user, string $username = ''): array
 
     session_regenerate_id(true);
 
-    $_SESSION['user_id']       = (int) $user['id'];
-    $_SESSION['user_name']     = (string) $user['full_name'];
-    $_SESSION['user_role']     = (string) ($user['role_label'] ?? $user['role_key']);
-    $_SESSION['user_role_key'] = (string) $user['role_key'];
-    $_SESSION['user_email']    = (string) $user['email'];
-    $_SESSION['must_change_password'] = (int) ($user['must_change_password'] ?? 0);
-    $_SESSION['last_activity'] = time();
-    $_SESSION['login_at'] = time();
+    // -------------------------------------------------------------
+    // 1. Resolve Display Name (Role Titles vs. Personal Name)
+    // -------------------------------------------------------------
+    $roleKey = strtolower((string) ($user['role_key'] ?? ''));
+
+    // Admin role title lookup table
+    $adminRoleTitles = [
+        'faculty_admin'      => 'Faculty Admin',
+        'admin'              => 'Faculty Admin',
+        'dean'               => 'Dean',
+        'department_head'    => 'Department Head',
+        'dept_head'          => 'Department Head',
+        'secretary'          => 'Secretary',
+        'monitoring_officer' => 'Monitoring Officer',
+    ];
+
+    if (array_key_exists($roleKey, $adminRoleTitles)) {
+        // Administrative roles get their Role Title as display name
+        $displayName = $adminRoleTitles[$roleKey];
+    } else {
+        // Faculty / Teachers get their personal name
+        $displayName = trim((string) ($user['full_name'] ?? ''));
+
+        // If full_name is empty OR contains an email address (@)
+        if ($displayName === '' || str_contains($displayName, '@')) {
+            try {
+                // Fallback to primary db() or facultyDb()
+                $facultyPdo = function_exists('facultyDb') ? facultyDb() : db();
+                if ($facultyPdo) {
+                    $profStmt = $facultyPdo->prepare("SELECT first_name, last_name FROM faculty_db.faculty_profiles WHERE user_id = ?");
+                    $profStmt->execute([(int) $user['id']]);
+                    $prof = $profStmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!empty($prof['first_name']) || !empty($prof['last_name'])) {
+                        $displayName = trim(($prof['first_name'] ?? '') . ' ' . ($prof['last_name'] ?? ''));
+                    }
+                }
+            } catch (Throwable $e) {
+                // Silently skip on db error
+            }
+        }
+
+        // Guaranteed Fallback: If still an email or empty, strip email handle
+        if ($displayName === '' || str_contains($displayName, '@')) {
+            $rawHandle   = str_contains($displayName, '@') ? explode('@', $displayName)[0] : ($user['username'] ?? 'User');
+            $displayName = ucwords(str_replace(['.', '_', '-'], ' ', $rawHandle));
+        }
+    }
+
+    // -------------------------------------------------------------
+    // 2. Set Session Variables
+    // -------------------------------------------------------------
+    $_SESSION['user_id']               = (int) $user['id'];
+    $_SESSION['user_name']             = $displayName;
+    $_SESSION['user_role']             = (string) ($user['role_label'] ?? $user['role_key']);
+    $_SESSION['user_role_key']         = (string) $user['role_key'];
+    $_SESSION['user_email']            = (string) $user['email'];
+    $_SESSION['must_change_password']  = (int) ($user['must_change_password'] ?? 0);
+    $_SESSION['last_activity']         = time();
+    $_SESSION['login_at']              = time();
+
+    try {
+        $facultyPdo = facultyDb();
+        if ($facultyPdo) {
+            $stmt = $facultyPdo->prepare('SELECT department_id FROM faculty_profiles WHERE user_id = ? LIMIT 1');
+            $stmt->execute([(int) $user['id']]);
+            $deptId = $stmt->fetchColumn();
+            $_SESSION['department_id'] = $deptId ? (int) $deptId : null;
+        } else {
+            $_SESSION['department_id'] = null;
+        }
+    } catch (Throwable $e) {
+        $_SESSION['department_id'] = null;
+    }
+
     unset($_SESSION['presence_touched_at']);
     smsTouchUserPresence((int) $user['id']);
 
@@ -1208,18 +1321,18 @@ function smsCompleteLoginSession(array $user, string $username = ''): array
         'Logged in successfully',
         $primaryModule,
         (int) $user['id'],
-        (string) $user['full_name'],
+        $displayName,
         (string) $user['role_key'],
         false
     );
 
     return [
-        'ok' => true,
-        'code' => 'ok',
-        'message' => '',
-        'alert' => 'success',
-        'show_reset' => false,
-        'locked' => false,
+        'ok'           => true,
+        'code'         => 'ok',
+        'message'      => '',
+        'alert'        => 'success',
+        'show_reset'   => false,
+        'locked'       => false,
         'locked_until' => null,
     ];
 }
@@ -1449,4 +1562,150 @@ function smsUserIsOnline(?string $lastSeenAt, int $onlineSeconds = 300): bool
         return false;
     }
     return (time() - $ts) <= max(60, $onlineSeconds);
+}
+
+/**
+ * Create a new user account submitted by a Department Head (defaults to pending_approval).
+ */
+function smsCreatePendingUser(array $data, int $createdByUserId): ?int
+{
+    $pdo = db();
+    if (!$pdo) {
+        return null;
+    }
+
+    $email = strtolower(trim($data['email'] ?? ''));
+    $username = strtolower(trim($data['username'] ?? ''));
+    $fullName = trim($data['full_name'] ?? '');
+    $roleKey = smsNormalizeRoleKey(trim($data['role_key'] ?? 'faculty'));
+
+    if ($email === '' || $fullName === '') {
+        return null;
+    }
+
+    // Extract last name dynamically (e.g., "rimuru J tempest" -> "Tempest")
+    $nameParts = array_filter(explode(' ', $fullName));
+    $lastName = !empty($nameParts) ? end($nameParts) : 'User';
+    $defaultPassword = ucfirst(strtolower($lastName)) . '@2026';
+
+    $tempPassword = !empty($data['password']) ? $data['password'] : $defaultPassword;
+
+    if ($username === '') {
+        $username = str_contains($email, '@') ? explode('@', $email)[0] : $email;
+    }
+
+    try {
+        $stmt = $pdo->prepare(
+            'INSERT INTO users (username, full_name, email, password_hash, role_key, status, must_change_password, created_at)
+             VALUES (?, ?, ?, ?, ?, \'pending_approval\', 1, NOW())'
+        );
+        $stmt->execute([
+            $username,
+            $fullName,
+            $email,
+            password_hash($tempPassword, PASSWORD_DEFAULT), // Hashes your dynamic Lastname@2026 password
+            $roleKey
+        ]);
+
+        $newUserId = (int) $pdo->lastInsertId();
+
+        logActivity(
+            'user_created_pending',
+            'Department head created account pending approval',
+            'user-management',
+            $newUserId,
+            $fullName,
+            $roleKey
+        );
+
+        return $newUserId;
+    } catch (Throwable $e) {
+        error_log('SMS2 create pending user failed: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Retrieve all users waiting for administrator approval.
+ */
+function smsGetPendingUsers(): array
+{
+    $pdo = db();
+    if (!$pdo) {
+        return [];
+    }
+    try {
+        $stmt = $pdo->query(
+            'SELECT u.*, r.label AS role_label
+             FROM users u
+             LEFT JOIN roles r ON r.role_key = u.role_key
+             WHERE u.status IN (\'pending\', \'pending_approval\')
+             ORDER BY u.id DESC'
+        );
+        return $stmt->fetchAll() ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Approve a pending user account, changing status to active.
+ */
+function smsApprovePendingUser(int $userId, int $adminUserId): bool
+{
+    $pdo = db();
+    if (!$pdo) {
+        return false;
+    }
+
+    try {
+        $stmt = $pdo->prepare(
+            'UPDATE users 
+             SET status = \'active\', failed_login_attempts = 0, locked_until = NULL 
+             WHERE id = ? AND status IN (\'pending\', \'pending_approval\')'
+        );
+        $stmt->execute([$userId]);
+
+        if ($stmt->rowCount() > 0) {
+            logActivity(
+                'user_approved',
+                'Administrator approved account',
+                'user-management',
+                $userId
+            );
+            return true;
+        }
+        return false;
+    } catch (Throwable $e) {
+        error_log('SMS2 approve pending user failed: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Reject a pending user account by marking it inactive.
+ */
+function smsRejectPendingUser(int $userId, int $adminUserId): bool
+{
+    $pdo = db();
+    if (!$pdo) {
+        return false;
+    }
+
+    try {
+        $stmt = $pdo->prepare(
+            'UPDATE users SET status = \'inactive\' WHERE id = ? AND status IN (\'pending\', \'pending_approval\')'
+        );
+        $stmt->execute([$userId]);
+
+        logActivity(
+            'user_rejected',
+            'Administrator rejected pending account',
+            'user-management',
+            $userId
+        );
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
 }

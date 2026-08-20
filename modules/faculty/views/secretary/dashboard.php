@@ -700,12 +700,12 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
                 </svg>
                 Record Attendance
             </button>
-            <button type="button" class="sec-btn sec-btn-primary" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/users/secretary/pages/leave-request-screening.php'">
+            <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2 rounded-3 shadow-sm" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/users/secretary/pages/leave-request-screening.php'">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                 </svg>
-                Pending Screening
-                <span class="sec-btn-badge">3</span>
+                <span>Pending Screening</span>
+                <span class="badge bg-white text-primary rounded-pill fw-bold">3</span>
             </button>
         </div>
     </header>

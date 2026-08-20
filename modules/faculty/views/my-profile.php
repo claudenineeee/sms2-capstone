@@ -1,35 +1,35 @@
 <?php
 /**
- * Profile — Faculty/Teacher role
- * Purpose: View and update own personal, academic, and contact details.
- * Shows real data from faculty_profiles (own record via user_id) — no mock data.
+ * My Profile — shared across every faculty-module role (dean, department head,
+ * secretary, faculty). Always shows only the logged-in user's OWN record,
+ * found via faculty_profiles.user_id = the current session's user_id.
  */
-require_once __DIR__ . '/../../../../config/config.php';
-require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../../config/config.php';
+require_once __DIR__ . '/../../../includes/authentication.php';
 requireAuth();
 
-require_once __DIR__ . '/../../controllers/FacultyController.php';
+require_once __DIR__ . '/../controllers/FacultyController.php';
 $facultyController = new FacultyController();
+
 $profile = $facultyController->getMyProfile();
 
-$pageTitle    = 'Profile';
+$pageTitle    = 'Faculty Profile';
 $activeModule = 'faculty';
-$activePage   = 'profile';
+$activePage   = 'my-profile';
 $breadcrumbs  = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
-    ['label' => 'Faculty', 'url' => BASE_URL . '/modules/faculty/users/faculty/index.php'],
-    ['label' => 'Profile', 'url' => null],
+    ['label' => 'Faculty Profile', 'url' => null],
 ];
 
-require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
-require_once __DIR__ . '/../../../../includes/layout-start.php';
-require_once __DIR__ . '/../../../../includes/nav-icons.php';
+require_once __DIR__ . '/../../../includes/breadcrumbs.php';
+require_once __DIR__ . '/../../../includes/layout-start.php';
+require_once __DIR__ . '/../../../includes/nav-icons.php';
 
 $fullName = $profile
     ? trim(($profile['first_name'] ?? '') . ' ' . ($profile['middle_name'] ?? '') . ' ' . ($profile['last_name'] ?? '') . ' ' . ($profile['suffix'] ?? ''))
     : getCurrentUserName();
 $departmentLabel = $profile ? FacultyController::getDepartmentLabel((string) ($profile['designated_department'] ?? '')) : 'N/A';
-$position = $profile['position'] ?? '';
+$position = $profile['position'] ?? 'Faculty';
 $academicRank = $profile['academic_rank'] ?? '';
 $facultyId = $profile['faculty_id'] ?? '';
 $email = $profile['email'] ?? '';
@@ -38,8 +38,8 @@ $specialization = $profile['specialization_assignment'] ?? '';
 $educationAttainment = $profile['education_attainment'] ?? '';
 $address = $profile['address'] ?? '';
 $hiredDate = $profile['hired_date'] ?? '';
-$profileStatus = $profile['profile_status'] ?? '';
-$employmentStatus = $profile['employment_status'] ?? '';
+$profileStatus = $profile['profile_status'] ?? 'Active';
+$employmentStatus = $profile['employment_status'] ?? 'Full-time';
 $emergencyName = $profile['emergency_contact_name'] ?? '';
 $emergencyPhone = $profile['emergency_contact_phone'] ?? '';
 $emergencyRelationship = $profile['emergency_relationship'] ?? '';
@@ -49,8 +49,8 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <?php if (!$profile): ?>
-    <div class="alert alert-warning rounded-3">
-        No faculty profile is linked to your account yet. Please contact your Dean to have your account linked to a faculty record.
+    <div class="alert alert-warning rounded-3 shadow-sm border-0">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> No faculty profile is linked to your account yet. Please contact your Dean or HR to have your account linked to a faculty record.
     </div>
 <?php else: ?>
 
@@ -63,14 +63,14 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
             </span>
             Faculty Profile
         </h4>
-        <p class="text-secondary small mb-0">View and update your personal, academic, and contact details</p>
+        <p class="text-body-secondary small mb-0">View and update your personal, academic, and contact details</p>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-primary rounded-pill px-3 fw-medium d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#editProfileModal">
+        <button class="btn btn-primary rounded-pill px-3 fw-medium d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#editProfileModal">
             <i class="fas fa-user-edit"></i>
             <span>Edit Profile</span>
         </button>
-        <button class="btn btn-outline-warning rounded-pill px-3 fw-medium d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+        <button class="btn btn-outline-warning rounded-pill px-3 fw-medium d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
             <i class="fas fa-key"></i>
             <span>Change Password</span>
         </button>
@@ -80,7 +80,7 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
 <div id="profileAlert" class="alert d-none rounded-3" role="alert"></div>
 
 <!-- Primary Profile Overview -->
-<div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
+<div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden bg-body-tertiary text-body">
     <div class="card-body p-4">
         <div class="row align-items-center g-4">
             <div class="col-lg-4 text-center border-end-lg pe-lg-4">
@@ -90,14 +90,14 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
                     </div>
                     <span class="position-absolute bottom-0 end-0 p-2 bg-success border border-2 border-white rounded-circle" title="Active Account"></span>
                 </div>
-                <h4 class="fw-bold mb-1 text-dark"><?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?></h4>
-                <p class="text-secondary small mb-2 fw-medium"><?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?></p>
+                <h4 class="fw-bold mb-1"><?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?></h4>
+                <p class="text-body-secondary small mb-2 fw-medium"><?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?></p>
                 <div class="d-flex justify-content-center gap-2 mb-2">
                     <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2">
-                        <i class="fas fa-check-circle me-1"></i><?= htmlspecialchars($profileStatus ?: 'Active', ENT_QUOTES, 'UTF-8') ?>
+                        <i class="fas fa-check-circle me-1"></i><?= htmlspecialchars(ucfirst($profileStatus), ENT_QUOTES, 'UTF-8') ?>
                     </span>
                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-2">
-                        <i class="fas fa-clock me-1"></i><?= htmlspecialchars($employmentStatus ?: 'N/A', ENT_QUOTES, 'UTF-8') ?>
+                        <i class="fas fa-clock me-1"></i><?= htmlspecialchars(ucfirst($employmentStatus), ENT_QUOTES, 'UTF-8') ?>
                     </span>
                 </div>
             </div>
@@ -105,39 +105,39 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
             <div class="col-lg-8">
                 <div class="row g-3">
                     <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-light bg-opacity-50 border border-light-subtle">
-                            <span class="text-muted small d-block mb-1"><i class="fas fa-id-card text-primary me-2"></i>Faculty ID</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body border border-light-subtle">
+                            <span class="text-body-secondary small d-block mb-1"><i class="fas fa-id-card text-primary me-2"></i>Faculty ID</span>
+                            <span class="fw-semibold"><?= htmlspecialchars((string) $facultyId, ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-light bg-opacity-50 border border-light-subtle">
-                            <span class="text-muted small d-block mb-1"><i class="fas fa-envelope text-primary me-2"></i>Email Address</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body border border-light-subtle">
+                            <span class="text-body-secondary small d-block mb-1"><i class="fas fa-envelope text-primary me-2"></i>Email Address</span>
+                            <span class="fw-semibold"><?= htmlspecialchars((string) $email, ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-light bg-opacity-50 border border-light-subtle">
-                            <span class="text-muted small d-block mb-1"><i class="fas fa-phone text-primary me-2"></i>Contact Number</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($phone ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body border border-light-subtle">
+                            <span class="text-body-secondary small d-block mb-1"><i class="fas fa-phone text-primary me-2"></i>Contact Number</span>
+                            <span class="fw-semibold"><?= htmlspecialchars($phone ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-light bg-opacity-50 border border-light-subtle">
-                            <span class="text-muted small d-block mb-1"><i class="fas fa-building text-primary me-2"></i>Department</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body border border-light-subtle">
+                            <span class="text-body-secondary small d-block mb-1"><i class="fas fa-building text-primary me-2"></i>Department</span>
+                            <span class="fw-semibold"><?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-light bg-opacity-50 border border-light-subtle">
-                            <span class="text-muted small d-block mb-1"><i class="fas fa-award text-primary me-2"></i>Academic Rank</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($academicRank ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body border border-light-subtle">
+                            <span class="text-body-secondary small d-block mb-1"><i class="fas fa-award text-primary me-2"></i>Academic Rank</span>
+                            <span class="fw-semibold"><?= htmlspecialchars($academicRank ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-light bg-opacity-50 border border-light-subtle">
-                            <span class="text-muted small d-block mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>Address</span>
-                            <span class="fw-semibold text-dark text-truncate d-block"><?= htmlspecialchars($address ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body border border-light-subtle">
+                            <span class="text-body-secondary small d-block mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>Address</span>
+                            <span class="fw-semibold text-truncate d-block"><?= htmlspecialchars($address ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                 </div>
@@ -149,7 +149,7 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
 <!-- Academic & Emergency Information Grid -->
 <div class="row g-4 mb-4">
     <div class="col-lg-6">
-        <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card border-0 shadow-sm rounded-4 h-100 bg-body-tertiary text-body">
             <div class="card-header bg-transparent border-bottom border-light-subtle py-3 px-4">
                 <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
                     <i class="fas fa-graduation-cap text-primary fs-5"></i>
@@ -159,21 +159,21 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
             <div class="card-body p-4">
                 <div class="row g-3">
                     <div class="col-12">
-                        <div class="p-3 rounded-3 bg-light">
-                            <span class="text-muted small d-block mb-1">Highest Educational Attainment</span>
-                            <h6 class="fw-bold text-dark mb-0"><?= htmlspecialchars($educationAttainment ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></h6>
+                        <div class="p-3 rounded-3 bg-body">
+                            <span class="text-body-secondary small d-block mb-1">Highest Educational Attainment</span>
+                            <h6 class="fw-bold mb-0"><?= htmlspecialchars($educationAttainment ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></h6>
                         </div>
                     </div>
                     <div class="col-12">
-                        <div class="p-3 rounded-3 bg-light">
-                            <span class="text-muted small d-block mb-1">Field of Specialization</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($specialization ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body">
+                            <span class="text-body-secondary small d-block mb-1">Field of Specialization</span>
+                            <span class="fw-semibold"><?= htmlspecialchars($specialization ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-12">
-                        <div class="p-3 rounded-3 bg-light">
-                            <span class="text-muted small d-block mb-1">Date Hired</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($hiredDate ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body">
+                            <span class="text-body-secondary small d-block mb-1">Date Hired</span>
+                            <span class="fw-semibold"><?= htmlspecialchars($hiredDate ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                 </div>
@@ -182,7 +182,7 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
     </div>
 
     <div class="col-lg-6">
-        <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card border-0 shadow-sm rounded-4 h-100 bg-body-tertiary text-body">
             <div class="card-header bg-transparent border-bottom border-light-subtle py-3 px-4">
                 <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
                     <i class="fas fa-phone-alt text-danger fs-5"></i>
@@ -192,21 +192,21 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
             <div class="card-body p-4">
                 <div class="row g-3">
                     <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-light">
-                            <span class="text-muted small d-block mb-1">Contact Person</span>
-                            <h6 class="fw-bold text-dark mb-0"><?= htmlspecialchars($emergencyName ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></h6>
+                        <div class="p-3 rounded-3 bg-body">
+                            <span class="text-body-secondary small d-block mb-1">Contact Person</span>
+                            <h6 class="fw-bold mb-0"><?= htmlspecialchars($emergencyName ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></h6>
                         </div>
                     </div>
                     <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-light">
-                            <span class="text-muted small d-block mb-1">Relationship</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($emergencyRelationship ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body">
+                            <span class="text-body-secondary small d-block mb-1">Relationship</span>
+                            <span class="fw-semibold"><?= htmlspecialchars($emergencyRelationship ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-12">
-                        <div class="p-3 rounded-3 bg-light">
-                            <span class="text-muted small d-block mb-1">Emergency Phone</span>
-                            <span class="fw-semibold text-dark"><?= htmlspecialchars($emergencyPhone ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="p-3 rounded-3 bg-body">
+                            <span class="text-body-secondary small d-block mb-1">Emergency Phone</span>
+                            <span class="fw-semibold"><?= htmlspecialchars($emergencyPhone ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                 </div>
@@ -370,4 +370,4 @@ document.getElementById('savePasswordBtn')?.addEventListener('click', async func
 
 <?php endif; ?>
 
-<?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
+<?php require_once __DIR__ . '/../../../includes/layout-end.php'; ?>

@@ -21,9 +21,24 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+<!-- Page Header with Global Academic Term / School Year Filter -->
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
     <div>
-        <h1><i class="fas fa-chalkboard-teacher text-sms-primary me-2"></i>Subject Load Tracker</h1>
+        <h1 class="mb-0"><i class="fas fa-chalkboard-teacher text-sms-primary me-2"></i>Subject Load Tracker</h1>
+    </div>
+    
+    <!-- Academic Term / School Year Filter -->
+    <div class="d-flex align-items-center gap-2 bg-body p-2 rounded border border-secondary-subtle shadow-sm">
+        <label for="academicTermSelect" class="form-label mb-0 text-body-secondary small fw-bold text-nowrap">
+            <i class="fas fa-calendar-alt text-primary me-1"></i> Academic Term:
+        </label>
+        <select class="form-select form-select-sm bg-body text-body border-secondary-subtle fw-semibold" id="academicTermSelect" style="min-width: 230px;" onchange="changeAcademicTerm(this.value)">
+            <option value="2025-2026-2" selected>A.Y. 2025–2026 | 2nd Semester</option>
+            <option value="2025-2026-1">A.Y. 2025–2026 | 1st Semester</option>
+            <option value="2025-2026-3">A.Y. 2025–2026 | Summer</option>
+            <option value="2024-2025-2">A.Y. 2024–2025 | 2nd Semester</option>
+            <option value="2024-2025-1">A.Y. 2024–2025 | 1st Semester</option>
+        </select>
     </div>
 </div>
 
@@ -229,11 +244,10 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-dark text-body-secondary small text-uppercase">
                             <tr class="border-bottom border-secondary-subtle">
-                                <th class="ps-3" style="width: 15%">Code</th>
-                                <th style="width: 35%">Subject Description</th>
-                                <th class="text-center" style="width: 10%">Units</th>
-                                <th style="width: 30%">Schedule & Location</th>
-                                <th class="text-end pe-3" style="width: 10%">Action</th>
+                                <th class="ps-3" style="width: 20%">Code</th>
+                                <th style="width: 50%">Subject Description</th>
+                                <th class="text-center" style="width: 15%">Units</th>
+                                <th class="text-center" style="width: 15%">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -249,14 +263,8 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                                 <td class="text-center">
                                     <span class="fw-bold text-body">3.0</span>
                                 </td>
-                                <td>
-                                    <div class="mb-1">
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="far fa-clock me-1"></i>MW 08:00 AM - 09:30 AM</span>
-                                    </div>
-                                    <small class="text-body-secondary"><i class="fas fa-door-open me-1 text-warning"></i>Lab Room CL3</small>
-                                </td>
-                                <td class="text-end pe-3">
-                                    <button class="btn btn-sm text-danger border-0 p-1" title="Unassign Subject">
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-danger border-0" title="Unassign Subject">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </td>
@@ -273,14 +281,8 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                                 <td class="text-center">
                                     <span class="fw-bold text-body">3.0</span>
                                 </td>
-                                <td>
-                                    <div class="mb-1">
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="far fa-clock me-1"></i>TTH 01:00 PM - 02:30 PM</span>
-                                    </div>
-                                    <small class="text-body-secondary"><i class="fas fa-door-open me-1 text-warning"></i>Lecture Room 402</small>
-                                </td>
-                                <td class="text-end pe-3">
-                                    <button class="btn btn-sm text-danger border-0 p-1" title="Unassign Subject">
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-danger border-0" title="Unassign Subject">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </td>
@@ -306,8 +308,13 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
 
 </div>
 
-<!-- Filter Logic JS -->
+<!-- Filter & Interactivity Logic JS -->
 <script>
+function changeAcademicTerm(termValue) {
+    // Event handler for term switching (Trigger API refetch or form reload in backend integration)
+    console.log("Switching to Academic Term:", termValue);
+}
+
 function filterFaculty() {
     const selectedDept = document.getElementById('deptFilter').value;
     const searchVal = document.getElementById('facultySearchInput').value.toLowerCase().trim();

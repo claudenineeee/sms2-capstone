@@ -108,83 +108,99 @@ $facultyAccountNavGroups = [
         ['slug' => 'security-settings', 'href' => BASE_URL . '/account/module-security.php?module=faculty', 'icon' => 'fa-shield-alt', 'label' => 'Security Settings'],
     ],
 ];
-
-$facultyDeanNavGroups = [
+//FACULTY MANAGEMENT USER TYPES
+$facultyAdministrator = [
     'Dashboard' => [
-        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/dean/index.php', 'icon' => 'fa-th-large', 'label' => 'Overview'],
+        ['slug' => 'dashboard',   'href' => BASE_URL . '/modules/faculty/views/administrator/dashboard.php',   'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
     ],
+    'Profiles' => [
+        ['slug' => 'faculty-profile',   'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-profile.php',   'icon' => 'fa-id-badge',     'label' => 'Faculty Profile'],
+        ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
+    ],    
+    'Pending & Approvals' => [    
+        ['slug' => 'pending-approvals', 'href' => BASE_URL . '/modules/faculty/views/administrator/pending-approvals.php', 'icon' => 'fa-user-clock',   'label' => 'Pending Approvals'],
+    ],
+    'Departments' => [
+        ['slug' => 'departments', 'href' => BASE_URL . '/modules/faculty/views/administrator/departments.php', 'icon' => 'fa-building',     'label' => 'Departments'],
+    ],
+];
+$facultyDeanNavGroups = [
     'Faculty Profiles' => [
-        ['slug' => 'faculty-profile',   'href' => BASE_URL . '/modules/faculty/views/dean/faculty-profile.php',   'icon' => 'fa-file-alt',   'label' => 'Faculty Profile'],
-        ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
+        ['slug' => 'faculty-profile',   'href' => BASE_URL . '/modules/faculty/views/dean/faculty-profile.php',   'icon' => 'fa-id-badge',           'label' => 'Faculty Profile'],
+        ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-directory.php', 'icon' => 'fa-address-book',     'label' => 'Faculty Directory'],
         ['slug' => 'teaching-history',  'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php',  'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
     ],
     'Subject & Attendance' => [
-        ['slug' => 'subject-load-tracker',  'href' => BASE_URL . '/modules/faculty/views/dean/subject-load-tracker.php',  'icon' => 'fa-list-alt', 'label' => 'Subject Load Tracker'],
+        ['slug' => 'subject-load-tracker',  'href' => BASE_URL . '/modules/faculty/views/dean/subject-load-tracker.php',  'icon' => 'fa-book-open',  'label' => 'Subject Load Tracker'],
         ['slug' => 'attendance-monitoring', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-monitoring.php', 'icon' => 'fa-user-check', 'label' => 'Attendance Monitoring'],
     ],
     'Leave' => [
-        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/leave-application-approval.php', 'icon' => 'fa-calendar-check', 'label' => 'Leave Application & Approval'],
+        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/leave-application-approval.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Application & Approval'],
     ],
     'Evaluation & Clearance' => [
-        ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/dean/evaluation-summary.php', 'icon' => 'fa-chart-pie', 'label' => 'Evaluation Summary'],
+        ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/dean/evaluation-summary.php', 'icon' => 'fa-chart-pie',      'label' => 'Evaluation Summary'],
         ['slug' => 'clearance-system',   'href' => BASE_URL . '/modules/faculty/views/dean/clearance-system.php',   'icon' => 'fa-clipboard-check', 'label' => 'Clearance System'],
-    ],
-    'System' => [
-        ['slug' => 'security-settings', 'href' => BASE_URL . '/account/module-security.php?module=faculty', 'icon' => 'fa-shield-alt', 'label' => 'Security Settings'],
     ],
 ];
 
 $facultyDepartmentHeadNavGroups = [
-    'Dashboard' => [
-        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/department-head/dashboard.php', 'icon' => 'fa-th-large', 'label' => 'Dashboard'],
-    ],
     'Faculty Profiles' => [
-        ['slug' => 'faculty-profile',   'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-profile.php',   'icon' => 'fa-file-alt',   'label' => 'Faculty Profile'],
-        ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
-        ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-performance.php', 'icon' => 'fa-chart-line', 'label' => 'Faculty Performance'],
+        ['slug' => 'faculty-profile',     'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-profile.php',     'icon' => 'fa-id-badge',       'label' => 'Faculty Profile'],
+        ['slug' => 'faculty-directory',   'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-directory.php',   'icon' => 'fa-address-book',   'label' => 'Faculty Directory'],
+        ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-performance.php', 'icon' => 'fa-chart-line',     'label' => 'Faculty Performance'],
     ],
     'Schedule & Load' => [
         ['slug' => 'schedule-approval',      'href' => BASE_URL . '/modules/faculty/views/department-head/schedule-approval.php',      'icon' => 'fa-calendar-check', 'label' => 'Schedule Approval'],
-        ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-load-approval.php', 'icon' => 'fa-tasks', 'label' => 'Teaching Load Approval'],
+        ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-load-approval.php', 'icon' => 'fa-layer-group',    'label' => 'Teaching Load Approval'],
+    ],
+    'Evaluation' => [
+         ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/evaluation-summary.php', 'icon' => 'fa-chart-pie',      'label' => 'Evaluation Summary'],
     ],
     'Clearance & Reports' => [
         ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
-        ['slug' => 'reports',           'href' => BASE_URL . '/modules/faculty/views/department-head/reports.php',           'icon' => 'fa-chart-pie', 'label' => 'Reports'],
-    ],
-    'System' => [
-        ['slug' => 'security-settings', 'href' => BASE_URL . '/account/module-security.php?module=faculty', 'icon' => 'fa-shield-alt', 'label' => 'Security Settings'],
+        ['slug' => 'reports',           'href' => BASE_URL . '/modules/faculty/views/department-head/reports.php',           'icon' => 'fa-file-alt',        'label' => 'Reports'],
     ],
 ];
 
 $facultySecretaryNavGroups = [
     'Faculty' => [
-        ['slug' => 'dashboard',   'href' => BASE_URL . '/modules/faculty/views/secretary/dashboard.php',   'icon' => 'fa-file-alt',   'label' => 'Dashboard'],
-        ['slug' => 'faculty-records', 'href' => BASE_URL . '/modules/faculty/views/secretary/faculty-records.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Records'],
-        ['slug' => 'dailty-attendance-log', 'href' => BASE_URL . '/modules/faculty/views/secretary/daily-attendance-log.php', 'icon' => 'fa-chart-line', 'label' => 'Daily Attendance'],
+        ['slug' => 'dashboard',       'href' => BASE_URL . '/modules/faculty/views/secretary/dashboard.php',       'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+        ['slug' => 'faculty-records', 'href' => BASE_URL . '/modules/faculty/views/secretary/faculty-records.php', 'icon' => 'fa-folder-open',     'label' => 'Faculty Records'],
     ],
-    'DOcuments & Leave' => [
-        ['slug' => 'documents',      'href' => BASE_URL . '/modules/faculty/views/secretary/documents.php',      'icon' => 'fa-calendar-check', 'label' => 'Documents'],
-        ['slug' => 'leave-request-screening', 'href' => BASE_URL . '/modules/faculty/views/secretary/leave-request-screening.php', 'icon' => 'fa-tasks', 'label' => 'Leave Request'],
+    'Documents & Leave' => [
+        ['slug' => 'documents',               'href' => BASE_URL . '/modules/faculty/views/secretary/documents.php',               'icon' => 'fa-file-alt',       'label' => 'Documents'],
+        ['slug' => 'leave-request-screening', 'href' => BASE_URL . '/modules/faculty/views/secretary/leave-request-screening.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Request'],
     ],
     'Reports' => [
-        ['slug' => 'reports',           'href' => BASE_URL . '/modules/faculty/views/secretary/reports.php',           'icon' => 'fa-chart-pie', 'label' => 'Reports'],
+        ['slug' => 'reports', 'href' => BASE_URL . '/modules/faculty/views/secretary/reports.php', 'icon' => 'fa-chart-pie', 'label' => 'Reports'],
+    ],
+];
+$facultyAttendanceMonitoringNavGroups = [
+    'Dashboard' => [
+        ['slug' => 'monitoring-dashboard', 'href' => BASE_URL . '/modules/faculty/views/monitoring-officer/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+    ],
+    'Attendance' => [   
+        ['slug' => 'daily-attendance-log', 'href' => BASE_URL . '/modules/faculty/views/monitoring-officer/daily-attendance-log.php', 'icon' => 'fa-calendar-check', 'label' => 'Daily Attendance'],
+    ],
+    'Reports' => [ 
+        ['slug' => 'reports', 'href' => BASE_URL . '/modules/faculty/views/monitoring-officer/reports.php', 'icon' => 'fa-file-alt', 'label' => 'Reports'],
     ],
 ];
 $facultyTeacherNavGroups = [
     'Faculty' => [
-        ['slug' => 'dashboard',   'href' => BASE_URL . '/modules/faculty/views/faculty/dashboard.php',   'icon' => 'fa-file-alt',   'label' => 'Dashboard'],
-        ['slug' => 'profile', 'href' => BASE_URL . '/modules/faculty/views/faculty/profile.php', 'icon' => 'fa-address-book', 'label' => 'My Profile'],
-        ['slug' => 'attendance', 'href' => BASE_URL . '/modules/faculty/views/faculty/attendance.php', 'icon' => 'fa-chart-line', 'label' => 'My Attendance'],
-        ['slug' => 'my-schedule', 'href' => BASE_URL . '/modules/faculty/views/faculty/my-schedule.php', 'icon' => 'fa-chart-line', 'label' => 'My Schedule'],
+        ['slug' => 'dashboard',   'href' => BASE_URL . '/modules/faculty/views/faculty/dashboard.php',   'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+        ['slug' => 'profile',     'href' => BASE_URL . '/modules/faculty/views/faculty/profile.php',     'icon' => 'fa-id-badge',       'label' => 'My Profile'],
+        ['slug' => 'attendance',  'href' => BASE_URL . '/modules/faculty/views/faculty/attendance.php',  'icon' => 'fa-user-clock',     'label' => 'My Attendance'],
+        ['slug' => 'my-schedule', 'href' => BASE_URL . '/modules/faculty/views/faculty/my-schedule.php', 'icon' => 'fa-calendar-alt',   'label' => 'My Schedule'],
     ],
-    'DOcuments & Leave' => [
-        ['slug' => 'leave-request',      'href' => BASE_URL . '/modules/faculty/views/faculty/leave-request.php',      'icon' => 'fa-calendar-check', 'label' => 'Leave Request'],
-        ['slug' => 'teaching-load',      'href' => BASE_URL . '/modules/faculty/views/faculty/teaching-load.php',      'icon' => 'fa-calendar-check', 'label' => 'Teaching Load'],
-        ['slug' => 'my-clearance', 'href' => BASE_URL . '/modules/faculty/views/faculty/my-clearance.php', 'icon' => 'fa-tasks', 'label' => 'My Clearance'],
-        ['slug' => 'peer-evaluation', 'href' => BASE_URL . '/modules/faculty/views/faculty/peer-evaluation.php', 'icon' => 'fa-tasks', 'label' => 'Evaluation'],
+    'Documents & Leave' => [
+        ['slug' => 'leave-request',  'href' => BASE_URL . '/modules/faculty/views/faculty/leave-request.php',  'icon' => 'fa-file-signature', 'label' => 'Leave Request'],
+        ['slug' => 'teaching-load',   'href' => BASE_URL . '/modules/faculty/views/faculty/teaching-load.php',   'icon' => 'fa-book-open',      'label' => 'Teaching Load'],
+        ['slug' => 'my-clearance',    'href' => BASE_URL . '/modules/faculty/views/faculty/my-clearance.php',    'icon' => 'fa-clipboard-check','label' => 'My Clearance'],
+        ['slug' => 'peer-evaluation', 'href' => BASE_URL . '/modules/faculty/views/faculty/peer-evaluation.php', 'icon' => 'fa-star',           'label' => 'Evaluation'],
     ],
-    'Reports' => [
-        ['slug' => 'notification',           'href' => BASE_URL . '/modules/faculty/views/faculty/notifications.php',           'icon' => 'fa-chart-pie', 'label' => 'Notification'],
+    'Notifications' => [
+        ['slug' => 'notification', 'href' => BASE_URL . '/modules/faculty/views/faculty/notifications.php', 'icon' => 'fa-bell', 'label' => 'Notifications'],
     ],
 ];
 
@@ -225,7 +241,28 @@ $facultyTeacherNavGroups = [
                         </li>
                     <?php endforeach; ?>
                 <?php endforeach; ?>
-                
+
+
+                <!-- ADMINISTRATOR -->
+            <?php elseif (in_array($roleKey, ['faculty_admin'], true)): ?>
+                <?php foreach ($facultyAdministrator as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label">
+                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                    </li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                        <li class="nav-item">
+                            <a class="nav-link sidebar-sub <?= $linkClass ?>"
+                            href="<?= htmlspecialchars($item['href']) ?>"
+                            data-title="<?= htmlspecialchars($item['label']) ?>"
+                            title="<?= htmlspecialchars($item['label']) ?>">
+                                <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                <span><?= htmlspecialchars($item['label']) ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+            <?php endforeach; ?>
+
                 <!-- DEAN -->
             <?php elseif (in_array($roleKey, ['dean', 'hr'], true)): ?>
                 <?php foreach ($facultyDeanNavGroups as $groupLabel => $groupItems): ?>
@@ -269,6 +306,26 @@ $facultyTeacherNavGroups = [
                     <!-- SECRETARY -->
                 <?php elseif (in_array($roleKey, ['secretary'], true)): ?>
                     <?php foreach ($facultySecretaryNavGroups as $groupLabel => $groupItems): ?>
+                        <li class="nav-item sidebar-group-label">
+                            <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        </li>
+                        <?php foreach ($groupItems as $item): ?>
+                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                            <li class="nav-item">
+                                <a class="nav-link sidebar-sub <?= $linkClass ?>"
+                                href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                    <span><?= htmlspecialchars($item['label']) ?></span>
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                <?php endforeach; ?>
+                            
+                <!-- ATTENDANCE MONITORING -->
+                <?php elseif (in_array($roleKey, ['monitoring_officer'], true)): ?>
+                    <?php foreach ($facultyAttendanceMonitoringNavGroups as $groupLabel => $groupItems): ?>
                         <li class="nav-item sidebar-group-label">
                             <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
                         </li>

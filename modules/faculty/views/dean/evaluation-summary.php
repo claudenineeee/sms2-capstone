@@ -151,11 +151,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <i class="fas fa-user-friends me-1 text-warning"></i> Peer / Co-Worker (20%)
                     </button>
                 </li>
-                <li class="nav-item">
-                    <button class="nav-link text-secondary" onclick="switchEvalTab('dept', this)">
-                        <i class="fas fa-user-tie me-1 text-success"></i> Dept. Class Observation (30%)
-                    </button>
-                </li>
             </ul>
 
             <div class="row g-4">

@@ -8,11 +8,6 @@ require_once __DIR__ . '/../../../../config/config.php';
 $pageTitle    = 'Reports';
 $activeModule = 'faculty';
 $activePage   = 'reports';
-$breadcrumbs  = [
-    ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
-    ['label' => 'Secretary', 'url' => BASE_URL . '/modules/faculty/users/secretary/index.php'],
-    ['label' => 'Reports', 'url' => null],
-];
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
@@ -26,90 +21,13 @@ $reports = [
     ['name' => 'Expiring Documents Report - August 2025', 'type' => 'Document', 'by' => 'Secretary', 'date' => '4 days ago', 'format' => 'Excel'],
     ['name' => 'Attendance Rate by Faculty - July 2025', 'type' => 'Attendance', 'by' => 'Secretary', 'date' => '5 days ago', 'format' => 'PDF'],
 ];
+
 ?>
-
-<link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
-
-<style>
-    .hover-card {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        border: 1px solid #e9ecef;
-        border-radius: 0.75rem;
-    }
-    .hover-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
-    }
-    .card-icon {
-        width: 44px;
-        height: 44px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-    }
-    .filter-card {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 0.75rem;
-    }
-
-    /* Dark-Theme Pill Badges for Report Types */
-    .badge-type-daily {
-        background-color: #0b1d3a !important;
-        color: #4da3ff !important;
-        border: 1px solid #163e75 !important;
-    }
-
-    .badge-type-attendance {
-        background-color: #0d2822 !important;
-        color: #2be49b !important;
-        border: 1px solid #14533c !important;
-    }
-
-    .badge-type-document {
-        background-color: #311c08 !important;
-        color: #f3a833 !important;
-        border: 1px solid #63360b !important;
-    }
-
-    /* Dark-Theme Pill Badges for Formats */
-    .badge-format-pdf {
-        background-color: #2d1215 !important;
-        color: #ff5263 !important;
-        border: 1px solid #5a1e24 !important;
-    }
-
-    .badge-format-excel {
-        background-color: #0d2822 !important;
-        color: #2be49b !important;
-        border: 1px solid #14533c !important;
-    }
-
-    .badge-format-csv {
-        background-color: #22222a !important;
-        color: #b0b0cc !important;
-        border: 1px solid #3c3c4d !important;
-    }
-
-    /* Feature Item Checklist Style */
-    .report-feature-item {
-        font-size: 0.85rem;
-        color: #495057;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-</style>
-
-<?php renderBreadcrumbs($breadcrumbs); ?>
-
 <!-- Page Header -->
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
         <h2 class="h4 fw-bold text-dark mb-1">
-            <i class="fas fa-file-alt text-purple me-2"></i>Reports
+            <i class="fas fa-file-alt text-primary me-2"></i>Reports
         </h2>
         <p class="text-muted small mb-0">Generate daily, attendance, and document status reports</p>
     </div>
@@ -123,10 +41,10 @@ $reports = [
 <!-- Report Type Cards -->
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="card h-100 hover-card shadow-sm border-0">
+        <div class="card h-100 shadow-sm border">
             <div class="card-body p-4 d-flex flex-column">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                    <div class="card-icon bg-primary-subtle text-primary">
+                    <div class="d-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-3 fs-5" style="width: 44px; height: 44px; flex-shrink: 0;">
                         <i class="fas fa-calendar-day"></i>
                     </div>
                     <div>
@@ -136,10 +54,10 @@ $reports = [
                 </div>
                 <div class="p-3 bg-light rounded-3 mb-4 flex-grow-1">
                     <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-primary"></i>Daily Attendance Report</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-primary"></i>Daily Activity Log</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-primary"></i>Daily Leave Summary</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-primary"></i>Daily Document Updates</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-primary"></i>Daily Attendance Report</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-primary"></i>Daily Activity Log</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-primary"></i>Daily Leave Summary</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-primary"></i>Daily Document Updates</li>
                     </ul>
                 </div>
                 <button class="btn btn-outline-primary w-100 fw-semibold" onclick="generateReport('daily')">
@@ -150,10 +68,10 @@ $reports = [
     </div>
 
     <div class="col-md-4">
-        <div class="card h-100 hover-card shadow-sm border-0">
+        <div class="card h-100 shadow-sm border">
             <div class="card-body p-4 d-flex flex-column">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                    <div class="card-icon bg-success-subtle text-success">
+                    <div class="d-flex align-items-center justify-content-center bg-success-subtle text-success rounded-3 fs-5" style="width: 44px; height: 44px; flex-shrink: 0;">
                         <i class="fas fa-calendar-check"></i>
                     </div>
                     <div>
@@ -163,10 +81,10 @@ $reports = [
                 </div>
                 <div class="p-3 bg-light rounded-3 mb-4 flex-grow-1">
                     <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-success"></i>Monthly Attendance Report</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-success"></i>Attendance Rate by Faculty</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-success"></i>Attendance Trends</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-success"></i>Absenteeism Report</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-success"></i>Monthly Attendance Report</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-success"></i>Attendance Rate by Faculty</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-success"></i>Attendance Trends</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-success"></i>Absenteeism Report</li>
                     </ul>
                 </div>
                 <button class="btn btn-outline-success w-100 fw-semibold" onclick="generateReport('attendance')">
@@ -177,10 +95,10 @@ $reports = [
     </div>
 
     <div class="col-md-4">
-        <div class="card h-100 hover-card shadow-sm border-0">
+        <div class="card h-100 shadow-sm border">
             <div class="card-body p-4 d-flex flex-column">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                    <div class="card-icon bg-warning-subtle text-warning">
+                    <div class="d-flex align-items-center justify-content-center bg-warning-subtle text-warning rounded-3 fs-5" style="width: 44px; height: 44px; flex-shrink: 0;">
                         <i class="fas fa-folder"></i>
                     </div>
                     <div>
@@ -190,10 +108,10 @@ $reports = [
                 </div>
                 <div class="p-3 bg-light rounded-3 mb-4 flex-grow-1">
                     <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-warning"></i>Document Status Summary</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-warning"></i>Expiring Documents Report</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-warning"></i>Missing Documents Report</li>
-                        <li class="report-feature-item"><i class="fas fa-check-circle text-warning"></i>Document Audit Trail</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-warning"></i>Document Status Summary</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-warning"></i>Expiring Documents Report</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-warning"></i>Missing Documents Report</li>
+                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-warning"></i>Document Audit Trail</li>
                     </ul>
                 </div>
                 <button class="btn btn-outline-warning text-dark w-100 fw-semibold" onclick="generateReport('document')">
@@ -207,7 +125,7 @@ $reports = [
 <!-- Report History Table -->
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h6 class="mb-0 fw-bold text-dark"><i class="fas fa-history text-purple me-2"></i>Generated Reports History</h6>
+        <h6 class="mb-0 fw-bold text-dark"><i class="fas fa-history text-primary me-2"></i>Generated Reports History</h6>
         <div class="d-flex gap-2">
             <div class="input-group input-group-sm" style="width: 220px;">
                 <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
@@ -237,15 +155,15 @@ $reports = [
                 <tbody>
                     <?php foreach ($reports as $r): 
                         $typeBadge = match($r['type']) {
-                            'Daily'      => 'badge-type-daily',
-                            'Attendance' => 'badge-type-attendance',
-                            default      => 'badge-type-document'
+                            'Daily'      => 'bg-white text-primary border border-primary-subtle',
+                            'Attendance' => 'bg-white text-success border border-success-subtle',
+                            default      => 'bg-white text-warning border border-warning-subtle'
                         };
 
                         $formatBadge = match($r['format']) {
-                            'PDF'   => 'badge-format-pdf',
-                            'Excel' => 'badge-format-excel',
-                            default => 'badge-format-csv'
+                            'PDF'   => 'bg-white text-danger border border-danger-subtle',
+                            'Excel' => 'bg-white text-success border border-success-subtle',
+                            default => 'bg-white text-secondary border border-secondary-subtle'
                         };
                     ?>
                     <tr>
@@ -292,7 +210,7 @@ $reports = [
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-light">
-                <h5 class="modal-title h6 fw-bold"><i class="fas fa-cog text-purple me-2"></i>Generate Standard Report</h5>
+                <h5 class="modal-title h6 fw-bold"><i class="fas fa-cog text-primary me-2"></i>Generate Standard Report</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -346,7 +264,7 @@ $reports = [
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-light">
-                <h5 class="modal-title h6 fw-bold"><i class="fas fa-sliders-h text-purple me-2"></i>Custom Report Builder</h5>
+                <h5 class="modal-title h6 fw-bold"><i class="fas fa-sliders-h text-primary me-2"></i>Custom Report Builder</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">

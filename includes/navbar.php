@@ -92,9 +92,9 @@ $navNotificationUnreadCount = count(array_filter($navNotifications, static fn(ar
             <button class="btn btn-link text-white sidebar-toggle p-2" type="button" id="sidebarToggle" aria-label="Toggle sidebar">
                 <i class="fas fa-bars"></i>
             </button>
-            <a class="navbar-brand d-flex align-items-center gap-2" href="<?= BASE_URL ?>/dashboard/index.php">
-                <i class="fas fa-graduation-cap"></i>
-                <span class="d-none d-sm-inline"><?= htmlspecialchars(APP_SHORT_NAME) ?></span>
+            <a class="navbar-brand d-flex align-items-center gap-2" href="#" onclick="window.location.reload(); return false;">
+                <img src="<?= BASE_URL ?>/images/bcp-logo-source.png" alt="BCP Logo" style="height: 32px; width: auto; object-fit: contain;">
+                <span class="d-none d-sm-inline fw-bold"><?= htmlspecialchars(APP_SHORT_NAME) ?></span>
             </a>
         </div>
 
@@ -233,8 +233,8 @@ $navNotificationUnreadCount = count(array_filter($navNotifications, static fn(ar
                     <span class="d-none d-md-inline"><?= htmlspecialchars(getCurrentUserName()) ?></span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow">
-                    <li><h6 class="dropdown-header"><?= htmlspecialchars(getCurrentUserRole()) ?></h6></li>
-                    <?php
+                    
+                   <?php
                     $navRole = getCurrentUserRoleKey();
                     if ($navRole === 'student') {
                         $profileHref = BASE_URL . '/modules/student-portal/pages/my-profile.php';
@@ -242,6 +242,9 @@ $navNotificationUnreadCount = count(array_filter($navNotifications, static fn(ar
                     } elseif (in_array($navRole, ['superadmin', 'admin'], true)) {
                         $profileHref = BASE_URL . '/account/profile.php';
                         $profileLabel = 'Account Settings';
+                    } elseif (in_array($navRole, ['dean', 'hr', 'department_head', 'department-head', 'dept_head', 'depthead', 'secretary', 'faculty', 'faculty_admin', 'monitoring_officer'], true)) {
+                        $profileHref = BASE_URL . '/modules/faculty/views/my-profile.php';
+                        $profileLabel = 'My Profile';
                     } else {
                         $profileHref = BASE_URL . '/dashboard/index.php';
                         $profileLabel = 'My Profile';
