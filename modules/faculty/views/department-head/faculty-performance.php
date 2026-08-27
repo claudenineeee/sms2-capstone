@@ -26,28 +26,73 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div>
         <h1><i class="fas fa-chalkboard-teacher text-sms-primary me-2"></i> Faculty Performance</h1>
         <p class="text-muted mb-0">Showing faculty assigned to <strong><?= htmlspecialchars($headDepartment, ENT_QUOTES, 'UTF-8') ?></strong></p>
+        <small class="text-muted">Overall = 50% Student + 30% Peer + 20% Department Head</small>
     </div>
 </div>
 
 <!-- Metric Summary Cards -->
 <div class="row g-3 mb-4">
+    <!-- Top Performers Card (Warning/Gold) -->
     <div class="col-12 col-md-4">
-        <div class="card p-3 bg-white border shadow-sm">
-            <h6 class="text-muted small fw-bold">Top Performers</h6>
-            <h3 class="fw-bold mb-0 text-primary"><?= htmlspecialchars((string)($summary['top_performers'] ?? 0)) ?></h3>
-        </div>
+        <section class="card stat-card warning border shadow-sm position-relative h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="stat-icon me-3 text-warning fs-4">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Top Performers</h6>
+                    <h4 class="mb-0 fw-bold"><?= htmlspecialchars((string)($summary['top_performers'] ?? 0)) ?></h4>
+                    <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                        <i class="fas fa-star me-1"></i>Rating ≥ 4.5
+                    </small>
+                </div>
+            </div>
+            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Performers">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
     </div>
+
+    <!-- Dept Average Card (Success/Green) -->
     <div class="col-12 col-md-4">
-        <div class="card p-3 bg-white border shadow-sm">
-            <h6 class="text-muted small fw-bold">Dept Average</h6>
-            <h3 class="fw-bold mb-0 text-success"><?= htmlspecialchars((string)($summary['dept_avg'] ?? '0.0')) ?></h3>
-        </div>
+        <section class="card stat-card success border shadow-sm position-relative h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="stat-icon me-3 text-success fs-4">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Dept Average</h6>
+                    <h4 class="mb-0 fw-bold"><?= htmlspecialchars((string)($summary['dept_avg'] ?? '0.0')) ?></h4>
+                    <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                        <i class="fas fa-arrow-trend-up me-1"></i>Overall Score
+                    </small>
+                </div>
+            </div>
+            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Average Details">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
     </div>
+
+    <!-- Faculty Evaluated Card (Info/Blue-Cyan) -->
     <div class="col-12 col-md-4">
-        <div class="card p-3 bg-white border shadow-sm">
-            <h6 class="text-muted small fw-bold">Faculty Evaluated</h6>
-            <h3 class="fw-bold mb-0 text-dark"><?= htmlspecialchars((string)($summary['total_evaluated'] ?? 0)) ?></h3>
-        </div>
+        <section class="card stat-card info border shadow-sm position-relative h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="stat-icon me-3 text-info fs-4">
+                    <i class="fas fa-user-check"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Fully Evaluated</h6>
+                    <h4 class="mb-0 fw-bold"><?= (int)($summary['total_evaluated'] ?? 0) ?> <span class="text-muted fs-6 fw-normal">/ <?= (int)($summary['total_faculty'] ?? 0) ?></span></h4>
+                    <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                        <i class="fas fa-check-circle me-1"></i>All 3 sources complete
+                    </small>
+                </div>
+            </div>
+            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Evaluated List">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
     </div>
 </div>
 
@@ -118,47 +163,20 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <tr>
                     <th>Faculty</th>
                     <th>Overall</th>
-                    <th>Teaching</th>
-                    <th>Trend</th>
+                    <th>Department Head</th>
+                    <th>Peer-to-Peer</th>
+                    <th>Student</th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
                 <?php if (!empty($facultyList)): ?>
                     <?php foreach ($facultyList as $row): ?>
-                        <?php 
-                            $current   = $row['overall'] ?? null;
-                            $previous  = $row['previous_score'] ?? null;
-                            $trendIcon = '<span class="text-muted">—</span>';
-                            if ($current !== null && $previous !== null) {
-                                if ($current > $previous) { $trendIcon = '<i class="fas fa-arrow-up text-success"></i>'; }
-                                elseif ($current < $previous) { $trendIcon = '<i class="fas fa-arrow-down text-danger"></i>'; }
-                            }
-                        ?>
-                        <tr>
-                            <td><strong><?= htmlspecialchars($row['full_name']) ?></strong></td>
-                            <td>
-                                <?php if (!is_null($row['overall'])): ?>
-                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
-                                        <?= number_format((float)$row['overall'], 1) ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">N/A</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><?= isset($row['teaching_score']) && !is_null($row['teaching_score']) ? number_format((float)$row['teaching_score'], 1) : '—' ?></td>
-                            <td><?= $trendIcon ?></td>
-                            <td class="text-end">
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-secondary" onclick="viewPerformanceDetails('<?= htmlspecialchars($row['full_name'], ENT_QUOTES) ?>', <?= $row['faculty_profile_id'] ?>)"><i class="fas fa-eye text-primary"></i></button>
-                                    <button class="btn btn-outline-secondary" onclick="openAiRecommendations('<?= htmlspecialchars($row['full_name'], ENT_QUOTES) ?>')"><i class="fas fa-robot text-info"></i></button>
-                                </div>
-                            </td>
-                        </tr>
+                        <?= $controller->renderRowPublic($row) ?>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">No faculty members found matching your search in this department.</td>
+                        <td colspan="6" class="text-center text-muted py-4">No faculty members found matching your search in this department.</td>
                     </tr>
                 <?php endif; ?>
             </tbody>

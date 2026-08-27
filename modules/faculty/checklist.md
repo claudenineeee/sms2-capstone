@@ -85,45 +85,37 @@
 
 ## Leave Request — Assigned to Other Module
 
-*  { } Coordinate with the Leave Application module owner.
-*  { } Confirm leave-request API/database contract.
-*  { } Retrieve the logged-in faculty's leave requests.
-*  { } Display Pending, Approved, and Rejected statuses.
-*  { } Connect Faculty leave UI to the Leave Application module.
-*  { } Test leave status synchronization.
+* [x]  Coordinate with the Leave Application module owner.
+* [x]  Confirm leave-request API/database contract.
+* [x]  Retrieve the logged-in faculty's leave requests.
+* [x]  Display Pending, Approved, and Rejected statuses.
+* [x]  Connect Faculty leave UI to the Leave Application module.
+* [x]  Test leave status synchronization.
 
 ## Teaching Load
 
-*  { } Retrieve assigned subjects, sections, total units, and overload details.
-*  { } Display teaching-load breakdown with unit totals.
-* { } Implement load acceptance/acknowledgment action.
-*  { } Connect teaching load to approved schedules/subject assignments.
-*  { } Test that accepted teaching loads match the faculty's assigned subjects.
+* []  Retrieve assigned subjects, sections, total units, and overload details.
+* []  Display teaching-load breakdown with unit totals.
+* [] Implement load acceptance/acknowledgment action.
+* []  Connect teaching load to approved schedules/subject assignments.
+* []  Test that accepted teaching loads match the faculty's assigned subjects.
 
-## My Clearance — Assigned to Other Module
-
-* [ ] { } Coordinate with the Clearance module owner.
-* [ ] { } Confirm clearance API/database contract.
-* [ ] { } Retrieve the logged-in faculty's clearance status.
-* [ ] { } Display completed and pending requirements.
-* [ ] { } Connect Faculty clearance UI to the Clearance module.
-* [ ] { } Test clearance status synchronization.
 
 ## Evaluation
 
-* [ ] { } Retrieve evaluation results and student feedback.
-* [ ] { } Calculate overall evaluation averages per term.
-* [ ] { } Display ratings summary and qualitative feedback.
-* [ ] { } Confirm evaluation data ownership and API/database contract.
-* [ ] { } Test that faculty can only view their own evaluation results.
+* [ ] Retrieve evaluation results and student feedback.
+* [ ] Calculate overall evaluation averages per term.
+* [ ] Display ratings summary and qualitative feedback.
+* [ ] Confirm evaluation data ownership and API/database contract.
+* [ ] Test that faculty can only view their own evaluation results.
 
 ## Notifications
 
-* [ ] { } Retrieve notifications from `sms2_db.notifications`.
-* [ ] { } Implement `getNotifications()`.
-* [ ] { } Implement `markAsRead()`.
-* [ ] { } Build notification feed with unread counters.
-* [ ] { } Test notifications using the authenticated `user_id`.
+* [ ] Retrieve notifications from `sms2_db.notifications`.
+* [ ] Implement `getNotifications()`.
+* [ ] Implement `markAsRead()`.
+* [ ] Build notification feed with unread counters.
+* [ ] Test notifications using the authenticated `user_id`.
 
 ---
 
@@ -154,27 +146,27 @@
 
 ## Leave Application & Approval — Assigned to Other Module
 
-* [ ] { } Coordinate with Leave Application module owner.
-* [ ] { } Confirm Dean approval API/endpoint.
-* [ ] { } Consume leave application status for Dean dashboard if required.
-* [ ] { } Ensure Dean only sees requests within their college scope.
-* [ ] { } Integrate approval status with Faculty/Secretary views.
+* [x] Coordinate with Leave Application module owner.
+* [x] Confirm Dean approval API/endpoint.
+* [x] Consume leave application status for Dean dashboard if required.
+* [x] Ensure Dean only sees requests within their college scope.
+* [x] Integrate approval status with Faculty/Secretary views.
 
 ## Evaluation Summary
 
-* [ ] { } Aggregate college evaluation performance.
-* [ ] { } Implement weighted-average calculations.
-* [ ] { } Build performance charts.
-* [ ] { } Build faculty performance breakdown.
-* [ ] { } Apply Dean college-scope filtering.
+* [x] Aggregate college evaluation performance.
+* [x] Implement weighted-average calculations.
+* [x] Build performance charts.
+* [x] Build faculty performance breakdown.
+* [x] Apply Dean college-scope filtering.
 
 ## Clearance System — Assigned to Other Module
 
-* [ ] { } Coordinate with Clearance module owner.
-* [ ] { } Confirm Dean sign-off API/endpoint.
-* [ ] { } Retrieve final clearance status for Dean views if required.
-* [ ] { } Integrate Dean clearance status with Faculty views.
-* [ ] { } Verify college-level access restrictions.
+* [ ] {x} Coordinate with Clearance module owner.
+* [ ] {x} Confirm Dean sign-off API/endpoint.
+* [ ] {x} Retrieve final clearance status for Dean views if required.
+* [ ] {x} Integrate Dean clearance status with Faculty views.
+* [ ] {x} Verify college-level access restrictions.
 
 ---
 
@@ -239,22 +231,13 @@
 * [ ] { } Build searchable faculty directory.
 * [ ] { } Add document audit view.
 
-## Documents
-
-* [ ] { } Implement secure file-upload handling.
-* [ ] { } Add file-extension validation.
-* [ ] { } Implement `verifyDocument()`.
-* [ ] { } Build document repository table.
-* [ ] { } Add preview/download modals.
-* [ ] { } Add document status badges.
-
 ## Leave Request — Assigned to Other Module
 
-* [ ] { } Coordinate with Leave Application module owner.
-* [ ] { } Confirm physical-request intake API/database contract.
-* [ ] { } Integrate Secretary document intake with Leave Application.
-* [ ] { } Verify submitted documents are associated with the correct faculty/user.
-* [ ] { } Test leave status synchronization.
+* [x] Coordinate with Leave Application module owner.
+* [x] Confirm physical-request intake API/database contract.
+* [x] Integrate Secretary document intake with Leave Application.
+* [x] Verify submitted documents are associated with the correct faculty/user.
+* [x] Test leave status synchronization.
 
 ## Reports
 
@@ -278,11 +261,11 @@
 
 ## Daily Attendance
 
-* [ ] { } Coordinate with Attendance module owner regarding manual attendance overrides.
-* [ ] { } Coordinate with Attendance module owner regarding attendance threshold calculations.
-* [ ] { } Coordinate with Attendance module owner regarding daily attendance records.
-* [ ] { } Coordinate with Attendance module owner regarding time corrections.
-* [ ] { } Confirm Present/Late/Absent/Excused status definitions.
+* [x] Coordinate with Attendance module owner regarding manual attendance overrides.
+* [x] Coordinate with Attendance module owner regarding attendance threshold calculations.
+* [x] Coordinate with Attendance module owner regarding daily attendance records.
+* [x] Coordinate with Attendance module owner regarding time corrections.
+* [x] Confirm Present/Late/Absent/Excused status definitions.
 
 ## Reports
 

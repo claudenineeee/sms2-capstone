@@ -41,11 +41,18 @@ $stats = [
     'absent_faculty'  => 0,
     'total_students'  => 0,
 ];
-if ($deptForStats !== '') {
+// CHANGED: was querying with $deptForStats (department NAME string), but
+// AttendanceController::resolveDepartmentId() saves using the numeric
+// department_id (checked first, before the name). class_attendance_sessions.
+// department_id is an INT column, so filtering it with a name string like
+// "Computer Science" silently matched zero rows — that's why nothing showed
+// up in Recent Logs / All Records even after a successful save. Query with
+// $userDeptId instead, since that's the same value actually used to save.
+if ($userDeptId !== '' && $userDeptId !== null) {
     $today = date('Y-m-d');
     try {
-        $recentLogs = $attendanceModel->getTodayLogs($deptForStats, $today) ?? [];
-        $stats = $attendanceModel->getDepartmentStats($deptForStats, $today) ?? $stats;
+        $recentLogs = $attendanceModel->getTodayLogs($userDeptId, $today) ?? [];
+        $stats = $attendanceModel->getDepartmentStats($userDeptId, $today) ?? $stats;
     } catch (Throwable $e) {
         error_log('Attendance stats fetch failed: ' . $e->getMessage());
     }
@@ -752,6 +759,8 @@ function renderStepper() {
                 return;
             }
 
+            addRecentLogRow(sessionData);
+
             switchPanel('COMPLETE');
             document.getElementById('btnResetWorkflow').classList.remove('d-none');
         } catch (err) {
@@ -766,9 +775,58 @@ function renderStepper() {
     document.getElementById('btnResetWorkflow')?.addEventListener('click', resetAll);
 
     function resetAll() {
-        document.getElementById('startRoomCheckForm').reset();
-        document.getElementById('btnResetWorkflow').classList.add('d-none');
-        switchPanel('START_ROOM_CHECK');
+        // CHANGED: was just switching panels client-side, which left Recent
+        // Logs / stats / All Records showing stale data (they're rendered
+        // server-side on page load) until a manual browser refresh. Reload
+        // instead so the just-saved session shows up immediately once the
+        // user is done looking at the completion screen.
+        window.location.reload();
+    }
+
+    // NEW: reflects the just-saved session in Recent Logs + stat cards
+    // immediately, using data already held in sessionData — no extra
+    // server round-trip. resetAll()'s reload still reconciles everything
+    // with the DB once the officer starts their next room check.
+    function addRecentLogRow(data) {
+        const tbody = document.getElementById('logsTableBody');
+        if (!tbody) return;
+
+        // Clear the "No sessions recorded yet." placeholder row, if present.
+        if (tbody.children.length === 1 && tbody.children[0].querySelector('td[colspan]')) {
+            tbody.innerHTML = '';
+        }
+
+        const facultyName = (data.faculty || '').replace(/\s*\([^)]*\)\s*$/, ''); // strip " (Position)" suffix
+        const isPresent = data.status === 'Present';
+        const badgeClass = isPresent ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger';
+        const rate = (data.expected > 0)
+            ? Math.round((data.presentCount / data.expected) * 100) + '%'
+            : '—';
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="fw-bold">${escapeHtml(facultyName)}</td>
+            <td><span class="badge ${badgeClass}">${escapeHtml(data.status)}</span></td>
+            <td>${escapeHtml(data.room || 'N/A')} / ${escapeHtml(data.subject || '')}</td>
+            <td class="text-end fw-bold text-primary">${rate}</td>
+        `;
+        tbody.prepend(row);
+
+        const statTotal = document.getElementById('statTotal');
+        const statPresent = document.getElementById('statPresent');
+        const statAbsent = document.getElementById('statAbsent');
+        const logCount = document.getElementById('logCount');
+
+        if (statTotal) statTotal.textContent = (parseInt(statTotal.textContent) || 0) + 1;
+        if (isPresent && statPresent) statPresent.textContent = (parseInt(statPresent.textContent) || 0) + 1;
+        if (!isPresent && statAbsent) statAbsent.textContent = (parseInt(statAbsent.textContent) || 0) + 1;
+        if (logCount) logCount.textContent = (parseInt(logCount.textContent) || 0) + 1;
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str ?? '';
+        return div.innerHTML;
     }
 
     renderStepper();

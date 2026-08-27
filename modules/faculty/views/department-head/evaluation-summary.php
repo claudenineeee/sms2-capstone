@@ -48,23 +48,40 @@ if (empty($deptHeadDept)) {
 }
 
 // 2. Fetch Faculty Members from the SAME Department Only
+//
+// IMPORTANT: faculty_profiles.id is NOT the same identifier as
+// faculty.faculty_id. The evaluations table's faculty_id column is a
+// foreign key into faculty.faculty_id, so every evaluation lookup below
+// must use the bridged "real_faculty_id", never fp.id directly - otherwise
+// student/peer averages come back as zero for everyone. Same bridging
+// logic as modules/faculty/views/faculty/peer-evaluation.php: prefer an
+// email match (unambiguous), fall back to faculty_no.
 $facultyMembers = [];
 
+$facultyQuerySql = "
+    SELECT fp.id, fp.faculty_id AS profile_faculty_no, fp.first_name, fp.last_name,
+           fp.designated_department, fp.position, fp.email,
+           f.faculty_id AS real_faculty_id
+    FROM faculty_profiles fp
+    LEFT JOIN faculty f ON f.faculty_id = (
+        SELECT f2.faculty_id
+        FROM faculty f2
+        WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+           OR f2.faculty_no = fp.faculty_id
+        ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+        LIMIT 1
+    )
+";
+
 if (!empty($deptHeadDept)) {
-    $stmt = $pdo->prepare("
-        SELECT id, faculty_id, first_name, last_name, designated_department, position
-        FROM faculty_profiles
-        WHERE LOWER(TRIM(designated_department)) = LOWER(:dept)
-        ORDER BY last_name ASC
+    $stmt = $pdo->prepare($facultyQuerySql . "
+        WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:dept)
+        ORDER BY fp.last_name ASC
     ");
     $stmt->execute(['dept' => $deptHeadDept]);
     $facultyMembers = $stmt->fetchAll();
 } else {
-    $stmt = $pdo->query("
-        SELECT id, faculty_id, first_name, last_name, designated_department, position
-        FROM faculty_profiles
-        ORDER BY last_name ASC
-    ");
+    $stmt = $pdo->query($facultyQuerySql . " ORDER BY fp.last_name ASC");
     $facultyMembers = $stmt->fetchAll();
 }
 
@@ -83,61 +100,100 @@ function getRatingLabel($score) {
 $performanceDB = [];
 
 foreach ($facultyMembers as $fac) {
-    $facId = $fac['id'];
+    $facId = $fac['id']; // faculty_profiles.id - used only as a UI/selection key below
+    $realFacultyId = $fac['real_faculty_id'] !== null ? (int)$fac['real_faculty_id'] : null;
+    $isLinked = $realFacultyId !== null;
 
-    // Fetch Student Ratings from evaluations table
-    $stmtStud = $pdo->prepare("
-        SELECT
-            COALESCE(AVG(composite_score), 0) as avg_score,
-            COUNT(evaluation_id) as total_evals
-        FROM evaluations
-        WHERE faculty_id = :fac_id AND source_type = 'Student'
-    ");
-    $stmtStud->execute(['fac_id' => $facId]);
-    $studData = $stmtStud->fetch();
-    $studentAvg = (float)($studData['avg_score'] ?? 0);
-    $studentCount = (int)($studData['total_evals'] ?? 0);
+    if ($isLinked) {
+        // Fetch Student Ratings from evaluations table
+        $stmtStud = $pdo->prepare("
+            SELECT
+                COALESCE(AVG(composite_score), 0) as avg_score,
+                COUNT(evaluation_id) as total_evals
+            FROM evaluations
+            WHERE faculty_id = :fac_id AND source_type = 'Student'
+        ");
+        $stmtStud->execute(['fac_id' => $realFacultyId]);
+        $studData = $stmtStud->fetch();
+        $studentAvg = (float)($studData['avg_score'] ?? 0);
+        $studentCount = (int)($studData['total_evals'] ?? 0);
 
-    // Fetch Peer Ratings from evaluations table
-    $stmtPeer = $pdo->prepare("
-        SELECT
-            COALESCE(AVG(composite_score), 0) as avg_score,
-            COUNT(evaluation_id) as total_evals
-        FROM evaluations
-        WHERE faculty_id = :fac_id AND source_type = 'Peer'
-    ");
-    $stmtPeer->execute(['fac_id' => $facId]);
-    $peerData = $stmtPeer->fetch();
-    $peerAvg = (float)($peerData['avg_score'] ?? 0);
-    $peerCount = (int)($peerData['total_evals'] ?? 0);
+        // Fetch Peer Ratings from evaluations table
+        $stmtPeer = $pdo->prepare("
+            SELECT
+                COALESCE(AVG(composite_score), 0) as avg_score,
+                COUNT(evaluation_id) as total_evals
+            FROM evaluations
+            WHERE faculty_id = :fac_id AND source_type = 'Peer'
+        ");
+        $stmtPeer->execute(['fac_id' => $realFacultyId]);
+        $peerData = $stmtPeer->fetch();
+        $peerAvg = (float)($peerData['avg_score'] ?? 0);
+        $peerCount = (int)($peerData['total_evals'] ?? 0);
 
-    // Weighted Formula: 60% Student + 40% Peer
-    if ($studentAvg > 0 && $peerAvg > 0) {
-        $composite = ($studentAvg * 0.60) + ($peerAvg * 0.40);
-    } elseif ($studentAvg > 0) {
-        $composite = $studentAvg;
+        // Fetch Department Head Ratings from evaluations table
+        $stmtHead = $pdo->prepare("
+            SELECT
+                COALESCE(AVG(composite_score), 0) as avg_score,
+                COUNT(evaluation_id) as total_evals
+            FROM evaluations
+            WHERE faculty_id = :fac_id AND source_type = 'DeptHead'
+        ");
+        $stmtHead->execute(['fac_id' => $realFacultyId]);
+        $headData = $stmtHead->fetch();
+        $headAvg = (float)($headData['avg_score'] ?? 0);
+        $headCount = (int)($headData['total_evals'] ?? 0);
     } else {
-        $composite = $peerAvg;
+        // Profile has no linked faculty.faculty_id yet - it's impossible for
+        // any evaluation to exist against it, since evaluations are always
+        // recorded against the real faculty_id.
+        $studentAvg = 0; $studentCount = 0;
+        $peerAvg = 0; $peerCount = 0;
+        $headAvg = 0; $headCount = 0;
     }
 
+    // Weighted Formula: 50% Student + 30% Peer + 20% Department Head.
+    // Sources with zero evaluations are excluded and the remaining weights
+    // are renormalized, so a faculty member who only has student + peer
+    // ratings so far still gets a fair composite instead of being dragged
+    // down by a phantom 0 for the missing source.
+    $weightedSources = [
+        ['avg' => $studentAvg, 'count' => $studentCount, 'weight' => 0.50],
+        ['avg' => $peerAvg,    'count' => $peerCount,    'weight' => 0.30],
+        ['avg' => $headAvg,    'count' => $headCount,    'weight' => 0.20],
+    ];
+    $weightedSum = 0;
+    $weightTotal = 0;
+    foreach ($weightedSources as $src) {
+        if ($src['count'] > 0) {
+            $weightedSum += $src['avg'] * $src['weight'];
+            $weightTotal += $src['weight'];
+        }
+    }
+    $composite = $weightTotal > 0 ? $weightedSum / $weightTotal : 0;
+
     // Fetch Remarks
-    $stmtComments = $pdo->prepare("
-        SELECT ef.strength_comment, ef.improvement_comment, e.source_type
-        FROM evaluations e
-        INNER JOIN evaluation_feedback ef ON ef.evaluation_id = e.evaluation_id
-        WHERE e.faculty_id = :fac_id
-          AND (
-              (ef.strength_comment IS NOT NULL AND TRIM(ef.strength_comment) != '')
-              OR (ef.improvement_comment IS NOT NULL AND TRIM(ef.improvement_comment) != '')
-          )
-        ORDER BY e.submitted_at DESC
-        LIMIT 10
-    ");
-    $stmtComments->execute(['fac_id' => $facId]);
-    $commentsRaw = $stmtComments->fetchAll();
+    $commentsRaw = [];
+    if ($isLinked) {
+        $stmtComments = $pdo->prepare("
+            SELECT ef.strength_comment, ef.improvement_comment, e.source_type
+            FROM evaluations e
+            INNER JOIN evaluation_feedback ef ON ef.evaluation_id = e.evaluation_id
+            WHERE e.faculty_id = :fac_id
+              AND (
+                  (ef.strength_comment IS NOT NULL AND TRIM(ef.strength_comment) != '')
+                  OR (ef.improvement_comment IS NOT NULL AND TRIM(ef.improvement_comment) != '')
+              )
+            ORDER BY e.submitted_at DESC
+            LIMIT 10
+        ");
+        $stmtComments->execute(['fac_id' => $realFacultyId]);
+        $commentsRaw = $stmtComments->fetchAll();
+    }
 
     $studentComments = [];
     $peerComments = [];
+    $headComments = [];
     foreach ($commentsRaw as $c) {
         $parts = [];
         if (!empty(trim((string) $c['strength_comment']))) {
@@ -150,6 +206,8 @@ foreach ($facultyMembers as $fac) {
 
         if ($c['source_type'] === 'Peer') {
             $peerComments[] = ['strong' => $line];
+        } elseif ($c['source_type'] === 'DeptHead') {
+            $headComments[] = ['strong' => $line];
         } else {
             $studentComments[] = ['strong' => $line];
         }
@@ -161,6 +219,9 @@ foreach ($facultyMembers as $fac) {
     if (empty($peerComments)) {
         $peerComments[] = ['strong' => 'No peer comments recorded yet.'];
     }
+    if (empty($headComments)) {
+        $headComments[] = ['strong' => 'No department head comments recorded yet.'];
+    }
 
     $fullName = 'Prof. ' . $fac['first_name'] . ' ' . $fac['last_name'];
     $initials = strtoupper(substr($fac['first_name'], 0, 1) . substr($fac['last_name'], 0, 1));
@@ -169,9 +230,10 @@ foreach ($facultyMembers as $fac) {
         'name'            => $fullName,
         'department'      => $fac['designated_department'] ?? 'N/A',
         'initials'        => $initials,
+        'isLinked'        => $isLinked,
         'compositeScore'  => number_format($composite, 2),
         'compositeRating' => getRatingLabel($composite),
-        'totalEvals'      => $studentCount + $peerCount,
+        'totalEvals'      => $studentCount + $peerCount + $headCount,
         'sources' => [
             'student' => [
                 'score'        => number_format($studentAvg, 2),
@@ -184,10 +246,93 @@ foreach ($facultyMembers as $fac) {
                 'ratingText'   => getRatingLabel($peerAvg),
                 'evalCount'    => $peerCount,
                 'feedback'     => $peerComments
+            ],
+            'head' => [
+                'score'        => number_format($headAvg, 2),
+                'ratingText'   => getRatingLabel($headAvg),
+                'evalCount'    => $headCount,
+                'feedback'     => $headComments
             ]
         ]
     ];
 }
+
+// 4. Department-Wide Overview Stats
+//
+// Covers the full picture, not just Peer: overall composite coverage,
+// per-source averages (Student/Peer/DeptHead), the true top performer by
+// composite score, and a "needs attention" list for anyone trending low.
+// A faculty member only counts toward a given average once they actually
+// have at least one evaluation of that type - otherwise a not-yet-rated
+// faculty member would silently drag the average down as a phantom 0.
+$totalFacultyCount     = count($performanceDB);
+$deptOverallScores     = [];
+$deptStudentScores     = [];
+$deptPeerScores        = [];
+$deptHeadScores        = [];
+
+foreach ($performanceDB as $facId => $data) {
+    if ((int)$data['totalEvals'] > 0) {
+        $deptOverallScores[$facId] = (float)$data['compositeScore'];
+    }
+    if ((int)$data['sources']['student']['evalCount'] > 0) {
+        $deptStudentScores[$facId] = (float)$data['sources']['student']['score'];
+    }
+    if ((int)$data['sources']['peer']['evalCount'] > 0) {
+        $deptPeerScores[$facId] = (float)$data['sources']['peer']['score'];
+    }
+    if ((int)$data['sources']['head']['evalCount'] > 0) {
+        $deptHeadScores[$facId] = (float)$data['sources']['head']['score'];
+    }
+}
+
+$evaluatedFacultyCount = count($deptOverallScores);
+
+// "Fully Evaluated" requires ALL THREE sources (Student, Peer, DeptHead) to
+// each have at least one evaluation recorded - having just one or two of
+// the three does NOT count as complete. This is intentionally stricter
+// than $evaluatedFacultyCount above (which only checks "has any data at
+// all", and still drives the Dept. Overall Average / Top Performer cards
+// so those keep showing partial data as it comes in).
+$fullyEvaluatedCount = 0;
+foreach ($performanceDB as $facId => $data) {
+    $sc = (int)$data['sources']['student']['evalCount'];
+    $pc = (int)$data['sources']['peer']['evalCount'];
+    $hc = (int)$data['sources']['head']['evalCount'];
+    if ($sc > 0 && $pc > 0 && $hc > 0) {
+        $fullyEvaluatedCount++;
+    }
+}
+
+$deptOverallAverage = !empty($deptOverallScores) ? array_sum($deptOverallScores) / count($deptOverallScores) : 0;
+$deptStudentAverage = !empty($deptStudentScores) ? array_sum($deptStudentScores) / count($deptStudentScores) : 0;
+$deptPeerAverage    = !empty($deptPeerScores)    ? array_sum($deptPeerScores)    / count($deptPeerScores)    : 0;
+$deptHeadAverage    = !empty($deptHeadScores)    ? array_sum($deptHeadScores)    / count($deptHeadScores)    : 0;
+
+$deptPeerRatedCount = count($deptPeerScores);
+
+// Top performer by TRUE overall composite (50/30/20), not just Peer
+$topPerformerId = null;
+$topPerformerScore = -1;
+foreach ($deptOverallScores as $facId => $score) {
+    if ($score > $topPerformerScore) {
+        $topPerformerScore = $score;
+        $topPerformerId = $facId;
+    }
+}
+$topPerformer = $topPerformerId !== null ? $performanceDB[$topPerformerId] : null;
+
+// Faculty trending below "Very Satisfactory" (3.50) on their composite -
+// a practical threshold for who might need support or follow-up.
+$needsAttentionThreshold = 3.50;
+$needsAttentionList = [];
+foreach ($deptOverallScores as $facId => $score) {
+    if ($score < $needsAttentionThreshold) {
+        $needsAttentionList[] = ['name' => $performanceDB[$facId]['name'], 'score' => $score];
+    }
+}
+usort($needsAttentionList, fn($a, $b) => $a['score'] <=> $b['score']);
+$needsAttentionCount = count($needsAttentionList);
 
 $pageTitle    = 'Evaluation Summary';
 $activeModule = 'faculty';
@@ -247,6 +392,159 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <small class="text-muted small">Showing faculty under department: <strong><?= htmlspecialchars(!empty($deptHeadDept) ? $deptHeadDept : 'All Departments') ?></strong></small>
     </div>
 </div>
+
+<!-- Department Overview: Coverage + Composite + Attention -->
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body p-3 d-flex align-items-center gap-3">
+                <div class="p-2 rounded-3 bg-info bg-opacity-10 text-info fs-5 d-flex align-items-center justify-content-center flex-shrink-0">
+                    <i class="fas fa-clipboard-check"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="text-muted mb-1 small text-uppercase fw-bold">Fully Evaluated</h6>
+                    <div class="fs-5 fw-bold lh-1"><?= $fullyEvaluatedCount ?> <span class="text-muted fw-normal fs-6">/ <?= $totalFacultyCount ?></span></div>
+                    <small class="text-muted">All 3 sources complete</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body p-3 d-flex align-items-center gap-3">
+                <div class="p-2 rounded-3 bg-primary bg-opacity-10 text-primary fs-5 d-flex align-items-center justify-content-center flex-shrink-0">
+                    <i class="fas fa-chart-pie"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="text-muted mb-1 small text-uppercase fw-bold">Dept. Overall Avg</h6>
+                    <?php if ($evaluatedFacultyCount > 0): ?>
+                        <div class="d-flex align-items-baseline gap-1 lh-1">
+                            <span class="fs-5 fw-bold"><?= number_format($deptOverallAverage, 2) ?></span>
+                            <span class="text-muted small">/ 5.00</span>
+                        </div>
+                        <small class="text-muted"><?= getRatingLabel($deptOverallAverage) ?></small>
+                    <?php else: ?>
+                        <div class="text-muted small">No data yet</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body p-3 d-flex align-items-center gap-3">
+                <div class="p-2 rounded-3 bg-success bg-opacity-10 text-success fs-5 d-flex align-items-center justify-content-center flex-shrink-0">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="text-muted mb-1 small text-uppercase fw-bold">Top Performer</h6>
+                    <?php if ($topPerformer): ?>
+                        <div class="fw-bold text-truncate" style="max-width: 160px;"><?= htmlspecialchars($topPerformer['name']) ?></div>
+                        <small class="text-success fw-semibold"><?= number_format($topPerformerScore, 2) ?> / 5.00</small>
+                    <?php else: ?>
+                        <div class="text-muted small">No data yet</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body p-3 d-flex align-items-center gap-3">
+                <div class="p-2 rounded-3 bg-danger bg-opacity-10 text-danger fs-5 d-flex align-items-center justify-content-center flex-shrink-0">
+                    <i class="fas fa-triangle-exclamation"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="text-muted mb-1 small text-uppercase fw-bold">Needs Attention</h6>
+                    <div class="fs-5 fw-bold lh-1"><?= $needsAttentionCount ?></div>
+                    <small class="text-muted">Below 3.50 overall</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Per-Source Comparison -->
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body p-3 d-flex align-items-center gap-3">
+                <div class="p-2 rounded-3 bg-info bg-opacity-10 text-info fs-5 d-flex align-items-center justify-content-center flex-shrink-0">
+                    <i class="fas fa-user-graduate"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="text-muted mb-1 small text-uppercase fw-bold">Student Avg <span class="fw-normal">(50%)</span></h6>
+                    <?php if (!empty($deptStudentScores)): ?>
+                        <div class="d-flex align-items-baseline gap-1 lh-1">
+                            <span class="fs-5 fw-bold"><?= number_format($deptStudentAverage, 2) ?></span>
+                            <span class="text-muted small">/ 5.00</span>
+                        </div>
+                        <small class="text-muted">based on <?= count($deptStudentScores) ?> rated faculty</small>
+                    <?php else: ?>
+                        <div class="text-muted small">No ratings yet</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body p-3 d-flex align-items-center gap-3">
+                <div class="p-2 rounded-3 bg-warning bg-opacity-10 text-warning fs-5 d-flex align-items-center justify-content-center flex-shrink-0">
+                    <i class="fas fa-user-friends"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="text-muted mb-1 small text-uppercase fw-bold">Peer Avg <span class="fw-normal">(30%)</span></h6>
+                    <?php if ($deptPeerRatedCount > 0): ?>
+                        <div class="d-flex align-items-baseline gap-1 lh-1">
+                            <span class="fs-5 fw-bold"><?= number_format($deptPeerAverage, 2) ?></span>
+                            <span class="text-muted small">/ 5.00</span>
+                        </div>
+                        <small class="text-muted">based on <?= $deptPeerRatedCount ?> rated faculty</small>
+                    <?php else: ?>
+                        <div class="text-muted small">No ratings yet</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="card border shadow-sm h-100">
+            <div class="card-body p-3 d-flex align-items-center gap-3">
+                <div class="p-2 rounded-3 bg-primary bg-opacity-10 text-primary fs-5 d-flex align-items-center justify-content-center flex-shrink-0">
+                    <i class="fas fa-user-tie"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="text-muted mb-1 small text-uppercase fw-bold">Dept. Head Avg <span class="fw-normal">(20%)</span></h6>
+                    <?php if (!empty($deptHeadScores)): ?>
+                        <div class="d-flex align-items-baseline gap-1 lh-1">
+                            <span class="fs-5 fw-bold"><?= number_format($deptHeadAverage, 2) ?></span>
+                            <span class="text-muted small">/ 5.00</span>
+                        </div>
+                        <small class="text-muted">based on <?= count($deptHeadScores) ?> rated faculty</small>
+                    <?php else: ?>
+                        <div class="text-muted small">No ratings yet</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php if ($needsAttentionCount > 0): ?>
+<div class="alert alert-warning border-warning-subtle bg-warning-subtle text-warning-emphasis d-flex align-items-start gap-2 mb-3" role="alert">
+    <i class="fas fa-triangle-exclamation fs-5 flex-shrink-0 mt-1"></i>
+    <div class="small">
+        <strong><?= $needsAttentionCount ?> faculty member<?= $needsAttentionCount === 1 ? '' : 's' ?> trending below 3.50 overall:</strong>
+        <?= htmlspecialchars(implode(', ', array_map(fn($n) => $n['name'] . ' (' . number_format($n['score'], 2) . ')', array_slice($needsAttentionList, 0, 6)))) ?><?= $needsAttentionCount > 6 ? ', and ' . ($needsAttentionCount - 6) . ' more' : '' ?>.
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="container-fluid my-2 my-sm-4 p-2 p-sm-3 rounded-3">
     <div class="row g-3 g-lg-4">
@@ -351,17 +649,22 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <ul class="nav nav-tabs border-0 flex-nowrap" id="evalSourceTabs">
                     <li class="nav-item flex-shrink-0">
                         <button class="nav-link active fw-bold py-2 px-3 small" onclick="switchEvalTab('all', this)">
-                            <i class="fas fa-chart-pie me-1 text-primary"></i> Composite (60/40)
+                            <i class="fas fa-chart-pie me-1 text-primary"></i> Composite (50/30/20)
                         </button>
                     </li>
                     <li class="nav-item flex-shrink-0">
                         <button class="nav-link text-secondary py-2 px-3 small" onclick="switchEvalTab('student', this)">
-                            <i class="fas fa-user-graduate me-1 text-info"></i> Student (60%)
+                            <i class="fas fa-user-graduate me-1 text-info"></i> Student (50%)
                         </button>
                     </li>
                     <li class="nav-item flex-shrink-0">
                         <button class="nav-link text-secondary py-2 px-3 small" onclick="switchEvalTab('peer', this)">
-                            <i class="fas fa-user-friends me-1 text-warning"></i> Peer (40%)
+                            <i class="fas fa-user-friends me-1 text-warning"></i> Peer (30%)
+                        </button>
+                    </li>
+                    <li class="nav-item flex-shrink-0">
+                        <button class="nav-link text-secondary py-2 px-3 small" onclick="switchEvalTab('head', this)">
+                            <i class="fas fa-user-tie me-1 text-primary"></i> Department Head (20%)
                         </button>
                     </li>
                 </ul>
@@ -405,12 +708,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <div class="card-body p-3 small" style="font-size: 11px;">
                             <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
                                 <li class="d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-user-graduate me-1 text-info"></i> Student Rating (60%)</span>
+                                    <span><i class="fas fa-user-graduate me-1 text-info"></i> Student Rating (50%)</span>
                                     <span class="fw-bold" id="scoreStudentWeight">0.00</span>
                                 </li>
                                 <li class="d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-user-friends me-1 text-warning"></i> Peer Rating (40%)</span>
+                                    <span><i class="fas fa-user-friends me-1 text-warning"></i> Peer Rating (30%)</span>
                                     <span class="fw-bold" id="scorePeerWeight">0.00</span>
+                                </li>
+                                <li class="d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-user-tie me-1 text-primary"></i> Dept. Head Rating (20%)</span>
+                                    <span class="fw-bold" id="scoreHeadWeight">0.00</span>
                                 </li>
                             </ul>
                         </div>
@@ -502,14 +809,27 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const avatar = document.getElementById('profAvatar');
         avatar.innerText = fac.initials;
 
+        if (!fac.isLinked) {
+            document.getElementById('scoreCardTitle').innerText = 'Overall Composite Rating (50/30/20)';
+            document.getElementById('profScore').innerText = '--';
+            document.getElementById('profRatingLabel').innerText = 'Not linked to a faculty record';
+            document.getElementById('profCount').innerText = 0;
+            document.getElementById('sourceBreakdownCard').classList.add('d-none');
+            document.getElementById('feedbackHeaderTitle').innerText = 'Feedback & Remarks';
+            document.getElementById('commentsTableBody').innerHTML =
+                '<tr><td class="ps-3 text-secondary py-2">This profile has no linked faculty record yet, so no evaluations can exist for it.</td></tr>';
+            return;
+        }
+
         // Weights
         document.getElementById('scoreStudentWeight').innerText = fac.sources.student.score;
         document.getElementById('scorePeerWeight').innerText = fac.sources.peer.score;
+        document.getElementById('scoreHeadWeight').innerText = fac.sources.head.score;
 
         let activeSourceData;
         
         if (currentTab === 'all') {
-            document.getElementById('scoreCardTitle').innerText = 'Overall Composite Rating (60/40)';
+            document.getElementById('scoreCardTitle').innerText = 'Overall Composite Rating (50/30/20)';
             document.getElementById('profScore').innerText = fac.compositeScore;
             document.getElementById('profRatingLabel').innerText = fac.compositeRating;
             document.getElementById('profCount').innerText = fac.totalEvals;
@@ -522,8 +842,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             document.getElementById('sourceBreakdownCard').classList.add('d-none');
             
             const titles = {
-                student: 'Student Evaluation (60% Weight)',
-                peer: 'Peer / Co-Worker Evaluation (40% Weight)'
+                student: 'Student Evaluation (50% Weight)',
+                peer: 'Peer / Co-Worker Evaluation (30% Weight)',
+                head: 'Department Head Evaluation (20% Weight)'
             };
             
             document.getElementById('scoreCardTitle').innerText = titles[currentTab];

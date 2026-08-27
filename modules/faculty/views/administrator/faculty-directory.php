@@ -8,12 +8,28 @@ require_once __DIR__ . '/../../../../includes/authentication.php';
 require_once __DIR__ . '/../../controllers/FacultyController.php';
 
 // Instantiate Controller & Handle Request
-$controller   = new FacultyController();
-$flash        = $controller->handleAddDepartmentHead();
-$facultyList  = $controller->getDirectoryList();
+$controller     = new FacultyController();
+$flash          = $controller->handleAddDepartmentHead();
+$deanFlash      = $controller->handleAddDean();
+$facultyList    = $controller->getDirectoryList();
+
+// CHANGED: department list for the Dean multi-assignment checkboxes.
+// Falls back to a static list (matching faculty_db.departments seed data)
+// if the controller doesn't yet expose a getAllDepartments()-style method.
+$departments = method_exists($controller, 'getAllDepartments')
+    ? $controller->getAllDepartments()
+    : [
+        ['department_id' => 1, 'code' => 'BSIT',    'name' => 'Bachelor of Science in Information Technology'],
+        ['department_id' => 2, 'code' => 'BSED',    'name' => 'Bachelor of Secondary Education'],
+        ['department_id' => 3, 'code' => 'BS CRIM', 'name' => 'Bachelor of Science in Criminology'],
+        ['department_id' => 4, 'code' => 'BSBA',    'name' => 'Bachelor of Science in Business Administration'],
+    ];
 
 $message     = $flash['message'] ?? '';
 $messageType = $flash['type'] ?? 'success';
+
+$deanMessage     = $deanFlash['message'] ?? '';
+$deanMessageType = $deanFlash['type'] ?? 'success';
 
 $pageTitle    = 'Faculty Directory';
 $activeModule = 'faculty';
@@ -38,8 +54,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <button type="button" class="btn btn-sm btn-outline-secondary border-secondary-subtle bg-body text-body py-2 px-3 fw-bold">
             <i class="fas fa-print me-2"></i>Print Directory
         </button>      
-        <button type="button" class="btn btn-sm btn-primary py-2 px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#addFacultyModal">
-            <i class="fas fa-user-plus me-2"></i>Add Faculty Profile
+        <button type="button" class="btn btn-sm btn-primary py-2 px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#addDeanModal">
+            <i class="fas fa-user-tie me-2"></i>Add Dean
+        </button>
+        <button type="button" class="btn btn-sm btn-primary py-2 px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#addDeptHeadModal">
+            <i class="fas fa-user-shield me-2"></i>Add Department Head
         </button>
     </div>
 </div>
@@ -47,6 +66,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <?php if ($message !== ''): ?>
     <div class="alert alert-<?= htmlspecialchars($messageType, ENT_QUOTES, 'UTF-8') ?> rounded-3 mb-4" role="alert">
         <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($deanMessage !== ''): ?>
+    <div class="alert alert-<?= htmlspecialchars($deanMessageType, ENT_QUOTES, 'UTF-8') ?> rounded-3 mb-4" role="alert">
+        <?= htmlspecialchars($deanMessage, ENT_QUOTES, 'UTF-8') ?>
     </div>
 <?php endif; ?>
 
@@ -262,18 +287,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- Modal Component: Add Faculty Registry -->
-<div class="modal fade" id="addFacultyModal" tabindex="-1" aria-labelledby="addFacultyModalLabel" aria-hidden="true">
+<!-- Modal Component: Add Dean Registry -->
+<div class="modal fade" id="addDeanModal" tabindex="-1" aria-labelledby="addDeanModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 860px;">
         <div class="modal-content bg-body text-body border-secondary-subtle shadow">
             <div class="modal-header bg-body-tertiary border-bottom py-3">
-                <h5 class="modal-title fw-bold text-body" id="addFacultyModalLabel">Add Faculty Academic Registry</h5>
+                <h5 class="modal-title fw-bold text-body" id="addDeanModalLabel">Add Dean Registry</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                <form id="addFacultyForm" method="post" action="">
+                <form id="addDeanForm" method="post" action="">
                     <?= csrfField() ?>
-                    <input type="hidden" name="action" value="add_department_head">
+                    <input type="hidden" name="action" value="add_dean">
+                    <input type="hidden" name="position" value="Dean">
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label class="form-label text-muted small fw-bold mb-1">First Name</label>
@@ -322,22 +348,26 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </div>
                     </div>
                     <div class="row g-3 mb-3">
-                        <div class="col-6">
-                            <label class="form-label text-muted small fw-bold mb-1">Designated Department</label>
-                            <select id="addDept" name="designated_department" class="form-select bg-body border-secondary-subtle text-body" required>
-                                <option value="" selected disabled>-- Select a Department --</option>
-                                <option value="BSIT">Information Technology</option>
-                                <option value="BSCE">Computer Engineering</option>
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label text-muted small fw-bold mb-1">Position</label>
-                            <select name="position" class="form-select bg-body border-secondary-subtle text-body" required>
-                                <option value="" disabled selected>-- Select Position --</option>
-                                <option value="Department Head">Department Head</option>
-                                <option value="Department Secretary">Department Secretary</option>
-                                <option value="Faculty Professor">Faculty Professor</option>
-                            </select>
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold mb-1">
+                                Departments Overseen
+                                <span class="text-muted fw-normal" style="font-size: 0.75rem;">(select one or more)</span>
+                            </label>
+                            <div id="deanDeptGroup" class="border border-secondary-subtle rounded-3 p-3 d-flex flex-wrap gap-3">
+                                <?php foreach ($departments as $dept): ?>
+                                    <div class="form-check">
+                                        <input class="form-check-input dean-dept-checkbox" type="checkbox"
+                                               name="department_ids[]"
+                                               value="<?= htmlspecialchars($dept['department_id']) ?>"
+                                               id="deanDept<?= htmlspecialchars($dept['department_id']) ?>">
+                                        <label class="form-check-label" for="deanDept<?= htmlspecialchars($dept['department_id']) ?>">
+                                            <?= htmlspecialchars($dept['code']) ?>
+                                            <span class="text-muted small d-block" style="font-size: 0.7rem;"><?= htmlspecialchars($dept['name']) ?></span>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div id="deanDeptError" class="text-danger small mt-1 d-none">Select at least one department.</div>
                         </div>
                     </div>
                     <div class="row g-3 mb-3">
@@ -354,6 +384,114 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <div class="col-6">
                             <label class="form-label text-muted small fw-bold mb-1">Employment Status</label>
                             <select id="employmentStatus" name="employment_status" class="form-select bg-body border-secondary-subtle text-body" required>
+                                <option value="regular" selected>Regular / Permanent</option>
+                                <option value="probationary">Probationary</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">Profile Status</label>
+                            <select name="profile_status" class="form-select bg-body border-secondary-subtle text-body" disabled>
+                                <option value="Active" selected>Active</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 border-top border-secondary-subtle pt-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary border-secondary-subtle text-body px-4 py-2 fw-bold" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-sm btn-primary px-4 py-2 fw-bold">Register Profile</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Component: Add Department Head Registry -->
+<div class="modal fade" id="addDeptHeadModal" tabindex="-1" aria-labelledby="addDeptHeadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 860px;">
+        <div class="modal-content bg-body text-body border-secondary-subtle shadow">
+            <div class="modal-header bg-body-tertiary border-bottom py-3">
+                <h5 class="modal-title fw-bold text-body" id="addDeptHeadModalLabel">Add Department Head Registry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="addDeptHeadForm" method="post" action="">
+                    <?= csrfField() ?>
+                    <input type="hidden" name="action" value="add_department_head">
+                    <input type="hidden" name="position" value="Department Head">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">First Name</label>
+                            <input type="text" name="first_name" class="form-control bg-body border-secondary-subtle text-body" placeholder="First Name" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">Middle Name</label>
+                            <input type="text" name="middle_name" class="form-control bg-body border-secondary-subtle text-body" placeholder="Middle Name">
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">Last Name</label>
+                            <input type="text" name="last_name" class="form-control bg-body border-secondary-subtle text-body" placeholder="Last Name" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">Suffix</label>
+                            <input type="text" name="suffix" class="form-control bg-body border-secondary-subtle text-body" placeholder="Suffix">
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-4">
+                            <label for="deptHeadBirthdate" class="form-label text-muted small fw-bold mb-1">Birthdate</label>
+                            <input type="date" id="deptHeadBirthdate" name="birthdate" class="form-control bg-body border-secondary-subtle text-body" required>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label text-muted small fw-bold mb-1">Age</label>
+                            <input type="text" id="deptHeadAge" class="form-control bg-body border-secondary-subtle text-body" placeholder="Age" disabled>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label text-muted small fw-bold mb-1">Sex</label>
+                            <select name="sex" class="form-select bg-body border-secondary-subtle text-body" required>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">Phone</label>
+                            <input type="tel" name="phone" class="form-control bg-body border-secondary-subtle text-body" placeholder="Phone Number" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">Email</label>
+                            <input type="email" name="email" class="form-control bg-body border-secondary-subtle text-body" placeholder="Email Address" required>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold mb-1">Designated Department</label>
+                            <select name="designated_department" class="form-select bg-body border-secondary-subtle text-body" required>
+                                <option value="" selected disabled>-- Select a Department --</option>
+                                <?php foreach ($departments as $dept): ?>
+                                    <option value="<?= htmlspecialchars($dept['code']) ?>"><?= htmlspecialchars($dept['code']) ?> — <?= htmlspecialchars($dept['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="form-text">A Department Head oversees exactly one department. For multiple departments, use Add Dean instead.</div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label for="deptHeadHiredDate" class="form-label text-muted small fw-bold mb-1">Hired Date</label>
+                            <input type="date" id="deptHeadHiredDate" name="hired_date" class="form-control bg-body border-secondary-subtle text-body" required>
+                        </div>
+                        <div class="col-6" id="deptHeadContractualEndCol">
+                            <label for="deptHeadContractualEnd" class="form-label text-muted small fw-bold mb-1">Contractual End Date</label>
+                            <input type="date" id="deptHeadContractualEnd" name="contractual_end" class="form-control bg-body border-secondary-subtle text-body" required>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold mb-1">Employment Status</label>
+                            <select id="deptHeadEmploymentStatus" name="employment_status" class="form-select bg-body border-secondary-subtle text-body" required>
                                 <option value="regular" selected>Regular / Permanent</option>
                                 <option value="probationary">Probationary</option>
                             </select>
@@ -423,6 +561,48 @@ document.addEventListener("DOMContentLoaded", function () {
     if (employmentStatusSelect) {
         employmentStatusSelect.addEventListener('change', updateContractualEndVisibility);
         updateContractualEndVisibility();
+    }
+
+    // NEW: same age-calc + contractual-end toggle, wired to the
+    // Add Department Head form's separately-namespaced fields.
+    const deptHeadBirthdateInput = document.getElementById("deptHeadBirthdate");
+    const deptHeadAgeInput = document.getElementById("deptHeadAge");
+    const deptHeadEmploymentStatusSelect = document.getElementById("deptHeadEmploymentStatus");
+    const deptHeadContractualEndCol = document.getElementById("deptHeadContractualEndCol");
+
+    if (deptHeadBirthdateInput) {
+        deptHeadBirthdateInput.addEventListener("change", function () {
+            deptHeadAgeInput.value = computeAge(this.value);
+        });
+    }
+
+    function updateDeptHeadContractualEndVisibility() {
+        if (!deptHeadEmploymentStatusSelect || !deptHeadContractualEndCol) return;
+        const isRegular = deptHeadEmploymentStatusSelect.value === 'regular';
+        deptHeadContractualEndCol.style.display = isRegular ? 'none' : 'block';
+        const contractualInput = deptHeadContractualEndCol.querySelector('input');
+        if (contractualInput) contractualInput.required = !isRegular;
+    }
+
+    if (deptHeadEmploymentStatusSelect) {
+        deptHeadEmploymentStatusSelect.addEventListener('change', updateDeptHeadContractualEndVisibility);
+        updateDeptHeadContractualEndVisibility();
+    }
+
+    // NEW: require at least one department checked before the Add Dean form submits.
+    const addDeanForm = document.getElementById('addDeanForm');
+    const deanDeptError = document.getElementById('deanDeptError');
+    if (addDeanForm) {
+        addDeanForm.addEventListener('submit', function (e) {
+            const checked = addDeanForm.querySelectorAll('.dean-dept-checkbox:checked');
+            if (checked.length === 0) {
+                e.preventDefault();
+                deanDeptError?.classList.remove('d-none');
+                document.getElementById('deanDeptGroup')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                deanDeptError?.classList.add('d-none');
+            }
+        });
     }
 
     // Modal data populate handler

@@ -113,7 +113,7 @@ $facultyAdministrator = [
     'Dashboard' => [
         ['slug' => 'dashboard',   'href' => BASE_URL . '/modules/faculty/views/administrator/dashboard.php',   'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
     ],
-    'Profiles' => [
+    'Faculty' => [
         ['slug' => 'faculty-profile',   'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-profile.php',   'icon' => 'fa-id-badge',     'label' => 'Faculty Profile'],
         ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
     ],    
@@ -122,6 +122,7 @@ $facultyAdministrator = [
     ],
     'Departments' => [
         ['slug' => 'departments', 'href' => BASE_URL . '/modules/faculty/views/administrator/departments.php', 'icon' => 'fa-building',     'label' => 'Departments'],
+        ['slug' => 'department-assignments', 'href' => BASE_URL . '/modules/faculty/views/administrator/department-assignments.php', 'icon' => 'fa-user-tag', 'label' => 'Department Assignments'],
     ],
 ];
 $facultyDeanNavGroups = [
@@ -153,8 +154,10 @@ $facultyDepartmentHeadNavGroups = [
         ['slug' => 'schedule-approval',      'href' => BASE_URL . '/modules/faculty/views/department-head/schedule-approval.php',      'icon' => 'fa-calendar-check', 'label' => 'Schedule Approval'],
         ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-load-approval.php', 'icon' => 'fa-layer-group',    'label' => 'Teaching Load Approval'],
     ],
-    'Evaluation' => [
-         ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/evaluation-summary.php', 'icon' => 'fa-chart-pie',      'label' => 'Evaluation Summary'],
+    'Evaluation & Leave Request' => [
+        ['slug' => 'faculty-member-evaluation', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-member-evaluation.php', 'icon' => 'fa-user-check', 'label' => 'Peer Evaluation'],
+        ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/evaluation-summary.php', 'icon' => 'fa-chart-pie',      'label' => 'Evaluation Summary'],
+        ['slug' => 'leave-request-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/leave-request-approval.php', 'icon' => 'fa-calendar-check', 'label' => 'Leave-Request Approval'],
     ],
     'Clearance & Reports' => [
         ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
@@ -162,16 +165,17 @@ $facultyDepartmentHeadNavGroups = [
     ],
 ];
 
+
 $facultySecretaryNavGroups = [
     'Faculty' => [
         ['slug' => 'dashboard',       'href' => BASE_URL . '/modules/faculty/views/secretary/dashboard.php',       'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
         ['slug' => 'faculty-records', 'href' => BASE_URL . '/modules/faculty/views/secretary/faculty-records.php', 'icon' => 'fa-folder-open',     'label' => 'Faculty Records'],
     ],
-    'Documents & Leave' => [
-        ['slug' => 'documents',               'href' => BASE_URL . '/modules/faculty/views/secretary/documents.php',               'icon' => 'fa-file-alt',       'label' => 'Documents'],
-        ['slug' => 'leave-request-screening', 'href' => BASE_URL . '/modules/faculty/views/secretary/leave-request-screening.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Request'],
+    'Monitoring' => [
+        ['slug' => 'assignment-monitoring', 'href' => BASE_URL . '/modules/faculty/views/secretary/assignment-monitoring.php', 'icon' => 'fa-tasks', 'label' => 'Assignment Monitoring'],
     ],
-    'Reports' => [
+    'Leave & Reports' => [
+        ['slug' => 'leave-request-screening', 'href' => BASE_URL . '/modules/faculty/views/secretary/leave-request-screening.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Request'],
         ['slug' => 'reports', 'href' => BASE_URL . '/modules/faculty/views/secretary/reports.php', 'icon' => 'fa-chart-pie', 'label' => 'Reports'],
     ],
 ];
@@ -204,6 +208,15 @@ $facultyTeacherNavGroups = [
     ],
 ];
 
+// REMOVE WHEN IT IS INTEGRARION
+$facultyScheduleOfficerNavGroups = [
+    'Dashboard' => [
+        ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/schedule-officer/dashboard.php', 'icon' => 'fa-file-alt', 'label' => 'Dashboard'],
+    ],
+    'Scheduling' => [
+        ['slug' => 'schedule-assignment', 'href' => BASE_URL . '/modules/faculty/views/schedule-officer/schedule-assignment.php', 'icon' => 'fa-calendar-check', 'label' => 'Schedule Assignment'],
+    ],
+];
 ?>
 <aside class="sms-sidebar" id="smsSidebar" aria-label="Main navigation">
     <nav class="sidebar-nav" id="smsSidebarAccordion">
@@ -346,6 +359,26 @@ $facultyTeacherNavGroups = [
                 <!-- FACULTY -->
                  <?php elseif (in_array($roleKey, ['faculty'], true)): ?>
                     <?php foreach ($facultyTeacherNavGroups as $groupLabel => $groupItems): ?>
+                        <li class="nav-item sidebar-group-label">
+                            <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        </li>
+                        <?php foreach ($groupItems as $item): ?>
+                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                            <li class="nav-item">
+                                <a class="nav-link sidebar-sub <?= $linkClass ?>"
+                                href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                    <span><?= htmlspecialchars($item['label']) ?></span>
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                <?php endforeach; ?>
+
+                 <!-- REMOVE WHEN IT IS NEEDED SCHEDULE OFFICER -->
+                <?php elseif (in_array($roleKey, ['faculty_schedule_officer'], true)): ?>
+                    <?php foreach ($facultyScheduleOfficerNavGroups as $groupLabel => $groupItems): ?>
                         <li class="nav-item sidebar-group-label">
                             <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
                         </li>

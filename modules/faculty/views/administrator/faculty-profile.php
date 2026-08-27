@@ -11,17 +11,6 @@ requireAuth();
 $controller = new FacultyController();
 $pdo = db();
 
-$departments = [];
-try {
-    $deptStmt = $pdo->query("SELECT code, name FROM faculty_db.departments ORDER BY code ASC");
-    if ($deptStmt) {
-        $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-} catch (PDOException $e) {
-    // Failsafe fallback if the table is not found or empty
-    $departments = [];
-}
-
 $message = '';
 $messageType = 'success';
 
@@ -427,9 +416,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <div class="col-12 col-sm-6 col-md-4">
                                 <label for="sex" class="form-label text-body-secondary small fw-bold">Sex</label>
                                 <select id="sex" name="sex" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
+                                    <option value="" disabled selected>Select Sex</option>
+                                    <option value="MALE">Male</option>
+                                    <option value="FEMALE">Female</option>
                                 </select>
                             </div>
                             <div class="col-12 col-sm-6 col-md-4">
@@ -456,37 +445,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <div class="mb-4">
                         <h6 class="text-primary border-bottom border-light-subtle pb-2 fw-bold fs-7 mb-3">Role & Status</h6>
                         <div class="row g-3">
-                            <!-- Department dropdown containing existing department choice -->
                             <div class="col-12 col-sm-6 col-md-6">
-                                <label for="department" class="form-label text-body-secondary small fw-bold">Department</label>
-                                <select id="department" name="designated_department" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
-                                    <option value="" disabled selected>Select a Department</option>
-                                    <?php 
-                                    if (!empty($departments)) {
-                                        foreach ($departments as $row) {
-                                            echo '<option value="' . htmlspecialchars($row['code'], ENT_QUOTES, 'UTF-8') . '">' 
-                                                . htmlspecialchars($row['code'] . ' - ' . $row['name'], ENT_QUOTES, 'UTF-8') 
-                                                . '</option>';
-                                        }
-                                    } else {
-                                        // Fallback if departments table is empty
-                                        echo '<option value="BSIT">BSIT</option>';
-                                    }
-                                    ?>
-                                </select>
-                            </div>
-                            <div class="col-12 col-sm-6 col-md-3">
                                 <label for="hiredDate" class="form-label text-body-secondary small fw-bold">Hired Date</label>
                                 <input type="date" id="hiredDate" name="hired_date" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none">
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-6">
                                 <label for="contractualEnd" class="form-label text-body-secondary small fw-bold">Contractual End</label>
                                 <input type="date" id="contractualEnd" name="contractual_end_date" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none">
                             </div>
                             <div class="col-12 col-sm-6 col-md-6">
                                 <label for="employmentStatus" class="form-label text-body-secondary small fw-bold">Employment Status</label>
                                 <select id="employmentStatus" name="employment_status" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
-                                    <option value="Active">Active</option>
+                                    <option value="" disabled selected>Select Status</option>
+                                    <option value="Regular">Regular</option>
                                     <option value="Probationary">Probationary</option>
                                     <option value="Part-Time">Part-Time</option>
                                     <option value="Resigned">Resigned</option>
@@ -685,6 +656,32 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         modal?.show();
     }
 
+// Sets a <select>'s value by matching an option case-insensitively.
+// Falls back to leaving the placeholder selected if nothing matches,
+// instead of silently landing on the wrong option.
+function setSelectValueCI(selectEl, rawValue) {
+    if (!selectEl) return;
+    const value = (rawValue || '').trim();
+    if (value === '') return;
+
+    const match = Array.from(selectEl.options).find(
+        opt => opt.value.toLowerCase() === value.toLowerCase()
+    );
+
+    if (match) {
+        selectEl.value = match.value;
+    } else if (value) {
+        // No matching option exists yet (e.g. legacy/free-form data) -
+        // add it on the fly so the current value is still visible and won't
+        // be silently overwritten with something else on save.
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = value;
+        selectEl.appendChild(opt);
+        selectEl.value = value;
+    }
+}
+
 function editFaculty(button) {
     if (!button || !button.dataset) return;
     document.getElementById('profileId').value = button.dataset.profileId || '';
@@ -693,21 +690,15 @@ function editFaculty(button) {
     document.getElementById('middlename').value = button.dataset.middleName || '';
     document.getElementById('lastname').value = button.dataset.lastName || '';
     document.getElementById('suffix').value = button.dataset.suffix || '';
-    document.getElementById('sex').value = button.dataset.sex || 'Male';
     document.getElementById('birthdate').value = button.dataset.birthdate || '';
     document.getElementById('email').value = button.dataset.email || '';
     document.getElementById('phone').value = button.dataset.phone || '';
-    
-    // Default to the existing BSIT department selection
-    const deptSelect = document.getElementById('department');
-    if (deptSelect) {
-        deptSelect.value = button.dataset.departmentCode || button.dataset.department || 'BSIT';
-    }
-
     document.getElementById('hiredDate').value = button.dataset.hiredDate || '';
     document.getElementById('contractualEnd').value = button.dataset.contractualEnd || '';
-    document.getElementById('employmentStatus').value = button.dataset.status || 'Active';
-    document.getElementById('profileStatus').value = button.dataset.profileStatus || 'Active';
+
+    setSelectValueCI(document.getElementById('sex'), button.dataset.sex);
+    setSelectValueCI(document.getElementById('employmentStatus'), button.dataset.status);
+    setSelectValueCI(document.getElementById('profileStatus'), button.dataset.profileStatus);
 
     getModalInstance('facultyFormModal')?.show();
 }

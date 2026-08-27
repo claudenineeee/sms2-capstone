@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 19, 2026 at 09:23 AM
+-- Generation Time: Aug 25, 2026 at 08:54 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -809,7 +809,220 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `user_name`, `role_key`, `action`,
 (761, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 14:32:49'),
 (762, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 14:33:06'),
 (763, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 14:41:31'),
-(764, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 14:42:10');
+(764, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 14:42:10'),
+(765, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 15:26:40'),
+(766, 159, 'Monitoring Officer', 'monitoring_officer', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 15:27:07'),
+(767, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:53:01'),
+(768, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:53:45'),
+(769, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:53:55'),
+(770, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:54:13'),
+(771, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:54:23'),
+(772, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:54:42'),
+(773, 159, 'Monitoring Officer', 'monitoring_officer', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:54:52'),
+(774, 159, 'Monitoring Officer', 'monitoring_officer', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:55:08'),
+(775, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-19 23:55:15'),
+(776, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 00:13:23'),
+(777, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 00:13:37'),
+(778, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 01:59:10'),
+(779, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 18:04:32'),
+(780, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:07:36'),
+(781, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:07:50'),
+(782, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:11:16'),
+(783, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:11:19'),
+(784, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:12:04'),
+(785, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:12:16'),
+(786, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:13:03'),
+(787, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:13:15'),
+(788, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:25:23'),
+(789, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:25:40'),
+(790, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:30:30'),
+(791, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-20 19:35:43'),
+(792, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 01:22:54'),
+(793, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 01:30:33'),
+(794, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 01:30:44'),
+(795, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 01:30:58'),
+(796, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 01:31:13'),
+(797, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 01:50:27'),
+(798, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 01:50:36'),
+(799, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 17:32:56'),
+(800, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 17:33:31'),
+(801, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 17:33:40'),
+(802, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 17:36:51'),
+(803, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 17:37:04'),
+(804, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 18:22:26'),
+(805, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 18:59:19'),
+(806, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 18:59:29'),
+(807, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 19:11:36'),
+(808, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 19:11:44'),
+(809, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 19:14:15'),
+(810, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 19:14:26'),
+(811, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 19:57:01'),
+(812, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 20:21:38'),
+(813, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 20:21:47'),
+(814, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 20:35:31'),
+(815, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 20:35:41'),
+(816, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 21:19:45'),
+(817, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 21:19:53'),
+(818, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 21:20:20'),
+(819, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 21:20:43'),
+(820, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 21:21:45'),
+(821, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 21:21:53'),
+(822, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 22:57:07'),
+(823, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 23:51:59'),
+(824, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-21 23:52:06'),
+(825, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 00:44:00'),
+(826, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 01:10:34'),
+(827, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 01:10:49'),
+(828, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 01:11:10'),
+(829, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 01:11:23'),
+(830, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 01:23:52'),
+(831, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 01:25:27'),
+(832, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 01:31:34'),
+(833, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 01:31:47'),
+(834, 159, 'Monitoring Officer', 'monitoring_officer', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 13:27:30'),
+(835, 159, 'Monitoring Officer', 'monitoring_officer', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 13:57:08'),
+(836, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 13:57:24'),
+(837, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 14:25:53'),
+(838, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 14:26:02'),
+(839, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 14:26:24'),
+(840, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 14:26:38'),
+(841, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 14:51:34'),
+(842, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 14:51:49'),
+(843, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 18:59:53'),
+(844, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:08:16'),
+(845, 178, '', 'faculty', 'login_failed', 'System', 'Login blocked — account status: ', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:08:27'),
+(846, 178, '', 'faculty', 'login_failed', 'System', 'Login blocked — account status: ', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:08:41'),
+(847, 178, '', 'faculty', 'login_failed', 'System', 'Login blocked — account status: ', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:16:02'),
+(848, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:17:18'),
+(849, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:19:08'),
+(850, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:19:17'),
+(851, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:19:25'),
+(852, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:19:35'),
+(853, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:22:33'),
+(854, 178, '', 'faculty', 'login_failed', 'System', 'Login blocked — account status: ', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:22:42'),
+(855, 178, '', 'faculty', 'login_failed', 'System', 'Login blocked — account status: ', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:26:17'),
+(856, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:30:23'),
+(857, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:33:17'),
+(858, NULL, 'Unknown', NULL, 'login_failed', 'System', 'Invalid login attempt (unknown credentials)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:33:30'),
+(859, 179, '', 'department_head', 'login_failed', 'System', 'Login blocked — account status: ', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:33:44'),
+(860, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:39:06'),
+(861, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:39:54'),
+(862, 179, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:40:03'),
+(863, 179, 'Department Head', 'department_head', 'password_change', 'System', 'Password changed by user', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:40:15'),
+(864, 179, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:50:13'),
+(865, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 19:50:25'),
+(866, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:01:05'),
+(867, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:12:23'),
+(868, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:12:39'),
+(869, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:12:56'),
+(870, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:14:14'),
+(871, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:14:30'),
+(872, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:26:27'),
+(873, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:26:34'),
+(874, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-22 20:27:56'),
+(875, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 01:52:33'),
+(876, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 01:58:05'),
+(877, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 01:58:15'),
+(878, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:20:03'),
+(879, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:20:14'),
+(880, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:32:09'),
+(881, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:32:24'),
+(882, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:41:48'),
+(883, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:42:01'),
+(884, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:42:27'),
+(885, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:42:38');
+INSERT INTO `activity_logs` (`id`, `user_id`, `user_name`, `role_key`, `action`, `module_key`, `detail`, `ip_address`, `user_agent`, `created_at`) VALUES
+(886, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:42:53'),
+(887, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 02:43:04'),
+(888, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 13:43:34'),
+(889, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:10:55'),
+(890, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:11:09'),
+(891, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:13:33'),
+(892, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:13:48'),
+(893, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:27:10'),
+(894, 159, 'Monitoring Officer', 'monitoring_officer', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:27:25'),
+(895, 159, 'Monitoring Officer', 'monitoring_officer', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:27:49'),
+(896, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:28:01'),
+(897, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:29:43'),
+(898, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:29:58'),
+(899, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:37:07'),
+(900, 159, 'Monitoring Officer', 'monitoring_officer', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:37:23'),
+(901, 159, 'Monitoring Officer', 'monitoring_officer', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:38:01'),
+(902, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:38:12'),
+(903, 158, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:44:55'),
+(904, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:45:04'),
+(905, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:52:48'),
+(906, 153, 'Jean Espejo', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 14:52:59'),
+(907, 153, 'Jean Espejo', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 15:04:26'),
+(908, 1, 'Super Admin', 'superadmin', 'login', 'user-management', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 15:04:37'),
+(909, 1, 'Super Admin', 'superadmin', 'update', 'user-management', 'Permission it_office:lms = deny', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 15:06:01'),
+(910, 1, 'Super Admin', 'superadmin', 'update', 'user-management', 'Permission it_office:lms = grant', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 15:06:02'),
+(911, 1, 'Super Admin', 'superadmin', 'update', 'user-management', 'Permission it_office:lms = deny', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 15:06:07'),
+(912, 1, 'Super Admin', 'superadmin', 'update', 'user-management', 'Permission it_office:lms = grant', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-23 15:06:08'),
+(913, 1, 'Super Admin', 'superadmin', 'update', 'user-management', 'Permission it_office:payment = grant', '::1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36', '2026-08-23 15:06:23'),
+(914, 1, 'Super Admin', 'superadmin', 'update', 'user-management', 'Permission it_office:payment = deny', '::1', 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36', '2026-08-23 15:06:23'),
+(915, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 01:49:37'),
+(916, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 01:53:39'),
+(917, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 01:53:53'),
+(918, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:10:49'),
+(919, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:11:00'),
+(920, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:11:39'),
+(921, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:11:50'),
+(922, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:12:02'),
+(923, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:12:12'),
+(924, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:12:56'),
+(925, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:13:06'),
+(926, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:16:26'),
+(927, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:16:37'),
+(928, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:18:00'),
+(929, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:18:11'),
+(930, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:18:31'),
+(931, 8, 'Dean', 'hr', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:18:41'),
+(932, 8, 'Dean', 'hr', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:29:35'),
+(933, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:29:47'),
+(934, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:31:29'),
+(935, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:31:40'),
+(936, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:32:09'),
+(937, 8, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:32:59'),
+(938, 8, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:39:17'),
+(939, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:39:30'),
+(940, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:40:05'),
+(941, 8, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:40:18'),
+(942, 8, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:40:33'),
+(943, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:40:44'),
+(944, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:41:15'),
+(945, 8, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:41:24'),
+(946, 8, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:46:26'),
+(947, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 02:46:39'),
+(948, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 03:04:34'),
+(949, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 03:04:51'),
+(950, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 03:04:57'),
+(951, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 03:05:06'),
+(952, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 03:13:54'),
+(953, 8, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 03:14:08'),
+(954, 8, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 03:16:07'),
+(955, 158, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-24 03:16:19'),
+(956, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 00:51:57'),
+(957, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:10:26'),
+(958, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:10:36'),
+(959, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:25:10'),
+(960, 8, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:25:22'),
+(961, 8, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:40:50'),
+(962, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:41:04'),
+(963, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:42:57'),
+(964, 8, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:43:06'),
+(965, 8, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:52:51'),
+(966, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 01:53:08'),
+(967, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:02:40'),
+(968, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:02:51'),
+(969, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:03:00'),
+(970, 8, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:03:13'),
+(971, 8, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:03:25'),
+(972, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:03:35'),
+(973, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:04:04'),
+(974, 8, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:04:18'),
+(975, 8, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:04:31'),
+(976, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36', '2026-08-25 02:04:41');
 
 -- --------------------------------------------------------
 
@@ -909,7 +1122,8 @@ INSERT INTO `roles` (`id`, `role_key`, `label`, `description`, `is_system`, `cre
 (77, 'secretary', 'Secretary', 'Faculty secretary processes', 1, '2026-08-10 01:31:00'),
 (78, 'faculty', 'Faculty', 'Faculty/teacher access', 1, '2026-08-10 01:31:00'),
 (185, 'faculty_admin', 'Faculty Admin', 'Administrative oversight of the faculty module', 1, '2026-08-15 01:14:06'),
-(186, 'monitoring_officer', 'Monitoring Officer', 'Monitors faculty compliance and activity', 1, '2026-08-15 01:14:06');
+(186, 'monitoring_officer', 'Monitoring Officer', 'Monitors faculty compliance and activity', 1, '2026-08-15 01:14:06'),
+(218, 'dean', 'Dean', 'Oversees one or more academic departments', 1, '2026-08-24 02:26:16');
 
 -- --------------------------------------------------------
 
@@ -937,7 +1151,7 @@ INSERT INTO `role_permissions` (`id`, `role_key`, `module_key`, `granted`, `upda
 (23, 'crad_officer', 'crad', 1, '2026-07-22 22:53:59'),
 (24, 'finance', 'payment', 1, '2026-07-22 22:53:59'),
 (25, 'osa', 'cocurricular', 1, '2026-07-22 22:53:59'),
-(26, 'it_office', 'lms', 1, '2026-07-22 22:53:59'),
+(26, 'it_office', 'lms', 1, '2026-08-23 15:06:08'),
 (27, 'qa', 'accreditation', 1, '2026-07-22 22:53:59'),
 (28, 'hr', 'faculty', 1, '2026-07-22 22:53:59'),
 (29, 'student', 'student_portal', 1, '2026-07-22 22:53:59'),
@@ -948,7 +1162,8 @@ INSERT INTO `role_permissions` (`id`, `role_key`, `module_key`, `granted`, `upda
 (66, 'secretary', 'faculty', 1, '2026-08-10 01:31:00'),
 (67, 'faculty', 'faculty', 1, '2026-08-10 01:31:00'),
 (133, 'faculty_admin', 'faculty', 1, '2026-08-15 01:14:06'),
-(134, 'monitoring_officer', 'faculty', 1, '2026-08-15 01:14:06');
+(134, 'monitoring_officer', 'faculty', 1, '2026-08-15 01:14:06'),
+(148, 'it_office', 'payment', 0, '2026-08-23 15:06:23');
 
 -- --------------------------------------------------------
 
@@ -1077,14 +1292,14 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `role_key`, `student_id`, `status`, `must_change_password`, `failed_login_attempts`, `locked_until`, `password_changed_at`, `last_login_at`, `last_seen_at`, `last_login_ip`, `notes`, `created_at`, `updated_at`) VALUES
-(1, 'superadmin', 'kennethabejuela0308@gmail.com', '$2y$10$o48cjRxVOhYsuBWzhYqHHuHr0l2HLqSRERtOoe6viDpP0xRSgtQuu', 'Super Admin', 'superadmin', NULL, 'active', 0, 0, NULL, '2026-08-06 13:10:29', '2026-08-14 00:00:44', NULL, '::1', NULL, '2026-07-22 22:53:59', '2026-08-14 00:01:08'),
+(1, 'superadmin', 'kennethabejuela0308@gmail.com', '$2y$10$o48cjRxVOhYsuBWzhYqHHuHr0l2HLqSRERtOoe6viDpP0xRSgtQuu', 'Super Admin', 'superadmin', NULL, 'active', 0, 0, NULL, '2026-08-06 13:10:29', '2026-08-23 15:04:37', '2026-08-23 15:31:49', '::1', NULL, '2026-07-22 22:53:59', '2026-08-23 15:31:49'),
 (2, 'registrar', 'registrar@bestlink.edu.ph', '$2y$10$IWZoE2QLtbfeoOh8n0VdkeSvNx9aNeiKGC6B5oWs1KzO5C08997eS', 'Registrar', 'registrar', NULL, 'active', 0, 0, NULL, '2026-08-06 13:16:14', NULL, NULL, NULL, NULL, '2026-07-22 22:53:59', '2026-08-06 13:16:14'),
 (3, 'cradofficer', 'angelicadublin340@gmail.com', '$2y$10$MpwtxHnKofWTxV5/axRiPuudxLEFIdLJChvSoykU9poFiH/W9wRPK', 'CRAD Officer', 'crad_officer', NULL, 'active', 0, 0, NULL, '2026-08-06 13:31:50', '2026-08-07 22:01:51', '2026-08-07 22:07:41', '::1', NULL, '2026-07-22 22:53:59', '2026-08-07 22:07:41'),
 (4, 'finance', 'monvictortesiorna@gmail.com', '$2y$10$mOPKz95hA/OlTNHGzzgLEuvYqMBNAE1RdQFThECQjfv94o.RbvIZq', 'Finance', 'finance', NULL, 'active', 0, 0, NULL, '2026-08-06 20:20:39', '2026-08-07 14:28:00', NULL, '::1', NULL, '2026-07-22 22:54:00', '2026-08-07 14:28:02'),
 (5, 'studentaffairs', 'studentaffairs@bestlink.edu.ph', '$2y$10$lViM6fo1qu33TQ8G45UW6OF6op7etas9WBZ12cvQdEPSKuU7TGmXW', 'Student Affairs', 'osa', NULL, 'active', 0, 0, NULL, '2026-07-22 22:54:00', NULL, NULL, NULL, NULL, '2026-07-22 22:54:00', '2026-07-22 22:54:00'),
 (6, 'itofficer', 'itofficer@bestlink.edu.ph', '$2y$10$fIFFgaSnSssf4ZdaYupnZ.fzX6dYDfE7escqc/GMedxVZUHCaqCPe', 'IT Officer', 'it_office', NULL, 'active', 0, 0, NULL, '2026-07-22 22:54:00', NULL, NULL, NULL, NULL, '2026-07-22 22:54:00', '2026-07-22 22:54:00'),
 (7, 'qualityassurance', 'qualityassurance@bestlink.edu.ph', '$2y$10$Bm/Te5m0uFyTRDhDDV.lf.9HuUEe7qIUOfZtHXF2eufIIXL1N3IVC', 'Quality Assurance', 'qa', NULL, 'active', 0, 0, NULL, '2026-07-22 22:54:00', NULL, NULL, NULL, NULL, '2026-07-22 22:54:00', '2026-07-22 22:54:00'),
-(8, 'dean', 'dean@bestlink.edu.ph', '$2y$10$gKCSAHM8.aeonS0qhutDeOuyVqtsuQneESNB4gP0tboWn4lyuCvP2', 'Dean', 'hr', NULL, 'active', 0, 0, NULL, '2026-08-09 18:27:53', '2026-08-19 14:33:06', NULL, '::1', NULL, '2026-07-22 22:54:00', '2026-08-19 14:41:31'),
+(8, 'dean', 'dean@bestlink.edu.ph', '$2y$10$gKCSAHM8.aeonS0qhutDeOuyVqtsuQneESNB4gP0tboWn4lyuCvP2', 'Dean', 'dean', NULL, 'active', 0, 0, NULL, '2026-08-09 18:27:53', '2026-08-25 02:04:18', NULL, '::1', NULL, '2026-07-22 22:54:00', '2026-08-25 02:04:32'),
 (9, 's230000001', 'kenlangmalakas0308@gmail.com', '$2y$10$E0IiZOWMscnUfdX8H7gxt.5YzIkUqLK.qn07WF9MCA0StJhToFn2q', 'Student User', 'student', 'S230000001', 'active', 0, 0, NULL, '2026-08-06 13:17:16', '2026-08-07 15:27:51', NULL, '::1', NULL, '2026-07-22 22:54:00', '2026-08-07 15:29:05'),
 (11, 'admission', 'admission@bestlink.edu.ph', '$2y$10$8wRzkkIHcsmsGHDwVhTXmeMlWGbHtylBJcQUV.8JuSspmUVuioP1G', 'Admission', 'admission', NULL, 'active', 0, 0, NULL, '2026-08-09 18:27:15', NULL, NULL, NULL, NULL, '2026-08-09 18:27:15', '2026-08-09 18:27:15'),
 (12, 'rsantos', 'rsantos@bestlink.edu.ph', '$2y$10$V/hBEBlGrsqnT0fHRHkIqOEBnhTVCO15n8qa2YKrMd6DVzKJ0th6m', 'Dr. Roberto M. Santos', 'faculty', NULL, 'active', 0, 0, NULL, '2026-08-10 01:00:17', '2026-08-10 01:00:31', NULL, '::1', NULL, '2026-08-09 18:27:15', '2026-08-11 01:51:38'),
@@ -1092,13 +1307,13 @@ INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `r
 (44, 'departmenthead', 'departmenthead@bestlink.edu.ph', '$2y$10$zetuMf6PPbFBs9KybGEap.RwJc59VdWoUIseM7fvfQg2pKgaN463e', 'Department Head', 'department_head', NULL, 'active', 0, 0, NULL, '2026-08-10 01:52:53', '2026-08-14 13:51:11', NULL, '::1', NULL, '2026-08-10 01:31:00', '2026-08-14 13:53:18'),
 (45, 'secretary', 'secretary@bestlink.edu.ph', '$2y$10$fKm8UsVAwGoQoo.1h8smw.7pnuxX0937LzFMPqRxyKT9wt2T7m5ye', 'Secretary', 'secretary', NULL, 'active', 0, 0, NULL, '2026-08-10 01:53:27', '2026-08-16 02:58:15', NULL, '::1', NULL, '2026-08-10 01:31:00', '2026-08-16 02:59:02'),
 (46, 'faculty', 'faculty@bestlink.edu.ph', '$2y$10$R1uQbxKRilhWkaEeCMnNne6LsgMhRTt.i5F9Izk5N6ufS8WJUdDr.', 'Jean Claude', 'faculty', NULL, 'active', 0, 0, NULL, '2026-08-10 01:54:02', '2026-08-16 02:59:16', '2026-08-16 03:19:40', '::1', NULL, '2026-08-10 01:31:00', '2026-08-16 03:19:40'),
-(149, 'claudeespejo@gmail.com', 'claudeespejo@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Jean Espejo', 'department_head', NULL, 'active', 0, 0, NULL, '2026-08-14 11:59:29', '2026-08-19 14:19:24', NULL, '::1', NULL, '2026-08-14 11:58:31', '2026-08-19 14:32:49'),
-(151, 'facultyadmin', 'facultyadmin@bestlink.edu.ph', '$2y$10$M6bAMgmDgxJvRvpNHhlkWOl2RaReNDeWjlKUVOrWgVOHu7wOwOLGC', 'Faculty Admin', 'faculty_admin', NULL, 'active', 0, 0, NULL, '2026-08-15 01:36:50', '2026-08-19 14:42:10', '2026-08-19 15:23:11', '::1', NULL, '2026-08-15 01:14:06', '2026-08-19 15:23:11'),
+(149, 'claudeespejo@gmail.com', 'claudeespejo@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Jean Espejo', 'department_head', NULL, 'active', 0, 0, NULL, '2026-08-14 11:59:29', '2026-08-25 02:04:41', '2026-08-25 02:49:24', '::1', NULL, '2026-08-14 11:58:31', '2026-08-25 02:49:24'),
+(151, 'facultyadmin', 'facultyadmin@bestlink.edu.ph', '$2y$10$M6bAMgmDgxJvRvpNHhlkWOl2RaReNDeWjlKUVOrWgVOHu7wOwOLGC', 'Faculty Admin', 'faculty_admin', NULL, 'active', 0, 0, NULL, '2026-08-15 01:36:50', '2026-08-25 01:41:04', NULL, '::1', NULL, '2026-08-15 01:14:06', '2026-08-25 01:42:57'),
 (152, 'monitoring', 'monitoring@bestlink.edu.ph', '$2y$10$VA/SJ7ZDJfaphs4elb5O7O1FxgCV2gakN7tMqG49T0UUf83OJmdO.', 'Monitoring Officer', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-15 01:41:50', '2026-08-17 00:45:17', NULL, '::1', NULL, '2026-08-15 01:14:06', '2026-08-17 01:32:54'),
-(153, 'qwerty@gmail.com', 'qwerty@gmail.com', '$2y$10$71BcLxdqM1/UFcuZZPXx3.5Cn00miPmSXHP7IELpaDbzGO6i1xl12', 'Jean Espejo', 'faculty', NULL, 'active', 0, 0, NULL, '2026-08-16 18:54:14', '2026-08-19 14:14:41', NULL, '::1', NULL, '2026-08-16 18:52:52', '2026-08-19 14:19:15'),
+(153, 'qwerty@gmail.com', 'qwerty@gmail.com', '$2y$10$71BcLxdqM1/UFcuZZPXx3.5Cn00miPmSXHP7IELpaDbzGO6i1xl12', 'Jean Espejo', 'faculty', NULL, 'active', 0, 0, NULL, '2026-08-16 18:54:14', '2026-08-23 14:52:59', NULL, '::1', NULL, '2026-08-16 18:52:52', '2026-08-23 15:04:26'),
 (156, 'ming2026@gmail.com', 'ming2026@gmail.com', '$2y$10$rls6tsobGRkbHZRSOooYQe/02abDHDHkvpyL3gpzIQ4480A47w5Mu', 'ming ming', 'faculty', NULL, 'active', 0, 0, NULL, '2026-08-17 00:03:56', '2026-08-19 02:42:59', NULL, '::1', NULL, '2026-08-17 00:03:14', '2026-08-19 02:45:19'),
-(158, 'asdfghjkl@gmail.com', 'asdfghjkl@gmail.com', '$2y$10$krRJZwchT6S4kL9sEoiOy.mp4XhL1THTugqcDFJk5wOtOCNWFOxB2', 'dwadsadwa Qwerty', 'secretary', NULL, 'active', 0, 0, NULL, '2026-08-17 00:22:48', '2026-08-19 14:13:40', NULL, '::1', NULL, '2026-08-17 00:21:59', '2026-08-19 14:14:26'),
-(159, 'jeanie@gmail.com', 'jeanie@gmail.com', '$2y$10$XT67xyI5B6ebSjLVKaXwoOHmmGsD79vo6GJX11HYYlBiPqgJr9MM6', 'Claude Claude', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-17 01:42:24', '2026-08-18 23:06:18', NULL, '::1', NULL, '2026-08-17 01:40:22', '2026-08-18 23:07:50'),
+(158, 'asdfghjkl@gmail.com', 'asdfghjkl@gmail.com', '$2y$10$krRJZwchT6S4kL9sEoiOy.mp4XhL1THTugqcDFJk5wOtOCNWFOxB2', 'dwadsadwa Qwerty', 'secretary', NULL, 'active', 0, 0, NULL, '2026-08-17 00:22:48', '2026-08-24 03:16:19', '2026-08-24 03:16:19', '::1', NULL, '2026-08-17 00:21:59', '2026-08-24 03:16:19'),
+(159, 'jeanie@gmail.com', 'jeanie@gmail.com', '$2y$10$XT67xyI5B6ebSjLVKaXwoOHmmGsD79vo6GJX11HYYlBiPqgJr9MM6', 'Claude Claude', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-17 01:42:24', '2026-08-23 14:37:23', NULL, '::1', NULL, '2026-08-17 01:40:22', '2026-08-23 14:38:01'),
 (161, 'mark.reyes.test@gmail.com', 'mark.reyes.test@gmail.com', '$2y$10$SYwGtQIZKZ6s1ep0Q6TUX.v6O6NwTyWB2GSY1lLgfFfLPQVHeRise', 'Mark Reyes', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-18 02:30:17', '2026-08-19 02:41:31', NULL, '::1', NULL, '2026-08-18 02:28:50', '2026-08-19 02:41:36'),
 (165, 'qwertyuiop@gmail.com', 'qwertyuiop@gmail.com', '$2y$10$gOu6spIaATuzzPDo0dJbBeyWWe.wV3yL/CH65TdJYIJmMGD8zmXCa', '', 'faculty', NULL, '', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-08-18 23:19:42', '2026-08-18 23:19:42'),
 (167, 'jdiojfioejdpoaskd@gmail.com', 'jdiojfioejdpoaskd@gmail.com', '$2y$10$PLm6aS1o2u1mXOnS6KSEnuWjYxH.4A8o2FhAEql3IR1IzOWBGebdG', '', 'faculty', NULL, 'active', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-08-18 23:37:32', '2026-08-19 02:39:47'),
@@ -1107,7 +1322,9 @@ INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `r
 (174, 'alexander.mercer@gmail.com', 'alexander.mercer@gmail.com', '$2y$10$6TQErBTAwm.wRRq/dnR.teGPudGg2e9I.Qs0Eva8mgTklh4/i8en6', '', 'faculty', NULL, 'active', 0, 0, NULL, '2026-08-19 12:43:09', '2026-08-19 13:02:27', NULL, '::1', NULL, '2026-08-19 12:42:04', '2026-08-19 13:06:38'),
 (175, 'erwin.smith@gmail.com', 'erwin.smith@gmail.com', '$2y$10$qBahTLwAFEvX60JI.SMQXe23YgbDYLMcvNgcIVa0c5d5B0MXLicdW', 'Erwin Smith', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-19 13:32:56', '2026-08-19 13:39:36', NULL, '::1', NULL, '2026-08-19 13:31:32', '2026-08-19 13:52:36'),
 (176, 'juan.delacruz@example.com', 'juan.delacruz@example.com', '$2y$10$kN4pgCXaMF5LVXHcNkH9XeP7CvfOgCG.o9ElRPtnCNokzjPnluTL2', '', 'faculty', NULL, '', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-08-19 13:58:14', '2026-08-19 13:58:14'),
-(177, 'juan.delacruztesting@example.com', 'juan.delacruztesting@example.com', '$2y$10$jF7SPxC.ynsECm9c/9rneevXcz0GIUjIGQtcdA1odiR8I2jXQtBbK', 'juan cruz', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-19 14:01:39', '2026-08-19 14:01:22', NULL, '::1', NULL, '2026-08-19 14:00:01', '2026-08-19 14:10:09');
+(177, 'juan.delacruztesting@example.com', 'juan.delacruztesting@example.com', '$2y$10$jF7SPxC.ynsECm9c/9rneevXcz0GIUjIGQtcdA1odiR8I2jXQtBbK', 'juan cruz', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-19 14:01:39', '2026-08-19 14:01:22', NULL, '::1', NULL, '2026-08-19 14:00:01', '2026-08-19 14:10:09'),
+(178, 'rivera@gmail.com', 'rivera@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', '', 'faculty', NULL, '', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-08-22 19:07:58', '2026-08-22 19:25:36'),
+(179, 'michaeljordan@gmail.com', 'michaeljordan@gmail.com', '$2y$10$2W2VmX5KPLJsYiQDRiNnRe/HBSv9oFFxouRWmkAOv6HakLZXbGb1W', 'michael jordan', 'department_head', NULL, 'active', 0, 0, NULL, '2026-08-22 19:40:15', '2026-08-22 19:40:03', NULL, '::1', NULL, '2026-08-22 19:32:46', '2026-08-22 19:50:13');
 
 -- --------------------------------------------------------
 
@@ -1233,7 +1450,7 @@ ALTER TABLE `user_passkeys`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=765;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=977;
 
 --
 -- AUTO_INCREMENT for table `password_resets`
@@ -1251,13 +1468,13 @@ ALTER TABLE `password_reset_requests`
 -- AUTO_INCREMENT for table `roles`
 --
 ALTER TABLE `roles`
-  MODIFY `id` smallint(5) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=187;
+  MODIFY `id` smallint(5) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=219;
 
 --
 -- AUTO_INCREMENT for table `role_permissions`
 --
 ALTER TABLE `role_permissions`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=135;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=159;
 
 --
 -- AUTO_INCREMENT for table `security_otps`
@@ -1269,7 +1486,7 @@ ALTER TABLE `security_otps`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=178;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=198;
 
 --
 -- AUTO_INCREMENT for table `user_authenticators`

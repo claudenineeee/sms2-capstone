@@ -51,7 +51,7 @@ function computeAge(string $birthdate): int
 }
 
 // Fetch all faculty profiles for the Dean
-$facultyProfiles = function_exists('loadFacultyProfiles') ? loadFacultyProfiles() : [];
+$facultyProfiles = function_exists('getScopedFacultyList') ? getScopedFacultyList() : [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
@@ -211,7 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $messageType = 'success';
             
             // Reload list after adding
-            $facultyProfiles = function_exists('loadFacultyProfiles') ? loadFacultyProfiles() : [];
+            $facultyProfiles = function_exists('getScopedFacultyList') ? getScopedFacultyList() : [];
         } catch (Throwable $e) {
             if ($pdo instanceof PDO && $pdo->inTransaction()) {
                 $pdo->rollBack();

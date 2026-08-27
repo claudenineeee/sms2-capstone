@@ -1,324 +1,1028 @@
 <?php
-/**
- * SMS 2 - Clearance System
- * Module: Faculty Management
- */
+/** Department Head clearance tracking and review. */
+declare(strict_types=1);
 require_once __DIR__ . '/../../../../config/config.php';
+require_once ROOT_PATH . '/includes/authentication.php';
+requireAuth();
+if (!in_array(getCurrentUserRoleKey(), ['dean'], true)) {
+    http_response_code(403);
+    exit('Access denied.');
+}
+require_once __DIR__ . '/../../controllers/clearance.php';
+$db = facultyDb();
+$profile = $db ? facultyClearanceProfile($db, (int) getCurrentUserId()) : null;
+function deptClearanceEsc(string $value): string
+{
+    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+}
 
-$pageTitle    = 'Clearance System';
+$pageTitle = 'Faculty Clearance';
 $activeModule = 'faculty';
-$activePage   = 'clearance-system';
-$breadcrumbs  = [
-    ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
-    ['label' => 'Clearance System', 'url' => null],
-];
-
-require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
-require_once __DIR__ . '/../../../../includes/layout-start.php';
+$activePage = 'clearance-system';
+$breadcrumbs = [['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'], ['label' => 'Faculty Clearance', 'url' => null]];
+require_once ROOT_PATH . '/includes/breadcrumbs.php';
+require_once ROOT_PATH . '/includes/layout-start.php';
 ?>
-
+<link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 <?php renderBreadcrumbs($breadcrumbs); ?>
-
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
-    <div>
-        <h1><i class="fas fa-chalkboard-teacher text-sms-primary me-2"></i>Clearance System</h1>
+<div class="container-fluid p-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <p class="text-primary text-uppercase small fw-bold mb-1">Department Head Account</p>
+            <h3 class="fw-bold mb-1"><i class="fas fa-clipboard-check text-primary me-2"></i>Faculty Clearance Portal</h3>
+            <p class="text-body-secondary small mb-0">Track ongoing clearance submissions, review requirements, update employment status (Probationary / Regular), and inspect archived completed records.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" onclick="refreshCurrentTab()"><i class="fas fa-sync-alt me-2"></i>Refresh</button>
+        </div>
     </div>
-    <div class="d-flex gap-2">
-        <select class="form-select border-secondary" style="width: 180px; max-width: 100%;">
-                <option value="2025-2026-2s">2nd Semester, AY 2025-2026</option>
-                <option value="2025-2026-1s">1st Semester, AY 2025-2026</option>
-            </select>
-            <button class="btn btn-outline-secondary btn-sm px-3 d-flex align-items-center gap-2">
-                <i class="fas fa-chart-bar"></i> Export Report
+
+    <div id="trackingAlert" class="alert d-none" role="status"></div>
+
+    <!-- Metric Overview Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <div class="card border shadow-sm h-100 cursor-pointer" onclick="switchToActiveTab('pending')">
+                <div class="card-body">
+                    <span class="text-body-secondary small">Pending Verification</span>
+                    <h3 class="fw-bold text-info mb-0" id="metricPending">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card border shadow-sm h-100 cursor-pointer" onclick="switchToActiveTab('action')">
+                <div class="card-body">
+                    <span class="text-body-secondary small">Denied / Action Required</span>
+                    <h3 class="fw-bold text-danger mb-0" id="metricAction">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card border shadow-sm h-100 cursor-pointer border-success-subtle" onclick="switchToArchiveTab()">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="text-body-secondary small">Approved &amp; Archived</span>
+                            <h3 class="fw-bold text-success mb-0" id="metricArchived">0</h3>
+                        </div>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-archive me-1"></i>View Archive</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Navigation Tabs: Active Tracking vs Archived Records -->
+    <ul class="nav nav-pills mb-4 p-1 bg-body-tertiary border rounded-pill d-inline-flex" id="clearanceTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active rounded-pill px-4" id="tab-active-btn" data-bs-toggle="pill" data-bs-target="#tab-active" type="button" role="tab" aria-selected="true">
+                <i class="fas fa-tasks me-2"></i>Active Clearance Tracking <span class="badge bg-primary ms-1" id="activeBadgeCount">0</span>
             </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill px-4" id="tab-archive-btn" data-bs-toggle="pill" data-bs-target="#tab-archive" type="button" role="tab" aria-selected="false" onclick="loadArchives()">
+                <i class="fas fa-archive me-2"></i>Archived Completed Records <span class="badge bg-success ms-1" id="archiveBadgeCount">0</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="clearanceTabsContent">
+        <!-- TAB 1: ACTIVE TRACKING -->
+        <div class="tab-pane fade show active" id="tab-active" role="tabpanel" aria-labelledby="tab-active-btn">
+            <section class="card border shadow-sm">
+                <div class="card-header bg-body-tertiary border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 py-3">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-list-ul me-2 text-primary"></i>Ongoing Faculty Clearance Records</h6>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <select id="trackingEmpStatusFilter" class="form-select form-select-sm" style="max-width: 190px;" onchange="filterTracking()">
+                            <option value="all">All Employment Types</option>
+                            <option value="Probationary">Probationary Only</option>
+                            <option value="Regular">Regular Only</option>
+                            <option value="Part-Time">Part-Time Only</option>
+                        </select>
+                        <div class="input-group input-group-sm" style="max-width: 250px">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input id="trackingSearch" class="form-control" placeholder="Search faculty or ID" oninput="filterTracking()">
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3 bg-body-tertiary border-bottom" id="statusControlsContainer">
+                    <!-- Status buttons rendered here -->
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="trackingTable">
+                        <thead class="table-light small text-uppercase">
+                            <tr>
+                                <th class="ps-3">Faculty</th>
+                                <th>Department</th>
+                                <th>Contract Expiration</th>
+                                <th>Progress</th>
+                                <th>Status</th>
+                                <th>Submitted</th>
+                                <th class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trackingBody">
+                            <tr>
+                                <td colspan="7" class="text-center text-body-secondary py-5">Loading clearance records...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="trackingPagination"></div>
+            </section>
         </div>
+
+        <!-- TAB 2: ARCHIVED RECORDS -->
+        <div class="tab-pane fade" id="tab-archive" role="tabpanel" aria-labelledby="tab-archive-btn">
+            <section class="card border shadow-sm">
+                <div class="card-header bg-body-tertiary border-bottom py-3">
+                    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-success"><i class="fas fa-archive me-2"></i>Archived Completed Clearance History</h6>
+                            <small class="text-body-secondary">Official record of all completed clearances, renewed contracts, regularizations, and approved faculty documents.</small>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="exportArchiveCsv()">
+                                <i class="fas fa-file-excel me-1"></i> Export CSV
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="printArchiveTable()">
+                                <i class="fas fa-print me-1"></i> Print Records
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3 bg-body-tertiary border-bottom">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input id="archiveSearch" class="form-control" placeholder="Search by faculty name, ID, or department..." oninput="filterArchives()">
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6 col-md-3">
+                            <select id="archiveTermFilter" class="form-select form-select-sm" onchange="filterArchives()">
+                                <option value="all">All Academic Terms</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-md-3">
+                            <select id="archiveIntentFilter" class="form-select form-select-sm" onchange="filterArchives()">
+                                <option value="all">All Intent Types</option>
+                                <option value="renewal">Contract Renewal / Extension</option>
+                                <option value="regularization">Regularization</option>
+                                <option value="resignation">Proceed with Clearance</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-md-2">
+                            <select id="archiveEmpFilter" class="form-select form-select-sm" onchange="filterArchives()">
+                                <option value="all">All Statuses</option>
+                                <option value="Probationary">Probationary</option>
+                                <option value="Regular">Regular</option>
+                                <option value="Part-Time">Part-Time</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="archiveTable">
+                        <thead class="table-light small text-uppercase">
+                            <tr>
+                                <th class="ps-3">Faculty</th>
+                                <th>Academic Term</th>
+                                <th>Statement of Intent</th>
+                                <th>Contract Expiry</th>
+                                <th>Requirements Summary</th>
+                                <th>Date Cleared</th>
+                                <th class="text-end pe-3">Record Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archiveBody">
+                            <tr>
+                                <td colspan="7" class="text-center text-body-secondary py-5">Loading archived clearance records...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="archivePagination"></div>
+            </section>
+        </div>
+    </div>
 </div>
 
-<!-- Analytical Overview Cards (Adaptive Structure) -->
-<div class="row g-3 mb-4 dashboard-stats">
-        <!-- Total Clearances -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <section class="card stat-card primary border shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-primary fs-4"><i class="fas fa-folder-plus"></i></div>
-                    <div>
-                        <h6 class="text-muted mb-0 small">Total Clearances</h6>
-                        <h4 class="mb-0 fw-bold">142</h4>
-                    </div>
+<!-- REVIEW MODAL FOR ACTIVE CLEARANCE -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white py-3">
+                <div>
+                    <h5 class="modal-title fw-bold" id="reviewTitle"><i class="fas fa-clipboard-check me-2"></i>Review Clearance</h5>
+                    <small class="opacity-75" id="reviewMeta"></small>
                 </div>
-            </section>
-        </div>
-
-        <!-- Pending Review -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <section class="card stat-card warning border shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-warning fs-4"><i class="fas fa-spinner"></i></div>
-                    <div>
-                        <h6 class="text-muted mb-0 small">Pending Review</h6>
-                        <h4 class="mb-0 fw-bold">28</h4>
-                    </div>
-                </div>
-            </section>
-        </div>
-
-        <!-- With Holds -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <section class="card stat-card danger border shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-danger fs-4"><i class="fas fa-exclamation-circle"></i></div>
-                    <div>
-                        <h6 class="text-muted mb-0 small">With Holds</h6>
-                        <h4 class="mb-0 fw-bold">5</h4>
-                    </div>
-                </div>
-            </section>
-        </div>
-
-        <!-- Fully Cleared -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <section class="card stat-card success border shadow-sm">
-                <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-success fs-4"><i class="fas fa-check-circle"></i></div>
-                    <div>
-                        <h6 class="text-muted mb-0 small">Fully Cleared</h6>
-                        <h4 class="mb-0 fw-bold">109</h4>
-                    </div>
-                </div>
-            </section>
-        </div>
-    </div>
-
-<!-- Main Datatable Card Container (Adaptive Theme colors) -->
-<div class="card shadow-sm border">
-    
-    <!-- Table Control Toolbar -->
-    <div class="card-header border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 py-3">
-        <div class="d-flex align-items-center gap-3">
-            <h5 class="mb-0 fw-bold">Clearance Status Matrix</h5>
-            <span class="badge bg-primary rounded-pill">Active Period</span>
-        </div>
-        
-        <div class="d-flex flex-wrap gap-2">
-            <div class="input-group input-group-sm" style="max-width: 280px;">
-                <span class="input-group-text border-secondary">
-                    <i class="fas fa-search"></i>
-                </span>
-                <input type="text" id="clearanceSearch" class="form-control border-secondary" placeholder="Search faculty name or ID..." onkeyup="filterClearanceTable()"/>
+                <button class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <select id="statusFilter" class="form-select form-select-sm border-secondary w-auto" onchange="filterClearanceTable()">
-                <option value="all">All Statuses</option>
-                <option value="Cleared">Cleared</option>
-                <option value="In Progress">In Progress</option>
-                <option value="With Hold">With Hold</option>
-            </select>
-        </div>
-    </div>
+            <div class="modal-body p-4">
+                <div id="reviewAlert" class="alert d-none mb-3"></div>
 
-        <!-- System Clearance Breakdown Grid Table -->
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <!-- Removed table-dark to allow theme-driven table inheritance -->
-                <table class="table table-hover align-middle mb-0" id="clearanceTable">
-                    <thead class="table-light small text-uppercase">
-                        <tr>
-                            <th style="width: 60px;" class="ps-3">Profile</th>
-                            <th style="width: 150px;">Faculty ID</th>
-                            <th style="width: 220px;">Faculty Member</th>
-                            <th style="width: 100px;">Dept</th>
-                            <th>Clearance Status Progress</th>
-                            <th style="width: 140px;" class="text-end pe-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="border-top-0">
+                <!-- Faculty Contract & Status Summary Bar -->
+                <div class="card bg-body-tertiary border mb-4">
+                    <div class="card-body p-3">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-12 col-sm-6 col-md-3 border-end-md">
+                                <small class="text-body-secondary d-block">Current Contract Expiry</small>
+                                <span class="fw-bold fs-6" id="summaryContractExpiry">—</span>
+                                <small class="d-block" id="summaryDaysRemaining"></small>
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-3 border-end-md">
+                                <small class="text-body-secondary d-block">Employment Status</small>
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle fs-7 px-2 py-1" id="summaryEmpStatus">—</span>
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-3 border-end-md">
+                                <small class="text-body-secondary d-block">Statement of Intent</small>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-7 px-2 py-1" id="summaryIntentType">—</span>
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Clearance Progress</small>
+                                <div class="d-flex align-items-center gap-2 mt-1">
+                                    <div class="progress flex-grow-1" style="height: 8px;">
+                                        <div class="progress-bar bg-success" id="summaryProgressBar" style="width: 0%"></div>
+                                    </div>
+                                    <span class="small fw-semibold" id="summaryProgressText">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold text-uppercase small text-body-secondary mb-3"><i class="fas fa-list-check me-1 text-primary"></i> Submitted Clearance Requirements</h6>
+                <div class="table-responsive mb-4">
+                    <table class="table table-hover align-middle border">
+                        <thead class="table-light small text-uppercase">
+                            <tr>
+                                <th>Requirement</th>
+                                <th>File Attachment</th>
+                                <th>Status</th>
+                                <th>Remark</th>
+                                <th class="text-end">Review Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reviewBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Contract Renewal & Employment Status Management Section -->
+                <div class="card border-success shadow-sm" id="renewalCard">
+                    <div class="card-header bg-success-subtle border-bottom border-success-subtle py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-success small text-uppercase"><i class="fas fa-user-edit me-2"></i>Contract Renewal &amp; Employment Status (Probationary / Regular)</span>
+                        <span class="badge bg-success text-white">Faculty Status Management</span>
+                    </div>
+                    <div class="card-body p-4">
+                        <p class="text-body-secondary small mb-4">Set whether the faculty member is <strong>Probationary</strong> or <strong>Regular</strong>, and configure their contract renewal date. Submitting immediately updates their account across the portal.</p>
                         
-                        <!-- Row Template 1: In Progress Structure -->
-                        <tr data-status="In Progress">
-                            <td class="ps-3">
-                                <div class="rounded-circle d-flex align-items-center justify-content-center bg-primary text-white fw-bold shadow-sm" style="width: 38px; height: 38px; font-size: 13px; min-width: 38px;">
-                                    JD
-                                </div>
-                            </td>
-                            <td class="fw-bold">FAC-2026-001</td>
-                            <td>
-                                <div class="fw-bold">John Doe</div>
-                                <div class="text-muted small">Head Faculty</div>
-                            </td>
-                            <td><span class="badge bg-secondary px-2 py-1">BSIT</span></td>
-                            <td>
-                                <!-- Node Milestone System Indicators (Using Light Mode Safe Subtle Badges) -->
-                                <div class="d-flex align-items-center gap-3 py-1">
-                                <div class="d-flex gap-2 align-items-center">
-                                    <!-- Cleared: Deep translucent green tint -->
-                                    <span class="badge border border-success border-opacity-25 text-success bg-success bg-opacity-10 fw-medium px-2 py-1.5" style="font-size: 11px; letter-spacing: 0.3px;">
-                                        Dean <i class="fas fa-check ms-1" style="font-size: 9px;"></i>
-                                    </span>
-                                    
-                                    <span class="badge border border-success border-opacity-25 text-success bg-success bg-opacity-10 fw-medium px-2 py-1.5" style="font-size: 11px; letter-spacing: 0.3px;">
-                                        Lib <i class="fas fa-check ms-1" style="font-size: 9px;"></i>
-                                    </span>
-                                    
-                                    <!-- Pending: Deep translucent amber tint -->
-                                    <span class="badge border border-warning border-opacity-25 text-warning bg-warning bg-opacity-10 fw-medium px-2 py-1.5" style="font-size: 11px; letter-spacing: 0.3px;">
-                                        Prop <i class="fas fa-hourglass-half ms-1" style="font-size: 9px;"></i>
-                                    </span>
-                                    
-                                    <!-- Neutral/Locked: Subdued gray outline -->
-                                    <span class="badge border border-secondary border-opacity-25 text-muted bg-transparent fw-normal px-2 py-1.5" style="font-size: 11px; letter-spacing: 0.3px;">
-                                        HR <i class="far fa-circle ms-1" style="font-size: 9px;"></i>
-                                    </span>
-                                </div>
-                                    <div class="progress flex-grow-1 bg-opacity-25" style="height: 6px; max-width: 120px;">
-                                        <div class="progress-bar bg-warning" role="progressbar" style="width: 50%" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100"></div>
+                        <form id="renewalForm" onsubmit="event.preventDefault(); submitContractRenewal();">
+                            <div class="row g-4">
+                                <!-- Field 1: Employment Status -->
+                                <div class="col-12 col-md-6">
+                                    <label for="employmentStatusSelect" class="form-label fw-semibold small mb-1">
+                                        Employment Status <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="employmentStatusSelect" class="form-select mb-2" required>
+                                        <option value="Probationary">Probationary</option>
+                                        <option value="Regular">Regular</option>
+                                        <option value="Part-Time">Part-Time</option>
+                                    </select>
+                                    <div id="empStatusHint" class="small text-body-secondary">
+                                        Select Probationary or Regular
                                     </div>
-                                    <small class="text-warning fw-bold">50%</small>
                                 </div>
-                            </td>
-                            <td class="text-end pe-3">
-                                <button class="btn btn-sm btn-outline-info" onclick="viewClearanceDetails('FAC-2026-001')" title="Review Requirements">View Tracking</button>
-                            </td>
-                        </tr>
 
-                        <!-- Row Template 2: With Hold Alert Breakdown -->
-                        <tr data-status="With Hold">
-                            <td class="ps-3">
-                                <div class="rounded-circle d-flex align-items-center justify-content-center bg-info text-dark fw-bold shadow-sm" style="width: 38px; height: 38px; font-size: 13px; min-width: 38px;">
-                                    JS
-                                </div>
-                            </td>
-                            <td class="fw-bold">FAC-2026-002</td>
-                            <td>
-                                <div class="fw-bold">Jane Smith</div>
-                                <div class="text-muted small">Regular Instructor</div>
-                            </td>
-                            <td><span class="badge bg-secondary px-2 py-1">BSTM</span></td>
-                            <td>
-                                <div class="d-flex align-items-center gap-3 py-1">
-                                <div class="d-flex gap-2 align-items-center">
-                                    <span class="badge border border-success border-opacity-25 text-success bg-success bg-opacity-10 fw-medium px-2 py-1.5" style="font-size: 11px; letter-spacing: 0.3px;">
-                                        Dean <i class="fas fa-check ms-1" style="font-size: 9px;"></i>
-                                    </span>
-                                    
-                                    <!-- Critical Hold: Subdued dark crimson tint -->
-                                    <span class="badge border border-danger border-opacity-25 text-danger bg-danger bg-opacity-10 fw-medium px-2 py-1.5" style="font-size: 11px; letter-spacing: 0.3px;">
-                                        Lib <i class="fas fa-exclamation-triangle ms-1" style="font-size: 9px;"></i> Hold
-                                    </span>
-                                    
-                                    <span class="badge border border-secondary border-opacity-25 text-muted bg-transparent fw-normal px-2 py-1.5" style="font-size: 11px; letter-spacing: 0.3px;">
-                                        Prop <i class="far fa-circle ms-1" style="font-size: 9px;"></i>
-                                    </span>
-                                    
-                                    <span class="badge border border-secondary border-opacity-25 text-muted bg-transparent fw-normal px-2 py-1.5" style="font-size: 11px; letter-spacing: 0.3px;">
-                                        HR <i class="far fa-circle ms-1" style="font-size: 9px;"></i>
-                                    </span>
-                                </div>
-                                    <div class="progress flex-grow-1 bg-opacity-25" style="height: 6px; max-width: 120px;">
-                                        <div class="progress-bar bg-danger" role="progressbar" style="width: 25%" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                                <!-- Field 2: New Contract End Date & Presets -->
+                                <div class="col-12 col-md-6">
+                                    <label for="newContractEndDate" class="form-label fw-semibold small mb-1">
+                                        New Contract End Date <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="date" id="newContractEndDate" class="form-control mb-2" required>
+                                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                                        <small class="text-body-secondary me-1 fw-medium">Presets:</small>
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-outline-secondary py-1 px-2 small" onclick="applyRenewalPreset(6)">+6 Mo (1 Sem)</button>
+                                            <button type="button" class="btn btn-outline-secondary py-1 px-2 small" onclick="applyRenewalPreset(12)">+1 Yr (1 AY)</button>
+                                            <button type="button" class="btn btn-outline-secondary py-1 px-2 small" onclick="applyRenewalPreset(24)">+2 Yrs</button>
+                                        </div>
                                     </div>
-                                    <small class="text-danger fw-bold">Blocked</small>
                                 </div>
-                            </td>
-                            <td class="text-end pe-3">
-                                <button class="btn btn-sm btn-outline-danger" onclick="viewClearanceDetails('FAC-2026-002')" title="View Conflict Hold Details">Resolve Hold</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+
+                                <!-- Field 3: Department Head Remarks -->
+                                <div class="col-12">
+                                    <label for="renewalRemarks" class="form-label fw-semibold small mb-1">
+                                        Department Head Remarks / Note <small class="text-body-secondary">(Optional)</small>
+                                    </label>
+                                    <input type="text" id="renewalRemarks" class="form-control" placeholder="e.g., Status updated to Regular / Contract renewed following successful clearance completion.">
+                                </div>
+                            </div>
+
+                            <!-- Action Button Bar -->
+                            <div class="d-flex justify-content-end align-items-center gap-2 mt-4 pt-3 border-top">
+                                <button type="submit" class="btn btn-success px-4 py-2 fw-semibold" id="btnSubmitRenewal">
+                                    <i class="fas fa-save me-2"></i>Save &amp; Update
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer bg-body-tertiary">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal Architecture: Uses default adaptive background variables instead of forcing hard dark classes -->
-<div id="clearanceDetailModal" class="modal fade" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-md modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold">Node Clearance Breakdown</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<!-- ARCHIVE DETAIL MODAL -->
+<div class="modal fade" id="archiveDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white py-3">
+                <div>
+                    <h5 class="modal-title fw-bold" id="archiveModalTitle"><i class="fas fa-archive me-2"></i>Archived Clearance Record</h5>
+                    <small class="opacity-75" id="archiveModalMeta"></small>
+                </div>
+                <button class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="d-flex align-items-center gap-3 mb-4">
-                    <div id="modalAvatarInitials" class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold fs-5" style="width: 50px; height: 50px;">--</div>
+            <div class="modal-body p-4" id="archivePrintArea">
+                <!-- Info Header -->
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-3 bg-body-tertiary border rounded mb-4">
                     <div>
-                        <h4 class="h6 mb-1 fw-bold" id="modalFacultyName">Faculty Member Name</h4>
-                        <span class="badge bg-secondary text-light small" id="modalFacultyId">FAC-XXXX-XXX</span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fs-7 fw-bold mb-1">
+                            <i class="fas fa-check-circle me-1"></i> Status: Clearance Completed &amp; Cleared
+                        </span>
+                        <div class="small text-body-secondary mt-1" id="archiveModalTerm">Academic Term: —</div>
+                    </div>
+                    <div class="text-md-end">
+                        <small class="text-body-secondary d-block">Completion Timestamp</small>
+                        <strong class="text-body-emphasis" id="archiveModalCompletedAt">—</strong>
                     </div>
                 </div>
 
-                <label class="form-label text-muted small text-uppercase tracking-wider fw-bold">Department Milestones</label>
-                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
-                    <div class="list-group-item d-flex justify-content-between align-items-center py-3">
-                        <div>
-                            <div class="fw-bold small">1. Dean & Academic Records Office</div>
-                            <small class="text-muted">Final grade encoding sheets submitted</small>
-                        </div>
-                        <span class="badge bg-success text-white rounded-pill px-3">Cleared</span>
+                <!-- Faculty Profile Details -->
+                <div class="card bg-body-tertiary border mb-4">
+                    <div class="card-header bg-body-secondary py-2">
+                        <h6 class="mb-0 fw-bold small text-uppercase"><i class="fas fa-id-card me-2 text-primary"></i>Faculty Information</h6>
                     </div>
-                    <div class="list-group-item d-flex justify-content-between align-items-center py-3">
-                        <div>
-                            <div class="fw-bold small">2. Campus Library Center</div>
-                            <small class="text-muted">No borrowed resource tokens pending</small>
+                    <div class="card-body p-3">
+                        <div class="row g-3">
+                            <div class="col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Faculty Member</small>
+                                <strong id="archiveFacultyName">—</strong>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Faculty ID No.</small>
+                                <span id="archiveFacultyNo">—</span>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Department</small>
+                                <span id="archiveDepartment">—</span>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Academic Rank</small>
+                                <span id="archiveRank">—</span>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Statement of Intent</small>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="archiveIntent">—</span>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Contract Expiration Date</small>
+                                <strong class="text-success" id="archiveContractEnd">—</strong>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Employment Status</small>
+                                <span id="archiveEmpStatus">—</span>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <small class="text-body-secondary d-block">Contact Email</small>
+                                <span id="archiveEmail" class="small">—</span>
+                            </div>
                         </div>
-                        <span class="badge bg-success text-white rounded-pill px-3">Cleared</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between align-items-center py-3">
-                        <div>
-                            <div class="fw-bold small">3. Property Custodian Office</div>
-                            <small class="text-muted">Pending return verification of assigned IT asset laptop</small>
-                        </div>
-                        <span class="badge bg-warning text-dark rounded-pill px-3">Pending Review</span>
                     </div>
                 </div>
+
+                <!-- Clearance Requirements Table -->
+                <h6 class="fw-bold text-uppercase small text-body-secondary mb-3"><i class="fas fa-tasks me-1 text-success"></i> Approved Clearance Requirements</h6>
+                <div class="table-responsive mb-3">
+                    <table class="table table-hover align-middle border">
+                        <thead class="table-light small text-uppercase">
+                            <tr>
+                                <th>#</th>
+                                <th>Requirement</th>
+                                <th>Submitted File Attachment</th>
+                                <th>Status</th>
+                                <th>Reviewer Note</th>
+                                <th>Cleared Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archiveRequirementsBody"></tbody>
+                    </table>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close Overlay</button>
-                <button type="button" class="btn btn-primary btn-sm" onclick="alert('Notification ping sent!')">Ping Action Items</button>
+            <div class="modal-footer bg-body-tertiary">
+                <button type="button" class="btn btn-outline-secondary" onclick="printSingleArchive()"><i class="fas fa-print me-1"></i> Print Summary</button>
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Search & Filtering Execution JavaScript Context -->
 <script>
-    function viewClearanceDetails(id) {
-        // Mocking dynamic structural data assignment based on targets clicked
-        const modal = new bootstrap.Modal(document.getElementById('clearanceDetailModal'));
-        if(id === 'FAC-2026-001') {
-            document.getElementById('modalFacultyName').innerText = "John Doe";
-            document.getElementById('modalFacultyId').innerText = "FAC-2026-001";
-            document.getElementById('modalAvatarInitials').innerText = "JD";
-            document.getElementById('modalAvatarInitials').className = "rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold fs-5";
-        } else if (id === 'FAC-2026-002') {
-            document.getElementById('modalFacultyName').innerText = "Jane Smith";
-            document.getElementById('modalFacultyId').innerText = "FAC-2026-002";
-            document.getElementById('modalAvatarInitials').innerText = "JS";
-            document.getElementById('modalAvatarInitials').className = "rounded-circle bg-info text-dark d-flex align-items-center justify-content-center fw-bold fs-5";
-        }
-        modal.show();
+const clearanceApi = '<?= BASE_URL ?>/modules/faculty/controllers/ClearanceController.php';
+let trackingRows = [];
+let archiveRows = [];
+let reviewModal;
+let archiveDetailModal;
+let currentReviewFacultyId = null;
+let currentReviewProfile = null;
+let activeStatusGroup = 'all';
+let currentPage = 1;
+const trackingPageSize = 5;
+
+let archiveCurrentPage = 1;
+const archivePageSize = 8;
+
+async function loadTracking() {
+    try {
+        const response = await fetch(`${clearanceApi}?action=summary`);
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+        trackingRows = data.rows || [];
+        document.getElementById('metricPending').textContent = data.metrics.pending;
+        document.getElementById('metricAction').textContent = data.metrics.action_required;
+        document.getElementById('metricArchived').textContent = data.metrics.archived;
+        document.getElementById('activeBadgeCount').textContent = trackingRows.length;
+        currentPage = 1;
+        renderStatusControls();
+        renderTracking();
+    } catch (error) {
+        showTrackingAlert(error.message, 'danger');
     }
+}
 
-    function filterClearanceTable() {
-        const input = document.getElementById("clearanceSearch").value.toUpperCase();
-        const statusFilter = document.getElementById("statusFilter").value;
-        const table = document.getElementById("clearanceTable");
-        const tr = table.getElementsByTagName("tr");
+async function loadArchives() {
+    const body = document.getElementById('archiveBody');
+    if (body) body.innerHTML = '<tr><td colspan="7" class="text-center text-body-secondary py-5"><i class="fas fa-spinner fa-spin me-2"></i>Loading archived clearance records...</td></tr>';
 
-        for (let i = 1; i < tr.length; i++) {
-            let row = tr[i];
-            if (!row) continue;
+    try {
+        const response = await fetch(`${clearanceApi}?action=archives`);
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+        archiveRows = data.archives || [];
+        document.getElementById('archiveBadgeCount').textContent = archiveRows.length;
+        document.getElementById('metricArchived').textContent = archiveRows.length;
+
+        // Populate term filter
+        populateArchiveTermFilter();
+        archiveCurrentPage = 1;
+        renderArchives();
+    } catch (error) {
+        showTrackingAlert(error.message, 'danger');
+    }
+}
+
+function refreshCurrentTab() {
+    loadTracking();
+    loadArchives();
+}
+
+function switchToActiveTab(group) {
+    const triggerEl = document.querySelector('#tab-active-btn');
+    const tab = bootstrap.Tab.getOrCreateInstance(triggerEl);
+    tab.show();
+    if (group) selectStatusGroup(group);
+}
+
+function switchToArchiveTab() {
+    const triggerEl = document.querySelector('#tab-archive-btn');
+    const tab = bootstrap.Tab.getOrCreateInstance(triggerEl);
+    tab.show();
+    loadArchives();
+}
+
+function renderStatusControls() {
+    let container = document.getElementById('statusControlsContainer');
+    if (!container) return;
+    const groups = [
+        ['all', 'All Active', 'secondary'],
+        ['pending', 'Pending Verification', 'info'],
+        ['action', 'Denied / Resubmission', 'danger'],
+        ['not-submitted', 'Not Submitted', 'secondary'],
+    ];
+    container.innerHTML = `<div class="d-flex flex-wrap gap-2">` + groups.map(([key, label, tone]) => {
+        const count = key === 'all' ? trackingRows.length : trackingRows.filter(row => statusGroupFor(row) === key).length;
+        return `<button type="button" class="btn btn-sm btn-${tone} ${activeStatusGroup === key ? '' : 'opacity-75'}" onclick="selectStatusGroup('${key}')">${label} <span class="badge text-bg-light ms-1">${count}</span></button>`;
+    }).join('') + `</div>`;
+}
+
+function selectStatusGroup(group) {
+    activeStatusGroup = group;
+    currentPage = 1;
+    renderStatusControls();
+    renderTracking();
+}
+
+function statusGroupFor(row) {
+    const status = row.clearance?.status || 'Not Submitted';
+    if (status === 'Pending Verification' || status === 'Under Review') return 'pending';
+    if (status === 'Action Required' || status === 'Resubmission') return 'action';
+    if (status === 'Completed' || status === 'Approved' || status === 'Archived') return 'completed';
+    return 'not-submitted';
+}
+
+function renderTracking() {
+    const body = document.getElementById('trackingBody');
+    const query = (document.getElementById('trackingSearch')?.value || '').toLowerCase();
+    const empFilter = document.getElementById('trackingEmpStatusFilter')?.value || 'all';
+
+    const filtered = trackingRows.filter(row => {
+        const matchesGroup = activeStatusGroup === 'all' || statusGroupFor(row) === activeStatusGroup;
+        const text = `${row.name} ${row.faculty_id} ${row.designated_department}`.toLowerCase();
+        const matchesQuery = text.includes(query);
+        const rowEmp = row.employment_status || 'Probationary';
+        const matchesEmp = empFilter === 'all' || rowEmp.toLowerCase() === empFilter.toLowerCase();
+        return matchesGroup && matchesQuery && matchesEmp;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / trackingPageSize));
+    currentPage = Math.min(currentPage, totalPages);
+    const visibleRows = filtered.slice((currentPage - 1) * trackingPageSize, currentPage * trackingPageSize);
+
+    if (!visibleRows.length) {
+        body.innerHTML = '<tr><td colspan="7" class="text-center text-body-secondary py-5">No faculty clearance records matching your filters.</td></tr>';
+    } else {
+        body.innerHTML = visibleRows.map(row => {
+            const c = row.clearance;
+            const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
+                ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})
+                : 'Not set';
+            const tone = c.status === 'Action Required' ? 'danger' : (c.status === 'Completed' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : 'info'));
             
-            let textMatch = row.textContent.toUpperCase().indexOf(input) > -1;
-            let statusAttr = row.getAttribute("data-status") || "";
-            let statusMatch = (statusFilter === "all") || (statusAttr === statusFilter);
+            const emp = row.employment_status || 'Probationary';
+            const empBadge = emp === 'Regular'
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1 small">Regular</span>'
+                : (emp === 'Probationary'
+                    ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1 small">Probationary</span>'
+                    : '<span class="badge bg-secondary-subtle text-body-secondary border ms-1 small">Part-Time</span>');
 
-            if (textMatch && statusMatch) {
-                row.style.display = "";
+            return `<tr>
+                <td class="ps-3">
+                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                        <strong>${escapeHtml(row.name)}</strong>
+                        ${empBadge}
+                    </div>
+                    <small class="d-block text-body-secondary">${escapeHtml(row.faculty_id || '')}</small>
+                </td>
+                <td>${escapeHtml(row.designated_department || 'N/A')}</td>
+                <td class="${row.days_remaining !== null && row.days_remaining <= 30 ? 'text-danger fw-bold' : ''}">${expiry}<small class="d-block text-body-secondary">${row.days_remaining === null ? '' : (row.days_remaining < 0 ? 'Expired' : row.days_remaining + ' days remaining')}</small></td>
+                <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${tone}" style="width:${c.progress}%"></div></div><small>${c.progress}% (${c.approved_items}/${c.total_items})</small></td>
+                <td><span class="badge bg-${tone}${tone === 'info' ? ' text-dark' : ''}">${escapeHtml(c.status)}</span></td>
+                <td>${row.submitted_at ? new Date(row.submitted_at.replace(' ', 'T')).toLocaleDateString() : '—'}</td>
+                <td class="text-end pe-3"><button class="btn btn-sm btn-outline-primary" onclick="openReview(${row.id})"><i class="fas fa-search me-1"></i>Review</button></td>
+            </tr>`;
+        }).join('');
+    }
+    renderPagination(totalPages, filtered.length);
+}
+
+function filterTracking() {
+    renderTracking();
+}
+
+function renderPagination(totalPages, totalRows) {
+    let pager = document.getElementById('trackingPagination');
+    if (!pager) return;
+    pager.className = 'd-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top';
+    pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${currentPage} of ${totalPages} · ${totalRows} active records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${currentPage <= 1 ? 'disabled' : ''} onclick="changeTrackingPage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''} onclick="changeTrackingPage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
+}
+
+function changeTrackingPage(direction) {
+    currentPage += direction;
+    renderTracking();
+}
+
+/* ARCHIVED RECORDS LOGIC */
+function populateArchiveTermFilter() {
+    const select = document.getElementById('archiveTermFilter');
+    if (!select) return;
+    const currentVal = select.value;
+    const terms = Array.from(new Set(archiveRows.map(r => `${r.academic_year} · ${r.semester}`)));
+    select.innerHTML = '<option value="all">All Academic Terms</option>' + terms.map(t => `<option value="${escapeHtml(t)}" ${currentVal === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('');
+}
+
+function getFilteredArchives() {
+    const query = (document.getElementById('archiveSearch')?.value || '').toLowerCase();
+    const termFilter = document.getElementById('archiveTermFilter')?.value || 'all';
+    const intentFilter = document.getElementById('archiveIntentFilter')?.value || 'all';
+    const empFilter = document.getElementById('archiveEmpFilter')?.value || 'all';
+
+    return archiveRows.filter(row => {
+        const text = `${row.name} ${row.faculty_no} ${row.designated_department}`.toLowerCase();
+        const matchesQuery = !query || text.includes(query);
+        const termLabel = `${row.academic_year} · ${row.semester}`;
+        const matchesTerm = termFilter === 'all' || termLabel === termFilter;
+        const matchesIntent = intentFilter === 'all' || row.intent_type === intentFilter;
+        const rowEmp = row.employment_status || 'Probationary';
+        const matchesEmp = empFilter === 'all' || rowEmp.toLowerCase() === empFilter.toLowerCase();
+        return matchesQuery && matchesTerm && matchesIntent && matchesEmp;
+    });
+}
+
+function renderArchives() {
+    const body = document.getElementById('archiveBody');
+    const filtered = getFilteredArchives();
+    const totalPages = Math.max(1, Math.ceil(filtered.length / archivePageSize));
+    archiveCurrentPage = Math.min(archiveCurrentPage, totalPages);
+    const visibleRows = filtered.slice((archiveCurrentPage - 1) * archivePageSize, archiveCurrentPage * archivePageSize);
+
+    if (!visibleRows.length) {
+        body.innerHTML = '<tr><td colspan="7" class="text-center text-body-secondary py-5"><i class="fas fa-folder-open fa-2x mb-2 d-block opacity-50"></i>No archived clearance records found matching your filters.</td></tr>';
+    } else {
+        body.innerHTML = visibleRows.map(row => {
+            const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
+                ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})
+                : 'Not set';
+            const clearedAt = row.updated_at
+                ? new Date(row.updated_at.replace(' ', 'T')).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'})
+                : '—';
+            const intentLabel = row.intent_type === 'renewal' ? 'Contract Renewal' : (row.intent_type === 'regularization' ? 'Regularization' : 'Clearance Only');
+
+            const emp = row.employment_status || 'Regular';
+            const empBadge = emp === 'Regular'
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1 small">Regular</span>'
+                : (emp === 'Probationary'
+                    ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1 small">Probationary</span>'
+                    : '<span class="badge bg-secondary-subtle text-body-secondary border ms-1 small">Part-Time</span>');
+
+            const reqTags = (row.items || []).map(it => {
+                if (!it.file_name && it.status !== 'Cleared') {
+                    return `<span class="badge bg-secondary-subtle text-secondary border me-1 mb-1 small" title="${escapeHtml(it.name)}: Missing"><i class="fas fa-times-circle me-1"></i>${escapeHtml(it.name)}: Missing</span>`;
+                }
+                if (it.status === 'Hold' || it.status === 'Denied') {
+                    return `<span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1 mb-1 small" title="${escapeHtml(it.name)}: Denied"><i class="fas fa-exclamation-circle me-1"></i>${escapeHtml(it.name)}: Denied</span>`;
+                }
+                return `<span class="badge bg-success-subtle text-success border border-success-subtle me-1 mb-1 small" title="${escapeHtml(it.name)}: Approved"><i class="fas fa-check-circle me-1"></i>${escapeHtml(it.name)}</span>`;
+            }).join('');
+
+            return `<tr>
+                <td class="ps-3">
+                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                        <strong>${escapeHtml(row.name)}</strong>
+                        ${empBadge}
+                    </div>
+                    <small class="d-block text-body-secondary">${escapeHtml(row.faculty_no || '')} · ${escapeHtml(row.designated_department || '')}</small>
+                </td>
+                <td><span class="badge bg-secondary-subtle text-body-secondary border">${escapeHtml(row.academic_year)} · ${escapeHtml(row.semester)}</span></td>
+                <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">${escapeHtml(intentLabel)}</span></td>
+                <td><strong class="text-success">${expiry}</strong></td>
+                <td style="max-width: 250px;">${reqTags || '<span class="text-body-secondary small">No requirements</span>'}</td>
+                <td><small class="text-body-secondary">${clearedAt}</small></td>
+                <td class="text-end pe-3">
+                    <button class="btn btn-sm btn-outline-success" onclick="openArchiveDetail(${row.clearance_id || 0}, ${row.archive_id || 0})">
+                        <i class="fas fa-folder-open me-1"></i>View Record
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+    renderArchivePagination(totalPages, filtered.length);
+}
+
+function filterArchives() {
+    archiveCurrentPage = 1;
+    renderArchives();
+}
+
+function renderArchivePagination(totalPages, totalRows) {
+    let pager = document.getElementById('archivePagination');
+    if (!pager) return;
+    pager.className = 'd-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top';
+    pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${archiveCurrentPage} of ${totalPages} · ${totalRows} completed records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${archiveCurrentPage <= 1 ? 'disabled' : ''} onclick="changeArchivePage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${archiveCurrentPage >= totalPages ? 'disabled' : ''} onclick="changeArchivePage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
+}
+
+function changeArchivePage(direction) {
+    archiveCurrentPage += direction;
+    renderArchives();
+}
+
+async function openArchiveDetail(clearanceId, archiveId = 0) {
+    try {
+        const queryParam = archiveId > 0 ? `archive_id=${archiveId}` : `clearance_id=${clearanceId}`;
+        const response = await fetch(`${clearanceApi}?action=archive-detail&${queryParam}`);
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+        const r = data.record;
+
+        document.getElementById('archiveModalTitle').innerHTML = `<i class="fas fa-archive me-2"></i>Archived Record - ${escapeHtml(r.name)}`;
+        document.getElementById('archiveModalMeta').textContent = `${r.faculty_no || ''} · ${r.designated_department || 'Department'}`;
+        document.getElementById('archiveModalTerm').textContent = `Academic Term: ${r.academic_year} · ${r.semester}`;
+        document.getElementById('archiveModalCompletedAt').textContent = r.completed_at || r.updated_at ? new Date((r.completed_at || r.updated_at).replace(' ', 'T')).toLocaleString() : '—';
+
+        document.getElementById('archiveFacultyName').textContent = r.name;
+        document.getElementById('archiveFacultyNo').textContent = r.faculty_no || '—';
+        document.getElementById('archiveDepartment').textContent = r.designated_department || '—';
+        document.getElementById('archiveRank').textContent = r.academic_rank || r.position || '—';
+        document.getElementById('archiveIntent').textContent = r.intent_type === 'renewal' ? 'Contract Renewal / Extension' : (r.intent_type === 'regularization' ? 'Regularization' : 'Proceed with Clearance');
+        document.getElementById('archiveContractEnd').textContent = r.contractual_end && r.contractual_end !== '0000-00-00' ? new Date(`${r.contractual_end}T00:00:00`).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'}) : 'Not set';
+        document.getElementById('archiveEmpStatus').textContent = r.employment_status || 'Regular';
+        document.getElementById('archiveEmail').textContent = r.email || '—';
+
+        const body = document.getElementById('archiveRequirementsBody');
+        body.innerHTML = (r.items || []).map((it, idx) => {
+            const isMissing = !it.file_name && it.status !== 'Cleared';
+            const statusLabel = isMissing ? 'Missing' : (it.status === 'Cleared' ? 'Approved / Cleared' : (it.status === 'Hold' ? 'Denied' : it.status));
+            const badgeClass = isMissing ? 'bg-secondary-subtle text-secondary border' : (it.status === 'Cleared' ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle');
+            const fileUrl = it.file_path
+                ? `${clearanceApi}?action=file&path=${encodeURIComponent(it.file_path)}&item_id=${it.id || 0}`
+                : `${clearanceApi}?action=file&item_id=${it.id || 0}`;
+
+            return `<tr>
+                <td>${idx + 1}</td>
+                <td><strong>${escapeHtml(it.name)}</strong></td>
+                <td>${it.file_name ? `<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${fileUrl}"><i class="fas fa-download me-1"></i>${escapeHtml(it.file_name)}</a>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-circle-xmark me-1"></i>No file (Missing)</span>'}</td>
+                <td><span class="badge ${badgeClass}"><i class="${isMissing ? 'fas fa-question-circle' : (it.status === 'Cleared' ? 'fas fa-check-circle' : 'fas fa-times-circle')} me-1"></i>${escapeHtml(statusLabel)}</span></td>
+                <td><small class="text-body-secondary">${escapeHtml(it.remarks || (isMissing ? 'Requirement not submitted.' : 'Approved without remarks.'))}</small></td>
+                <td><small class="text-body-secondary">${it.cleared_at ? new Date(it.cleared_at.replace(' ', 'T')).toLocaleDateString() : '—'}</small></td>
+            </tr>`;
+        }).join('');
+
+        archiveDetailModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('archiveDetailModal'));
+        archiveDetailModal.show();
+    } catch (error) {
+        showTrackingAlert(error.message, 'danger');
+    }
+}
+
+function exportArchiveCsv() {
+    const filtered = getFilteredArchives();
+    if (!filtered.length) {
+        alert('No archived clearance records available to export.');
+        return;
+    }
+    const headers = ['Clearance ID', 'Faculty Name', 'Faculty ID', 'Department', 'Employment Status', 'Academic Term', 'Statement of Intent', 'Contract Expiry Date', 'Date Completed'];
+    const rows = filtered.map(r => [
+        r.clearance_id,
+        `"${(r.name || '').replace(/"/g, '""')}"`,
+        `"${(r.faculty_no || '').replace(/"/g, '""')}"`,
+        `"${(r.designated_department || '').replace(/"/g, '""')}"`,
+        `"${r.employment_status || 'Probationary'}"`,
+        `"${r.academic_year} · ${r.semester}"`,
+        `"${r.intent_type}"`,
+        `"${r.contractual_end || ''}"`,
+        `"${r.updated_at || ''}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `faculty_clearance_archives_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function printArchiveTable() {
+    window.print();
+}
+
+function printSingleArchive() {
+    const printContents = document.getElementById('archivePrintArea').innerHTML;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`<html><head><title>Faculty Clearance Archive Record</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"></head><body class="p-4">${printContents}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+}
+
+/* ACTIVE CLEARANCE REVIEW LOGIC */
+async function openReview(facultyId) {
+    currentReviewFacultyId = facultyId;
+    const alertBox = document.getElementById('reviewAlert');
+    if (alertBox) alertBox.classList.add('d-none');
+
+    try {
+        const response = await fetch(`${clearanceApi}?action=review&faculty_id=${facultyId}`);
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+
+        const profile = data.profile;
+        const c = data.clearance;
+        currentReviewProfile = profile;
+
+        document.getElementById('reviewTitle').innerHTML = `<i class="fas fa-clipboard-check me-2"></i>Review Clearance - ${escapeHtml(profile.first_name)} ${escapeHtml(profile.last_name)}`;
+        document.getElementById('reviewMeta').textContent = `${profile.faculty_id || ''} · ${profile.designated_department || 'Department'}`;
+
+        const expiry = profile.contractual_end && profile.contractual_end !== '0000-00-00'
+            ? new Date(`${profile.contractual_end}T00:00:00`).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})
+            : 'Not set';
+        const expiryEl = document.getElementById('summaryContractExpiry');
+        if (expiryEl) expiryEl.textContent = expiry;
+
+        const daysRemaining = profile.contractual_end && profile.contractual_end !== '0000-00-00'
+            ? Math.floor((new Date(`${profile.contractual_end}T00:00:00`) - new Date()) / 86400000)
+            : null;
+        const daysEl = document.getElementById('summaryDaysRemaining');
+        if (daysEl) {
+            daysEl.textContent = daysRemaining === null ? 'No expiration date' : (daysRemaining < 0 ? 'Contract Expired' : `${daysRemaining} days remaining`);
+            daysEl.className = `small d-block ${daysRemaining !== null && daysRemaining <= 30 ? 'text-danger fw-bold' : 'text-body-secondary'}`;
+        }
+
+        const empStatus = profile.employment_status || 'Probationary';
+        const empEl = document.getElementById('summaryEmpStatus');
+        if (empEl) {
+            empEl.textContent = empStatus;
+            empEl.className = `badge ${empStatus === 'Regular' ? 'bg-success-subtle text-success border border-success-subtle' : (empStatus === 'Probationary' ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-secondary-subtle text-body-secondary border')} fs-7 px-2 py-1`;
+        }
+
+        const intentTypeLabel = (c.intent_type === 'renewal')
+            ? 'Contract Renewal / Extension'
+            : (c.intent_type === 'regularization' ? 'Regularization' : (c.intent_type === 'resignation' ? 'Proceed with Clearance' : (c.intent_type || 'Contract Renewal')));
+        const intentEl = document.getElementById('summaryIntentType');
+        if (intentEl) intentEl.textContent = intentTypeLabel;
+
+        const progressBar = document.getElementById('summaryProgressBar');
+        if (progressBar) progressBar.style.width = `${c.progress}%`;
+        const progressText = document.getElementById('summaryProgressText');
+        if (progressText) progressText.textContent = `${c.progress}% (${c.approved_items}/${c.total_items})`;
+
+        // Pre-fill renewal date with +1 year from base
+        const baseDate = (profile.contractual_end && profile.contractual_end !== '0000-00-00')
+            ? new Date(`${profile.contractual_end}T00:00:00`)
+            : new Date();
+        const nextYear = new Date(baseDate);
+        nextYear.setFullYear(nextYear.getFullYear() + 1);
+        const dateInput = document.getElementById('newContractEndDate');
+        if (dateInput) dateInput.value = nextYear.toISOString().split('T')[0];
+
+        // Pre-select employment status
+        const empSelect = document.getElementById('employmentStatusSelect');
+        const empHint = document.getElementById('empStatusHint');
+        if (empSelect) {
+            if (c.intent_type === 'regularization') {
+                empSelect.value = 'Regular';
+                if (empHint) empHint.innerHTML = '<span class="text-success fw-bold"><i class="fas fa-check me-1"></i>Regularization requested in Letter of Intent</span>';
             } else {
-                row.style.display = "none";
+                empSelect.value = empStatus;
+                if (empHint) empHint.textContent = 'Current status: ' + empStatus;
             }
         }
-    }
-</script>
 
-<?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
+        // Table rows
+        const body = document.getElementById('reviewBody');
+        body.innerHTML = c.items.length ? c.items.map(item => {
+            const isMissing = !item.file_name && item.status !== 'Cleared';
+            const statusLabel = isMissing ? 'Missing' : (item.display_status || item.status);
+            const badgeClass = isMissing
+                ? 'bg-secondary text-white'
+                : (item.status === 'Cleared'
+                    ? 'bg-success text-white'
+                    : (item.status === 'Denied' || item.status === 'Hold'
+                        ? 'bg-danger text-white'
+                        : (item.status === 'On Hold'
+                            ? 'bg-warning text-dark'
+                            : (item.status === 'Pending Review' ? 'bg-info text-dark' : 'bg-secondary text-white'))));
+
+            return `<tr>
+                <td><strong>${escapeHtml(item.name)}</strong></td>
+                <td>${item.file_name ? `<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${clearanceApi}?action=file&item_id=${item.id}"><i class="fas fa-eye me-1"></i>View file</a><small class="d-block text-body-secondary mt-1">${escapeHtml(item.file_name)}</small>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-excel me-1"></i>No file uploaded (Missing)</span>'}</td>
+                <td><span class="badge ${badgeClass} px-2 py-1">${escapeHtml(statusLabel)}</span></td>
+                <td><small class="text-body-secondary">${escapeHtml(item.remarks || (isMissing ? 'No file submitted' : 'No remark'))}</small></td>
+                <td class="text-end"><div class="btn-group btn-group-sm">
+                    <button class="btn btn-success" onclick="reviewItem(${item.id}, 'approve')" ${item.file_name ? '' : 'disabled'} title="Approve"><i class="fas fa-check"></i></button>
+                    <button class="btn btn-danger" onclick="reviewItem(${item.id}, 'deny')" ${item.file_name ? '' : 'disabled'} title="Deny (Red)"><i class="fas fa-times"></i></button>
+                    <button class="btn btn-warning" onclick="reviewItem(${item.id}, 'hold')" ${item.file_name ? '' : 'disabled'} title="Put On Hold (Yellow)"><i class="fas fa-pause"></i></button>
+                </div></td>
+            </tr>`;
+        }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No clearance submitted.</td></tr>';
+
+        reviewModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal'));
+        reviewModal.show();
+    } catch (error) {
+        showTrackingAlert(error.message, 'danger');
+    }
+}
+
+function applyRenewalPreset(months) {
+    const baseDate = (currentReviewProfile && currentReviewProfile.contractual_end && currentReviewProfile.contractual_end !== '0000-00-00')
+        ? new Date(`${currentReviewProfile.contractual_end}T00:00:00`)
+        : new Date();
+    baseDate.setMonth(baseDate.getMonth() + months);
+    const dateInput = document.getElementById('newContractEndDate');
+    if (dateInput) {
+        dateInput.value = baseDate.toISOString().split('T')[0];
+    }
+}
+
+async function submitContractRenewal() {
+    if (!currentReviewFacultyId) return;
+    const dateInput = document.getElementById('newContractEndDate');
+    const newDate = dateInput?.value;
+    if (!newDate) {
+        alert('Please select a valid new contract expiration date.');
+        dateInput?.focus();
+        return;
+    }
+    const remarks = document.getElementById('renewalRemarks')?.value || '';
+    const empStatus = document.getElementById('employmentStatusSelect')?.value || 'Probationary';
+
+    const btn = document.getElementById('btnSubmitRenewal');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+    }
+
+    const form = new FormData();
+    form.append('action', 'renew-contract');
+    form.append('faculty_id', currentReviewFacultyId);
+    form.append('new_contract_end', newDate);
+    form.append('employment_status', empStatus);
+    form.append('renewal_remark', remarks);
+
+    try {
+        const response = await fetch(clearanceApi, { method: 'POST', body: form });
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+
+        showTrackingAlert(data.message, 'success');
+        reviewModal?.hide();
+        loadTracking();
+        loadArchives();
+    } catch (error) {
+        const alertBox = document.getElementById('reviewAlert');
+        if (alertBox) {
+            alertBox.className = 'alert alert-danger';
+            alertBox.textContent = error.message;
+            alertBox.classList.remove('d-none');
+        } else {
+            showTrackingAlert(error.message, 'danger');
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+}
+
+async function reviewItem(itemId, decision) {
+    const isApprove = decision === 'approve';
+    const isDeny = decision === 'deny';
+    const remark = isApprove
+        ? (prompt('Optional remark before sending:', 'Requirement approved.') || 'Requirement approved.')
+        : prompt(isDeny ? 'Required denial remark before sending:' : 'Required remark for putting requirement On Hold:');
+    if (!remark) return;
+
+    const form = new FormData();
+    form.append('action', 'review-item');
+    form.append('item_id', itemId);
+    form.append('decision', decision);
+    form.append('remark', remark);
+
+    try {
+        const response = await fetch(clearanceApi, { method: 'POST', body: form });
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+        showTrackingAlert(data.message, 'success');
+        reviewModal?.hide();
+        loadTracking();
+        loadArchives();
+    } catch (error) {
+        const alertBox = document.getElementById('reviewAlert');
+        if (alertBox) {
+            alertBox.className = 'alert alert-danger';
+            alertBox.textContent = error.message;
+            alertBox.classList.remove('d-none');
+        }
+    }
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>'"]/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#039;',
+        '"': '&quot;'
+    }[character]));
+}
+
+function showTrackingAlert(message, tone) {
+    const alert = document.getElementById('trackingAlert');
+    if (!alert) return;
+    alert.className = `alert alert-${tone} alert-dismissible fade show mb-4`;
+    alert.innerHTML = `<i class="fas fa-${tone === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>${escapeHtml(message)}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+}
+
+// Initial load
+loadTracking();
+loadArchives();
+</script>
+<?php require_once ROOT_PATH . '/includes/layout-end.php'; ?>

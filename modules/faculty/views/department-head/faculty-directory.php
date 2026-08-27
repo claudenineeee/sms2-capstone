@@ -306,31 +306,47 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<div class="row g-3 mb-4">
+<<div class="row g-3 mb-4">
+    <!-- Assigned Department Scope Card -->
     <div class="col-12 col-md-6">
-        <div class="card border-0 shadow-sm rounded-4 h-100">
-            <div class="card-body d-flex align-items-center gap-3 p-4">
-                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+        <section class="card stat-card primary border shadow-sm position-relative h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="stat-icon me-3 text-primary fs-4">
                     <i class="fas fa-building"></i>
                 </div>
                 <div>
-                    <p class="text-muted small mb-1">Assigned Department Scope</p>
-                    <h5 class="mb-0 fw-bold text-capitalize"><?= htmlspecialchars($headDepartment !== '' ? $headDepartment : 'Not assigned', ENT_QUOTES, 'UTF-8') ?></h5>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Department Scope</h6>
+                    <h4 class="mb-0 fw-bold text-capitalize"><?= htmlspecialchars($headDepartment !== '' ? $headDepartment : 'Not assigned', ENT_QUOTES, 'UTF-8') ?></h4>
+                    <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                        <i class="fas fa-check-circle me-1"></i><span class="text-muted fw-normal">Assigned Scope</span>
+                    </small>
                 </div>
             </div>
-        </div>
+            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Scope Details">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
     </div>
 
+    <!-- Total Profiles Loaded Card -->
     <div class="col-12 col-md-6">
-        <div class="card border-0 shadow-sm rounded-4 h-100">
-            <div class="card-body d-flex align-items-center justify-content-between gap-3 p-4">
-                <div>
-                    <p class="text-muted small mb-1">Profiles Loaded</p>
-                    <h5 class="mb-0 fw-bold"><?= htmlspecialchars((string) count($facultyProfiles), ENT_QUOTES, 'UTF-8') ?> profile<?= count($facultyProfiles) === 1 ? '' : 's' ?></h5>
+        <section class="card stat-card primary border shadow-sm position-relative h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="stat-icon me-3 text-primary fs-4">
+                    <i class="fas fa-users"></i>
                 </div>
-                <span class="badge bg-success rounded-pill py-2 px-3">Directory Ready</span>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Faculty</h6>
+                    <h4 class="mb-0 fw-bold"><?= htmlspecialchars((string) count($facultyProfiles), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                        <i class="fas fa-arrow-trend-up me-1"></i>Directory Ready
+                    </small>
+                </div>
             </div>
-        </div>
+            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
     </div>
 </div>
 
@@ -396,7 +412,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 $rawProfile = strtolower(trim((string) ($profile['profile_status'] ?? '')));
                 $rawAccount = strtolower(trim((string) ($profile['account_status'] ?? '')));
 
-                // Account is pending only if explicitly marked as pending in profile or user account
                 $isPending = ($rawProfile === 'pending approval' || $rawAccount === 'pending_approval' || $rawAccount === 'pending');
 
                 $displayStatusLabel = $isPending ? 'Pending Approval' : (!empty($profile['profile_status']) ? $profile['profile_status'] : 'Active');

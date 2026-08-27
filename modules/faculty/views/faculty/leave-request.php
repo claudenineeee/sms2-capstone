@@ -1,25 +1,348 @@
 <?php
-/**
- * Leave Request
- * Purpose: Submit and manage leave requests
- */
 require_once __DIR__ . '/../../../../config/config.php';
+require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../controllers/faculty-data.php';
 
-$pageTitle    = 'Leave Request';
+requireAuth();
+$pageTitle = 'Leave Request';
 $activeModule = 'faculty';
-$activePage   = 'leave-request';
-$breadcrumbs  = [
+$activePage = 'leave-request';
+
+$breadcrumbs = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
     ['label' => 'Faculty', 'url' => BASE_URL . '/modules/faculty/users/faculty/index.php'],
     ['label' => 'Leave Request', 'url' => null],
 ];
 
+$leaveRequests = [];
+$totalBalance = null;
+$pendingCount = 0;
+$approvedCount = 0;
+$rejectedCount = 0;
+$finishedCount = 0;
+$documentRequiredCount = 0;
+
+$formError = '';
+$formSuccess = '';
+$alertMessages = [];
+
+try {
+    $pdo = facultyDb();
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_leave'])) {
+
+        $leaveType = trim((string) ($_POST['leave_type'] ?? ''));
+        $startDate = trim((string) ($_POST['start_date'] ?? ''));
+        $endDate = trim((string) ($_POST['end_date'] ?? ''));
+        $reason = trim((string) ($_POST['reason'] ?? ''));
+
+        /*
+         * leave_requests.faculty_id must reference
+         * faculty_profiles.id.
+         */
+       $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+        if ($userId <= 0) {
+            $formError = 'Your user account could not be identified. Please log in again.';
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT id
+                FROM faculty_db.faculty_profiles
+                WHERE user_id = :user_id
+                LIMIT 1
+            ");
+
+            $stmt->execute([
+                ':user_id' => $userId
+            ]);
+
+            $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
+
+            if ($facultyProfileId <= 0) {
+                $formError = 'Your account is not linked to a faculty profile.';
+            }
+        }
+
+        if ($formError === '' && $leaveType === '') {
+            $formError = 'Please select a leave type.';
+        }
+
+        if ($formError === '' && ($startDate === '' || $endDate === '')) {
+            $formError = 'Please provide both start and end dates.';
+        }
+
+        if (
+            $formError === '' &&
+            strtotime($startDate) > strtotime($endDate)
+        ) {
+            $formError = 'Start date cannot be later than end date.';
+        }
+
+        if ($formError === '') {
+
+            $uploadedName = null;
+
+            if (
+                isset($_FILES['document']) &&
+                $_FILES['document']['error'] !== UPLOAD_ERR_NO_FILE
+            ) {
+                if ($_FILES['document']['error'] !== UPLOAD_ERR_OK) {
+                    $formError = 'The supporting document could not be uploaded.';
+                } else {
+
+                    $uploadDir = __DIR__ . '/../../uploads/leave_requests';
+
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+
+                    $originalName = basename($_FILES['document']['name']);
+                    $safeName = preg_replace(
+                        '/[^A-Za-z0-9._-]/',
+                        '_',
+                        $originalName
+                    );
+
+                    $fileName = time() . '_' . $safeName;
+                    $target = $uploadDir . DIRECTORY_SEPARATOR . $fileName;
+
+                    if (move_uploaded_file($_FILES['document']['tmp_name'], $target)) {
+                        $uploadedName = 'modules/faculty/uploads/leave_requests/' . $fileName;
+                    } else {
+                        $formError = 'The supporting document could not be saved.';
+                    }
+                }
+            }
+
+            if ($formError === '') {
+
+                $requestRef = 'LR-' . date('YmdHis') . '-' . random_int(100, 999);
+
+                // total_days is NOT NULL on the table with no default —
+                // compute it the same way the listing query does
+                // (DATEDIFF(end_date, start_date) + 1), inclusive of both endpoints.
+                $totalDays = (int) ((strtotime($endDate) - strtotime($startDate)) / 86400) + 1;
+
+                $sql = "
+                    INSERT INTO faculty_db.leave_requests (
+                        faculty_id,
+                        request_ref,
+                        leave_type,
+                        start_date,
+                        end_date,
+                        total_days,
+                        reason,
+                        documents,
+                        status
+                    ) VALUES (
+                        :faculty_id,
+                        :request_ref,
+                        :leave_type,
+                        :start_date,
+                        :end_date,
+                        :total_days,
+                        :reason,
+                        :documents,
+                        'Pending'
+                    )
+                ";
+
+                try {
+                    $stmt = $pdo->prepare($sql);
+
+                    $stmt->execute([
+                        ':faculty_id' => $facultyProfileId,
+                        ':request_ref' => $requestRef,
+                        ':leave_type' => $leaveType,
+                        ':start_date' => $startDate,
+                        ':end_date' => $endDate,
+                        ':total_days' => $totalDays,
+                        ':reason' => $reason,
+                        ':documents' => $uploadedName,
+                    ]);
+
+                    $formSuccess = 'Leave request submitted successfully.';
+                } catch (PDOException $e) {
+                    $formError = 'Unable to save the leave request: ' . $e->getMessage();
+                    error_log('[leave-request] ' . $e->getMessage());
+                }
+            }
+        }
+    }
+
+    // Handle follow-up document upload for an existing request
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_followup'])) {
+        $followupRequestId = (int) ($_POST['followup_request_id'] ?? 0);
+
+        if ($followupRequestId <= 0) {
+            $formError = 'Invalid request identifier for follow-up upload.';
+        } else {
+            // ensure current user owns the faculty_profile linked to the request
+            $userId = (int) ($_SESSION['user_id'] ?? 0);
+            if ($userId <= 0) {
+                $formError = 'Your user account could not be identified. Please log in again.';
+            } else {
+                $chk = $pdo->prepare('SELECT lr.id, lr.documents, lr.faculty_id FROM faculty_db.leave_requests lr WHERE lr.id = :id LIMIT 1');
+                $chk->execute([':id' => $followupRequestId]);
+                $row = $chk->fetch(PDO::FETCH_ASSOC);
+
+                if (!$row) {
+                    $formError = 'Leave request not found.';
+                } else {
+                    // Prevent follow-up uploads for requests that are already rejected
+                    $currentStatus = strtolower(trim((string) ($row['status'] ?? '')));
+                    if ($currentStatus === 'rejected') {
+                        $formError = 'Cannot upload follow-up for a rejected request.';
+                    } else {
+                    // confirm ownership by matching faculty_profiles.user_id
+                    $fp = $pdo->prepare('SELECT id FROM faculty_db.faculty_profiles WHERE id = :fp_id AND user_id = :user_id LIMIT 1');
+                    $fp->execute([':fp_id' => (int) $row['faculty_id'], ':user_id' => $userId]);
+                    $owns = (bool) $fp->fetchColumn();
+
+                    if (!$owns) {
+                        $formError = 'You are not authorized to modify this request.';
+                    }
+                    }
+                }
+            }
+        }
+
+        if ($formError === '') {
+            if (!isset($_FILES['followup_doc']) || $_FILES['followup_doc']['error'] === UPLOAD_ERR_NO_FILE) {
+                $formError = 'No file selected for upload.';
+            } elseif ($_FILES['followup_doc']['error'] !== UPLOAD_ERR_OK) {
+                $formError = 'The uploaded file reported an error.';
+            }
+        }
+
+        if ($formError === '') {
+            $uploadDir = __DIR__ . '/../../uploads/leave_requests';
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+
+            $orig = basename($_FILES['followup_doc']['name']);
+            $safe = preg_replace('/[^A-Za-z0-9._-]/', '_', $orig);
+            $fileName = time() . '_' . $safe;
+            $target = $uploadDir . DIRECTORY_SEPARATOR . $fileName;
+
+            if (!move_uploaded_file($_FILES['followup_doc']['tmp_name'], $target)) {
+                $formError = 'Failed to move uploaded file.';
+            } else {
+                $storedPath = 'modules/faculty/uploads/leave_requests/' . $fileName;
+
+                // append to existing documents (JSON array or single value)
+                $existing = $row['documents'] ?? '';
+                $docs = [];
+                if ($existing !== null && $existing !== '') {
+                    $decoded = json_decode($existing, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $docs = $decoded;
+                    } else {
+                        $docs = [$existing];
+                    }
+                }
+
+                $docs[] = ['file' => $storedPath, 'uploaded_at' => date('c')];
+                $newDocVal = json_encode($docs);
+
+                try {
+                    $up = $pdo->prepare('UPDATE faculty_db.leave_requests SET documents = :docs, notification = 0, updated_at = NOW() WHERE id = :id');
+                    $up->execute([':docs' => $newDocVal, ':id' => $followupRequestId]);
+                    $formSuccess = 'Follow-up document uploaded successfully.';
+                } catch (PDOException $e) {
+                    $formError = 'Unable to save follow-up document: ' . $e->getMessage();
+                    error_log('[leave-request] followup upload error: ' . $e->getMessage());
+                }
+            }
+        }
+    }
+
+    // Ensure we only load requests belonging to the current user
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    // If a faculty profile id was determined earlier (during POST flows), reuse it.
+    $facultyProfileId = $facultyProfileId ?? 0;
+
+    if ($facultyProfileId <= 0 && $userId > 0) {
+        $tmp = $pdo->prepare("SELECT id FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
+        $tmp->execute([':user_id' => $userId]);
+        $facultyProfileId = (int) ($tmp->fetchColumn() ?: 0);
+    }
+
+    if ($facultyProfileId <= 0) {
+        // No linked faculty profile for this user — show no records.
+        $leaveRequests = [];
+    } else {
+        $sql = "
+            SELECT
+                lr.*, 
+                fp.id AS faculty_profile_id,
+                fp.faculty_id AS faculty_identifier,
+                CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name,
+                DATEDIFF(lr.end_date, lr.start_date) + 1 AS days
+            FROM faculty_db.leave_requests lr
+            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+            WHERE lr.faculty_id = :faculty_profile_id
+            ORDER BY lr.created_at DESC
+        ";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':faculty_profile_id' => $facultyProfileId]);
+        $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    foreach ($leaveRequests as $request) {
+        $status = strtolower(trim((string) ($request['status'] ?? '')));
+        $status = str_replace(' ', '_', $status);
+
+        if ($status === 'pending') {
+            $pendingCount++;
+        } elseif ($status === 'approved') {
+            $approvedCount++;
+        } elseif ($status === 'rejected') {
+            $rejectedCount++;
+        } elseif ($status === 'finished') {
+            $finishedCount++;
+        } elseif ($status === 'document_required') {
+            $documentRequiredCount++;
+        }
+
+        $notificationFlag = (int) ($request['notification'] ?? 0);
+        $documentsValue = trim((string) ($request['documents'] ?? ''));
+
+        if ($notificationFlag === 1 && $documentsValue === '') {
+            $requestRef = trim((string) ($request['request_ref'] ?? ''));
+            if ($requestRef === '') {
+                $requestRef = 'LR-' . (int) ($request['id'] ?? 0);
+            }
+
+            $alertMessages[] = $requestRef . ' document support has been rejected.';
+        }
+    }
+
+} catch (Throwable $e) {
+    $formError = 'Database error: ' . $e->getMessage();
+    error_log('[leave-request] ' . $e->getMessage());
+}
+
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
+
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
+
+<?php if ($formError !== ''): ?>
+    <div class="alert alert-danger" role="alert">
+        <?= htmlspecialchars($formError, ENT_QUOTES, 'UTF-8') ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($formSuccess !== ''): ?>
+    <div class="alert alert-success" role="alert">
+        <?= htmlspecialchars($formSuccess, ENT_QUOTES, 'UTF-8') ?>
+    </div>
+<?php endif; ?>
 <!-- Page Header -->
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
@@ -46,8 +369,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Total Balance</span>
-                    <h4 class="fw-bold mb-0">10 <small class="text-muted fs-6">days available</small></h4>
+                    <span class="text-body-secondary small d-block fw-medium">Total Requests</span>
+                    <h4 class="fw-bold mb-0"><?php echo count($leaveRequests); ?> <small class="text-muted fs-6">entries</small></h4>
                 </div>
             </div>
         </div>
@@ -61,7 +384,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <span class="text-body-secondary small d-block fw-medium">Pending</span>
-                    <h4 class="fw-bold mb-0 text-warning">1 <small class="text-muted fs-6">awaiting review</small></h4>
+                    <h4 class="fw-bold mb-0 text-warning"><?php echo $pendingCount; ?> <small class="text-muted fs-6">awaiting review</small></h4>
                 </div>
             </div>
         </div>
@@ -75,7 +398,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <span class="text-body-secondary small d-block fw-medium">Approved</span>
-                    <h4 class="fw-bold mb-0 text-primary">5 <small class="text-muted fs-6">requests YTD</small></h4>
+                    <h4 class="fw-bold mb-0 text-primary"><?php echo $approvedCount; ?> <small class="text-muted fs-6">requests</small></h4>
                 </div>
             </div>
         </div>
@@ -89,15 +412,26 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <span class="text-body-secondary small d-block fw-medium">Rejected</span>
-                    <h4 class="fw-bold mb-0 text-secondary">0 <small class="text-muted fs-6">requests</small></h4>
+                    <h4 class="fw-bold mb-0 text-secondary"><?php echo $rejectedCount; ?> <small class="text-muted fs-6">requests</small></h4>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<?php if (!empty($alertMessages)): ?>
+    <div class="mb-4">
+        <?php foreach ($alertMessages as $message): ?>
+            <div class="alert alert-warning border-0 shadow-sm auto-dismiss-alert" role="alert" data-auto-dismiss-seconds="3">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
+<?php endif; ?>
+
 <!-- Leave Category Breakdown (Visual Allocation Progress) -->
-<div class="card border-0 shadow-sm rounded-4 mb-4">
+<!-- <div class="card border-0 shadow-sm rounded-4 mb-4">
     <div class="card-header bg-transparent border-0 pt-3 px-4">
         <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
             <i class="fas fa-chart-pie text-primary"></i>
@@ -152,7 +486,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
         </div>
     </div>
-</div>
+</div> WAG MUNA NATIN TO SALI HAHAHA--> 
 
 <!-- Requests Data Table -->
 <div class="card border-0 shadow-sm rounded-4 mb-4">
@@ -185,104 +519,91 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Row 1 (Pending) -->
-                    <tr>
-                        <td class="ps-4 fw-semibold text-primary">LEAVE-057</td>
-                        <td><span class="badge bg-light text-dark border px-2 py-1 rounded-2">Sick Leave</span></td>
-                        <td class="small">
-                            <i class="far fa-calendar text-muted me-1"></i>Aug 21, 2025 
-                            <i class="fas fa-arrow-right text-muted mx-1 fs-7"></i> Aug 22, 2025
-                        </td>
-                        <td><span class="fw-medium">2</span> <span class="text-muted small">d</span></td>
-                        <td><span class="badge border rounded-pill px-2.5 py-1.5 bg-warning bg-opacity-10 text-warning border-warning border-opacity-25">Pending</span></td>
-                        <td class="small text-muted">Today</td>
-                        <td class="pe-4 text-end">
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-light text-primary border" title="View Details" onclick='viewDetails({"id":"LEAVE-057","type":"Sick Leave","start":"Aug 21, 2025","end":"Aug 22, 2025","days":2,"status":"Pending","date":"Today","reason":"Medical appointment for check-up","doc":"Medical_Certificate.pdf"})'>
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="btn btn-light text-danger border" title="Cancel Request" onclick="cancelRequest('LEAVE-057')">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    <!-- Row 2 (Approved) -->
-                    <tr>
-                        <td class="ps-4 fw-semibold text-primary">LEAVE-056</td>
-                        <td><span class="badge bg-light text-dark border px-2 py-1 rounded-2">Vacation Leave</span></td>
-                        <td class="small">
-                            <i class="far fa-calendar text-muted me-1"></i>Jul 15, 2025 
-                            <i class="fas fa-arrow-right text-muted mx-1 fs-7"></i> Jul 19, 2025
-                        </td>
-                        <td><span class="fw-medium">5</span> <span class="text-muted small">d</span></td>
-                        <td><span class="badge border rounded-pill px-2.5 py-1.5 bg-success bg-opacity-10 text-success border-success border-opacity-25">Approved</span></td>
-                        <td class="small text-muted">Jul 10, 2025</td>
-                        <td class="pe-4 text-end">
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-light text-primary border" title="View Details" onclick='viewDetails({"id":"LEAVE-056","type":"Vacation Leave","start":"Jul 15, 2025","end":"Jul 19, 2025","days":5,"status":"Approved","date":"Jul 10, 2025","reason":"Annual family trip","doc":"None"})'>
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    <!-- Row 3 (Approved) -->
-                    <tr>
-                        <td class="ps-4 fw-semibold text-primary">LEAVE-055</td>
-                        <td><span class="badge bg-light text-dark border px-2 py-1 rounded-2">Sick Leave</span></td>
-                        <td class="small">
-                            <i class="far fa-calendar text-muted me-1"></i>Jun 20, 2025 
-                            <i class="fas fa-arrow-right text-muted mx-1 fs-7"></i> Jun 20, 2025
-                        </td>
-                        <td><span class="fw-medium">1</span> <span class="text-muted small">d</span></td>
-                        <td><span class="badge border rounded-pill px-2.5 py-1.5 bg-success bg-opacity-10 text-success border-success border-opacity-25">Approved</span></td>
-                        <td class="small text-muted">Jun 19, 2025</td>
-                        <td class="pe-4 text-end">
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-light text-primary border" title="View Details" onclick='viewDetails({"id":"LEAVE-055","type":"Sick Leave","start":"Jun 20, 2025","end":"Jun 20, 2025","days":1,"status":"Approved","date":"Jun 19, 2025","reason":"Severe migraine","doc":"Prescription.pdf"})'>
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    <!-- Row 4 (Approved) -->
-                    <tr>
-                        <td class="ps-4 fw-semibold text-primary">LEAVE-054</td>
-                        <td><span class="badge bg-light text-dark border px-2 py-1 rounded-2">Emergency Leave</span></td>
-                        <td class="small">
-                            <i class="far fa-calendar text-muted me-1"></i>May 10, 2025 
-                            <i class="fas fa-arrow-right text-muted mx-1 fs-7"></i> May 10, 2025
-                        </td>
-                        <td><span class="fw-medium">1</span> <span class="text-muted small">d</span></td>
-                        <td><span class="badge border rounded-pill px-2.5 py-1.5 bg-success bg-opacity-10 text-success border-success border-opacity-25">Approved</span></td>
-                        <td class="small text-muted">May 10, 2025</td>
-                        <td class="pe-4 text-end">
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-light text-primary border" title="View Details" onclick='viewDetails({"id":"LEAVE-054","type":"Emergency Leave","start":"May 10, 2025","end":"May 10, 2025","days":1,"status":"Approved","date":"May 10, 2025","reason":"Home plumbing emergency","doc":"None"})'>
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    <!-- Row 5 (Approved) -->
-                    <tr>
-                        <td class="ps-4 fw-semibold text-primary">LEAVE-053</td>
-                        <td><span class="badge bg-light text-dark border px-2 py-1 rounded-2">Vacation Leave</span></td>
-                        <td class="small">
-                            <i class="far fa-calendar text-muted me-1"></i>Apr 01, 2025 
-                            <i class="fas fa-arrow-right text-muted mx-1 fs-7"></i> Apr 05, 2025
-                        </td>
-                        <td><span class="fw-medium">5</span> <span class="text-muted small">d</span></td>
-                        <td><span class="badge border rounded-pill px-2.5 py-1.5 bg-success bg-opacity-10 text-success border-success border-opacity-25">Approved</span></td>
-                        <td class="small text-muted">Mar 25, 2025</td>
-                        <td class="pe-4 text-end">
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-light text-primary border" title="View Details" onclick='viewDetails({"id":"LEAVE-053","type":"Vacation Leave","start":"Apr 01, 2025","end":"Apr 05, 2025","days":5,"status":"Approved","date":"Mar 25, 2025","reason":"Personal rest","doc":"None"})'>
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
+                    <?php if (empty($leaveRequests)): ?>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">No leave requests found.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($leaveRequests as $row):
+                            $id = htmlspecialchars($row['request_ref'] ?? ('LR-' . ($row['id'] ?? '')), ENT_QUOTES, 'UTF-8');
+                            $type = htmlspecialchars($row['leave_type'] ?? '', ENT_QUOTES, 'UTF-8');
+                            $start = htmlspecialchars($row['start_date'] ?? '', ENT_QUOTES, 'UTF-8');
+                            $end = htmlspecialchars($row['end_date'] ?? '', ENT_QUOTES, 'UTF-8');
+                            $days = (int) ($row['days'] ?? 0);
+                            $status = $row['status'] ?? '';
+                            $statusText = htmlspecialchars(ucwords(str_replace('_', ' ', strtolower(trim((string) $status)))), ENT_QUOTES, 'UTF-8');
+                            $docsRaw = $row['documents'] ?? '';
+                            $fileForJson = 'No document attached';
+                            if (!empty($docsRaw)) {
+                                $decoded = json_decode($docsRaw, true);
+                                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && count($decoded) > 0) {
+                                    $last = end($decoded);
+                                    if (is_array($last) && isset($last['file'])) {
+                                        $fileForJson = $last['file'];
+                                    } elseif (is_string($last)) {
+                                        $fileForJson = $last;
+                                    } else {
+                                        $fileForJson = json_encode($last);
+                                    }
+                                } else {
+                                    $fileForJson = $docsRaw;
+                                }
+                            }
+                            $reason = htmlspecialchars($row['reason'] ?? '', ENT_QUOTES, 'UTF-8');
+                            $fileDate = isset($row['created_at']) ? htmlspecialchars($row['created_at'], ENT_QUOTES, 'UTF-8') : '';
+
+                            // Determine badge class
+                            $badgeClass = 'bg-secondary';
+                            $normalizedStatus = strtolower(trim((string) $status));
+                            $normalizedStatus = str_replace(' ', '_', $normalizedStatus);
+                            if ($normalizedStatus === 'pending') $badgeClass = 'bg-warning text-dark';
+                            if ($normalizedStatus === 'approved') $badgeClass = 'bg-success';
+                            if ($normalizedStatus === 'rejected') $badgeClass = 'bg-danger';
+                            if ($normalizedStatus === 'finished') $badgeClass = 'bg-info text-white';
+                            if ($normalizedStatus === 'document_required') $badgeClass = 'bg-secondary text-white';
+
+                            $dataObj = [
+                                'id' => $id,
+                                'type' => $type,
+                                'start' => $start,
+                                'end' => $end,
+                                'days' => $days,
+                                'status' => $statusText,
+                                'date' => $fileDate ?: '',
+                                'reason' => $row['reason'] ?? '',
+                                'doc' => $fileForJson,
+                            ];
+                        ?>
+                        <tr>
+                            <td class="ps-4 fw-semibold text-primary"><?= $id ?></td>
+                            <td><span class="badge bg-light text-dark border px-2 py-1 rounded-2"><?= $type ?></span></td>
+                            <td class="small">
+                                <i class="far fa-calendar text-muted me-1"></i><?= $start ?>
+                                <i class="fas fa-arrow-right text-muted mx-1 fs-7"></i> <?= $end ?>
+                            </td>
+                            <td><span class="fw-medium"><?= $days ?></span> <span class="text-muted small">d</span></td>
+                            <td><span class="badge border rounded-pill px-2.5 py-1.5 <?= $badgeClass ?>"><?= $statusText ?></span></td>
+                            <td class="small text-muted"><?= $fileDate ?></td>
+                            <td class="pe-4 text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-light text-primary border" title="View Details" onclick='viewDetails(<?= htmlspecialchars(json_encode($dataObj), ENT_QUOTES, 'UTF-8') ?>)'>
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <?php if (strtolower($status) !== 'rejected' && strtolower($status) !== 'finished'): ?>
+                                    <button class="btn btn-light text-secondary border" title="Upload Follow-up / Supporting Document" onclick="openUploadModal(<?= (int)$row['id'] ?>)">
+                                        <i class="fas fa-upload"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                    <?php if (strtolower($status) === 'pending'): ?>
+                                    <button class="btn btn-light text-danger border" title="Cancel Request" onclick="cancelRequest('<?= $id ?>')">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -310,11 +631,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <form id="leaveRequestForm" method="post" enctype="multipart/form-data">
             <div class="modal-body p-4">
-                <form id="leaveRequestForm">
                     <div class="mb-3">
                         <label class="form-label small fw-medium">Leave Type <span class="text-danger">*</span></label>
-                        <select class="form-select bg-light" required>
+                        <select name="leave_type" class="form-select bg-light" required>
                             <option value="" disabled selected>Select category...</option>
                             <option>Vacation Leave</option>
                             <option>Sick Leave</option>
@@ -325,32 +646,61 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label class="form-label small fw-medium">Start Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control bg-light" required>
+                            <input type="date" name="start_date" class="form-control bg-light" required>
                         </div>
                         <div class="col-6">
                             <label class="form-label small fw-medium">End Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control bg-light" required>
+                            <input type="date" name="end_date" class="form-control bg-light" required>
                         </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-medium">Reason <span class="text-danger">*</span></label>
-                        <textarea class="form-control bg-light" rows="3" placeholder="Provide details regarding your request..." required></textarea>
+                        <textarea name="reason" class="form-control bg-light" rows="3" placeholder="Provide details regarding your request..." required></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-medium">Supporting Documents</label>
-                        <input type="file" class="form-control bg-light">
+                        <input type="file" name="document" class="form-control bg-light">
                         <div class="form-text fs-7">Attach medical certificates or official notes if required.</div>
                     </div>
                     <div class="p-3 bg-primary bg-opacity-10 rounded-3 d-flex align-items-center gap-2 text-primary small">
                         <i class="fas fa-info-circle fs-6"></i>
                         <span>You currently have <strong>10 available days</strong> in total balance.</span>
                     </div>
-                </form>
             </div>
             <div class="modal-footer border-top-0 px-4 pb-4 pt-0">
                 <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Discard</button>
-                <button type="button" class="btn btn-primary rounded-pill px-4">Submit Application</button>
+                <button type="submit" name="submit_leave" class="btn btn-primary rounded-pill px-4">Submit Application</button>
             </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Upload Follow-up Document -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom border-light-subtle px-4 pt-4 pb-3">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <i class="fas fa-upload text-primary"></i>
+                    Upload Follow-up Document
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="followupForm" method="post" enctype="multipart/form-data">
+            <div class="modal-body p-4">
+                <input type="hidden" name="followup_request_id" id="followup_request_id" value="">
+                <div class="mb-3">
+                    <label class="form-label small fw-medium">Select file <span class="text-danger">*</span></label>
+                    <input type="file" name="followup_doc" class="form-control bg-light" required>
+                    <div class="form-text fs-7">Attach additional document for this request.</div>
+                </div>
+            </div>
+            <div class="modal-footer border-top-0 px-4 pb-4 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" name="upload_followup" class="btn btn-primary rounded-pill px-4">Upload</button>
+            </div>
+            </form>
         </div>
     </div>
 </div>
@@ -449,6 +799,26 @@ function cancelRequest(id) {
         alert(`Request ${id} has been successfully cancelled.`);
     }
 }
+
+function openUploadModal(id) {
+    document.getElementById('followup_request_id').value = id;
+    const modal = new bootstrap.Modal(document.getElementById('uploadModal'));
+    modal.show();
+}
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.auto-dismiss-alert').forEach(function (alertEl) {
+        const seconds = Number(alertEl.dataset.autoDismissSeconds || 3);
+        setTimeout(function () {
+            alertEl.classList.add('fade');
+            setTimeout(function () {
+                alertEl.remove();
+            }, 350);
+        }, seconds * 1000);
+    });
+});
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

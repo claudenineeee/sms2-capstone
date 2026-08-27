@@ -242,7 +242,9 @@ $navNotificationUnreadCount = count(array_filter($navNotifications, static fn(ar
                     } elseif (in_array($navRole, ['superadmin', 'admin'], true)) {
                         $profileHref = BASE_URL . '/account/profile.php';
                         $profileLabel = 'Account Settings';
-                    } elseif (in_array($navRole, ['dean', 'hr', 'department_head', 'department-head', 'dept_head', 'depthead', 'secretary', 'faculty', 'faculty_admin', 'monitoring_officer'], true)) {
+                    } 
+                    // FACULTY
+                    elseif (in_array($navRole, ['dean', 'hr', 'department_head', 'department-head', 'dept_head', 'depthead', 'secretary', 'faculty', 'faculty_admin', 'monitoring_officer', 'faculty_schedule_officer'], true)) {
                         $profileHref = BASE_URL . '/modules/faculty/views/my-profile.php';
                         $profileLabel = 'My Profile';
                     } else {

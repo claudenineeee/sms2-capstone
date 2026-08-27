@@ -1,526 +1,825 @@
 <?php
-/**
- * Leave Request Screening
- * Purpose: Screen and verify leave requests before forwarding to Department Head
- */
-require_once __DIR__ . '/../../../../config/config.php';
 
-$pageTitle    = 'Leave Request Screening';
+require_once __DIR__ . '/../../../../config/config.php';
+require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../controllers/faculty-data.php';
+
+requireAuth();
+
+$pageTitle = 'Leave Request Screening';
 $activeModule = 'faculty';
-$activePage   = 'leave-request-screening';
+$activePage = 'leave-request-screening';
+
+$breadcrumbs = [
+    ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
+    ['label' => 'Leave Requests', 'url' => null],
+];
+
+$leaveRequests = [];
+$pendingCount = 0;
+$screenedCount = 0;
+$returnedCount = 0;
+
+$formError = '';
+$formSuccess = '';
+
+if (isset($_GET['success'])) {
+    $formSuccess = (string) $_GET['success'];
+}
+
+try {
+
+    $pdo = facultyDb();
+
+    if (!$pdo) {
+        throw new RuntimeException('Unable to connect to the faculty database.');
+    }
+
+    // Department-scoped, same helper used across the app for secretary /
+    // department_head / monitoring_officer roles.
+    $restrictedDeptId = function_exists('getRestrictedDepartmentId') ? getRestrictedDepartmentId() : null;
+    $restrictedDeptCode = null;
+
+    if ($restrictedDeptId !== null && $restrictedDeptId > 0) {
+        $deptCodeStmt = $pdo->prepare("SELECT code FROM faculty_db.departments WHERE department_id = :id LIMIT 1");
+        $deptCodeStmt->execute([':id' => $restrictedDeptId]);
+        $restrictedDeptCode = $deptCodeStmt->fetchColumn() ?: null;
+    }
+
+    /*
+     * Process screening decision before any HTML is sent.
+     *
+     *   YES (Approve) -> "Sign the leave application" -> screening_status
+     *                     = 'Screened', which makes it visible to the
+     *                     Department Head on leave-request-approval.php.
+     *   NO  (Reject)  -> "End" -> screening_status = 'Returned', overall
+     *                     status flips to 'Document Required' so the
+     *                     faculty member sees it needs attention and can
+     *                     use the existing Upload Follow-up flow on their
+     *                     own leave-request.php page.
+     */
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+        $action = trim((string) ($_POST['action'] ?? ''));
+        $requestId = (int) ($_POST['request_id'] ?? 0);
+
+        if ($requestId <= 0) {
+            throw new RuntimeException('Invalid leave request.');
+        }
+
+        if (!in_array($action, ['screen_approve', 'screen_return'], true)) {
+            throw new RuntimeException('Invalid screening action.');
+        }
+
+        $screenerId = function_exists('getCurrentUserId') ? getCurrentUserId() : null;
+        if (!$screenerId) {
+            $screenerId = (int) ($_SESSION['user_id'] ?? 0);
+        }
+
+        if ($screenerId <= 0) {
+            throw new RuntimeException('Your account could not be identified. Please log in again.');
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT lr.id, lr.screening_status, fp.designated_department
+            FROM faculty_db.leave_requests lr
+            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+            WHERE lr.id = :id
+            LIMIT 1
+        ");
+        $stmt->execute([':id' => $requestId]);
+        $request = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$request) {
+            throw new RuntimeException('The selected leave request could not be found.');
+        }
+
+        // Department scoping enforced server-side too, not just in the listing query.
+        if ($restrictedDeptCode !== null && $request['designated_department'] !== $restrictedDeptCode) {
+            throw new RuntimeException('This leave request does not belong to your department.');
+        }
+
+        if (($request['screening_status'] ?? '') !== 'Pending') {
+            throw new RuntimeException('This leave request has already been screened.');
+        }
+
+        if ($action === 'screen_approve') {
+
+            $signature = trim((string) ($_POST['signature'] ?? ''));
+
+            if ($signature === '' || strpos($signature, 'data:image/') !== 0) {
+                throw new RuntimeException('Please draw your signature before signing this leave request.');
+            }
+
+            $stmt = $pdo->prepare("
+                UPDATE faculty_db.leave_requests
+                SET
+                    screening_status = 'Screened',
+                    screening_signature = :signature,
+                    screened_by_external_id = :screener_id,
+                    screened_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = :id
+                  AND screening_status = 'Pending'
+            ");
+            $stmt->bindValue(':signature', $signature, PDO::PARAM_STR);
+            $stmt->bindValue(':screener_id', (string) $screenerId, PDO::PARAM_STR);
+            $stmt->bindValue(':id', $requestId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            if ($stmt->rowCount() === 0) {
+                throw new RuntimeException('This leave request could not be signed. It may have already been processed.');
+            }
+
+            $redirectMessage = 'Leave request signed and submitted to the Department Head for approval.';
+
+        } else { // screen_return
+
+            $comment = trim((string) ($_POST['comment'] ?? ''));
+
+            if ($comment === '') {
+                throw new RuntimeException('Please provide a reason for returning this leave request.');
+            }
+
+            $stmt = $pdo->prepare("
+                UPDATE faculty_db.leave_requests
+                SET
+                    screening_status = 'Returned',
+                    screened_by_external_id = :screener_id,
+                    screened_at = NOW(),
+                    status = 'Document Required',
+                    comments = :comment,
+                    updated_at = NOW()
+                WHERE id = :id
+                  AND screening_status = 'Pending'
+            ");
+            $stmt->bindValue(':screener_id', (string) $screenerId, PDO::PARAM_STR);
+            $stmt->bindValue(':comment', $comment, PDO::PARAM_STR);
+            $stmt->bindValue(':id', $requestId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            if ($stmt->rowCount() === 0) {
+                throw new RuntimeException('This leave request could not be returned. It may have already been processed.');
+            }
+
+            $redirectMessage = 'Leave request returned to the faculty member for revision.';
+        }
+
+        $redirectUrl = strtok($_SERVER['REQUEST_URI'], '?');
+        header('Location: ' . $redirectUrl . '?success=' . urlencode($redirectMessage));
+        exit;
+    }
+
+    /*
+     * Listing.
+     */
+    $q = trim((string) ($_GET['q'] ?? ''));
+    $filterStatus = trim((string) ($_GET['screening_status'] ?? ''));
+
+    $where = [];
+    $params = [];
+
+    if ($restrictedDeptCode !== null) {
+        $where[] = 'fp.designated_department = :dept_code';
+        $params[':dept_code'] = $restrictedDeptCode;
+    }
+
+    if ($q !== '') {
+        $where[] = "(CONCAT_WS(' ', fp.first_name, fp.last_name) LIKE :q_name OR lr.request_ref LIKE :q_ref)";
+        $params[':q_name'] = '%' . $q . '%';
+        $params[':q_ref'] = '%' . $q . '%';
+    }
+
+    if ($filterStatus !== '') {
+        $where[] = 'lr.screening_status = :screening_status';
+        $params[':screening_status'] = $filterStatus;
+    }
+
+    $sql = "SELECT lr.*, fp.id AS faculty_profile_id, fp.designated_department, CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name, DATEDIFF(lr.end_date, lr.start_date) + 1 AS days
+            FROM faculty_db.leave_requests lr
+            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id";
+
+    if (!empty($where)) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+
+    $sql .= " ORDER BY CASE WHEN lr.screening_status = 'Pending' THEN 0 ELSE 1 END, lr.created_at DESC";
+
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $k => $v) {
+        $stmt->bindValue($k, $v, PDO::PARAM_STR);
+    }
+    $stmt->execute();
+
+    $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($leaveRequests as $r) {
+        switch ($r['screening_status'] ?? '') {
+            case 'Pending':
+                $pendingCount++;
+                break;
+            case 'Screened':
+                $screenedCount++;
+                break;
+            case 'Returned':
+                $returnedCount++;
+                break;
+        }
+    }
+
+} catch (Throwable $e) {
+
+    $formError = $e->getMessage();
+
+    error_log(
+        '[leave-request-screening] ' .
+        $e->getMessage() .
+        PHP_EOL .
+        $e->getTraceAsString()
+    );
+}
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
-
-// Mock Data
-$requests = [
-    ['id'=>'LEAVE-057','faculty'=>'Prof. John Aquino','fac_id'=>'F-004','type'=>'Sick Leave','start'=>'Aug 21','end'=>'Aug 22','days'=>2,'doc'=>'Complete','screening'=>'Pending','date'=>'Today'],
-    ['id'=>'LEAVE-058','faculty'=>'Dr. Ana Reyes','fac_id'=>'F-005','type'=>'Vacation Leave','start'=>'Sep 01','end'=>'Sep 05','days'=>5,'doc'=>'Complete','screening'=>'Pending','date'=>'Today'],
-    ['id'=>'LEAVE-059','faculty'=>'Prof. Sarah Martinez','fac_id'=>'F-006','type'=>'Emergency Leave','start'=>'Aug 15','end'=>'Aug 16','days'=>2,'doc'=>'Incomplete','screening'=>'Pending','date'=>'Yesterday'],
-];
 ?>
 
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-<style>
-    .stat-card {
-        border: none;
-        border-radius: 0.75rem;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.08);
-    }
-    .stat-icon {
-        width: 42px;
-        height: 42px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-    }
-    .filter-card {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 0.75rem;
-    }
-    
-    /* Dynamic Graduation Cap Avatar Badge Style */
-    .faculty-avatar-badge {
-        width: 38px;
-        height: 38px;
-        background: #ffffff;
-        color: #4f46e5;
-        border: 1px solid #cbd5e1;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-
-    /* Light-Theme Badges (White Background with Colored Borders & Text) */
-    .badge-status-complete, .badge-type-vacation {
-        background-color: #ffffff !important;
-        color: #10b981 !important;
-        border: 1px solid #a7f3d0 !important;
-    }
-
-    .badge-status-pending, .badge-type-emergency {
-        background-color: #ffffff !important;
-        color: #d97706 !important;
-        border: 1px solid #fde68a !important;
-    }
-
-    .badge-type-sick {
-        background-color: #ffffff !important;
-        color: #2563eb !important;
-        border: 1px solid #bfdbfe !important;
-    }
-
-    .badge-status-incomplete, .badge-status-returned {
-        background-color: #ffffff !important;
-        color: #ef4444 !important;
-        border: 1px solid #fca5a5 !important;
-    }
-    
-    .badge-type-study {
-        background-color: #ffffff !important;
-        color: #8b5cf6 !important;
-        border: 1px solid #ddd6fe !important;
-    }
-
-    /* Dark-Theme Overrides */
-    [data-theme="dark"] .faculty-avatar-badge {
-        background: #181e36;
-        color: #8b95ff;
-        border-color: rgba(139, 149, 255, 0.25);
-        box-shadow: 0 0 10px rgba(139, 149, 255, 0.15);
-    }
-
-    [data-theme="dark"] .badge-status-complete, 
-    [data-theme="dark"] .badge-type-vacation {
-        background-color: #0d2822 !important;
-        color: #2be49b !important;
-        border-color: #14533c !important;
-    }
-
-    [data-theme="dark"] .badge-status-pending, 
-    [data-theme="dark"] .badge-type-emergency {
-        background-color: #311c08 !important;
-        color: #f3a833 !important;
-        border-color: #63360b !important;
-    }
-
-    [data-theme="dark"] .badge-type-sick {
-        background-color: #0b1d3a !important;
-        color: #4da3ff !important;
-        border-color: #163e75 !important;
-    }
-
-    [data-theme="dark"] .badge-status-incomplete, 
-    [data-theme="dark"] .badge-status-returned {
-        background-color: #2d1215 !important;
-        color: #ff5263 !important;
-        border-color: #5a1e24 !important;
-    }
-    
-    [data-theme="dark"] .badge-type-study {
-        background-color: #1a1528 !important;
-        color: #b388ff !important;
-        border-color: #3d2b5a !important;
-    }
-</style>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-<!-- Page Header -->
-<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
-        <h2 class="h4 fw-bold text-dark mb-1">
-            <i class="fas fa-inbox text-purple me-2"></i>Leave Request Screening
-        </h2>
-        <p class="text-muted small mb-0">Screen and verify leave requests before forwarding to Department Head.</p>
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-success" onclick="forwardSelected()">
-            <i class="fas fa-paper-plane me-1"></i>Forward to Dept. Head
-        </button>
-        <button class="btn btn-warning text-dark" onclick="returnSelected()">
-            <i class="fas fa-undo me-1"></i>Return for Requirements
-        </button>
-        <button class="btn btn-outline-secondary">
-            <i class="fas fa-file-excel me-1 text-success"></i>Export
-        </button>
+        <h1 class="h3 fw-bold mb-1 text-black">
+            <i class="fas fa-file-signature text-primary me-2"></i>
+            Leave Request Screening
+        </h1>
+        <p class="text-muted mb-0">Review leave applications, then sign and submit to the Department Head for approval.</p>
     </div>
 </div>
 
-<!-- Summary Cards -->
+<?php if ($formError !== ''): ?>
+    <div class="alert alert-danger rounded-3 mb-4" role="alert">
+        <?= htmlspecialchars($formError, ENT_QUOTES, 'UTF-8') ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($formSuccess !== ''): ?>
+    <div class="alert alert-success rounded-3 mb-4" role="alert">
+        <?= htmlspecialchars($formSuccess, ENT_QUOTES, 'UTF-8') ?>
+    </div>
+<?php endif; ?>
+
 <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-        <div class="card stat-card shadow-sm h-100">
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-semibold">Pending Screening</span>
-                    <div class="stat-icon bg-warning-subtle text-warning"><i class="fas fa-clock"></i></div>
+<!-- Card 1: Pending Review -->
+    <div class="col-12 col-sm-6 col-xl-4">
+        <section class="card stat-card warning border shadow-sm position-relative h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="stat-icon me-3 text-warning fs-4">
+                    <i class="fas fa-clock"></i>
                 </div>
-                <div class="d-flex align-items-baseline gap-2">
-                    <h3 class="fw-bold mb-0">3</h3>
-                    <span class="badge bg-danger-subtle text-danger rounded-pill small">3 new</span>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Review</h6>
+                    <h4 class="mb-0 fw-bold text-warning"><?= (int) $pendingCount ?></h4>
+                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
+                        Awaiting screening
+                    </small>
                 </div>
             </div>
-        </div>
+            <a href="?screening_status=Pending" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="Filter Pending">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card stat-card shadow-sm h-100">
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-semibold">Verified Today</span>
-                    <div class="stat-icon bg-success-subtle text-success"><i class="fas fa-check-circle"></i></div>
+
+    <!-- Card 2: Signed / Sent to Dept. Head -->
+    <div class="col-12 col-sm-6 col-xl-4">
+        <section class="card stat-card success border shadow-sm position-relative h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="stat-icon me-3 text-success fs-4">
+                    <i class="fas fa-file-signature"></i>
                 </div>
-                <h3 class="fw-bold mb-0">8</h3>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Signed / Sent to Dept. Head</h6>
+                    <h4 class="mb-0 fw-bold text-success"><?= (int) $screenedCount ?></h4>
+                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
+                        Forwarded applications
+                    </small>
+                </div>
             </div>
-        </div>
+            <a href="?screening_status=Screened" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="Filter Screened">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card stat-card shadow-sm h-100">
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-semibold">Returned Today</span>
-                    <div class="stat-icon bg-danger-subtle text-danger"><i class="fas fa-undo"></i></div>
+
+    <!-- Card 3: Returned to Faculty -->
+    <div class="col-12 col-sm-6 col-xl-4">
+        <section class="card stat-card danger border-0 border-start border-4 shadow-sm position-relative h-100" style="border-left-color: #dc3545 !important;">
+            <div class="card-body d-flex align-items-center">
+                <div class="stat-icon me-3 text-danger fs-4">
+                    <i class="fas fa-undo"></i>
                 </div>
-                <h3 class="fw-bold mb-0">2</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card stat-card shadow-sm h-100">
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-semibold">Document Issues</span>
-                    <div class="stat-icon bg-danger-subtle text-danger"><i class="fas fa-exclamation-triangle"></i></div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Returned to Faculty</h6>
+                    <h4 class="mb-0 fw-bold text-danger"><?= (int) $returnedCount ?></h4>
+                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
+                        Requires revision
+                    </small>
                 </div>
-                <h3 class="fw-bold mb-0">1</h3>
             </div>
-        </div>
+            <a href="?screening_status=Returned" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="Filter Returned">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
     </div>
 </div>
 
-<!-- Main Section: Table & Chart -->
-<div class="row g-4 mb-4">
-    <!-- Leave Requests Table -->
-    <div class="col-lg-8">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-bold"><i class="fas fa-list text-purple me-2"></i>Pending Leave Requests (3)</h6>
-                <span class="badge bg-purple-subtle text-purple">3 Loaded</span>
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted mb-1">Search</label>
+                <input type="text" name="q" class="form-control" placeholder="Faculty name or reference no."
+                       value="<?= htmlspecialchars($q, ENT_QUOTES, 'UTF-8') ?>">
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="ps-3" style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
-                                <th>Faculty</th>
-                                <th>Leave Type</th>
-                                <th>Dates & Duration</th>
-                                <th>Documents</th>
-                                <th>Screening</th>
-                                <th class="text-end pe-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($requests as $r): 
-                                $docBadge = $r['doc'] === 'Complete' ? 'badge-status-complete' : 'badge-status-incomplete';
-                                
-                                $typeBadge = match($r['type']) {
-                                    'Sick Leave'      => 'badge-type-sick',
-                                    'Vacation Leave'  => 'badge-type-vacation',
-                                    'Emergency Leave' => 'badge-type-emergency',
-                                    default           => 'badge-type-study'
-                                };
-                            ?>
-                            <tr>
-                                <td class="ps-3"><input type="checkbox" class="form-check-input row-select"></td>
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="faculty-avatar-badge">
-                                            <i class="fas fa-user-graduate fs-6"></i>
-                                        </div>
-                                        <div>
-                                            <div class="fw-semibold text-dark"><?= $r['faculty'] ?></div>
-                                            <small class="text-muted font-monospace"><?= $r['id'] ?></small>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td><span class="badge <?= $typeBadge ?> rounded-pill px-3 py-1 fw-bold"><?= $r['type'] ?></span></td>
-                                <td>
-                                    <div class="small fw-semibold"><?= $r['start'] ?> - <?= $r['end'] ?></div>
-                                    <small class="text-muted"><?= $r['days'] ?> day(s)</small>
-                                </td>
-                                <td><span class="badge <?= $docBadge ?> rounded-pill px-3 py-1 fw-bold"><?= $r['doc'] ?></span></td>
-                                <td><span class="badge badge-status-pending rounded-pill px-3 py-1 fw-bold"><?= $r['screening'] ?></span></td>
-                                <td class="text-end pe-3">
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-secondary border-0" title="View Details" onclick="viewDetails('<?= $r['id'] ?>')">
-                                            <i class="fas fa-eye text-primary"></i>
-                                        </button>
-                                        <button class="btn btn-outline-secondary border-0" title="Verify Documents" onclick="verifyDocs('<?= $r['id'] ?>')">
-                                            <i class="fas fa-check-circle text-success"></i>
-                                        </button>
-                                        <button class="btn btn-outline-secondary border-0" title="Return" onclick="returnRequest('<?= $r['id'] ?>')">
-                                            <i class="fas fa-undo text-warning"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted mb-1">Screening Status</label>
+                <select name="screening_status" class="form-select">
+                    <option value="">All</option>
+                    <?php foreach (['Pending', 'Screened', 'Returned'] as $s): ?>
+                        <option value="<?= $s ?>" <?= $filterStatus === $s ? 'selected' : '' ?>><?= $s ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
-            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2 mt-auto">
-                <small class="text-muted">Showing 1-3 of 3 requests</small>
-                <nav>
-                    <ul class="pagination pagination-sm mb-0">
-                        <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                    </ul>
-                </nav>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filter</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Leave Type Distribution Chart -->
-    <div class="col-lg-4">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white py-3">
-                <h6 class="mb-0 fw-bold"><i class="fas fa-chart-pie text-purple me-2"></i>Leave Type Distribution</h6>
-            </div>
-            <div class="card-body">
-                <div class="position-relative d-flex justify-content-center mb-3">
-                    <canvas id="leaveTypeChart" style="max-height: 200px;"></canvas>
-                </div>
-                <hr>
-                <div class="d-flex flex-column gap-2 small">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-circle me-2" style="color: #4da3ff;"></i>Sick Leave</span>
-                        <span class="fw-bold">8 requests</span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-circle me-2" style="color: #2be49b;"></i>Vacation Leave</span>
-                        <span class="fw-bold">5 requests</span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-circle me-2" style="color: #f3a833;"></i>Emergency</span>
-                        <span class="fw-bold">3 requests</span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-circle me-2" style="color: #b388ff;"></i>Study Leave</span>
-                        <span class="fw-bold">2 requests</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </form>
     </div>
 </div>
 
-<!-- View Request Details Modal -->
-<div class="modal fade" id="detailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-light">
-                <h5 class="modal-title h6 fw-bold"><i class="fas fa-file-alt text-purple me-2"></i>Leave Request Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row g-3 mb-3">
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Request ID</small>
-                        <span class="fw-semibold">LEAVE-057</span>
-                    </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Submitted</small>
-                        <span class="fw-semibold">Today, 9:30 AM</span>
-                    </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Faculty</small>
-                        <span class="fw-semibold">Prof. John Aquino</span>
-                    </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Leave Type</small>
-                        <span class="badge badge-type-sick rounded-pill px-3 py-1 fw-bold">Sick Leave</span>
-                    </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Start Date</small>
-                        <span class="fw-semibold">August 21, 2025</span>
-                    </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">End Date</small>
-                        <span class="fw-semibold">August 22, 2025</span>
-                    </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Total Days</small>
-                        <span class="fw-semibold">2 days</span>
-                    </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Leave Balance</small>
-                        <span class="fw-semibold text-success">10 days remaining</span>
-                    </div>
-                </div>
-                <hr>
-                <h6 class="fw-bold small mb-2">Required Documents:</h6>
-                <ul class="list-group mb-3">
-                    <li class="list-group-item d-flex justify-content-between align-items-center small">
-                        Medical Certificate
-                        <span class="badge badge-status-complete rounded-pill px-2 py-1">Uploaded</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center small">
-                        Leave Application Form
-                        <span class="badge badge-status-complete rounded-pill px-2 py-1">Uploaded</span>
-                    </li>
-                </ul>
-                <div class="mb-2">
-                    <small class="text-muted d-block">Reason</small>
-                    <p class="small text-dark mb-0">Medical appointment for check-up.</p>
-                </div>
-            </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-sm btn-warning text-dark" onclick="returnRequest()">Return for Requirements</button>
-                <button type="button" class="btn btn-sm btn-success" onclick="forwardRequest()">Forward to Dept. Head</button>
-            </div>
-        </div>
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Faculty</th>
+                    <th>Type</th>
+                    <th>Duration</th>
+                    <th>Days</th>
+                    <th>Documents</th>
+                    <th>Screening Status</th>
+                    <th>Filed</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($leaveRequests)): ?>
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">No leave requests found.</td>
+                    </tr>
+                <?php else: ?>
+                    <?php foreach ($leaveRequests as $r): ?>
+                        <?php
+                            $screeningStatus = $r['screening_status'] ?? 'Pending';
+                            $badgeClass = match ($screeningStatus) {
+                                'Screened' => 'bg-success-subtle text-success',
+                                'Returned' => 'bg-danger-subtle text-danger',
+                                default    => 'bg-warning-subtle text-warning',
+                            };
+                            $hasDocument = trim((string) ($r['documents'] ?? '')) !== '';
+                            $documentUrl = $hasDocument ? BASE_URL . '/' . ltrim((string) $r['documents'], '/') : '';
+                        ?>
+                        <tr>
+                            <td class="fw-bold"><?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?> &ndash; <?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= (int) ($r['days'] ?? 0) ?></td>
+                            <td>
+                                <?php if ($hasDocument): ?>
+                                    <a href="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"
+                                       class="badge bg-success-subtle text-success text-decoration-none">
+                                        <i class="fas fa-paperclip me-1"></i>View File
+                                    </a>
+                                <?php else: ?>
+                                    <span class="badge bg-secondary-subtle text-secondary">None</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><span class="badge <?= $badgeClass ?>"><?= htmlspecialchars($screeningStatus, ENT_QUOTES, 'UTF-8') ?></span></td>
+                            <td><?= htmlspecialchars($r['created_at'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td class="text-end">
+                                <?php if ($screeningStatus === 'Pending'): ?>
+                                    <button type="button" class="btn btn-sm btn-primary"
+                                            onclick="openReviewModal(<?= (int) $r['id'] ?>, '<?= htmlspecialchars(addslashes($r['faculty_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['leave_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['reason'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', <?= $hasDocument ? 'true' : 'false' ?>, '<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>')">
+                                        <i class="fas fa-eye me-1"></i>Review
+                                    </button>
+                                <?php elseif ($screeningStatus === 'Screened' && !empty($r['screening_signature'])): ?>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            onclick="viewSignature('<?= htmlspecialchars(addslashes($r['screening_signature']), ENT_QUOTES, 'UTF-8') ?>')">
+                                        <i class="fas fa-signature me-1"></i>View Signature
+                                    </button>
+                                <?php else: ?>
+                                    <span class="text-muted small">&mdash;</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 
-<!-- Document Verification Modal -->
-<div class="modal fade" id="verifyModal" tabindex="-1">
+<!-- Review Modal: Review Application -> Approve? -> Sign / Return -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-light">
-                <h5 class="modal-title h6 fw-bold"><i class="fas fa-check-circle text-purple me-2"></i>Document Verification</h5>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Review Leave Application</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <h6 class="fw-semibold small mb-3">Required Documents for <span class="font-monospace">LEAVE-057</span></h6>
-                <div class="mb-3">
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="doc1" checked>
-                        <label class="form-check-label small" for="doc1">Medical Certificate</label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="doc2" checked>
-                        <label class="form-check-label small" for="doc2">Leave Application Form</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="doc3">
-                        <label class="form-check-label small" for="doc3">Other Supporting Documents</label>
-                    </div>
-                </div>
-                <div class="alert alert-info py-2 px-3 small border-0 mb-0">
-                    <i class="fas fa-info-circle me-1"></i> Leave balance: 10 days remaining. Request: 2 days. Sufficient balance.
-                </div>
+                <dl class="row mb-0">
+                    <dt class="col-4 text-muted small">Faculty</dt>
+                    <dd class="col-8" id="rm-faculty"></dd>
+                    <dt class="col-4 text-muted small">Leave Type</dt>
+                    <dd class="col-8" id="rm-type"></dd>
+                    <dt class="col-4 text-muted small">Duration</dt>
+                    <dd class="col-8" id="rm-duration"></dd>
+                    <dt class="col-4 text-muted small">Reason</dt>
+                    <dd class="col-8" id="rm-reason"></dd>
+                    <dt class="col-4 text-muted small">Documents</dt>
+                    <dd class="col-8" id="rm-documents-wrapper">
+                        <span id="rm-documents"></span>
+                        <a href="#" id="rm-document-link" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary ms-2 d-none">
+                            <i class="fas fa-paperclip me-1"></i>View File
+                        </a>
+                    </dd>
+                </dl>
             </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-sm btn-success" onclick="confirmVerify()">Verify & Forward</button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger" onclick="openReturnModal()">
+                    <i class="fas fa-undo me-1"></i>Return (No)
+                </button>
+                <button type="button" class="btn btn-success" onclick="approveFromModal()">
+                    <i class="fas fa-signature me-1"></i>Approve &amp; Sign
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Return with Comments Modal -->
-<div class="modal fade" id="returnModal" tabindex="-1">
+<!-- Return Modal: reason required, ends the flow (no submission to Dept. Head) -->
+<div class="modal fade" id="returnModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-light">
-                <h5 class="modal-title h6 fw-bold"><i class="fas fa-undo text-warning me-2"></i>Return for Requirements</h5>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Return Leave Application</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Reason for Return (Required)</label>
-                    <textarea class="form-control" rows="4" placeholder="Explain what documents or information are needed..."></textarea>
+                <label class="form-label small fw-bold text-muted">Reason for returning to faculty</label>
+                <textarea id="return-reason" class="form-control" rows="3" placeholder="e.g. missing supporting document, incomplete details"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmReturn()">Confirm Return</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Signature Pad Modal: captures the Secretary's drawn signature before signing -->
+<div class="modal fade" id="signatureModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Sign Leave Application</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">Draw your signature below to certify this leave application and forward it to the Department Head.</p>
+                    <div class="border rounded-3 overflow-hidden position-relative" id="sig-pad-wrapper" style="touch-action: none; min-height: 180px;">
+                    <canvas id="signature-pad" height="180" style="width: 100%; height: 180px; cursor: crosshair; display: block;"></canvas>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="pen-color-picker" class="small text-muted fw-bold mb-0">Pen Color:</label>
+                        <div class="position-relative d-inline-block">
+                            <input type="color" id="pen-color-picker" class="form-control form-control-color border-0 p-0 rounded-2" 
+                                style="width: 32px; height: 32px; cursor: pointer;" 
+                                onchange="changePenColor(this.value)" oninput="changePenColor(this.value)">
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSignaturePad()">
+                        <i class="fas fa-eraser me-1"></i>Clear
+                    </button>
                 </div>
             </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-sm btn-warning text-dark">Return Request</button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="confirmSignature()">
+                    <i class="fas fa-signature me-1"></i>Confirm &amp; Sign
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Signature Modal: shows a previously captured signature -->
+<div class="modal fade" id="viewSignatureModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Screening Signature</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="vs-img" src="" alt="Screening signature" class="border rounded-3 bg-white" style="max-width: 100%;">
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="screeningActionForm" method="POST" style="display:none;">
+    <input type="hidden" name="action" id="saf-action">
+    <input type="hidden" name="request_id" id="saf-request-id">
+    <input type="hidden" name="comment" id="saf-comment">
+    <input type="hidden" name="signature" id="saf-signature">
+</form>
+
+<!-- Custom Confirmation Modal -->
+<div class="modal fade" id="confirmActionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold fs-6 d-flex align-items-center gap-2">
+                    <i class="fas fa-file-signature text-primary"></i> Confirm Submission
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="mb-0 text-muted" id="confirmModalBody">Are you sure you want to proceed?</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-success px-3" id="confirmModalSubmitBtn">
+                    <i class="fas fa-check me-1"></i> Yes, submit
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-    new Chart(document.getElementById('leaveTypeChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Sick Leave', 'Vacation Leave', 'Emergency', 'Study Leave'],
-            datasets: [{
-                data: [8, 5, 3, 2],
-                backgroundColor: ['#4da3ff', '#2be49b', '#f3a833', '#b388ff'],
-                borderWidth: 2,
-                borderColor: '#ffffff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '70%',
-            plugins: {
-                legend: { display: false }
-            }
+let currentReviewId = null;
+
+function openReviewModal(id, faculty, type, startDate, endDate, reason, hasDocument, documentUrl) {
+    currentReviewId = id;
+    document.getElementById('rm-faculty').textContent = faculty;
+    document.getElementById('rm-type').textContent = type;
+    document.getElementById('rm-duration').textContent = startDate + ' to ' + endDate;
+    document.getElementById('rm-reason').textContent = reason || '(none provided)';
+
+    const docLink = document.getElementById('rm-document-link');
+    const docLabel = document.getElementById('rm-documents');
+
+    if (hasDocument && documentUrl) {
+        docLabel.textContent = 'Attached';
+        docLink.href = documentUrl;
+        docLink.classList.remove('d-none');
+    } else {
+        docLabel.textContent = 'No document attached';
+        docLink.href = '#';
+        docLink.classList.add('d-none');
+    }
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal')).show();
+}
+
+function approveFromModal() {
+    if (!currentReviewId) return;
+
+    const reviewModal = bootstrap.Modal.getInstance(document.getElementById('reviewModal'));
+    if (reviewModal) reviewModal.hide();
+
+    setTimeout(function () {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('signatureModal')).show();
+    }, 200);
+}
+
+/* ---- Dynamic Theme Helpers & Signature Pad ---- */
+let sigCanvas, sigCtx, sigDrawing = false, sigHasDrawn = false;
+let currentPenColor = '#000000';
+
+function isDarkMode() {
+    const modalContent = document.querySelector('#signatureModal .modal-content');
+    if (modalContent) {
+        const bg = window.getComputedStyle(modalContent).backgroundColor;
+        // Parse RGB values to determine if background is dark
+        const rgb = bg.match(/\d+/g);
+        if (rgb && rgb.length >= 3) {
+            const brightness = (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000;
+            return brightness < 128;
         }
-    });
+    }
+    return document.documentElement.getAttribute('data-bs-theme') === 'dark' || 
+           document.documentElement.dataset.theme === 'dark' ||
+           document.body.classList.contains('dark-mode');
+}
+
+function getDefaultPenColor() {
+    return isDarkMode() ? '#ffffff' : '#000000';
+}
+
+function applyThemeToSignaturePad() {
+    const wrapper = document.getElementById('sig-pad-wrapper');
+    const colorPicker = document.getElementById('pen-color-picker');
+    const dark = isDarkMode();
+
+    if (wrapper) {
+        wrapper.style.backgroundColor = dark ? '#1b2234' : '#ffffff';
+        wrapper.style.borderColor = dark ? '#2b354f' : '#dee2e6';
+    }
+
+    currentPenColor = getDefaultPenColor();
+    if (colorPicker) {
+        colorPicker.value = currentPenColor;
+    }
+    if (sigCtx) {
+        sigCtx.strokeStyle = currentPenColor;
+    }
+}
+
+function initSignaturePad() {
+    sigCanvas = document.getElementById('signature-pad');
+    if (!sigCanvas) return;
+
+    const rect = sigCanvas.getBoundingClientRect();
+    if (rect.width === 0) return;
+
+    const ratio = window.devicePixelRatio || 1;
+    sigCanvas.width = rect.width * ratio;
+    sigCanvas.height = rect.height * ratio;
+
+    sigCtx = sigCanvas.getContext('2d');
+    sigCtx.scale(ratio, ratio);
+    sigCtx.lineWidth = 2.5;
+    sigCtx.lineCap = 'round';
+    sigCtx.lineJoin = 'round';
+
+    applyThemeToSignaturePad();
+
+    if (!sigCanvas.dataset.listenersAdded) {
+        sigCanvas.dataset.listenersAdded = '1';
+
+        function getPos(e) {
+            const r = sigCanvas.getBoundingClientRect();
+            const point = e.touches ? e.touches[0] : e;
+            return {
+                x: point.clientX - r.left,
+                y: point.clientY - r.top
+            };
+        }
+
+        function start(e) {
+            e.preventDefault();
+            sigDrawing = true;
+            sigHasDrawn = true;
+            const pos = getPos(e);
+            sigCtx.beginPath();
+            sigCtx.moveTo(pos.x, pos.y);
+        }
+
+        function move(e) {
+            if (!sigDrawing) return;
+            e.preventDefault();
+            const pos = getPos(e);
+            sigCtx.lineTo(pos.x, pos.y);
+            sigCtx.stroke();
+        }
+
+        function end() {
+            sigDrawing = false;
+        }
+
+        sigCanvas.addEventListener('mousedown', start);
+        sigCanvas.addEventListener('mousemove', move);
+        sigCanvas.addEventListener('mouseup', end);
+        sigCanvas.addEventListener('mouseleave', end);
+        sigCanvas.addEventListener('touchstart', start, { passive: false });
+        sigCanvas.addEventListener('touchmove', move, { passive: false });
+        sigCanvas.addEventListener('touchend', end);
+    }
+}
+
+function changePenColor(color) {
+    currentPenColor = color;
+    if (sigCtx) {
+        sigCtx.strokeStyle = color;
+    }
+}
+
+function clearSignaturePad() {
+    sigHasDrawn = false;
+    if (sigCtx && sigCanvas) {
+        sigCtx.save();
+        sigCtx.setTransform(1, 0, 0, 1, 0, 0);
+        sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+        sigCtx.restore();
+    }
+}
+
+document.addEventListener('shown.bs.modal', function (e) {
+    if (e.target && e.target.id === 'signatureModal') {
+        initSignaturePad();
+        clearSignaturePad();
+    }
 });
 
-function viewDetails(id) {
-    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
-    modal.show();
+// Global callback variable for modal confirmation
+let onConfirmCallback = null;
+
+function showConfirmModal(message, onConfirm) {
+    document.getElementById('confirmModalBody').textContent = message;
+    onConfirmCallback = onConfirm;
+    
+    // Hide signature modal temporarily so they don't stack awkwardly
+    const sigModal = bootstrap.Modal.getInstance(document.getElementById('signatureModal'));
+    if (sigModal) sigModal.hide();
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmActionModal')).show();
 }
-function verifyDocs(id) {
-    const modal = new bootstrap.Modal(document.getElementById('verifyModal'));
-    modal.show();
-}
-function returnRequest(id) {
-    const modal = new bootstrap.Modal(document.getElementById('returnModal'));
-    modal.show();
-}
-function forwardRequest() {
-    alert('Request forwarded to Department Head.');
-    bootstrap.Modal.getInstance(document.getElementById('detailsModal')).hide();
-}
-function confirmVerify() {
-    alert('Documents verified and request forwarded.');
-    bootstrap.Modal.getInstance(document.getElementById('verifyModal')).hide();
-}
-function forwardSelected() {
-    const selected = document.querySelectorAll('.row-select:checked').length;
-    if(selected === 0) {
-        alert('Please select requests to forward.');
-        return;
+
+// Attach event handler to the modal confirm button once
+document.addEventListener('DOMContentLoaded', function() {
+    const submitBtn = document.getElementById('confirmModalSubmitBtn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', function() {
+            const modalEl = document.getElementById('confirmActionModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+            
+            if (typeof onConfirmCallback === 'function') {
+                onConfirmCallback();
+            }
+        });
     }
-    if(confirm('Forward ' + selected + ' selected requests to Department Head?')) {
-        alert('Requests forwarded!');
-    }
-}
-function returnSelected() {
-    const selected = document.querySelectorAll('.row-select:checked').length;
-    if(selected === 0) {
-        alert('Please select requests to return.');
-        return;
-    }
-    const modal = new bootstrap.Modal(document.getElementById('returnModal'));
-    modal.show();
-}
-document.getElementById('selectAll')?.addEventListener('change', function() {
-    document.querySelectorAll('.row-select').forEach(cb => cb.checked = this.checked);
 });
+
+function confirmSignature() {
+    if (!sigHasDrawn) {
+        alert('Please draw your signature first.');
+        return;
+    }
+    if (!currentReviewId) return;
+
+    showConfirmModal('Sign and submit this leave application to the Department Head?', function() {
+        const dataUrl = sigCanvas.toDataURL('image/png');
+
+        document.getElementById('saf-action').value = 'screen_approve';
+        document.getElementById('saf-request-id').value = currentReviewId;
+        document.getElementById('saf-comment').value = '';
+        document.getElementById('saf-signature').value = dataUrl;
+        document.getElementById('screeningActionForm').submit();
+    });
+}
+
+document.addEventListener('shown.bs.modal', function (e) {
+    if (e.target && e.target.id === 'signatureModal') {
+        initSignaturePad();
+        clearSignaturePad();
+    }
+});
+
+function viewSignature(dataUrl) {
+    document.getElementById('vs-img').src = dataUrl;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('viewSignatureModal')).show();
+}
+
+function openReturnModal() {
+    const reviewModal = bootstrap.Modal.getInstance(document.getElementById('reviewModal'));
+    if (reviewModal) reviewModal.hide();
+
+    document.getElementById('return-reason').value = '';
+    setTimeout(function () {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('returnModal')).show();
+    }, 200);
+}
+
+function confirmReturn() {
+    const reason = document.getElementById('return-reason').value.trim();
+    if (!reason) {
+        alert('Please provide a reason for returning this leave request.');
+        return;
+    }
+    if (!currentReviewId) return;
+
+    document.getElementById('saf-action').value = 'screen_return';
+    document.getElementById('saf-request-id').value = currentReviewId;
+    document.getElementById('saf-comment').value = reason;
+    document.getElementById('screeningActionForm').submit();
+}
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

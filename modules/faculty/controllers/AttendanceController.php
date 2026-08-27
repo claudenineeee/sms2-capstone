@@ -69,7 +69,11 @@ class AttendanceController {
             $stats       = $this->model->getDepartmentStats($deptId, $today) ?? [];
         }
 
-        require_once __DIR__ . '/../views/department-head/daily-attendance-log.php';
+        // CHANGED: your explorer shows this view actually lives under
+        // views/monitoring-officer/, not views/department-head/. If you
+        // genuinely have both views/pages and this one is intentional,
+        // revert this line back to 'department-head'.
+        require_once __DIR__ . '/../views/monitoring-officer/daily-attendance-log.php';
     }
 
     /**
@@ -122,11 +126,45 @@ class AttendanceController {
 
             $userId = function_exists('getCurrentUserId') ? getCurrentUserId() : ($_SESSION['user_id'] ?? null);
 
+            // CHANGED: this is the permanent fix for the recurring
+            // fk_sessions_faculty errors. The dropdown is populated from
+            // faculty_profiles, but class_attendance_sessions requires a
+            // matching row in the separate `faculty` table. Instead of
+            // needing a manual SQL sync every time someone new is approved,
+            // auto-create that row right here if it doesn't exist yet.
+            $facultyProfileId = (int) $input['faculty_id'];
+            $syncedFacultyId = $this->model->getOrCreateFacultyRecord($facultyProfileId);
+            if (!$syncedFacultyId) {
+                ob_clean();
+                http_response_code(422);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Selected faculty profile could not be found.'
+                ]);
+                return;
+            }
+
+            // CHANGED: the form sends subject_code / room_code as typed text
+            // (e.g. "SIA-201", "403-B"), not numeric IDs. Previously the code
+            // only looked for 'subject_id' (never sent, so always fell back
+            // to 1) and never looked at room at all. Resolve both through
+            // the model's get-or-create helpers so what you type actually
+            // gets saved and shown in Recent Logs.
+            $subjectId = $this->model->getOrCreateSubjectId(
+                $input['subject_code'] ?? '',
+                is_numeric($deptId) ? $deptId : null
+            );
+            $roomId = $this->model->getOrCreateRoomId(
+                $input['room_code'] ?? '',
+                $campusId
+            );
+
             $payload = [
                 'department_id'      => $deptId,
                 'campus_id'          => $campusId,
                 'faculty_id'         => (int) $input['faculty_id'],
-                'subject_id'         => isset($input['subject_id']) ? (int) $input['subject_id'] : 1,
+                'subject_id'         => $subjectId,
+                'room_id'            => $roomId,
                 'session_date'       => date('Y-m-d'),
                 'time_slot'          => trim((string) $input['time_slot']),
                 'attending_students' => (int) $input['attending_students'],
@@ -166,20 +204,20 @@ class AttendanceController {
 }
 
 if (isset($_GET['action'])) {
-    // Attempt multi-path lookup to guarantee config loading
-    $possibleConfigs = [
-        __DIR__ . '/../../../config/config.php',
-        __DIR__ . '/../../../../config/config.php',
-        __DIR__ . '/../../config/config.php',
-        $_SERVER['DOCUMENT_ROOT'] . '/sms2-capstone/config/config.php'
-    ];
 
-    foreach ($possibleConfigs as $configPath) {
-        if (file_exists($configPath)) {
-            require_once $configPath;
-            break;
-        }
-    }
+    // ------------------------------------------------------------------
+    // CHANGED (real fix): config.php only defines constants like BASE_URL
+    // and APP_NAME — it never defined db() or facultyDb(). Those live in:
+    //   - config/database.php   -> defines db() (and itself requires
+    //                              config.php internally, so we don't
+    //                              need to require config.php separately)
+    //   - modules/faculty/controllers/faculty-data.php -> defines
+    //                              facultyDb(), which just wraps db()
+    // That's exactly why db() and facultyDb() both showed "exists: no"
+    // in the debug output — neither file was ever being loaded here.
+    // ------------------------------------------------------------------
+    require_once __DIR__ . '/../../../config/database.php'; // defines db()
+    require_once __DIR__ . '/faculty-data.php';              // defines facultyDb() — same folder as this file
 
     // Resolve active PDO instance from available helper functions or globals
     $pdo = null;
@@ -191,6 +229,25 @@ if (isset($_GET['action'])) {
         $pdo = getDBConnection();
     } elseif (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof \PDO) {
         $pdo = $GLOBALS['pdo'];
+    }
+
+    // Fail loudly and specifically here instead of letting a null $pdo
+    // silently flow into the model and surface later as the generic
+    // "Database connection is missing" error from deep inside ensureDb().
+    // If you still see this message after the fix above, it means
+    // getDatabaseConnection() in database.php is throwing — check that
+    // MySQL is actually running in XAMPP and that DB_NAME/DB_USER/DB_PASS
+    // (or config/local.php overrides) match your actual database.
+    if (!$pdo) {
+        ob_start();
+        header('Content-Type: application/json; charset=utf-8');
+        ob_clean();
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Config loaded but no valid PDO connection is available (check db()/facultyDb() and DB credentials).'
+        ]);
+        exit;
     }
 
     $controller = new AttendanceController($pdo);

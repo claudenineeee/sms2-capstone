@@ -5,7 +5,28 @@
  */
 require_once __DIR__ . '/../../../../config/config.php';
 
+// This page reads $_SESSION (to identify the current faculty member) before
+// includes/layout-start.php runs later in the file. config.php alone does
+// NOT start the session - that only happens inside config/session.php,
+// which is pulled in by includes/authentication.php. Without this require,
+// PHP never starts the app's named "SMS2SESSID" session on this page, so
+// every $_SESSION read below comes back empty even when the user is
+// properly logged in elsewhere on the site.
+require_once ROOT_PATH . '/includes/authentication.php';
+
 // 1. Establish Database Connection
+//
+// facultyDb() lives in modules/faculty/config/database.php - a SEPARATE
+// file from the root config/database.php that authentication.php loads
+// (which only connects to sms2_db). Nothing was requiring this file, so
+// facultyDb() was always undefined here and the page silently fell through
+// to the sms2_db connection via the "$conn ?? $db" guess below.
+require_once __DIR__ . '/../../config/database.php';
+
+if (function_exists('facultyDb')) {
+    $pdo = facultyDb();
+}
+
 if (!isset($pdo) || !$pdo) {
     $pdo = $conn ?? $db ?? null;
 }
@@ -38,18 +59,59 @@ $breadcrumbs  = [
 ];
 
 // 2. Identify Current User & Department
-$currentUserId  = $_SESSION['user_id'] ?? $_SESSION['id'] ?? 0;
-$currentFaculty = null;
-$userDept       = null;
+//
+// NOTE: faculty_profiles.id is NOT the same identifier as faculty.faculty_id.
+// The evaluations table's foreign keys (evaluator_id, faculty_id) point at
+// faculty.faculty_id, so we bridge the two tables here via faculty_no/email
+// and resolve the REAL faculty_id up front. Everything downstream (peer list,
+// modal submission) uses that real id, never faculty_profiles.id.
+//
+// CONFIRMED against includes/authentication.php -> smsCompleteLoginSession():
+// login sets $_SESSION['user_id']    = users.id
+//            $_SESSION['user_email'] = users.email
+// These are the two keys we bridge on. (faculty_id / id / uid were earlier
+// guesses that turned out not to exist in this codebase - removed.)
+$currentUserId = (int)($_SESSION['user_id'] ?? 0);
+$sessionEmail  = $_SESSION['user_email'] ?? null;
 
-if ($currentUserId) {
+$currentFaculty      = null;
+$userDept            = null;
+$evaluatorProfileId  = 0;    // faculty_profiles.id (only used to exclude self from the list)
+$evaluatorFacultyId  = null; // faculty.faculty_id (the id evaluations must use)
+
+if ($currentUserId || $sessionEmail) {
     try {
-        $stmt = $pdo->prepare("SELECT id, designated_department FROM faculty_profiles WHERE user_id = :user_id OR id = :id LIMIT 1");
-        $stmt->execute(['user_id' => $currentUserId, 'id' => $currentUserId]);
+        $stmt = $pdo->prepare("
+            SELECT fp.id, fp.designated_department, fp.email, fp.faculty_id AS profile_faculty_no,
+                   f.faculty_id AS real_faculty_id
+            FROM faculty_profiles fp
+            LEFT JOIN faculty f ON f.faculty_id = (
+                SELECT f2.faculty_id
+                FROM faculty f2
+                WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+                   OR f2.faculty_no = fp.faculty_id
+                ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+                LIMIT 1
+            )
+            WHERE fp.user_id = :uid1
+               OR fp.id = :uid2
+               OR (:email1 IS NOT NULL AND fp.email = :email2)
+            LIMIT 1
+        ");
+        $stmt->execute([
+            'uid1'   => $currentUserId,
+            'uid2'   => $currentUserId,
+            'email1' => $sessionEmail,
+            'email2' => $sessionEmail
+        ]);
         $currentFaculty = $stmt->fetch();
-        
+
         if ($currentFaculty) {
-            $userDept = trim($currentFaculty['designated_department'] ?? '');
+            $userDept           = trim($currentFaculty['designated_department'] ?? '');
+            $evaluatorProfileId = (int)$currentFaculty['id'];
+            $evaluatorFacultyId = $currentFaculty['real_faculty_id'] !== null
+                ? (int)$currentFaculty['real_faculty_id']
+                : null;
         }
     } catch (PDOException $e) {
         $userDept = null;
@@ -61,47 +123,68 @@ if (empty($userDept)) {
     $userDept = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? '');
 }
 
-// 3. Fetch Department Peers from faculty_profiles
+// 3. Fetch Department Peers from faculty_profiles, mapped to their real faculty.faculty_id
 $peers = [];
-$evaluatorId = $currentFaculty['id'] ?? $currentUserId;
 
 if (!empty($userDept)) {
-    // Primary query: match department ignoring status case/whitespace
+    // Primary query: match department ignoring status case/whitespace.
+    // Unevaluated peers first, completed ones pushed down, unlinked ones last.
     $stmt = $pdo->prepare("
         SELECT 
-            fp.id, 
+            fp.id AS profile_id,
+            f.faculty_id AS id,
             fp.faculty_id AS employee_id, 
             fp.first_name, 
             fp.last_name, 
             fp.designated_department AS department,
             fp.position,
-            (SELECT COUNT(*) 
-             FROM evaluations e 
-             WHERE e.evaluator_id = :evaluator_id 
-               AND e.faculty_id = fp.id
-               AND e.source_type = 'Peer'
+            (
+                SELECT COUNT(*) 
+                FROM evaluations e 
+                WHERE e.evaluator_id = :evaluator_id 
+                  AND e.faculty_id = f.faculty_id
+                  AND e.source_type = 'Peer'
             ) AS evaluation_count
         FROM faculty_profiles fp
+        LEFT JOIN faculty f ON f.faculty_id = (
+            SELECT f2.faculty_id
+            FROM faculty f2
+            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+               OR f2.faculty_no = fp.faculty_id
+            ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+            LIMIT 1
+        )
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:department)
-          AND fp.id != :evaluator_id
+          AND fp.id != :profile_id
           AND (fp.user_id != :current_user_id OR fp.user_id IS NULL)
-        ORDER BY fp.last_name ASC
+        ORDER BY
+            CASE
+                WHEN f.faculty_id IS NULL THEN 2
+                WHEN evaluation_count > 0 THEN 1
+                ELSE 0
+            END ASC,
+            fp.last_name ASC,
+            fp.first_name ASC
     ");
 
     $stmt->execute([
         'department'      => $userDept,
         'current_user_id' => $currentUserId,
-        'evaluator_id'    => $evaluatorId
+        'profile_id'      => $evaluatorProfileId,
+        'evaluator_id'    => $evaluatorFacultyId ?? 0
     ]);
 
     $peers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Fallback Query: If department is unassigned or returns zero records, retrieve all other faculty
+// Fallback Query: only runs if the department is unknown/empty or matched
+// nobody. This intentionally has NO department filter - keep it that way,
+// it's meant to show everyone as a last resort, not a department list.
 if (empty($peers)) {
     $stmt = $pdo->prepare("
         SELECT 
-            fp.id, 
+            fp.id AS profile_id,
+            f.faculty_id AS id,
             fp.faculty_id AS employee_id, 
             fp.first_name, 
             fp.last_name, 
@@ -110,23 +193,41 @@ if (empty($peers)) {
             (SELECT COUNT(*) 
              FROM evaluations e 
              WHERE e.evaluator_id = :evaluator_id 
-               AND e.faculty_id = fp.id
+               AND e.faculty_id = f.faculty_id
                AND e.source_type = 'Peer'
             ) AS evaluation_count
         FROM faculty_profiles fp
-        WHERE fp.id != :evaluator_id
-        ORDER BY fp.last_name ASC
+        LEFT JOIN faculty f ON f.faculty_id = (
+            SELECT f2.faculty_id
+            FROM faculty f2
+            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+               OR f2.faculty_no = fp.faculty_id
+            ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+            LIMIT 1
+        )
+        WHERE fp.id != :profile_id
+        ORDER BY
+            CASE
+                WHEN f.faculty_id IS NULL THEN 2
+                WHEN evaluation_count > 0 THEN 1
+                ELSE 0
+            END ASC,
+            fp.last_name ASC,
+            fp.first_name ASC
     ");
 
-    $stmt->execute(['evaluator_id' => $evaluatorId]);
+    $stmt->execute([
+        'profile_id'   => $evaluatorProfileId,
+        'evaluator_id' => $evaluatorFacultyId ?? 0
+    ]);
     $peers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Calculate Statistics
+// Calculate Statistics (only faculty records that are actually linked & evaluable count toward "peers")
 $totalPeers = count($peers);
 $evaluatedCount = 0;
 foreach ($peers as $p) {
-    if ($p['evaluation_count'] > 0) {
+    if (!empty($p['id']) && $p['evaluation_count'] > 0) {
         $evaluatedCount++;
     }
 }
@@ -150,6 +251,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </span>
     </div>
 </div>
+
+<?php if (empty($evaluatorFacultyId)): ?>
+    <div class="alert alert-warning border-warning-subtle bg-warning-subtle text-warning-emphasis d-flex align-items-center gap-2 mb-3" role="alert">
+        <i class="fas fa-triangle-exclamation fs-5 flex-shrink-0"></i>
+        <div class="small">
+            <strong>Your account isn't linked to an official faculty record yet.</strong>
+            You can browse this directory, but evaluation submissions will be blocked until your profile is linked. Please contact the administrator.
+        </div>
+    </div>
+<?php endif; ?>
 
 <!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
@@ -246,7 +357,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 $fullName  = htmlspecialchars('Prof. ' . $peer['first_name'] . ' ' . $peer['last_name']);
                                 $initials  = strtoupper(substr($peer['first_name'], 0, 1) . substr($peer['last_name'], 0, 1));
                                 $facId     = htmlspecialchars($peer['employee_id'] ?? $peer['id']);
-                                $isDone    = $peer['evaluation_count'] > 0;
+                                $isLinked  = !empty($peer['id']);
+                                $isDone    = $isLinked && $peer['evaluation_count'] > 0;
                                 $searchStr = strtolower($fullName . ' ' . $facId);
                             ?>
                             <tr class="peer-row border-bottom border-secondary-subtle" 
@@ -264,13 +376,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     </div>
                                 </td>                      
                                 <td class="text-end pe-3">
-                                    <?php if ($isDone): ?>
+                                    <?php if (!$isLinked): ?>
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill px-3 py-2 fw-bold text-uppercase border-0"
+                                              title="This profile has no linked faculty record yet and cannot be evaluated. Contact the administrator.">
+                                            NOT LINKED
+                                        </span>
+                                    <?php elseif ($isDone): ?>
                                         <span class="badge bg-success-subtle text-success-emphasis rounded-pill px-3 py-2 fw-bold text-uppercase border-0">DONE</span>
                                     <?php else: ?>
                                         <button class="btn btn-primary rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center justify-content-center" 
                                                 onclick="openEvaluationModal('<?= $peer['id'] ?>', '<?= addslashes($fullName) ?>', '<?= htmlspecialchars($peer['department']) ?>')" 
                                                 title="Evaluate Now" 
-                                                aria-label="Evaluate Now">
+                                                aria-label="Evaluate Now"
+                                                <?= empty($evaluatorFacultyId) ? 'disabled' : '' ?>>
                                             <i class="fas fa-star text-white"></i>
                                         </button>
                                     <?php endif; ?>
@@ -307,7 +425,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <!-- Peer Evaluation Rating Form Modal -->
 <div class="modal fade" id="evaluateFacultyModal" tabindex="-1" aria-labelledby="evaluateFacultyModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content bg-body text-body border-secondary-subtle shadow-lg">           
+        <div class="modal-content bg-body text-body border-secondary-subtle shadow-lg">     
             <form action="../../controllers/ProcessPeerEvaluationController.php" method="POST" id="peerEvaluationForm" class="d-flex flex-column">
                 <input type="hidden" name="faculty_id" id="modalFacultyId">
                 <div class="modal-header bg-body-tertiary border-bottom border-secondary-subtle py-3">

@@ -139,9 +139,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     </td>
                                     <td class="text-center align-middle text-nowrap">
                                         <?php if (($dept['status'] ?? 'Active') === 'Active'): ?>
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Active</span>
+                                            <span class="badge text-bg-success px-2 py-1 fw-bold">Active</span>
                                         <?php else: ?>
-                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Inactive</span>
+                                            <span class="badge text-bg-danger px-2 py-1 fw-bold">Inactive</span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-center align-middle text-nowrap">
@@ -149,10 +149,23 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                             <input type="hidden" name="action" value="toggle_status">
                                             <input type="hidden" name="dept_id" value="<?= $dept['department_id'] ?>">
                                             <input type="hidden" name="current_status" value="<?= $dept['status'] ?? 'Active' ?>">
-                                            <button type="submit" class="btn btn-sm <?= ($dept['status'] ?? 'Active') === 'Active' ? 'btn-outline-warning' : 'btn-outline-success' ?> rounded-3 fw-semibold text-nowrap px-2 py-1">
-                                                <i class="fas <?= ($dept['status'] ?? 'Active') === 'Active' ? 'fa-ban' : 'fa-check' ?> me-1"></i>
-                                                <?= ($dept['status'] ?? 'Active') === 'Active' ? 'Deactivate' : 'Activate' ?>
-                                            </button>
+                                            <?php if (($dept['status'] ?? 'Active') === 'Active'): ?>
+                                                <button type="submit" 
+                                                        class="btn btn-sm btn-outline-warning p-0 d-inline-flex align-items-center justify-content-center rounded-2" 
+                                                        style="width: 32px; height: 32px;" 
+                                                        data-bs-toggle="tooltip" 
+                                                        title="Deactivate Department">
+                                                    <i class="fas fa-ban"></i>
+                                                </button>
+                                            <?php else: ?>
+                                                <button type="submit" 
+                                                        class="btn btn-sm btn-outline-success p-0 d-inline-flex align-items-center justify-content-center rounded-2" 
+                                                        style="width: 32px; height: 32px;" 
+                                                        data-bs-toggle="tooltip" 
+                                                        title="Activate Department">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            <?php endif; ?>
                                         </form>
                                     </td>
                                 </tr>
@@ -199,5 +212,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

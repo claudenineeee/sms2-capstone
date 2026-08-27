@@ -143,7 +143,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
             <h1 class="h4 h3-md text-body mb-1 d-flex align-items-center gap-2">
-                <i class="fas fa-user-clock text-warning"></i>
+                <i class="fas fa-user-clock text-sms-primary me-2"></i>
                 <span>Pending Account Approvals</span>
             </h1>
             <p class="text-body-secondary small mb-0">Review and verify faculty accounts requested by Department Heads.</p>
@@ -166,60 +166,84 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     <!-- Summary Cards Section -->
     <div class="row g-2 g-md-3 mb-4">
-        <div class="col-12 col-sm-6 col-md-3">
-            <div class="card bg-body-tertiary border border-light-subtle text-body shadow-sm h-100 rounded-4">
-                <div class="card-body p-3 d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-body-secondary small text-uppercase fw-bold fs-7">Awaiting Review</span>
-                        <h2 class="mb-0 mt-1 fw-bold text-warning fs-3 fs-md-2"><?= $totalPending ?></h2>
-                    </div>
-                    <div class="rounded-circle bg-warning bg-opacity-20 p-2 p-md-3 text-warning fs-4 fs-md-3">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <section class="card stat-card warning border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-warning fs-4">
                         <i class="fas fa-user-clock"></i>
                     </div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Awaiting Review</h6>
+                        <h4 class="mb-0 fw-bold"><?= $totalPending ?></h4>
+                        <small class="text-warning fw-semibold" style="font-size: 0.75rem;">
+                            <i class="fas fa-hourglass-half me-1"></i>Action needed
+                        </small>
+                    </div>
                 </div>
-            </div>
+                <a href="#pendingTableBody" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Requests">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
         </div>
 
-        <div class="col-12 col-sm-6 col-md-3">
-            <div class="card bg-body-tertiary border border-light-subtle text-body shadow-sm h-100 rounded-4">
-                <div class="card-body p-3 d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-body-secondary small text-uppercase fw-bold fs-7">Departments</span>
-                        <h2 class="mb-0 mt-1 fw-bold text-info fs-3 fs-md-2"><?= $uniqueDepts ?></h2>
-                    </div>
-                    <div class="rounded-circle bg-info bg-opacity-20 p-2 p-md-3 text-info fs-4 fs-md-3">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <section class="card stat-card info border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-info fs-4">
                         <i class="fas fa-building"></i>
                     </div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Departments</h6>
+                        <h4 class="mb-0 fw-bold"><?= $uniqueDepts ?></h4>
+                        <small class="text-info fw-semibold" style="font-size: 0.75rem;">
+                            <i class="fas fa-layer-group me-1"></i>Active units
+                        </small>
+                    </div>
                 </div>
-            </div>
+                <a href="#pendingTableBody" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Departments">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
         </div>
 
-        <div class="col-12 col-sm-6 col-md-3">
-            <div class="card bg-body-tertiary border border-light-subtle text-body shadow-sm h-100 rounded-4">
-                <div class="card-body p-3 d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-body-secondary small text-uppercase fw-bold fs-7">Full-Time Requests</span>
-                        <h2 class="mb-0 mt-1 fw-bold text-success fs-3 fs-md-2"><?= $fullTimeCount ?></h2>
-                    </div>
-                    <div class="rounded-circle bg-success bg-opacity-20 p-2 p-md-3 text-success fs-4 fs-md-3">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <section class="card stat-card success border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-success fs-4">
                         <i class="fas fa-briefcase"></i>
                     </div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Full-Time Requests</h6>
+                        <h4 class="mb-0 fw-bold"><?= $fullTimeCount ?></h4>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                            <i class="fas fa-user-check me-1"></i>Regular staff
+                        </small>
+                    </div>
                 </div>
-            </div>
+                <a href="#pendingTableBody" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Full-Time">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
         </div>
 
-        <div class="col-12 col-sm-6 col-md-3">
-            <div class="card bg-body-tertiary border border-light-subtle text-body shadow-sm h-100 rounded-4">
-                <div class="card-body p-3 d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-body-secondary small text-uppercase fw-bold fs-7">Part-Time / Other</span>
-                        <h2 class="mb-0 mt-1 fw-bold text-primary fs-3 fs-md-2"><?= $partTimeCount ?></h2>
-                    </div>
-                    <div class="rounded-circle bg-primary bg-opacity-20 p-2 p-md-3 text-primary fs-4 fs-md-3">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <section class="card stat-card primary border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-primary fs-4">
                         <i class="fas fa-clock"></i>
                     </div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Part-Time / Other</h6>
+                        <h4 class="mb-0 fw-bold"><?= $partTimeCount ?></h4>
+                        <small class="text-primary fw-semibold" style="font-size: 0.75rem;">
+                            <i class="fas fa-user-clock me-1"></i>Adjunct & non-regular
+                        </small>
+                    </div>
                 </div>
-            </div>
+                <a href="#pendingTableBody" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Part-Time">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
         </div>
     </div>
 

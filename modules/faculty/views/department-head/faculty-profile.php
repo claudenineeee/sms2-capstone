@@ -99,76 +99,105 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
 <!-- Page Header -->
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
-        <h1><i class="fas fa-user text-purple me-2"></i>Faculty Profile</h1>
-    </div>
-    <div class="d-flex flex-wrap gap-1.5 gap-sm-2">
-        <button class="btn btn-sm btn-sms-primary flex-fill flex-sm-grow-0 py-2 px-3 d-inline-flex align-items-center justify-content-center">
-            <i class="fas fa-file-pdf me-1.5"></i>
-            <span>Download<span class="d-inline d-sm-none"> CV</span><span class="d-none d-sm-inline"> CV</span></span>
-        </button>
+        <h1>
+            <i class="fas fa-chalkboard-teacher text-sms-primary me-2"></i>
+            Faculty Profile
+        </h1>
     </div>
 </div>
 
 <div class="container-fluid py-4">
     <!-- Top Stats Bar -->
     <div class="row g-3 mb-4">
+        <!-- Card 1: Total Faculty -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm p-3 bg-body-tertiary">
-                <div class="d-flex align-items-center">
-                    <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-3 me-3">
-                        <i class="fas fa-users fa-lg"></i>
+            <section class="card stat-card primary border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-primary fs-4">
+                        <i class="fas fa-users"></i>
                     </div>
                     <div>
-                        <span class="text-body-secondary small fw-semibold">Total Faculty</span>
-                        <h4 class="fw-bold mb-0"><?= $totalFaculty ?></h4>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Faculty</h6>
+                        <h4 class="mb-0 fw-bold"><?= $totalFaculty ?></h4>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                            <i class="fas fa-arrow-trend-up me-1"></i>+2.5% <span class="text-muted fw-normal">from last month</span>
+                        </small>
                     </div>
                 </div>
-            </div>
+                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
         </div>
+
+        <!-- Card 2: Full-Time / Regular -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm p-3 bg-body-tertiary">
-                <div class="d-flex align-items-center">
-                    <div class="p-3 bg-success bg-opacity-10 text-success rounded-3 me-3">
-                        <i class="fas fa-user-check fa-lg"></i>
+            <section class="card stat-card success border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-success fs-4">
+                        <i class="fas fa-user-check"></i>
                     </div>
                     <div>
-                        <span class="text-body-secondary small fw-semibold">Full-Time / Regular</span>
-                        <h4 class="fw-bold mb-0"><?= $regularCount ?></h4>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Full-Time / Regular</h6>
+                        <h4 class="mb-0 fw-bold"><?= $regularCount ?></h4>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                            <i class="fas fa-arrow-trend-up me-1"></i>Active <span class="text-muted fw-normal">status</span>
+                        </small>
                     </div>
                 </div>
-            </div>
+                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
         </div>
+
+        <!-- Card 3: Part-Time / Contract -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm p-3 bg-body-tertiary">
-                <div class="d-flex align-items-center">
-                    <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3 me-3">
-                        <i class="fas fa-book-reader fa-lg"></i>
+            <section class="card stat-card warning border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-warning fs-4">
+                        <i class="fas fa-book-reader"></i>
                     </div>
                     <div>
-                        <span class="text-body-secondary small fw-semibold">Part-Time / Contract</span>
-                        <h4 class="fw-bold mb-0"><?= $partTimeCount ?></h4>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Part-Time / Contract</h6>
+                        <h4 class="mb-0 fw-bold"><?= $partTimeCount ?></h4>
+                        <small class="text-muted fw-normal" style="font-size: 0.75rem;">
+                            Updated this term
+                        </small>
                     </div>
                 </div>
-            </div>
+                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
         </div>
+
+        <!-- Card 4: Dept Avg Rating -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm p-3 bg-body-tertiary">
-                <div class="d-flex align-items-center">
-                    <div class="p-3 bg-info bg-opacity-10 text-info rounded-3 me-3">
-                        <i class="fas fa-star fa-lg"></i>
+            <section class="card stat-card info border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-info fs-4">
+                        <i class="fas fa-star"></i>
                     </div>
                     <div>
-                        <span class="text-body-secondary small fw-semibold">Dept Avg Rating</span>
-                        <h4 class="fw-bold mb-0">4.52</h4>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Dept Avg Rating</h6>
+                        <h4 class="mb-0 fw-bold">4.52</h4>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;">
+                            <i class="fas fa-arrow-trend-up me-1"></i>+0.3 <span class="text-muted fw-normal">vs last term</span>
+                        </small>
                     </div>
                 </div>
-            </div>
+                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
         </div>
     </div>
 
-    <!-- Directory Controls: Search & Filters -->
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body p-3">
+    <!-- Main Content Card (Contains Search, Filters, Table & Pagination) -->
+    <div class="card border-0 shadow-sm">
+        <!-- Directory Controls: Search & Filters -->
+        <div class="card-body border-bottom p-3">
             <div class="row g-2 align-items-center">
                 <!-- Search Input -->
                 <div class="col-12 col-md-5">
@@ -178,17 +207,6 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                         </span>
                         <input id="directorySearch" type="text" class="form-control border-start-0 bg-body-tertiary" placeholder="Search by name, ID, or email...">
                     </div>
-                </div>
-
-                <!-- Rank Filter -->
-                <div class="col-6 col-md-3">
-                    <select id="rankFilter" class="form-select bg-body-tertiary">
-                        <option value="all">All Ranks</option>
-                        <option value="professor">Professor</option>
-                        <option value="associate">Associate Professor</option>
-                        <option value="assistant">Assistant Professor</option>
-                        <option value="instructor">Instructor</option>
-                    </select>
                 </div>
 
                 <!-- Employment Type Filter -->
@@ -202,130 +220,134 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Faculty Member Table -->
-    <?php if (count($facultyProfiles) === 0): ?>
-        <div class="alert alert-info rounded-3">
-            No faculty profiles are available for your assigned department.
-        </div>
-    <?php else: ?>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle" id="facultyTable">
-                <thead class="table-light">
-                    <tr>
-                        <th scope="col">Photo</th>
-                        <th scope="col">Faculty ID</th>
-                        <th scope="col">Name</th>
-                        <th scope="col">Department</th>
-                        <th scope="col">Position</th>
-                        <th scope="col">Status</th>
-                        <th scope="col" class="text-end">Action</th>
-                    </tr>
-                </thead>
-                <tbody id="facultyTableBody">
-                    <?php foreach ($facultyProfiles as $profile): ?>
-                        <?php
-                            $fullName = function_exists('buildFacultyFullName')
-                                ? buildFacultyFullName($profile)
-                                : trim((string) ($profile['first_name'] ?? '') . ' ' . (string) ($profile['middle_name'] ?? '') . ' ' . (string) ($profile['last_name'] ?? ''));
-                            $rawDept = (string) ($profile['designated_department'] ?? $profile['designated_dept'] ?? '');
-                            $departmentLabel = getDepartmentLabel($rawDept);
-                            $employmentStatus = ucwords(strtolower((string) ($profile['employment_status'] ?? '')));
-                            $profileStatus = ucwords(strtolower((string) ($profile['profile_status'] ?? '')));
-                            $academicRank = ucwords(str_replace('_', ' ', strtolower((string) ($profile['academic_rank'] ?? ''))));
-                            $position = ucwords(strtolower((string) ($profile['position'] ?? '')));
-                            $email = trim((string) ($profile['email'] ?? ''));
-                            $facultyId = trim((string) ($profile['faculty_id'] ?? ''));
-                            $birthdate = trim((string) ($profile['birthdate'] ?? ''));
-                            $hiredDate = trim((string) ($profile['hired_date'] ?? ''));
-                            $contractualEnd = trim((string) ($profile['contractual_end'] ?? ''));
-                            $age = $birthdate !== '' ? computeAge($birthdate) : 0;
-                            $initials = implode('', array_slice(array_map(function ($part) {
-                                return strtoupper(substr($part, 0, 1));
-                            }, array_filter(explode(' ', $fullName))), 0, 2));
-                            if ($initials === '') {
-                                $initials = 'NA';
-                            }
-                        ?>
-                        <tr class="faculty-row" 
-                            data-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>" 
-                            data-dept="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>" 
-                            data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>" 
-                            data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" 
-                            data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>" 
-                            data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>" 
-                            data-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>">
-                            <td>
-                                <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center fw-bold" style="width:40px; height:40px;">
-                                    <?= htmlspecialchars($initials, ENT_QUOTES, 'UTF-8') ?>
-                                </div>
-                            </td>
-                            <td class="faculty-id-field fw-semibold text-uppercase"><?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><span class="badge border border-primary text-primary fw-medium px-2 py-1"><?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?></span></td>
-                            <td class="text-capitalize"><?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?></td>
-                            <td class="text-capitalize"><?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?></td>
-                            <td class="text-end">
-                                <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="viewFaculty(this)"
-                                    data-full-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-faculty-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-department-label="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-profile-status="<?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-hired-date="<?= htmlspecialchars($hiredDate, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-contractual-end="<?= htmlspecialchars($contractualEnd, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-sex="<?= htmlspecialchars((string) ($profile['sex'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-birthdate="<?= htmlspecialchars($birthdate, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-phone="<?= htmlspecialchars((string) ($profile['phone'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-warning" onclick="editFaculty(this)"
-                                    data-profile-id="<?= (int) ($profile['id'] ?? 0) ?>"
-                                    data-first-name="<?= htmlspecialchars(trim((string) ($profile['first_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-middle-name="<?= htmlspecialchars(trim((string) ($profile['middle_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-last-name="<?= htmlspecialchars(trim((string) ($profile['last_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-suffix="<?= htmlspecialchars(trim((string) ($profile['suffix'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-full-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-faculty-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-phone="<?= htmlspecialchars((string) ($profile['phone'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-department-code="<?= htmlspecialchars((string) ($profile['designated_dept'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-department-label="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-profile-status="<?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-hired-date="<?= htmlspecialchars($hiredDate, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-contractual-end="<?= htmlspecialchars($contractualEnd, ENT_QUOTES, 'UTF-8') ?>"
-                                    data-sex="<?= htmlspecialchars((string) ($profile['sex'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                    data-birthdate="<?= htmlspecialchars($birthdate, ENT_QUOTES, 'UTF-8') ?>">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+        <!-- Faculty Member Table -->
+        <div class="card-body p-0">
+            <?php if (count($facultyProfiles) === 0): ?>
+                <div class="alert alert-info rounded-3 m-3">
+                    No faculty profiles are available for your assigned department.
+                </div>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="facultyTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col" class="ps-3">Photo</th>
+                                <th scope="col">Faculty ID</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Department</th>
+                                <th scope="col">Position</th>
+                                <th scope="col">Status</th>
+                                <th scope="col" class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="facultyTableBody">
+                            <?php foreach ($facultyProfiles as $profile): ?>
+                                <?php
+                                    $fullName = function_exists('buildFacultyFullName')
+                                        ? buildFacultyFullName($profile)
+                                        : trim((string) ($profile['first_name'] ?? '') . ' ' . (string) ($profile['middle_name'] ?? '') . ' ' . (string) ($profile['last_name'] ?? ''));
+                                    $rawDept = (string) ($profile['designated_department'] ?? $profile['designated_dept'] ?? '');
+                                    $departmentLabel = getDepartmentLabel($rawDept);
+                                    $employmentStatus = ucwords(strtolower((string) ($profile['employment_status'] ?? '')));
+                                    $profileStatus = ucwords(strtolower((string) ($profile['profile_status'] ?? '')));
+                                    $academicRank = ucwords(str_replace('_', ' ', strtolower((string) ($profile['academic_rank'] ?? ''))));
+                                    $position = ucwords(strtolower((string) ($profile['position'] ?? '')));
+                                    $email = trim((string) ($profile['email'] ?? ''));
+                                    $facultyId = trim((string) ($profile['faculty_id'] ?? ''));
+                                    $birthdate = trim((string) ($profile['birthdate'] ?? ''));
+                                    $hiredDate = trim((string) ($profile['hired_date'] ?? ''));
+                                    $contractualEnd = trim((string) ($profile['contractual_end'] ?? ''));
+                                    $age = $birthdate !== '' ? computeAge($birthdate) : 0;
+                                    $initials = implode('', array_slice(array_map(function ($part) {
+                                        return strtoupper(substr($part, 0, 1));
+                                    }, array_filter(explode(' ', $fullName))), 0, 2));
+                                    if ($initials === '') {
+                                        $initials = 'NA';
+                                    }
+                                ?>
+                                <tr class="faculty-row" 
+                                    data-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>" 
+                                    data-dept="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>" 
+                                    data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>" 
+                                    data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" 
+                                    data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>" 
+                                    data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>" 
+                                    data-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>">
+                                    <td class="ps-3">
+                                        <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center fw-bold" style="width:40px; height:40px;">
+                                            <?= htmlspecialchars($initials, ENT_QUOTES, 'UTF-8') ?>
+                                        </div>
+                                    </td>
+                                    <td class="faculty-id-field fw-semibold text-uppercase"><?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><span class="badge border border-primary text-primary fw-medium px-2 py-1"><?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?></span></td>
+                                    <td class="text-capitalize"><?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td class="text-capitalize"><?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td class="text-end pe-3">
+                                        <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="viewFaculty(this)"
+                                            data-full-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-faculty-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-department-label="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-profile-status="<?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-hired-date="<?= htmlspecialchars($hiredDate, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-contractual-end="<?= htmlspecialchars($contractualEnd, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-sex="<?= htmlspecialchars((string) ($profile['sex'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-birthdate="<?= htmlspecialchars($birthdate, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-phone="<?= htmlspecialchars((string) ($profile['phone'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" onclick="editFaculty(this)"
+                                            data-profile-id="<?= (int) ($profile['id'] ?? 0) ?>"
+                                            data-first-name="<?= htmlspecialchars(trim((string) ($profile['first_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-middle-name="<?= htmlspecialchars(trim((string) ($profile['middle_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-last-name="<?= htmlspecialchars(trim((string) ($profile['last_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-suffix="<?= htmlspecialchars(trim((string) ($profile['suffix'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-full-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-faculty-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-phone="<?= htmlspecialchars((string) ($profile['phone'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-department-code="<?= htmlspecialchars((string) ($profile['designated_dept'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-department-label="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-profile-status="<?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-hired-date="<?= htmlspecialchars($hiredDate, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-contractual-end="<?= htmlspecialchars($contractualEnd, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-sex="<?= htmlspecialchars((string) ($profile['sex'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-birthdate="<?= htmlspecialchars($birthdate, ENT_QUOTES, 'UTF-8') ?>">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
         </div>
 
-        <!-- Pagination Controls -->
-        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-            <div class="text-muted small" id="paginationInfo">
-                Showing 0 to 0 of 0 entries
+        <!-- Pagination Controls Footer -->
+        <?php if (count($facultyProfiles) > 0): ?>
+            <div class="card-footer bg-white border-top p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="text-muted small" id="paginationInfo">
+                    Showing 0 to 0 of 0 entries
+                </div>
+                <nav aria-label="Faculty pagination">
+                    <ul class="pagination pagination-sm mb-0" id="paginationControls">
+                        <!-- Pagination JS dynamically populates items here -->
+                    </ul>
+                </nav>
             </div>
-            <nav aria-label="Faculty pagination">
-                <ul class="pagination pagination-sm mb-0" id="paginationControls">
-                    <!-- Pagination JS dynamically populates items here -->
-                </ul>
-            </nav>
-        </div>
-    <?php endif; ?>
+        <?php endif; ?>
+    </div>
 </div>
 
 <!-- View Faculty Modal -->
@@ -399,7 +421,6 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
     </div>
 </div>
 
-<!-- Edit Faculty Modal -->
 <!-- Edit Faculty Modal -->
 <div id="facultyFormModal" class="modal fade" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-width: 860px;">

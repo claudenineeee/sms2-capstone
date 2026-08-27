@@ -11,7 +11,12 @@ if (!function_exists('facultyDb')) {
 }
 
 /**
- * Retrieves directory list with LEFT JOIN to include records without users or with NULL user_id.
+ * Retrieves directory list, scoped by the logged-in user's role:
+ *   - department_head: only their own designated_department
+ *   - dean: every department in faculty_profile_department_assignments
+ *           for their own profile (see migration_add_dean_support_v2.sql)
+ *   - everyone else (admin, faculty, secretary, etc.): unrestricted,
+ *     same behavior as before this fix
  */
 if (!function_exists('getScopedFacultyList')) {
     function getScopedFacultyList(): array {
@@ -20,13 +25,68 @@ if (!function_exists('getScopedFacultyList')) {
             return [];
         }
 
-        // Target faculty_profiles and LEFT JOIN users so missing/NULL user_id records aren't filtered out
-        $sql = "SELECT fp.*, u.username, u.status AS account_status 
-                FROM faculty_db.faculty_profiles fp
-                LEFT JOIN sms2_db.users u ON fp.user_id = u.id
-                ORDER BY fp.id DESC";
+        $userId  = $_SESSION['user_id'] ?? 0;
+        $roleKey = $_SESSION['user_role_key'] ?? '';
 
         try {
+            if (($roleKey === 'department_head' || $roleKey === 'dept_head') && $userId) {
+                $deptStmt = $pdo->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :uid LIMIT 1");
+                $deptStmt->execute([':uid' => $userId]);
+                $myDept = $deptStmt->fetchColumn();
+
+                if (!$myDept) {
+                    return []; // no department on file yet — show nothing rather than everything
+                }
+
+                $sql = "SELECT fp.*, u.username, u.status AS account_status 
+                        FROM faculty_db.faculty_profiles fp
+                        LEFT JOIN sms2_db.users u ON fp.user_id = u.id
+                        WHERE fp.designated_department = :dept
+                        ORDER BY fp.id DESC";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([':dept' => $myDept]);
+                return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            }
+
+            if ($roleKey === 'dean' && $userId) {
+                $myProfileStmt = $pdo->prepare("SELECT id FROM faculty_db.faculty_profiles WHERE user_id = :uid LIMIT 1");
+                $myProfileStmt->execute([':uid' => $userId]);
+                $myProfileId = $myProfileStmt->fetchColumn();
+
+                if (!$myProfileId) {
+                    return [];
+                }
+
+                $deptCodesStmt = $pdo->prepare("
+                    SELECT d.code
+                    FROM faculty_db.faculty_profile_department_assignments a
+                    JOIN faculty_db.departments d ON d.department_id = a.department_id
+                    WHERE a.faculty_profile_id = :pid
+                ");
+                $deptCodesStmt->execute([':pid' => $myProfileId]);
+                $deptCodes = $deptCodesStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                if (empty($deptCodes)) {
+                    return [];
+                }
+
+                $placeholders = implode(',', array_fill(0, count($deptCodes), '?'));
+                $sql = "SELECT fp.*, u.username, u.status AS account_status 
+                        FROM faculty_db.faculty_profiles fp
+                        LEFT JOIN sms2_db.users u ON fp.user_id = u.id
+                        WHERE fp.designated_department IN ($placeholders)
+                          AND fp.user_id != ?
+                        ORDER BY fp.id DESC";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([...$deptCodes, $userId]);
+                return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            }
+
+            // Default: unrestricted, unchanged from before this fix
+            $sql = "SELECT fp.*, u.username, u.status AS account_status 
+                    FROM faculty_db.faculty_profiles fp
+                    LEFT JOIN sms2_db.users u ON fp.user_id = u.id
+                    ORDER BY fp.id DESC";
             $stmt = $pdo->prepare($sql);
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -103,7 +163,11 @@ function insertFacultyUser(PDO $pdo, array $profile, string $rawPassword): int {
     // Automatically map position to role_key if role_key isn't set explicitly
     if (empty($profile['role_key'])) {
         $position = strtolower(trim($profile['position'] ?? ''));
-        if (str_contains($position, 'monitoring')) {
+        if (str_contains($position, 'dean')) {
+            $roleKey = 'dean';
+        } elseif (str_contains($position, 'department head')) {
+            $roleKey = 'department_head';
+        } elseif (str_contains($position, 'monitoring')) {
             $roleKey = 'monitoring_officer';
         } elseif (str_contains($position, 'secretary')) {
             $roleKey = 'secretary';

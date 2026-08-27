@@ -141,8 +141,8 @@ class FacultyController
                 'hired_date'            => $hiredDate,
                 'contractual_end'       => $contractualEnd,
                 'employment_status'     => $employmentStatus,
-                'profile_status'        => 'Active',
-                'request_status'        => 'approved',
+                'profile_status'        => 'Pending Approval',
+                'request_status'        => 'pending',
             ];
             
             if (function_exists('populateFacultyAccountFields')) {
@@ -308,8 +308,8 @@ class FacultyController
                 'hired_date'            => $hiredDate,
                 'contractual_end'       => $contractualEnd,
                 'employment_status'     => $employmentStatus,
-                'profile_status'        => 'Active',
-                'request_status'        => 'approved',
+                'profile_status'        => 'Pending Approval',
+                'request_status'        => 'pending',
             ];
 
             if (function_exists('populateFacultyAccountFields')) {
@@ -355,6 +355,153 @@ class FacultyController
             return [
                 'type'    => 'success',
                 'message' => 'Department Head profile successfully registered. Username: ' . ($profile['username'] ?? '') . ' / Temp password: ' . $rawPassword
+            ];
+        } catch (Throwable $e) {
+            if ($mainPdo instanceof PDO && $mainPdo->inTransaction()) {
+                $mainPdo->rollBack();
+            }
+            return [
+                'type'    => 'danger',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Process Dean registration POST request. A Dean can oversee multiple
+     * departments — same account-creation flow as handleAddDepartmentHead(),
+     * plus a loop that records every selected department into
+     * faculty_db.faculty_profile_department_assignments.
+     * See migration_add_dean_support_v2.sql for that table's definition.
+     */
+    public function handleAddDean(): ?array
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || (string) ($_POST['action'] ?? '') !== 'add_dean') {
+            return null;
+        }
+
+        $mainPdo = null;
+        try {
+            if (function_exists('requireCsrf')) {
+                requireCsrf((string) ($_POST['csrf_token'] ?? ''));
+            }
+
+            $firstName        = trim((string) ($_POST['first_name'] ?? ''));
+            $middleName       = trim((string) ($_POST['middle_name'] ?? ''));
+            $lastName         = trim((string) ($_POST['last_name'] ?? ''));
+            $suffix           = trim((string) ($_POST['suffix'] ?? ''));
+            $birthdate        = trim((string) ($_POST['birthdate'] ?? ''));
+            $sex              = trim((string) ($_POST['sex'] ?? ''));
+            $phone            = trim((string) ($_POST['phone'] ?? ''));
+            $email            = strtolower(trim((string) ($_POST['email'] ?? '')));
+            $departmentIds    = array_filter(array_map('intval', (array) ($_POST['department_ids'] ?? [])));
+            $position         = trim((string) ($_POST['position'] ?? 'Dean'));
+            $hiredDate        = trim((string) ($_POST['hired_date'] ?? ''));
+            $contractualEnd   = trim((string) ($_POST['contractual_end'] ?? ''));
+            $employmentStatus = trim((string) ($_POST['employment_status'] ?? 'regular'));
+
+            if ($firstName === '' || $lastName === '' || $birthdate === '' || $sex === '' || $email === '' || empty($departmentIds) || $hiredDate === '' || $employmentStatus === '') {
+                throw new InvalidArgumentException('Please fill in all required fields and select at least one department.');
+            }
+
+            $mainPdo = function_exists('db') ? db() : null;
+            $facPdo  = function_exists('facultyDb') ? facultyDb() : null;
+            if (!$mainPdo || !$facPdo) {
+                throw new RuntimeException('Database connection failed.');
+            }
+
+            if (!function_exists('insertFacultyUser') || !function_exists('insertFacultyProfile')) {
+                throw new RuntimeException('Faculty account helpers are missing. Check modules/faculty/controllers/faculty-data.php exists.');
+            }
+
+            // Resolve department_id -> code (e.g. 1 -> 'BSIT') for the
+            // primary designated_department stored on the profile itself.
+            $deptStmt = $facPdo->prepare("SELECT department_id, code FROM faculty_db.departments WHERE department_id IN (" . implode(',', array_fill(0, count($departmentIds), '?')) . ")");
+            $deptStmt->execute($departmentIds);
+            $deptRows = $deptStmt->fetchAll(PDO::FETCH_KEY_PAIR); // [department_id => code]
+
+            if (empty($deptRows)) {
+                throw new InvalidArgumentException('Selected department(s) could not be found.');
+            }
+
+            $primaryDeptId   = $departmentIds[0];
+            $primaryDeptCode = $deptRows[$primaryDeptId] ?? reset($deptRows);
+
+            $mainPdo->beginTransaction();
+            $sequence = function_exists('getNextFacultySequenceNumber') ? getNextFacultySequenceNumber($facPdo) : 1;
+
+            $profile = [
+                'first_name'            => $firstName,
+                'middle_name'           => $middleName,
+                'last_name'             => $lastName,
+                'suffix'                => $suffix,
+                'sex'                   => $sex,
+                'birthdate'             => $birthdate,
+                'age'                   => $this->computeAge($birthdate),
+                'phone'                 => $phone,
+                'email'                 => $email,
+                'designated_department' => $primaryDeptCode,
+                'position'              => $position,
+                'hired_date'            => $hiredDate,
+                'contractual_end'       => $contractualEnd,
+                'employment_status'     => $employmentStatus,
+                'profile_status'        => 'Pending Approval',
+                'request_status'        => 'pending',
+            ];
+
+            if (function_exists('populateFacultyAccountFields')) {
+                $profile = populateFacultyAccountFields($profile, $sequence);
+            }
+
+            $rawPassword = function_exists('buildFacultyPassword') ? buildFacultyPassword($profile['last_name'] ?? '') : 'Password123!';
+
+            $userId = insertFacultyUser($mainPdo, $profile, $rawPassword);
+            if (!$userId) {
+                $userId = (int) $mainPdo->lastInsertId();
+            }
+
+            $profile['user_id']      = $userId;
+            $profile['raw_password'] = $rawPassword;
+
+            $newProfileId = insertFacultyProfile($profile);
+
+            if (!$newProfileId) {
+                $mainPdo->rollBack();
+                return [
+                    'type'    => 'danger',
+                    'message' => 'Failed to create the Dean profile record. No account was created.'
+                ];
+            }
+
+            // Record every selected department in the pivot table.
+            $pivotStmt = $facPdo->prepare("
+                INSERT INTO faculty_db.faculty_profile_department_assignments (faculty_profile_id, department_id)
+                VALUES (:profile_id, :dept_id)
+            ");
+            foreach ($departmentIds as $deptId) {
+                $pivotStmt->execute([
+                    ':profile_id' => $newProfileId,
+                    ':dept_id'    => $deptId,
+                ]);
+            }
+
+            $mainPdo->commit();
+
+            if (function_exists('sendFacultyAccountEmail')) {
+                sendFacultyAccountEmail(
+                    $profile['email'],
+                    $profile['faculty_id'] ?? '',
+                    $profile['username'] ?? '',
+                    $rawPassword,
+                    $firstName,
+                    $lastName,
+                    $sex
+                );
+            }
+
+            return [
+                'type'    => 'success',
+                'message' => 'Dean profile successfully registered over ' . count($departmentIds) . ' department(s). Username: ' . ($profile['username'] ?? '') . ' / Temp password: ' . $rawPassword
             ];
         } catch (Throwable $e) {
             if ($mainPdo instanceof PDO && $mainPdo->inTransaction()) {
