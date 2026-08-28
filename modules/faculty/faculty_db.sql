@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 25, 2026 at 08:54 AM
+-- Generation Time: Aug 28, 2026 at 06:44 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -98,6 +98,29 @@ INSERT INTO `campuses` (`campus_id`, `code`, `name`, `address`, `created_at`, `u
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `classes`
+--
+
+CREATE TABLE `classes` (
+  `id` int(11) NOT NULL,
+  `students` int(11) NOT NULL DEFAULT 0,
+  `status` tinyint(4) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `classes`
+--
+
+INSERT INTO `classes` (`id`, `students`, `status`) VALUES
+(1, 50, 0),
+(2, 50, 1),
+(3, 50, 0),
+(4, 50, 0),
+(5, 50, 0);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `class_attendance_sessions`
 --
 
@@ -170,6 +193,7 @@ CREATE TABLE `clearance_items` (
   `status` enum('Missing','Pending Review','Cleared','Hold') NOT NULL DEFAULT 'Pending Review',
   `remarks` varchar(255) DEFAULT NULL,
   `file_path` varchar(500) DEFAULT NULL,
+  `original_name` varchar(500) DEFAULT NULL,
   `cleared_by_external_id` varchar(64) DEFAULT NULL,
   `cleared_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -211,6 +235,13 @@ CREATE TABLE `clearance_requests` (
   `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `clearance_requests`
+--
+
+INSERT INTO `clearance_requests` (`clearance_id`, `faculty_id`, `term_id`, `intent_type`, `overall_status`, `submitted_at`, `updated_at`) VALUES
+(1, 52, 1, 'renewal', 'In Progress', '2026-08-25 16:37:51', '2026-08-25 08:37:51');
 
 -- --------------------------------------------------------
 
@@ -279,6 +310,15 @@ CREATE TABLE `evaluations` (
   `submitted_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `evaluations`
+--
+
+INSERT INTO `evaluations` (`evaluation_id`, `faculty_id`, `term_id`, `source_type`, `evaluator_id`, `evaluator_external_id`, `composite_score`, `rating_label`, `eval_count`, `response_rate`, `submitted_at`) VALUES
+(3, 77, 1, 'Peer', 35, NULL, 4.00, NULL, 0, NULL, '2026-08-28 01:38:59'),
+(4, 77, 1, 'DeptHead', 53, NULL, 3.33, NULL, 0, NULL, '2026-08-28 01:49:43'),
+(5, 75, 1, 'Peer', 35, NULL, 5.00, NULL, 0, NULL, '2026-08-28 20:43:18');
+
 -- --------------------------------------------------------
 
 --
@@ -307,6 +347,13 @@ CREATE TABLE `evaluation_feedback` (
   `improvement_comment` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `evaluation_feedback`
+--
+
+INSERT INTO `evaluation_feedback` (`evaluation_feedback_id`, `evaluation_id`, `strength_comment`, `improvement_comment`) VALUES
+(1, 3, 'test', NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -327,7 +374,7 @@ CREATE TABLE `faculty` (
   `email` varchar(150) DEFAULT NULL,
   `department_id` int(10) UNSIGNED DEFAULT NULL,
   `campus_id` int(10) UNSIGNED DEFAULT NULL,
-  `position` enum('Faculty Secretary','Faculty Professor','Dean') NOT NULL DEFAULT 'Faculty Professor',
+  `position` enum('Faculty Secretary','Faculty Professor','Department Head','Department Secretary','Attendance Monitoring Officer') NOT NULL DEFAULT 'Faculty Professor',
   `assignment_label` varchar(100) DEFAULT NULL,
   `is_coordinator` tinyint(1) NOT NULL DEFAULT 0,
   `coordinator_type` enum('NSTP','OJT','RESEARCH') DEFAULT NULL,
@@ -349,7 +396,51 @@ CREATE TABLE `faculty` (
 INSERT INTO `faculty` (`faculty_id`, `faculty_no`, `external_user_id`, `first_name`, `middle_name`, `last_name`, `suffix`, `birthdate`, `sex`, `phone`, `email`, `department_id`, `campus_id`, `position`, `assignment_label`, `is_coordinator`, `coordinator_type`, `academic_rank`, `tier`, `employment_status`, `profile_status`, `overall_rating`, `hired_date`, `contractual_end_date`, `created_at`, `updated_at`) VALUES
 (35, 'FAC-2026-0005-P35', NULL, 'Jean', 'Claude', 'Espejo', '', '2001-02-05', 'male', '09318298352', 'qwerty@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, '2025-10-14', NULL, '2026-08-22 05:28:06', '2026-08-22 05:28:06'),
 (50, 'FAC-2026-0048-P50', NULL, 'monkey', 'd', 'luffy', '', '1998-02-09', 'male', '09318298352', 'monkeydluffy@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2023-07-06', NULL, '2026-08-22 05:37:04', '2026-08-22 05:37:04'),
-(51, 'FAC-2026-0100', '8', 'Jean', NULL, 'Claude', NULL, NULL, NULL, NULL, 'dean@bestlink.edu.ph', 1, NULL, 'Dean', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-08-22', NULL, '2026-08-22 06:25:47', '2026-08-23 18:10:32');
+(51, 'FAC-2026-0100', '8', 'Jean', NULL, 'Claude', NULL, NULL, NULL, NULL, 'dean@bestlink.edu.ph', 1, NULL, '', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-08-22', NULL, '2026-08-22 06:25:47', '2026-08-23 18:10:32'),
+(52, 'FAC-2026-0005', '153', 'Jean', 'Claude', 'Espejo', '', NULL, NULL, NULL, 'qwerty@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, '2025-10-14', NULL, '2026-08-25 07:00:55', '2026-08-25 07:03:25'),
+(53, 'FAC-2026-0004', '149', 'Jean', 'Claude', 'Espejo', '', NULL, NULL, NULL, 'claudeespejo@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, '2023-01-30', NULL, '2026-08-25 07:00:55', '2026-08-25 07:00:55'),
+(75, 'FAC-2026-0006', NULL, 'Brix', NULL, 'brix', NULL, NULL, NULL, NULL, 'brix2026@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(76, 'FAC-2026-0007', NULL, 'Jean', NULL, 'Espejo', NULL, NULL, NULL, NULL, 'jeanespejo@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(77, 'FAC-2026-0008', NULL, 'diosdado', NULL, 'aban', NULL, NULL, NULL, NULL, 'jraban@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(78, 'FAC-2026-0010', NULL, 'Mark', NULL, 'Reyes', NULL, NULL, NULL, NULL, 'mark.reyes.test@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(79, 'FAC-2026-0011', NULL, 'Maria', NULL, 'Santos', NULL, NULL, NULL, NULL, 'maria.santos.test@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(80, 'FAC-2026-0047', NULL, 'dsadwadsa', NULL, 'asdfg', NULL, NULL, NULL, NULL, 'jdiojfioejdpoaskd@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(81, 'FAC-2026-0051', NULL, 'test', NULL, 'testing', NULL, NULL, NULL, NULL, 'testing123@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(82, 'FAC-2026-0052', NULL, 'Alexander', NULL, 'Mercer', NULL, NULL, NULL, NULL, 'alexander.mercer@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(83, 'FAC-2026-0053', NULL, 'Erwin', NULL, 'Smith', NULL, NULL, NULL, NULL, 'erwin.smith@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(84, 'FAC-2026-0054', NULL, 'jaun', NULL, 'cruz', NULL, NULL, NULL, NULL, 'juan.delacruz@example.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(85, 'FAC-2026-0055', NULL, 'juan', NULL, 'cruz', NULL, NULL, NULL, NULL, 'juan.delacruztesting@example.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(86, 'FAC-2026-0056', NULL, 'Alex', NULL, 'Rivera', NULL, NULL, NULL, NULL, 'rivera@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(87, 'FAC-2026-0057', NULL, 'michaels', NULL, 'jordan', NULL, NULL, NULL, NULL, 'michaeljordan@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(88, 'FAC-2026-0059', NULL, 'Michael Vincent', NULL, 'Castillo', NULL, NULL, NULL, NULL, 'michael.castillo@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(89, 'FAC-2026-0060', NULL, 'Christopher', NULL, 'Navarro', NULL, NULL, NULL, NULL, 'christopher.navarro@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
+(90, 'FAC-2026-0006-B', '156', 'ming', 'ming', 'ming', '', '2005-10-11', 'male', '09318298352', 'ming2026@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-02-17', NULL, '2026-08-27 16:30:39', '2026-08-27 16:30:39'),
+(91, 'FAC-2026-0007-B', '158', 'dwadsadwa', 'adawda', 'Qwerty', '', '1997-06-09', 'male', '09318298352', 'asdfghjkl@gmail.com', 1, NULL, 'Faculty Secretary', NULL, 0, NULL, 'instructor', NULL, 'Part-Time', 'Active', 0.00, '2025-06-10', '2028-10-17', '2026-08-27 16:30:39', '2026-08-27 16:30:39'),
+(92, 'FAC-2026-0008-B', '159', 'Claude', 'O.', 'Claude', '', '2007-10-17', 'male', '09318298352', 'jeanie@gmail.com', 1, NULL, 'Attendance Monitoring Officer', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, '2026-08-08', '2028-07-05', '2026-08-27 16:30:39', '2026-08-27 16:30:39');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `faculty_class_assignments`
+--
+
+CREATE TABLE `faculty_class_assignments` (
+  `id` int(11) NOT NULL,
+  `faculty_id` int(10) UNSIGNED NOT NULL,
+  `class_id` int(11) NOT NULL,
+  `units` enum('1','2','3','4','5') NOT NULL,
+  `room` varchar(100) NOT NULL,
+  `time` varchar(100) NOT NULL,
+  `days` varchar(255) NOT NULL,
+  `status` enum('pending','approved','rejected','waiting for approval') NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `faculty_class_assignments`
+--
+
+INSERT INTO `faculty_class_assignments` (`id`, `faculty_id`, `class_id`, `units`, `room`, `time`, `days`, `status`) VALUES
+(1, 35, 2, '3', '301', '10:00 AM - 12:00 PM', 'Mon, Wed, Sun', 'pending');
 
 -- --------------------------------------------------------
 
@@ -403,7 +494,8 @@ INSERT INTO `faculty_clearance_archives` (`archive_id`, `clearance_id`, `faculty
 (10, 21, 3, 1, 35, 'FAC-2026-0005', 'Jean', 'Claude', 'Espejo', '', 'qwerty@gmail.com', '09318298352', 'BSIT', 'Faculty Professor', NULL, NULL, 'Regular', '2035-07-31', '2026-2027', '1st Semester', 'renewal', 'Cleared', '[{\"id\":1,\"name\":\"Letter of Intent\",\"status\":\"Cleared\",\"file_name\":\"1-1d6aa69af77e6eae3bff2d08.pdf\",\"file_path\":\"faculty-clearance/35/1-1d6aa69af77e6eae3bff2d08.pdf\",\"remarks\":null,\"cleared_at\":\"2026-08-20 11:45:48\"},{\"id\":76,\"name\":\"Updated Resume\",\"status\":\"On Hold\",\"file_name\":\"194-8a9f0f8c01ac839fc9b57426.pdf\",\"file_path\":\"faculty-clearance/35/194-8a9f0f8c01ac839fc9b57426.pdf\",\"remarks\":\"[On Hold] \",\"cleared_at\":\"2026-08-20 11:41:21\"},{\"id\":77,\"name\":\"Personal Evaluation\",\"status\":\"Cleared\",\"file_name\":\"195-c81a8802d4a9864148d79bed.pdf\",\"file_path\":\"faculty-clearance/35/195-c81a8802d4a9864148d79bed.pdf\",\"remarks\":null,\"cleared_at\":\"2026-08-20 11:41:23\"},{\"id\":78,\"name\":\"Summary Evaluation\",\"status\":\"Denied\",\"file_name\":\"196-e3f09a19224a649aade12f67.pdf\",\"file_path\":\"faculty-clearance/35/196-e3f09a19224a649aade12f67.pdf\",\"remarks\":\"[Denied] \",\"cleared_at\":\"2026-08-20 11:41:25\"}]', '2026-08-20 11:41:03', '2026-08-20 11:45:51', '2026-08-20 03:45:51'),
 (11, 21, 3, 1, 35, 'FAC-2026-0005', 'Jean', 'Claude', 'Espejo', '', 'qwerty@gmail.com', '09318298352', 'BSIT', 'Faculty Professor', NULL, NULL, 'Regular', '2036-07-30', '2026-2027', '1st Semester', 'renewal', 'Cleared', '[{\"id\":1,\"name\":\"Letter of Intent\",\"status\":\"Cleared\",\"file_name\":\"1-1d6aa69af77e6eae3bff2d08.pdf\",\"file_path\":\"faculty-clearance/35/1-1d6aa69af77e6eae3bff2d08.pdf\",\"remarks\":\"Requirement approved.\",\"cleared_at\":\"2026-08-20 11:47:25\"},{\"id\":76,\"name\":\"Updated Resume\",\"status\":\"On Hold\",\"file_name\":\"194-8a9f0f8c01ac839fc9b57426.pdf\",\"file_path\":\"faculty-clearance/35/194-8a9f0f8c01ac839fc9b57426.pdf\",\"remarks\":\"[On Hold] \",\"cleared_at\":\"2026-08-20 11:41:21\"},{\"id\":77,\"name\":\"Personal Evaluation\",\"status\":\"Cleared\",\"file_name\":\"195-c81a8802d4a9864148d79bed.pdf\",\"file_path\":\"faculty-clearance/35/195-c81a8802d4a9864148d79bed.pdf\",\"remarks\":null,\"cleared_at\":\"2026-08-20 11:41:23\"},{\"id\":78,\"name\":\"Summary Evaluation\",\"status\":\"Denied\",\"file_name\":\"196-e3f09a19224a649aade12f67.pdf\",\"file_path\":\"faculty-clearance/35/196-e3f09a19224a649aade12f67.pdf\",\"remarks\":\"[Denied] \",\"cleared_at\":\"2026-08-20 11:41:25\"}]', '2026-08-20 11:41:03', '2026-08-20 11:47:31', '2026-08-20 03:47:31'),
 (12, 21, 3, 1, 35, 'FAC-2026-0005', 'Jean', 'Claude', 'Espejo', '', 'qwerty@gmail.com', '09318298352', 'BSIT', 'Faculty Professor', NULL, NULL, 'Regular', '2036-07-30', '2026-2027', '1st Semester', 'renewal', 'Cleared', '[{\"id\":1,\"name\":\"Letter of Intent\",\"status\":\"Cleared\",\"file_name\":\"1-1d6aa69af77e6eae3bff2d08.pdf\",\"file_path\":\"faculty-clearance/35/1-1d6aa69af77e6eae3bff2d08.pdf\",\"remarks\":\"Requirement approved.\",\"cleared_at\":\"2026-08-20 11:47:25\"},{\"id\":76,\"name\":\"Updated Resume\",\"status\":\"On Hold\",\"file_name\":\"194-8a9f0f8c01ac839fc9b57426.pdf\",\"file_path\":\"faculty-clearance/35/194-8a9f0f8c01ac839fc9b57426.pdf\",\"remarks\":\"[On Hold] \",\"cleared_at\":\"2026-08-20 11:41:21\"},{\"id\":77,\"name\":\"Personal Evaluation\",\"status\":\"Cleared\",\"file_name\":\"195-c81a8802d4a9864148d79bed.pdf\",\"file_path\":\"faculty-clearance/35/195-c81a8802d4a9864148d79bed.pdf\",\"remarks\":null,\"cleared_at\":\"2026-08-20 11:41:23\"},{\"id\":78,\"name\":\"Summary Evaluation\",\"status\":\"Denied\",\"file_name\":\"196-e3f09a19224a649aade12f67.pdf\",\"file_path\":\"faculty-clearance/35/196-e3f09a19224a649aade12f67.pdf\",\"remarks\":\"[Denied] \",\"cleared_at\":\"2026-08-20 11:41:25\"}]', '2026-08-20 11:41:03', '2026-08-20 11:47:52', '2026-08-20 03:47:52'),
-(13, 21, 3, 1, 35, 'FAC-2026-0005', 'Jean', 'Claude', 'Espejo', '', 'qwerty@gmail.com', '09318298352', 'BSIT', 'Faculty Professor', NULL, NULL, 'Probationary', '2037-07-29', '2026-2027', '1st Semester', 'renewal', 'Cleared', '[{\"id\":1,\"name\":\"Letter of Intent\",\"status\":\"Missing\",\"file_name\":null,\"file_path\":null,\"remarks\":null,\"cleared_at\":\"2026-08-20 11:49:46\"},{\"id\":76,\"name\":\"Updated Resume\",\"status\":\"Missing\",\"file_name\":null,\"file_path\":null,\"remarks\":null,\"cleared_at\":\"2026-08-20 11:49:46\"},{\"id\":77,\"name\":\"Personal Evaluation\",\"status\":\"Missing\",\"file_name\":null,\"file_path\":null,\"remarks\":null,\"cleared_at\":\"2026-08-20 11:49:46\"},{\"id\":78,\"name\":\"Summary Evaluation\",\"status\":\"Missing\",\"file_name\":null,\"file_path\":null,\"remarks\":null,\"cleared_at\":\"2026-08-20 11:49:46\"}]', '2026-08-20 11:41:03', '2026-08-20 11:49:46', '2026-08-20 03:49:46');
+(13, 21, 3, 1, 35, 'FAC-2026-0005', 'Jean', 'Claude', 'Espejo', '', 'qwerty@gmail.com', '09318298352', 'BSIT', 'Faculty Professor', NULL, NULL, 'Probationary', '2037-07-29', '2026-2027', '1st Semester', 'renewal', 'Cleared', '[{\"id\":1,\"name\":\"Letter of Intent\",\"status\":\"Missing\",\"file_name\":null,\"file_path\":null,\"remarks\":null,\"cleared_at\":\"2026-08-20 11:49:46\"},{\"id\":76,\"name\":\"Updated Resume\",\"status\":\"Missing\",\"file_name\":null,\"file_path\":null,\"remarks\":null,\"cleared_at\":\"2026-08-20 11:49:46\"},{\"id\":77,\"name\":\"Personal Evaluation\",\"status\":\"Missing\",\"file_name\":null,\"file_path\":null,\"remarks\":null,\"cleared_at\":\"2026-08-20 11:49:46\"},{\"id\":78,\"name\":\"Summary Evaluation\",\"status\":\"Missing\",\"file_name\":null,\"file_path\":null,\"remarks\":null,\"cleared_at\":\"2026-08-20 11:49:46\"}]', '2026-08-20 11:41:03', '2026-08-20 11:49:46', '2026-08-20 03:49:46'),
+(14, 1, 52, 1, 35, 'FAC-2026-0005', 'Jean', 'Claude', 'Espejo', '', 'qwerty@gmail.com', '09318298352', 'BSIT', 'Faculty Professor', NULL, NULL, 'Probationary', '2032-06-09', '2026-2027', '1st Semester', 'renewal', 'Cleared', '[{\"id\":1,\"name\":\"Letter of Intent\",\"status\":\"Cleared\",\"file_name\":\"1-1b609d0a8206083863697011.docx\",\"file_path\":\"faculty-clearance/35/1-1b609d0a8206083863697011.docx\",\"remarks\":\"Requirement approved.\",\"cleared_at\":\"2026-08-25 15:02:47\"},{\"id\":3,\"name\":\"Updated Resume\",\"status\":\"\",\"file_name\":\"2-4ebc88e39794d5ee75b3f6c6.docx\",\"file_path\":\"faculty-clearance/35/2-4ebc88e39794d5ee75b3f6c6.docx\",\"remarks\":\"[Denied] 3\",\"cleared_at\":\"2026-08-25 15:02:52\"},{\"id\":4,\"name\":\"Personal Evaluation\",\"status\":\"Cleared\",\"file_name\":\"3-8ee67aca09c6afaefd7bd184.docx\",\"file_path\":\"faculty-clearance/35/3-8ee67aca09c6afaefd7bd184.docx\",\"remarks\":\"Requirement approved.\",\"cleared_at\":\"2026-08-25 15:02:57\"},{\"id\":5,\"name\":\"Summary Evaluation\",\"status\":\"\",\"file_name\":\"4-2a4c009b0482ff473746579b.docx\",\"file_path\":\"faculty-clearance/35/4-2a4c009b0482ff473746579b.docx\",\"remarks\":\"[On Hold] 3\",\"cleared_at\":\"2026-08-25 15:03:03\"}]', '2026-08-25 15:01:01', '2026-08-25 15:03:25', '2026-08-25 07:03:25');
 
 -- --------------------------------------------------------
 
@@ -491,7 +583,7 @@ INSERT INTO `faculty_profiles` (`id`, `faculty_id`, `first_name`, `middle_name`,
 (32, 'FAC-2026-0007', 'Jean', 'Claude', 'Espejo', '', '2003-06-10', 23, 'MALE', '09318298352', 'jeanespejo@gmail.com', 'BSIT', 'Department Secretary', NULL, 0, NULL, NULL, '2025-06-10', '0000-00-00', NULL, 'regular', 'Active', 'approved', '2026-08-13 08:46:17', '2026-08-18 13:44:06', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
 (33, 'FAC-2026-0008', 'diosdado', 'diosdado', 'aban', 'jy', '2014-07-23', 12, 'MALE', '09318298352', 'jraban@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-06-10', '2027-11-18', NULL, 'probationary', 'Active', 'approved', '2026-08-13 17:45:39', '2026-08-18 13:44:06', NULL, NULL, NULL, NULL, NULL, NULL, 145),
 (34, 'FAC-2026-0004', 'Jean', 'Claude', 'Espejo', '', '2000-05-17', 26, 'MALE', '09318298352', 'claudeespejo@gmail.com', 'BSIT', 'Department Head', NULL, 0, NULL, NULL, '2023-01-30', '0000-00-00', NULL, 'regular', 'Active', 'approved', '2026-08-14 03:58:31', '2026-08-18 13:44:06', NULL, NULL, NULL, NULL, NULL, NULL, 149),
-(35, 'FAC-2026-0005', 'Jean', 'Claude', 'Espejo', '', '2001-02-05', 25, 'MALE', '09318298352', 'qwerty@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-10-14', '2031-06-10', NULL, 'probationary', 'Active', 'approved', '2026-08-16 10:52:52', '2026-08-18 13:44:06', NULL, NULL, NULL, NULL, NULL, NULL, 153),
+(35, 'FAC-2026-0005', 'Jean', 'Claude', 'Espejo', '', '2001-02-05', 25, 'MALE', '09318298352', 'qwerty@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-10-14', '2032-06-09', NULL, 'Probationary', 'Active', 'approved', '2026-08-16 10:52:52', '2026-08-25 07:03:25', NULL, NULL, NULL, NULL, NULL, NULL, 153),
 (38, 'FAC-2026-0006', 'ming', 'ming', 'ming', '', '2005-10-11', 20, 'MALE', '09318298352', 'ming2026@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2026-02-17', '0000-00-00', NULL, 'regular', 'Active', 'approved', '2026-08-16 16:03:14', '2026-08-18 13:44:06', NULL, NULL, NULL, NULL, NULL, NULL, 156),
 (39, 'FAC-2026-0007', 'dwadsadwa', 'adawda', 'Qwerty', '', '1997-06-09', 29, 'MALE', '09318298352', 'asdfghjkl@gmail.com', 'BSIT', 'Faculty Secretary', NULL, 0, NULL, NULL, '2025-06-10', '2028-10-17', NULL, 'part-time', 'Active', 'approved', '2026-08-16 16:21:59', '2026-08-18 13:44:06', NULL, NULL, NULL, NULL, NULL, NULL, 158),
 (40, 'FAC-2026-0008', 'Claude', 'O.', 'Claude', '', '2007-10-17', 18, 'MALE', '09318298352', 'jeanie@gmail.com', 'BSIT', 'Attendance Monitoring Officer', NULL, 0, NULL, NULL, '2026-08-08', '2028-07-05', NULL, 'probationary', 'Active', 'approved', '2026-08-16 17:40:22', '2026-08-18 13:44:06', NULL, NULL, NULL, NULL, NULL, NULL, 159),
@@ -505,8 +597,10 @@ INSERT INTO `faculty_profiles` (`id`, `faculty_id`, `first_name`, `middle_name`,
 (54, 'FAC-2026-0054', 'jaun', 'd', 'cruz', '', '2005-03-09', 21, 'MALE', '09318298352', 'juan.delacruz@example.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2026-06-09', '2026-08-06', NULL, 'probationary', 'Rejected', 'pending', '2026-08-19 05:58:14', '2026-08-22 06:51:22', NULL, NULL, NULL, NULL, NULL, NULL, 176),
 (55, 'FAC-2026-0055', 'juan', 'h', 'cruz', '', '2003-01-28', 23, 'MALE', '09318298352', 'juan.delacruztesting@example.com', 'BSIT', 'Attendance Monitoring Officer', NULL, 0, NULL, NULL, '2026-06-16', NULL, NULL, 'regular', 'Active', 'pending', '2026-08-19 06:00:01', '2026-08-19 06:01:01', NULL, NULL, NULL, NULL, NULL, NULL, 177),
 (56, 'FAC-2026-0056', 'Alex', 'B', 'Rivera', '', '1999-02-02', 27, 'MALE', '09318298352', 'rivera@gmail.com', 'BS CRIM', 'Department Head', NULL, 0, NULL, NULL, '2021-10-12', NULL, NULL, 'regular', 'Active', 'approved', '2026-08-22 11:07:58', '2026-08-24 16:56:28', NULL, NULL, NULL, NULL, NULL, NULL, 178),
-(57, 'FAC-2026-0057', 'michael', 'a', 'jordan', '', '1998-02-11', 28, 'MALE', '09318298352', 'michaeljordan@gmail.com', 'BSBA', 'Department Head', NULL, 0, NULL, NULL, '2025-10-21', NULL, NULL, 'regular', 'Active', 'pending', '2026-08-22 11:32:46', '2026-08-24 16:54:45', NULL, NULL, NULL, NULL, NULL, NULL, 179),
-(58, 'FAC-2026-0100', 'Jean', NULL, 'Claude', NULL, '1990-01-01', 34, 'MALE', NULL, 'dean@bestlink.edu.ph', 'BSIT', 'Dean', NULL, 0, NULL, NULL, '2026-08-22', NULL, NULL, 'Regular', 'Active', 'approved', '2026-08-23 18:10:32', '2026-08-23 18:40:59', NULL, NULL, NULL, NULL, NULL, NULL, 8);
+(57, 'FAC-2026-0057', 'michaels', 'a', 'jordan', NULL, '1998-02-11', 28, 'MALE', '09318298352', 'michaeljordan@gmail.com', 'BSBA', 'Department Head', NULL, 0, NULL, NULL, '2025-10-21', NULL, NULL, 'Regular', 'Active', 'pending', '2026-08-22 11:32:46', '2026-08-25 08:23:25', NULL, NULL, NULL, NULL, NULL, NULL, 179),
+(58, 'FAC-2026-0100', 'Jeannn', NULL, 'Claude', NULL, '1990-01-01', 36, 'MALE', NULL, 'dean@bestlink.edu.ph', 'BSIT', 'Dean', NULL, 0, NULL, NULL, '2026-08-22', NULL, NULL, 'Regular', 'Active', 'approved', '2026-08-23 18:10:32', '2026-08-25 08:26:51', NULL, NULL, NULL, NULL, NULL, NULL, 8),
+(59, 'FAC-2026-0059', 'Michael Vincent', 'V', 'Castillo', '', '2000-06-13', 26, 'MALE', '09318298352', 'michael.castillo@gmail.com', 'BSIT', 'Attendance Monitoring Officer', NULL, 0, NULL, NULL, '2025-06-10', NULL, NULL, 'regular', 'Active', 'pending', '2026-08-25 08:58:59', '2026-08-25 09:03:05', NULL, NULL, NULL, NULL, NULL, NULL, 198),
+(60, 'FAC-2026-0060', 'Christopher', 'J', 'Navarro', '', '1996-06-04', 30, 'MALE', '09318298352', 'christopher.navarro@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-10-15', NULL, NULL, 'regular', 'Pending Approval', 'pending', '2026-08-25 09:02:18', '2026-08-25 09:02:18', NULL, NULL, NULL, NULL, NULL, NULL, 199);
 
 -- --------------------------------------------------------
 
@@ -643,6 +737,29 @@ CREATE TABLE `notifications` (
   `is_read` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `notifications`
+--
+
+INSERT INTO `notifications` (`notification_id`, `faculty_id`, `title`, `message`, `priority`, `notification_type`, `is_read`, `created_at`) VALUES
+(1, 52, 'Letter of Intent submitted', 'Your Letter of Intent was sent to the Department Head for review.', 'Medium', 'faculty_clearance', 0, '2026-08-25 07:00:55'),
+(2, 53, 'New Letter of Intent submission', 'A Letter of Intent is ready for your review.', 'High Priority', 'faculty_clearance', 0, '2026-08-25 07:00:55'),
+(3, 52, 'Clearance submitted', 'Your clearance requirements were submitted to the Department Head for verification.', 'Medium', 'faculty_clearance', 0, '2026-08-25 07:01:01'),
+(4, 53, 'New clearance submission', 'A faculty clearance packet is ready for your review.', 'High Priority', 'faculty_clearance', 0, '2026-08-25 07:01:01'),
+(5, 52, 'Clearance requirement reviewed', 'A clearance requirement was approved. Remark: Requirement approved.', 'Low', 'faculty_clearance', 0, '2026-08-25 07:02:47'),
+(6, 52, 'Clearance requirement reviewed', 'A clearance requirement was denied. Remark: [Denied] 3', 'High Priority', 'faculty_clearance', 0, '2026-08-25 07:02:52'),
+(7, 52, 'Clearance requirement reviewed', 'A clearance requirement was approved. Remark: Requirement approved.', 'Low', 'faculty_clearance', 0, '2026-08-25 07:02:57'),
+(8, 52, 'Clearance requirement reviewed', 'A clearance requirement was placed on hold. Remark: [On Hold] 3', 'High Priority', 'faculty_clearance', 0, '2026-08-25 07:03:03'),
+(9, 52, 'Faculty Contract Renewed', 'Your faculty contract has been renewed until Jun 09, 2032. Employment status updated to: Probationary. Remarks from Department Head: bonno', 'High Priority', 'faculty_clearance', 0, '2026-08-25 07:03:25'),
+(10, 52, 'Clearance submitted', 'Your clearance requirements were submitted to the Department Head for verification.', 'Medium', 'faculty_clearance', 0, '2026-08-25 07:04:12'),
+(11, 53, 'New clearance submission', 'A faculty clearance packet is ready for your review.', 'High Priority', 'faculty_clearance', 0, '2026-08-25 07:04:12'),
+(12, 52, 'Clearance requirement reviewed', 'A clearance requirement was denied. Remark: [Denied] s', 'High Priority', 'faculty_clearance', 0, '2026-08-25 07:05:22'),
+(13, 52, 'Clearance requirement reviewed', 'A clearance requirement was denied. Remark: [Denied] s', 'High Priority', 'faculty_clearance', 0, '2026-08-25 07:05:27'),
+(14, 52, 'Letter of Intent submitted', 'Your Letter of Intent was sent to the Department Head for review.', 'Medium', 'faculty_clearance', 0, '2026-08-25 08:33:34'),
+(15, 53, 'New Letter of Intent submission', 'A Letter of Intent is ready for your review.', 'High Priority', 'faculty_clearance', 0, '2026-08-25 08:33:34'),
+(16, 52, 'Clearance submitted', 'Your clearance requirements were submitted to the Department Head for verification.', 'Medium', 'faculty_clearance', 0, '2026-08-25 08:37:51'),
+(17, 53, 'New clearance submission', 'A faculty clearance packet is ready for your review.', 'High Priority', 'faculty_clearance', 0, '2026-08-25 08:37:51');
 
 -- --------------------------------------------------------
 
@@ -861,6 +978,13 @@ ALTER TABLE `faculty`
   ADD KEY `fk_faculty_campus` (`campus_id`);
 
 --
+-- Indexes for table `faculty_class_assignments`
+--
+ALTER TABLE `faculty_class_assignments`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_class_assignment` (`class_id`);
+
+--
 -- Indexes for table `faculty_clearance_archives`
 --
 ALTER TABLE `faculty_clearance_archives`
@@ -1014,19 +1138,19 @@ ALTER TABLE `class_schedules`
 -- AUTO_INCREMENT for table `clearance_items`
 --
 ALTER TABLE `clearance_items`
-  MODIFY `clearance_item_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `clearance_item_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `clearance_offices`
 --
 ALTER TABLE `clearance_offices`
-  MODIFY `clearance_office_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=689;
+  MODIFY `clearance_office_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2617;
 
 --
 -- AUTO_INCREMENT for table `clearance_requests`
 --
 ALTER TABLE `clearance_requests`
-  MODIFY `clearance_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `clearance_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `departments`
@@ -1044,7 +1168,7 @@ ALTER TABLE `documents`
 -- AUTO_INCREMENT for table `evaluations`
 --
 ALTER TABLE `evaluations`
-  MODIFY `evaluation_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `evaluation_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `evaluation_categories`
@@ -1056,19 +1180,25 @@ ALTER TABLE `evaluation_categories`
 -- AUTO_INCREMENT for table `evaluation_feedback`
 --
 ALTER TABLE `evaluation_feedback`
-  MODIFY `evaluation_feedback_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `evaluation_feedback_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `faculty`
 --
 ALTER TABLE `faculty`
-  MODIFY `faculty_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
+  MODIFY `faculty_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=93;
+
+--
+-- AUTO_INCREMENT for table `faculty_class_assignments`
+--
+ALTER TABLE `faculty_class_assignments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `faculty_clearance_archives`
 --
 ALTER TABLE `faculty_clearance_archives`
-  MODIFY `archive_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `archive_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `faculty_deadlines`
@@ -1086,7 +1216,7 @@ ALTER TABLE `faculty_department_assignments`
 -- AUTO_INCREMENT for table `faculty_profiles`
 --
 ALTER TABLE `faculty_profiles`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=59;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=61;
 
 --
 -- AUTO_INCREMENT for table `faculty_profile_department_assignments`
@@ -1122,7 +1252,7 @@ ALTER TABLE `leave_requests`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `notification_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `notification_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `rooms`
