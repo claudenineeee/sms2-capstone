@@ -1,9 +1,201 @@
 <?php
 /**
  * Faculty Records
- * Purpose: View and update faculty information (non-sensitive)
+ * Purpose: View and update faculty information for the Secretary's department only.
  */
 require_once __DIR__ . '/../../../../config/config.php';
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../controllers/faculty-data.php';
+
+// 1. Fetch base scoped faculty list
+$facultyList = getScopedFacultyList();
+
+// 2. Resolve the logged-in Secretary's department to strictly enforce single-department visibility
+// 2. Resolve the logged-in Secretary's department
+$sessionUserId = (int)($_SESSION['user_id'] ?? $_SESSION['id'] ?? $_SESSION['account_id'] ?? 0);
+$sessionEmail  = $_SESSION['user_email'] ?? $_SESSION['email'] ?? null;
+$userDepartment = null;
+
+if ($sessionUserId || $sessionEmail) {
+    if (function_exists('facultyDb')) {
+        $pdo = facultyDb();
+    }
+    if (!isset($pdo) || !$pdo) {
+        $pdo = $conn ?? $db ?? null;
+    }
+
+    if ($pdo) {
+        try {
+            // Check user_id, account_id, id, or email against faculty_profiles
+            $stmtUser = $pdo->prepare("
+                SELECT designated_department, department 
+                FROM faculty_profiles 
+                WHERE user_id = :uid1 
+                   OR account_id = :uid2 
+                   OR id = :uid3 
+                   OR (:email1 IS NOT NULL AND email = :email2) 
+                LIMIT 1
+            ");
+            $stmtUser->execute([
+                'uid1'   => $sessionUserId,
+                'uid2'   => $sessionUserId,
+                'uid3'   => $sessionUserId,
+                'email1' => $sessionEmail,
+                'email2' => $sessionEmail
+            ]);
+            $userData = $stmtUser->fetch(PDO::FETCH_ASSOC);
+            if ($userData) {
+                $rawDept = $userData['designated_department'] ?? $userData['department'] ?? '';
+                if (!empty(trim($rawDept))) {
+                    $userDepartment = trim($rawDept);
+                }
+            }
+        } catch (PDOException $e) {
+            // Ignore PDO errors and fall back gracefully
+        }
+    }
+}
+// 3. Filter $facultyList to include ONLY members in the logged-in Secretary's department
+if (!empty($userDepartment)) {
+    // Normalize user department (removes spaces, symbols, and case differences e.g. "BS CRIM" -> "bscrim")
+    $normalizedUserDept = preg_replace('/[^a-zA-Z0-9]/', '', strtolower($userDepartment));
+
+    $facultyList = array_values(array_filter($facultyList, function ($f) use ($normalizedUserDept) {
+        // Fallback check for alternative array key names
+        $rawDept = $f['designated_department'] ?? $f['department'] ?? '';
+        
+        // Normalize record department
+        $normalizedRecordDept = preg_replace('/[^a-zA-Z0-9]/', '', strtolower(trim((string)$rawDept)));
+
+        return $normalizedRecordDept === $normalizedUserDept;
+    }));
+} else {
+    // Security Fallback: If no logged-in department is resolved, default to an empty list
+    $facultyList = [];
+}
+
+// 4. Handle Search and Status Filters
+$searchTerm   = trim($_GET['search'] ?? '');
+$statusFilter = trim($_GET['status'] ?? '');
+
+if ($searchTerm !== '') {
+    $needle = strtolower($searchTerm);
+    $facultyList = array_values(array_filter($facultyList, function ($f) use ($needle) {
+        $haystack = strtolower(trim(($f['first_name'] ?? '') . ' ' . ($f['last_name'] ?? '') . ' ' . ($f['faculty_id'] ?? '')));
+        return str_contains($haystack, $needle);
+    }));
+}
+
+if ($statusFilter !== '') {
+    $facultyList = array_values(array_filter($facultyList, function ($f) use ($statusFilter) {
+        return strcasecmp((string) ($f['employment_status'] ?? ''), $statusFilter) === 0;
+    }));
+}
+
+$facultyCount = count($facultyList);
+
+// 5. Pagination - 10 per page
+$perPage     = 10;
+$facultyPage = isset($_GET['page']) && is_numeric($_GET['page']) ? (int) $_GET['page'] : 1;
+if ($facultyPage < 1) { $facultyPage = 1; }
+$totalPages  = max(1, (int) ceil($facultyCount / $perPage));
+if ($facultyPage > $totalPages) { $facultyPage = $totalPages; }
+$offset      = ($facultyPage - 1) * $perPage;
+$pagedFacultyList = array_slice($facultyList, $offset, $perPage);
+
+/**
+ * Renders the <tr> rows for a page of faculty. Shared between the initial
+ * page load and the AJAX partial refresh below.
+ */
+function renderFacultyRows(array $facultyList, string $searchTerm): string {
+    ob_start();
+    if (empty($facultyList)) {
+        ?>
+        <tr>
+            <td colspan="5" class="text-center py-4" style="color:var(--fr-text-muted);">
+                No faculty records found<?= $searchTerm !== '' ? ' matching your search.' : ' in your department.' ?>
+            </td>
+        </tr>
+        <?php
+    }
+    foreach ($facultyList as $f) {
+        $fullName    = trim(($f['first_name'] ?? '') . ' ' . ($f['last_name'] ?? ''));
+        $facultyId   = (string) ($f['faculty_id'] ?? '');
+        $dept        = (string) ($f['designated_department'] ?? $f['department'] ?? '—');
+        $phone       = (string) ($f['phone'] ?? '—');
+        $email       = (string) ($f['email'] ?? '—');
+        $status      = (string) ($f['profile_status'] ?? 'Active');
+        $statusClass = $status === 'Active' ? 'fr-badge fr-badge-success' : 'fr-badge fr-badge-warning';
+
+        $nameEsc   = htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');
+        $idEsc     = htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8');
+        $deptEsc   = htmlspecialchars($dept, ENT_QUOTES, 'UTF-8');
+        $phoneEsc  = htmlspecialchars($phone, ENT_QUOTES, 'UTF-8');
+        $emailEsc  = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
+        $statusEsc = htmlspecialchars($status, ENT_QUOTES, 'UTF-8');
+        echo <<<HTML
+        <tr>
+            <td>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="fr-avatar flex-shrink-0">
+                        <i class="fas fa-user-graduate"></i>
+                    </div>
+                    <div>
+                        <div class="fr-cell-strong">{$nameEsc}</div>
+                        <div class="fr-cell-meta">ID: {$idEsc}</div>
+                    </div>
+                </div>
+            </td>
+            <td><span class="fr-cell-dept">{$deptEsc}</span></td>
+            <td>
+                <div class="fr-cell-strong">{$phoneEsc}</div>
+                <div class="fr-cell-meta">{$emailEsc}</div>
+            </td>
+            <td><span class="{$statusClass}">{$statusEsc}</span></td>
+            <td class="text-end">
+                <div class="fr-table-actions">
+                    <button class="fr-btn fr-btn-ghost fr-btn-sm fr-btn-icon-only" title="View Profile" onclick="viewProfile('{$idEsc}')" style="color:var(--fr-primary) !important;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="fr-btn fr-btn-ghost fr-btn-sm fr-btn-icon-only" title="Update Info" onclick="updateInfo('{$idEsc}')" style="color:#D97706 !important;">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+        HTML;
+    }
+    return ob_get_clean();
+}
+
+/**
+ * Renders the Previous/1..N/Next pagination control.
+ */
+function renderFacultyPagination(int $page, int $totalPages): string {
+    ob_start();
+    ?>
+    <li><button class="page-btn" onclick="fetchFacultyPage(<?= $page - 1 ?>)" <?= $page <= 1 ? 'disabled' : '' ?>>Previous</button></li>
+    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+        <li><button class="page-btn <?= $page === $i ? 'active' : '' ?>" onclick="fetchFacultyPage(<?= $i ?>)"><?= $i ?></button></li>
+    <?php endfor; ?>
+    <li><button class="page-btn" style="color:var(--fr-primary);" onclick="fetchFacultyPage(<?= $page + 1 ?>)" <?= $page >= $totalPages ? 'disabled' : '' ?>>Next</button></li>
+    <?php
+    return ob_get_clean();
+}
+
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+if ($isAjax) {
+    $start = $facultyCount > 0 ? $offset + 1 : 0;
+    $end   = min($offset + $perPage, $facultyCount);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'tbody'      => renderFacultyRows($pagedFacultyList, $searchTerm),
+        'pagination' => renderFacultyPagination($facultyPage, $totalPages),
+        'count'      => $facultyCount,
+        'rangeText'  => "Showing {$start} to {$end} of {$facultyCount} records",
+    ]);
+    exit;
+}
 
 $pageTitle    = 'Faculty Records';
 $activeModule = 'faculty';
@@ -21,40 +213,27 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
 <!-- Cache-busting query added to bypass browser caching -->
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css?v=<?= time(); ?>">
 
-<!-- ============================================================
-     Faculty Records — Premium Light & Dark Mode Theme
-     Hooks into SMS2 data-theme attribute system (theme.js)
-     ============================================================ -->
 <style>
-    /* ============================================================
-       DESIGN TOKENS — Light (default & [data-theme="light"])
-       Modern SaaS aesthetic (Linear / Vercel style)
-       ============================================================ */
     :root,
     [data-theme="light"] {
-        /* Brand Accents */
-        --fr-primary:        #4338CA;  /* Deep Indigo 700 */
-        --fr-primary-hover:  #3730A3;  /* Indigo 800 */
-        --fr-primary-soft:   #EEF2FF;  /* Indigo 50 tint */
+        --fr-primary:        #4338CA;
+        --fr-primary-hover:  #3730A3;
+        --fr-primary-soft:   #EEF2FF;
         --fr-primary-ring:   rgba(67, 56, 202, 0.15);
 
-        /* Surfaces — Clean, airy, low contrast hierarchy */
-        --fr-surface:        #FFFFFF;  /* Cards, modals */
-        --fr-surface-muted:  #F8FAFC;  /* Subtle panels, hover rows */
-        --fr-surface-subtle: #F1F5F9;  /* Headers, table thead */
-        --fr-page-bg:        inherit;  /* Inherit project gradient (don't override) */
+        --fr-surface:        #FFFFFF;
+        --fr-surface-muted:  #F8FAFC;
+        --fr-surface-subtle: #F1F5F9;
+        --fr-page-bg:        inherit;
 
-        /* Typography — 4-level slate system */
-        --fr-text-strong:    #0F172A;  /* Slate 900 — headings */
-        --fr-text-body:      #334155;  /* Slate 700 — body text */
-        --fr-text-muted:     #64748B;  /* Slate 500 — captions, meta */
-        --fr-text-faint:     #94A3B8;  /* Slate 400 — placeholders, faint */
+        --fr-text-strong:    #0F172A;
+        --fr-text-body:      #334155;
+        --fr-text-muted:     #64748B;
+        --fr-text-faint:     #94A3B8;
 
-        /* Borders — Hairline, low-saturation */
         --fr-border:         rgba(15, 23, 42, 0.08);
         --fr-border-strong:  rgba(15, 23, 42, 0.12);
 
-        /* Status — Low-saturation tint backgrounds (Stripe-style) */
         --fr-success-bg:     #ECFDF5;
         --fr-success-text:   #047857;
         --fr-success-ring:   rgba(16, 185, 129, 0.18);
@@ -65,24 +244,18 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         --fr-danger-bg:      #FEF2F2;
         --fr-danger-text:    #B91C1C;
 
-        /* Elevation */
         --fr-shadow-sm:      0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.03);
         --fr-shadow-md:      0 4px 8px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
 
-        /* Radius scale */
         --fr-radius-sm:      8px;
         --fr-radius-md:      10px;
         --fr-radius-lg:      14px;
         --fr-radius-xl:      16px;
         --fr-radius-pill:    999px;
 
-        /* Easing */
         --fr-ease:           cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* ============================================================
-       DESIGN TOKENS — Dark ([data-theme="dark"])
-       ============================================================ */
     [data-theme="dark"] {
         --fr-primary:        #818CF8;
         --fr-primary-hover:  #A5B4FC;
@@ -116,9 +289,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         --fr-shadow-md:      0 4px 12px -2px rgba(0, 0, 0, 0.4), 0 2px 6px -2px rgba(0, 0, 0, 0.3);
     }
 
-    /* ============================================================
-       PAGE SHELL & TYPOGRAPHY
-       ============================================================ */
     .fr-wrapper {
         font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
         color: var(--fr-text-body);
@@ -126,7 +296,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         -webkit-font-smoothing: antialiased;
     }
 
-    /* Breadcrumb tuning (keep project defaults but boost contrast) */
     .fr-wrapper + .breadcrumb,
     .breadcrumb {
         font-size: 0.78rem !important;
@@ -144,9 +313,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         font-weight: 600 !important;
     }
 
-    /* ============================================================
-       PAGE HEADER
-       ============================================================ */
     .fr-page-header {
         display: flex;
         align-items: flex-start;
@@ -189,9 +355,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         font-weight: 450;
     }
 
-    /* ============================================================
-       BUTTONS
-       ============================================================ */
     .fr-btn {
         display: inline-flex;
         align-items: center;
@@ -249,24 +412,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         display: inline-grid;
         place-items: center;
     }
-    .fr-btn-count {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 1.3rem;
-        height: 1.3rem;
-        padding: 0 0.4rem;
-        border-radius: var(--fr-radius-pill);
-        background: var(--fr-danger-bg);
-        color: var(--fr-danger-text);
-        font-size: 0.68rem;
-        font-weight: 750;
-        line-height: 1;
-    }
 
-    /* ============================================================
-       CARDS
-       ============================================================ */
     .fr-card {
         background: var(--fr-surface);
         border: 1px solid var(--fr-border);
@@ -309,23 +455,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         flex-wrap: wrap;
     }
 
-    /* ============================================================
-       CHIPS / BADGES / TAGS
-       ============================================================ */
-    .fr-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.3rem 0.68rem;
-        border-radius: var(--fr-radius-pill);
-        font-size: 0.72rem;
-        font-weight: 650;
-        letter-spacing: -0.005em;
-        border: 1px solid var(--fr-border-strong);
-        background: var(--fr-surface-muted);
-        color: var(--fr-text-muted);
-        white-space: nowrap;
-    }
     .fr-badge {
         display: inline-flex;
         align-items: center;
@@ -348,15 +477,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         color: var(--fr-warning-text);
         border-color: rgba(245, 158, 11, 0.20);
     }
-    .fr-badge-info {
-        background: var(--fr-info-bg);
-        color: var(--fr-info-text);
-        border-color: rgba(59, 130, 246, 0.20);
-    }
 
-    /* ============================================================
-       FORMS
-       ============================================================ */
     .fr-form-label {
         display: block;
         font-size: 0.72rem;
@@ -413,9 +534,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         border-bottom-left-radius: 0;
     }
 
-    /* ============================================================
-       TABLES
-       ============================================================ */
     .fr-table-wrap { overflow-x: auto; }
     .fr-table {
         width: 100%;
@@ -487,9 +605,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         justify-content: flex-end;
     }
 
-    /* ============================================================
-       PAGINATION
-       ============================================================ */
     .fr-pagination {
         display: flex;
         align-items: center;
@@ -531,9 +646,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         color: var(--fr-text-faint);
     }
 
-    /* ============================================================
-       MODALS
-       ============================================================ */
     .fr-modal-content {
         background: var(--fr-surface);
         color: var(--fr-text-body);
@@ -584,7 +696,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         background: var(--fr-surface);
     }
 
-    /* Info panel (inside modals) */
     .fr-info-panel {
         padding: 0.9rem 1rem;
         border-radius: var(--fr-radius-md);
@@ -617,9 +728,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         word-break: break-word;
     }
 
-    /* ============================================================
-       RESPONSIVE TWEAKS
-       ============================================================ */
     @media (max-width: 767.98px) {
         .fr-title { font-size: 1.3rem; }
         .fr-table thead th,
@@ -633,16 +741,14 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
 
 <div class="fr-wrapper">
 
-    <!-- ============================================================
-         PAGE HEADER
-         ============================================================ -->
+    <!-- PAGE HEADER -->
     <header class="fr-page-header">
         <div>
             <span class="fr-kicker">Secretary · Faculty Management</span>
             <h2 class="fr-title">
                 <i class="fas fa-id-badge me-2"></i>Faculty Records
             </h2>
-            <p class="fr-subtitle">Manage profile and contact information in the CCS department directory</p>
+            <p class="fr-subtitle">Manage profile and contact information in your department directory</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <button class="fr-btn fr-btn-success">
@@ -652,9 +758,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         </div>
     </header>
 
-    <!-- ============================================================
-         MAIN GRID LAYOUT
-         ============================================================ -->
+    <!-- MAIN GRID LAYOUT -->
     <div class="row g-4">
 
         <!-- Left Column: Search & Filters -->
@@ -666,46 +770,29 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
                     </h6>
                 </div>
                 <div class="p-4">
-                    <form method="GET" action="">
+                    <form method="GET" action="" id="facultyFilterForm" onsubmit="event.preventDefault(); fetchFacultyPage(1);">
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="fr-form-label">Search Faculty</label>
                                 <div class="fr-input-group">
                                     <span class="fr-input-group-prepend"><i class="fas fa-search small"></i></span>
-                                    <input type="text" name="search" class="fr-input" placeholder="Search by name or ID...">
+                                    <input type="text" name="search" id="facultySearchInput" class="fr-input" placeholder="Search by name or ID..." value="<?= htmlspecialchars($searchTerm, ENT_QUOTES, 'UTF-8') ?>" oninput="triggerFacultyAutoSearch()">
                                 </div>
                             </div>
                             <div class="col-12">
-                                <label class="fr-form-label">Department</label>
-                                <select name="department" class="fr-select">
-                                    <option value="">All Departments</option>
-                                    <option selected>College of Computer Studies</option>
-                                </select>
-                            </div>
-                            <div class="col-12">
                                 <label class="fr-form-label">Employment Status</label>
-                                <select name="status" class="fr-select">
+                                <select name="status" id="facultyStatusSelect" class="fr-select" onchange="fetchFacultyPage(1)">
                                     <option value="">All Statuses</option>
-                                    <option selected>Active</option>
-                                    <option>On Leave</option>
-                                    <option>Probationary</option>
-                                </select>
-                            </div>
-                            <div class="col-12">
-                                <label class="fr-form-label">Academic Rank</label>
-                                <select name="rank" class="fr-select">
-                                    <option value="">All Academic Ranks</option>
-                                    <option>Instructor</option>
-                                    <option>Assistant Professor</option>
-                                    <option>Associate Professor</option>
-                                    <option>Professor</option>
+                                    <?php foreach (['Regular', 'Probationary', 'Part-Time', 'Resigned'] as $statusOpt): ?>
+                                        <option value="<?= $statusOpt ?>" <?= strcasecmp($statusFilter, $statusOpt) === 0 ? 'selected' : '' ?>><?= $statusOpt ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             <div class="col-12 pt-2 d-flex gap-2">
                                 <button type="submit" class="fr-btn fr-btn-primary w-100 py-2">
                                     Apply Filter
                                 </button>
-                                <button type="reset" class="fr-btn fr-btn-ghost w-100 py-2">
+                                <button type="button" class="fr-btn fr-btn-ghost w-100 py-2" onclick="resetFacultyFilters()">
                                     Reset
                                 </button>
                             </div>
@@ -721,7 +808,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
                 <div class="fr-card-head">
                     <h6 class="fr-card-title">
                         <i class="fas fa-users-cog" style="color:#7C3AED;"></i>Faculty Directory
-                        <span class="fr-badge fr-badge-success ms-2">18 Registered</span>
+                        <span class="fr-badge fr-badge-success ms-2" id="facultyCountBadge"><?= (int) $facultyCount ?> Registered</span>
                     </h6>
                     <div class="d-flex align-items-center gap-2">
                         <span class="small" style="color:var(--fr-text-muted);" class="d-none d-sm-inline">Show:</span>
@@ -743,63 +830,19 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php
-                            $faculty = [
-                                ['id'=>'F-001','name'=>'Dr. Maria Santos','dept'=>'CCS','contact'=>'+63 912 345 6789','email'=>'msantos@bestlink.edu.ph','status'=>'Active'],
-                                ['id'=>'F-002','name'=>'Prof. Luis Tan','dept'=>'CCS','contact'=>'+63 917 234 5678','email'=>'ltan@bestlink.edu.ph','status'=>'Active'],
-                                ['id'=>'F-003','name'=>'Prof. Katherine Lim','dept'=>'CCS','contact'=>'+63 918 345 6789','email'=>'klim@bestlink.edu.ph','status'=>'Active'],
-                                ['id'=>'F-004','name'=>'Prof. John Aquino','dept'=>'CCS','contact'=>'+63 919 456 7890','email'=>'jaquino@bestlink.edu.ph','status'=>'Active'],
-                                ['id'=>'F-005','name'=>'Dr. Ana Reyes','dept'=>'CCS','contact'=>'+63 920 567 8901','email'=>'areyes@bestlink.edu.ph','status'=>'On Leave'],
-                                ['id'=>'F-006','name'=>'Prof. Sarah Martinez','dept'=>'CCS','contact'=>'+63 921 678 9012','email'=>'smartinez@bestlink.edu.ph','status'=>'Active'],
-                                ['id'=>'F-007','name'=>'Prof. Roberto Villanueva','dept'=>'CCS','contact'=>'+63 922 789 0123','email'=>'rvillanueva@bestlink.edu.ph','status'=>'Active'],
-                            ];
-                            foreach ($faculty as $f) {
-                                $statusClass = $f['status'] === 'Active' ? 'fr-badge fr-badge-success' : 'fr-badge fr-badge-warning';
-                                echo <<<HTML
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center gap-3">
-                                            <div class="fr-avatar flex-shrink-0">
-                                                <i class="fas fa-user-graduate"></i>
-                                            </div>
-                                            <div>
-                                                <div class="fr-cell-strong">{$f['name']}</div>
-                                                <div class="fr-cell-meta">ID: {$f['id']}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td><span class="fr-cell-dept">{$f['dept']}</span></td>
-                                    <td>
-                                        <div class="fr-cell-strong">{$f['contact']}</div>
-                                        <div class="fr-cell-meta">{$f['email']}</div>
-                                    </td>
-                                    <td><span class="{$statusClass}">{$f['status']}</span></td>
-                                    <td class="text-end">
-                                        <div class="fr-table-actions">
-                                            <button class="fr-btn fr-btn-ghost fr-btn-sm fr-btn-icon-only" title="View Profile" onclick="viewProfile('{$f['id']}')" style="color:var(--fr-primary) !important;">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="fr-btn fr-btn-ghost fr-btn-sm fr-btn-icon-only" title="Update Info" onclick="updateInfo('{$f['id']}')" style="color:#D97706 !important;">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                HTML;
-                            }
-                            ?>
+                        <tbody id="facultyTableBody">
+                            <?= renderFacultyRows($pagedFacultyList, $searchTerm) ?>
                         </tbody>
                     </table>
                 </div>
                 <div class="fr-card-foot">
-                    <small style="color:var(--fr-text-muted); font-weight:600;">Showing 1 to 7 of 18 records</small>
-                    <ul class="fr-pagination">
-                        <li><button class="page-btn" disabled>Previous</button></li>
-                        <li><button class="page-btn active">1</button></li>
-                        <li><button class="page-btn">2</button></li>
-                        <li><button class="page-btn">3</button></li>
-                        <li><button class="page-btn" style="color:var(--fr-primary);">Next</button></li>
+                    <small id="facultyRangeText" style="color:var(--fr-text-muted); font-weight:600;"><?php
+                        $start = $facultyCount > 0 ? $offset + 1 : 0;
+                        $end   = min($offset + $perPage, $facultyCount);
+                        echo "Showing {$start} to {$end} of {$facultyCount} records";
+                    ?></small>
+                    <ul class="fr-pagination" id="facultyPagination">
+                        <?= renderFacultyPagination($facultyPage, $totalPages) ?>
                     </ul>
                 </div>
             </section>
@@ -807,9 +850,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
 
     </div>
 
-    <!-- ============================================================
-         VIEW PROFILE MODAL
-         ============================================================ -->
+    <!-- VIEW PROFILE MODAL -->
     <div class="modal fade" id="profileModal" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content fr-modal-content">
@@ -824,7 +865,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
                                 <i class="fas fa-user-graduate"></i>
                             </div>
                             <h5 style="font-weight:750; color:var(--fr-text-strong); margin:0 0 0.25rem; letter-spacing:-0.02em;" id="modalName">Dr. Maria Santos</h5>
-                            <p class="fr-cell-meta mb-3">Professor • CCS</p>
+                            <p class="fr-cell-meta mb-3">Professor</p>
                             <span class="fr-badge fr-badge-success">Active</span>
                         </div>
                         <div class="col-md-8">
@@ -834,7 +875,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
                                     <div class="fr-info-row"><span class="k">Faculty ID:</span><span class="v" id="modalId">F-001</span></div>
                                     <div class="fr-info-row"><span class="k">Email:</span><span class="v">msantos@bestlink.edu.ph</span></div>
                                     <div class="fr-info-row"><span class="k">Contact:</span><span class="v">+63 912 345 6789</span></div>
-                                    <div class="fr-info-row"><span class="k">Department:</span><span class="v">College of Computer Studies</span></div>
+                                    <div class="fr-info-row"><span class="k">Department:</span><span class="v"><?= htmlspecialchars($userDepartment ?? 'Department', ENT_QUOTES, 'UTF-8') ?></span></div>
                                 </div>
                             </div>
                             <div>
@@ -854,9 +895,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         </div>
     </div>
 
-    <!-- ============================================================
-         UPDATE INFORMATION MODAL
-         ============================================================ -->
+    <!-- UPDATE INFORMATION MODAL -->
     <div class="modal fade" id="updateModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content fr-modal-content">
@@ -909,6 +948,41 @@ function viewProfile(id) {
 function updateInfo(id) {
     const modal = new bootstrap.Modal(document.getElementById('updateModal'));
     modal.show();
+}
+
+let facultySearchDebounce = null;
+
+function triggerFacultyAutoSearch() {
+    clearTimeout(facultySearchDebounce);
+    facultySearchDebounce = setTimeout(function() {
+        fetchFacultyPage(1);
+    }, 300);
+}
+
+function fetchFacultyPage(page) {
+    if (page < 1) return;
+
+    const search = document.getElementById('facultySearchInput').value;
+    const status = document.getElementById('facultyStatusSelect').value;
+    const params = new URLSearchParams({ search: search, status: status, page: page });
+
+    fetch('?' + params.toString(), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('facultyTableBody').innerHTML = data.tbody;
+        document.getElementById('facultyPagination').innerHTML = data.pagination;
+        document.getElementById('facultyRangeText').textContent = data.rangeText;
+        document.getElementById('facultyCountBadge').textContent = data.count + ' Registered';
+    })
+    .catch(error => console.error('Error updating faculty records:', error));
+}
+
+function resetFacultyFilters() {
+    document.getElementById('facultySearchInput').value = '';
+    document.getElementById('facultyStatusSelect').value = '';
+    fetchFacultyPage(1);
 }
 </script>
 

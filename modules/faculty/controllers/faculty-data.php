@@ -29,7 +29,7 @@ if (!function_exists('getScopedFacultyList')) {
         $roleKey = $_SESSION['user_role_key'] ?? '';
 
         try {
-            if (($roleKey === 'department_head' || $roleKey === 'dept_head') && $userId) {
+            if (in_array($roleKey, ['department_head', 'dept_head', 'secretary'], true) && $userId) {
                 $deptStmt = $pdo->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :uid LIMIT 1");
                 $deptStmt->execute([':uid' => $userId]);
                 $myDept = $deptStmt->fetchColumn();

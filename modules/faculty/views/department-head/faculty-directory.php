@@ -306,7 +306,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<<div class="row g-3 mb-4">
+<div class="row g-3 mb-4">
     <!-- Assigned Department Scope Card -->
     <div class="col-12 col-md-6">
         <section class="card stat-card primary border shadow-sm position-relative h-100">
