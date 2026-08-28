@@ -1460,7 +1460,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                                 <div class="d-flex flex-column align-items-center gap-2 py-2">
                                                     <i class="fas fa-cloud-arrow-up text-primary fs-3"></i>
                                                     <div class="small fw-semibold">Click to Upload Document</div>
-                                                    <div class="small text-body-secondary file-name">Invalid file format</div>
+                                                    <div class="small text-body-secondary file-name">Max file size: 10MB
+                                                    </div>
                                                 </div>
                                             </label>
                                         <?php endif; ?>
