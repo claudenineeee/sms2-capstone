@@ -34,9 +34,6 @@ try {
         throw new RuntimeException('Unable to connect to the faculty database.');
     }
 
-    /*
-     * Process approval/rejection before any HTML is sent.
-     */
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $action = trim((string) ($_POST['action'] ?? ''));
@@ -64,9 +61,6 @@ try {
             throw new RuntimeException('Your account could not be identified. Please log in again.');
         }
 
-        /*
-         * Make sure the request exists.
-         */
         $stmt = $pdo->prepare("
             SELECT id, status, documents, screening_status
             FROM faculty_db.leave_requests
@@ -84,8 +78,6 @@ try {
             throw new RuntimeException('The selected leave request could not be found.');
         }
 
-        // NEW: block any action until the Secretary has screened/signed
-        // this request, matching the intake flow.
         if (($request['screening_status'] ?? '') !== 'Screened') {
             throw new RuntimeException('This leave request has not been screened by the Secretary yet.');
         }
@@ -108,9 +100,6 @@ try {
             throw new RuntimeException('This leave request is currently ' . $statusLabel . ' and cannot be processed with that action.');
         }
 
-        /*
-         * Reject requires a reason.
-         */
         $comment = null;
 
         if ($action === 'reject') {
@@ -121,12 +110,6 @@ try {
             }
         }
 
-        /*
-         * Check whether approver_comment exists.
-         *
-         * This is only a compatibility check. It does not create
-         * database columns automatically during normal requests.
-         */
         $columnStmt = $pdo->prepare("
             SELECT COUNT(*)
             FROM information_schema.COLUMNS
@@ -142,14 +125,14 @@ try {
         $notificationColumn = null;
         $notificationSetSql = '';
 
-                $notificationColumnStmt = $pdo->prepare("
-                        SELECT COLUMN_NAME
-                        FROM information_schema.COLUMNS
-                        WHERE TABLE_SCHEMA = 'faculty_db'
-                            AND TABLE_NAME = 'leave_requests'
-                            AND COLUMN_NAME IN ('notification', 'is_notified', 'notified', 'notification_sent', 'notification_seen', 'notification_read', 'is_seen', 'document_notification', 'notify_flag', 'is_alerted', 'notification_status', 'is_notification')
-                        LIMIT 1
-                ");
+        $notificationColumnStmt = $pdo->prepare("
+                SELECT COLUMN_NAME
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = 'faculty_db'
+                    AND TABLE_NAME = 'leave_requests'
+                    AND COLUMN_NAME IN ('notification', 'is_notified', 'notified', 'notification_sent', 'notification_seen', 'notification_read', 'is_seen', 'document_notification', 'notify_flag', 'is_alerted', 'notification_status', 'is_notification')
+                LIMIT 1
+        ");
         $notificationColumnStmt->execute();
         $notificationColumn = $notificationColumnStmt->fetchColumn();
 
@@ -325,11 +308,6 @@ try {
             }
         }
 
-        /*
-         * Redirect after successful POST.
-         *
-         * This happens before layout/navbar output.
-         */
         $redirectUrl = strtok($_SERVER['REQUEST_URI'], '?');
 
         $successText = match ($action) {
@@ -341,22 +319,13 @@ try {
         };
 
         header('Location: ' . $redirectUrl . '?success=' . urlencode($successText));
-
         exit;
     }
 
-    /*
-     * Display success message after redirect.
-     */
     if (isset($_GET['success'])) {
         $formSuccess = trim((string) $_GET['success']);
     }
 
-    /*
-     * Fetch overall counts independent of any GET filters so
-     * the dashboard summary cards are stable even when the
-     * list below is filtered.
-     */
     $countStmt = $pdo->prepare(
         "SELECT LOWER(status) AS status, COUNT(*) AS cnt FROM faculty_db.leave_requests GROUP BY LOWER(status)"
     );
@@ -377,9 +346,6 @@ try {
     $documentRequiredCount = $counts['document required'] ?? $counts['document_required'] ?? 0;
     $totalRequests = array_sum($counts);
 
-    /*
-     * Load all leave requests (apply GET filters if present).
-     */
     $q = trim((string) ($_GET['q'] ?? ''));
     $filterType = trim((string) ($_GET['type'] ?? ''));
     $filterStatus = trim((string) ($_GET['status'] ?? ''));
@@ -387,15 +353,9 @@ try {
     $where = [];
     $params = [];
 
-    // NEW: only show requests the Secretary has already screened/signed.
-    // Matches the intake flow: Secretary reviews -> signs -> it becomes
-    // visible here for Department Head approval. Unscreened ('Pending')
-    // and returned-to-faculty ('Returned') requests stay hidden until
-    // they've passed screening.
     $where[] = "lr.screening_status = 'Screened'";
 
     if ($q !== '') {
-        // use distinct placeholders to avoid repeated named-parameter binding issues
         $where[] = "(CONCAT_WS(' ', fp.first_name, fp.last_name) LIKE :q_name OR lr.request_ref LIKE :q_ref)";
         $params[':q_name'] = '%' . $q . '%';
         $params[':q_ref'] = '%' . $q . '%';
@@ -427,23 +387,6 @@ try {
 
     $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $documentSubmissionAlerts = [];
-
-    foreach ($leaveRequests as $request) {
-        $status = strtolower(trim((string) ($request['status'] ?? '')));
-        $status = str_replace(' ', '_', $status);
-        $documentsValue = trim((string) ($request['documents'] ?? ''));
-
-        if ($status === 'approved' && $documentsValue !== '') {
-            $requestRef = trim((string) ($request['request_ref'] ?? ''));
-            if ($requestRef === '') {
-                $requestRef = 'LR-' . (int) ($request['id'] ?? 0);
-            }
-
-            $documentSubmissionAlerts[] = 'Faculty member submitted a document for his leave request ' . $requestRef;
-        }
-    }
-
 } catch (Throwable $e) {
 
     $formError = $e->getMessage();
@@ -460,83 +403,80 @@ require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
 
-<link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
-
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
-        <h1 class="h3 fw-bold mb-1 text-black">
+        <h1 class="h3 fw-bold mb-1 text-body">
             <i class="fas fa-plane-departure text-primary me-2"></i>
             Leave Request Approval
         </h1>
 
-        <p class="text-muted mb-0 small">
+        <p class="text-body-secondary mb-0 small">
             Review and approve or reject submitted leave requests
         </p>
     </div>
 </div>
-
 <!-- Metric Summary Cards -->
-<div class="row g-3 mb-4">
-    <!-- Pending Requests Card (Warning/Orange) -->
+<div class="row g-3 mb-3">
+    <!-- Pending Requests Card -->
     <div class="col-12 col-md-4">
-        <section class="card stat-card warning border shadow-sm position-relative h-100">
+        <section class="card border-0 border-start border-4 shadow-sm position-relative h-100" style="border-left-color: var(--bs-warning) !important;">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-warning fs-4">
+                <div class="me-3 text-warning fs-4 d-flex align-items-center justify-content-center">
                     <i class="fas fa-clock"></i>
                 </div>
                 <div>
-                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Requests</h6>
-                    <h4 class="mb-0 fw-bold"><?= $pendingCount ?></h4>
+                    <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Pending Requests</h6>
+                    <h4 class="mb-0 fw-bold text-body"><?= $pendingCount ?></h4>
                     <small class="text-warning fw-semibold" style="font-size: 0.75rem;">
                         <i class="fas fa-hourglass-half me-1"></i>Awaiting Screening/Approval
                     </small>
                 </div>
             </div>
-            <a href="?status=pending" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Pending Requests">
+            <a href="?status=pending" class="position-absolute top-0 end-0 m-3 text-body-secondary border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle text-decoration-none" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Pending Requests">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
     </div>
 
-    <!-- Approved Requests Card (Success/Green) -->
+    <!-- Approved Card -->
     <div class="col-12 col-md-4">
-        <section class="card stat-card success border shadow-sm position-relative h-100">
+        <section class="card border-0 border-start border-4 shadow-sm position-relative h-100" style="border-left-color: var(--bs-success) !important;">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-success fs-4">
+                <div class="me-3 text-success fs-4 d-flex align-items-center justify-content-center">
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div>
-                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Approved</h6>
-                    <h4 class="mb-0 fw-bold"><?= $approvedCount ?></h4>
+                    <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Approved</h6>
+                    <h4 class="mb-0 fw-bold text-body"><?= $approvedCount ?></h4>
                     <small class="text-success fw-semibold" style="font-size: 0.75rem;">
                         <i class="fas fa-thumbs-up me-1"></i>Successfully Processed
                     </small>
                 </div>
             </div>
-            <a href="?status=approved" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Approved Requests">
+            <a href="?status=approved" class="position-absolute top-0 end-0 m-3 text-body-secondary border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle text-decoration-none" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Approved Requests">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
     </div>
 
-    <!-- Rejected Requests Card (Danger/Red) -->
+    <!-- Rejected Card -->
     <div class="col-12 col-md-4">
-        <section class="card stat-card danger border shadow-sm position-relative h-100">
+        <section class="card border-0 border-start border-4 shadow-sm position-relative h-100" style="border-left-color: var(--bs-danger) !important;">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-danger fs-4">
+                <div class="me-3 text-danger fs-4 d-flex align-items-center justify-content-center">
                     <i class="fas fa-times-circle"></i>
                 </div>
                 <div>
-                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Rejected</h6>
-                    <h4 class="mb-0 fw-bold"><?= $rejectedCount ?></h4>
+                    <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Rejected</h6>
+                    <h4 class="mb-0 fw-bold text-body"><?= $rejectedCount ?></h4>
                     <small class="text-danger fw-semibold" style="font-size: 0.75rem;">
                         <i class="fas fa-ban me-1"></i>Declined Requests
                     </small>
                 </div>
             </div>
-            <a href="?status=rejected" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Rejected Requests">
+            <a href="?status=rejected" class="position-absolute top-0 end-0 m-3 text-body-secondary border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle text-decoration-none" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Rejected Requests">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -588,18 +528,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<?php if (!empty($documentSubmissionAlerts)): ?>
-    <div class="mb-3">
-        <?php foreach ($documentSubmissionAlerts as $alertMessage): ?>
-            <div class="alert alert-info alert-dismissible fade show" role="alert">
-                <i class="fas fa-info-circle me-2"></i>
-                <?= htmlspecialchars($alertMessage, ENT_QUOTES, 'UTF-8') ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endforeach; ?>
-    </div>
-<?php endif; ?>
-
 <div class="card border-0 shadow-sm mb-4">
 
     <div class="card-header bg-body-tertiary py-3 border-bottom">
@@ -613,7 +541,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </span>
             </h6>
 
-            <span class="badge bg-warning-subtle text-warning border rounded-pill">
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-3 py-2">
                 <?= $pendingCount ?> Pending
             </span>
 
@@ -624,12 +552,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
         <div class="table-responsive">
 
-            <table class="table align-middle table-hover mb-0">
+            <table class="table align-middle table-hover mb-0 text-nowrap">
 
-                <thead class="table-light">
+                <thead class="table-light border-bottom small text-uppercase fw-bold text-body-secondary">
 
                     <tr>
-                        <th class="ps-3" style="width: 40px;">
+                        <th class="ps-3 py-3">
                             <input
                                 type="checkbox"
                                 class="form-check-input"
@@ -637,25 +565,25 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             >
                         </th>
 
-                        <th>Faculty Member</th>
-                        <th>Type</th>
-                        <th>Duration</th>
-                        <th>Days</th>
-                        <th>Status</th>
-                        <th>Filed Date</th>
-                        <th class="text-end pe-3">Actions</th>
+                        <th class="py-3">Faculty Member</th>
+                        <th class="py-3">Type</th>
+                        <th class="py-3">Duration</th>
+                        <th class="py-3 text-center">Days</th>
+                        <th class="py-3 text-center">Status</th>
+                        <th class="py-3">Filed Date</th>
+                        <th class="text-end pe-3 py-3">Actions</th>
                     </tr>
 
                 </thead>
 
-                <tbody>
+                <tbody class="text-body">
 
                 <?php if (empty($leaveRequests)): ?>
 
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-5">
-                            <i class="fas fa-inbox fs-3 d-block mb-2"></i>
-                            No leave requests found.
+                        <td colspan="8" class="text-center text-body-secondary py-5">
+                            <i class="fas fa-inbox fs-3 d-block mb-2 text-body-tertiary"></i>
+                            <span>No leave requests found.</span>
                         </td>
                     </tr>
 
@@ -732,16 +660,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             'documents' => $documents,
                         ];
 
-                        $statusClass = 'bg-warning-subtle text-warning';
+                        $statusClass = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                        $statusIcon = 'fa-solid fa-clock';
 
                         if ($statusRaw === 'approved') {
-                            $statusClass = 'bg-success-subtle text-success';
+                            $statusClass = 'bg-success-subtle text-success-emphasis border border-success-subtle';
+                            $statusIcon = 'fa-solid fa-circle-check';
                         } elseif ($statusRaw === 'rejected') {
-                            $statusClass = 'bg-danger-subtle text-danger';
+                            $statusClass = 'bg-danger-subtle text-danger-emphasis border border-danger-subtle';
+                            $statusIcon = 'fa-solid fa-circle-xmark';
                         } elseif ($statusRaw === 'finished') {
-                            $statusClass = 'bg-info-subtle text-info';
+                            $statusClass = 'bg-info-subtle text-info-emphasis border border-info-subtle';
+                            $statusIcon = 'fa-solid fa-circle-check';
                         } elseif ($statusRaw === 'document_required') {
-                            $statusClass = 'bg-secondary-subtle text-secondary';
+                            $statusClass = 'bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle';
+                            $statusIcon = 'fa-solid fa-circle-exclamation';
                         }
 
                         $encodedData = htmlspecialchars(
@@ -758,9 +691,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                         ?>
 
-                        <tr>
+                        <tr class="align-middle">
 
-                            <td class="ps-3">
+                            <td class="ps-3 py-3">
 
                                 <?php if ($statusRaw === 'pending'): ?>
 
@@ -774,13 +707,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                             </td>
 
-                            <td>
+                            <td class="py-3">
 
                                 <div class="d-flex align-items-center">
 
                                     <div
-                                        class="avatar-sm bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-2 fw-bold"
-                                        style="width:36px;height:36px;"
+                                        class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-2 fw-bold flex-shrink-0"
+                                        style="width: 36px; height: 36px;"
                                     >
                                         <?= htmlspecialchars(
                                             strtoupper(substr($facultyName, 0, 1)),
@@ -791,21 +724,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                                     <div>
 
-                                        <span class="fw-semibold text-body d-block">
+                                        <strong class="text-body-emphasis d-block">
                                             <?= htmlspecialchars(
                                                 $facultyName,
                                                 ENT_QUOTES,
                                                 'UTF-8'
                                             ) ?>
-                                        </span>
+                                        </strong>
 
-                                        <span class="small text-body-secondary">
+                                        <small class="d-block text-body-secondary font-monospace">
                                             <?= htmlspecialchars(
                                                 $requestRef,
                                                 ENT_QUOTES,
                                                 'UTF-8'
                                             ) ?>
-                                        </span>
+                                        </small>
 
                                     </div>
 
@@ -813,9 +746,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                             </td>
 
-                            <td>
+                            <!-- High Contrast Type Badge -->
+                            <td class="py-3">
 
-                                <span class="badge bg-light text-dark border px-2 py-1 rounded-2">
+                                <span class="badge bg-primary bg-opacity-10 text-info border border-info border-opacity-25 rounded-3 px-3 py-2 fw-semibold">
                                     <?= htmlspecialchars(
                                         $leaveType,
                                         ENT_QUOTES,
@@ -825,37 +759,30 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                             </td>
 
-                            <td>
+                            <td class="py-3">
 
-                                <div class="small text-nowrap">
-                                    <?= htmlspecialchars(
-                                        $startDate,
-                                        ENT_QUOTES,
-                                        'UTF-8'
-                                    ) ?>
-
-                                    <i class="fas fa-arrow-right mx-1"></i>
-
-                                    <?= htmlspecialchars(
-                                        $endDate,
-                                        ENT_QUOTES,
-                                        'UTF-8'
-                                    ) ?>
+                                <div class="d-inline-flex align-items-center text-body font-monospace">
+                                    <span><?= htmlspecialchars($startDate, ENT_QUOTES, 'UTF-8') ?></span>
+                                    <i class="fas fa-arrow-right mx-2 text-body-tertiary"></i>
+                                    <span><?= htmlspecialchars($endDate, ENT_QUOTES, 'UTF-8') ?></span>
                                 </div>
 
                             </td>
 
-                            <td>
-                                <strong class="text-body">
+                            <td class="py-3 text-center">
+                                <span class="fw-bold text-body bg-body-tertiary border rounded px-2 py-1">
                                     <?= $days ?>
-                                </strong>
+                                </span>
                             </td>
 
-                            <td>
+                            <td class="py-3 text-center">
 
-                                <span class="badge <?= $statusClass ?> border rounded-pill">
+                                <span class="badge <?= $statusClass ?> rounded-pill px-3 py-2 fw-bold d-inline-flex align-items-center gap-1">
+                                    <?php if ($statusRaw === 'pending'): ?>
+                                        <i class="<?= $statusIcon ?> me-1"></i>
+                                    <?php endif; ?>
                                     <?= htmlspecialchars(
-                                        $status,
+                                        $statusRaw === 'pending' ? 'Pending Approval' : $status,
                                         ENT_QUOTES,
                                         'UTF-8'
                                     ) ?>
@@ -863,34 +790,34 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                             </td>
 
-                            <td>
+                            <td class="py-3">
 
-                                <span class="small text-body d-block">
+                                <small class="text-body-secondary font-monospace d-block">
                                     <?= htmlspecialchars(
                                         $createdAt,
                                         ENT_QUOTES,
                                         'UTF-8'
                                     ) ?>
-                                </span>
+                                </small>
 
                             </td>
 
-                            <td class="text-end pe-3">
+                            <td class="text-end pe-3 py-3">
 
                                 <div class="btn-group btn-group-sm">
 
                                     <button
                                         type="button"
-                                        class="btn btn-primary"
+                                        class="btn btn-outline-primary"
                                         onclick='viewDetails(<?= $encodedData ?>)'
                                     >
-                                        <i class="fas fa-eye me-1"></i>
-                                        View
+                                        <i class="fas fa-search me-1"></i>
+                                        Review
                                     </button>
 
                                     <button
                                         type="button"
-                                        class="btn btn-primary dropdown-toggle dropdown-toggle-split"
+                                        class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split"
                                         data-bs-toggle="dropdown"
                                     >
                                         <span class="visually-hidden">
@@ -904,7 +831,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                                             <?php if (empty(trim((string) ($request['documents'] ?? ''))) || $statusRaw === 'document_required'): ?>
                                                 <li>
-                                                    <button type="button" class="dropdown-item text-primary"onclick="notifyFaculty(<?= $id ?>)">
+                                                    <button type="button" class="dropdown-item text-primary" onclick="notifyFaculty(<?= $id ?>)">
                                                         <i class="fas fa-bell me-2"></i> Notify Faculty
                                                     </button>
                                                 </li>
@@ -961,7 +888,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                         <?php elseif ($statusRaw === 'rejected'): ?>
 
                                             <li>
-                                                <span class="dropdown-item-text text-muted small">
+                                                <span class="dropdown-item-text text-body-secondary small">
                                                     Rejected requests are view-only
                                                 </span>
                                             </li>
@@ -969,7 +896,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                         <?php else: ?>
 
                                             <li>
-                                                <span class="dropdown-item-text text-muted small">
+                                                <span class="dropdown-item-text text-body-secondary small">
                                                     Request already processed
                                                 </span>
                                             </li>
@@ -999,13 +926,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <!-- Leave Details Modal -->
-
-<div
-    class="modal fade"
-    id="proposalModal"
-    tabindex="-1"
-    aria-hidden="true"
->
+<div class="modal fade" id="proposalModal" tabindex="-1" aria-hidden="true">
 
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
 
@@ -1069,7 +990,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <span class="d-block text-uppercase text-body-secondary fw-semibold small">
                                 Leave Type
                             </span>
-                            <strong class="text-primary" id="modal-leave-type">
+                            <strong class="text-info" id="modal-leave-type">
                                 -
                             </strong>
                         </div>
@@ -1094,9 +1015,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </label>
 
                     <div
-                        class="bg-body-tertiary p-3 rounded-3 border small"
+                        class="bg-body-tertiary p-3 rounded-3 border text-break text-wrap text-body"
                         id="modal-reason"
-                        style="white-space:pre-wrap;overflow-wrap:anywhere;"
                     >
                         -
                     </div>
@@ -1113,7 +1033,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         class="d-flex flex-wrap gap-2"
                         id="modal-docs-container"
                     >
-                        <span class="small text-muted">
+                        <span class="small text-body-secondary">
                             No attachments
                         </span>
                     </div>
@@ -1161,13 +1081,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <!-- Reject Modal -->
-
-<div
-    class="modal fade"
-    id="rejectModal"
-    tabindex="-1"
-    aria-hidden="true"
->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
 
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
 
@@ -1204,13 +1118,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                 <textarea
                     id="reject-reason"
-                    class="form-control"
+                    class="form-control text-body"
                     rows="5"
                     maxlength="1000"
                     placeholder="Enter the reason for rejection..."
                 ></textarea>
 
-                <div class="small text-muted text-end mt-1">
+                <div class="small text-body-secondary text-end mt-1">
                     Maximum 1000 characters
                 </div>
 
@@ -1353,7 +1267,7 @@ function viewDetails(data) {
         viewLink.href = resolved;
         viewLink.target = '_blank';
         viewLink.rel = 'noopener noreferrer';
-        viewLink.className = 'btn btn-sm btn-outline-primary';
+        viewLink.className = 'btn btn-sm btn-outline-info';
 
         const parts = resolved.split('/');
         const fileName = parts[parts.length - 1] || 'document';
@@ -1370,17 +1284,15 @@ function viewDetails(data) {
 
         docsContainer.appendChild(downloadLink);
     } else {
-        docsContainer.innerHTML = '<span class="small text-muted">No attachments</span>';
+        docsContainer.innerHTML = '<span class="small text-body-secondary">No attachments</span>';
     }
 
     document.getElementById('proposalModal').dataset.requestId =
         data.id || '';
 
-    // store status for UI controls (pending/approved/rejected)
     document.getElementById('proposalModal').dataset.requestStatus =
         (data.status || '').toString();
 
-    // show/hide modal action buttons depending on status
     try {
         var approveBtn = document.getElementById('modal-approve-btn');
         var rejectBtn = document.getElementById('modal-reject-btn');
@@ -1461,7 +1373,6 @@ function approveRequest(id) {
         return;
     }
 
-    // Prevent approving if modal indicates it's already processed
     try {
         var modalEl = document.getElementById('proposalModal');
         var status = (modalEl?.dataset?.requestStatus || '').toLowerCase();
@@ -1516,10 +1427,8 @@ function rejectRequest(id) {
         return;
     }
 
-    // Prevent rejecting if request already processed
     try {
         var row = document.querySelector('.row-select[value="' + id + '"]');
-        // if checkbox not found, request might not be pending; but we still check modal dataset
         var modalEl = document.getElementById('proposalModal');
         var status = (modalEl?.dataset?.requestStatus || '').toLowerCase();
         var actionable = status === 'pending';
@@ -1571,96 +1480,6 @@ function getSelectedIds() {
     });
 }
 
-function approveSelected() {
-
-    const selected = getSelectedIds();
-
-    if (selected.length === 0) {
-        alert('Please select at least one pending leave request.');
-        return;
-    }
-
-    if (
-        !confirm(
-            'Approve ' +
-            selected.length +
-            ' selected leave request(s)?'
-        )
-    ) {
-        return;
-    }
-
-    /*
-     * Submit one request at a time.
-     *
-     * This keeps the existing PHP approval endpoint simple
-     * and prevents partially implemented batch processing.
-     */
-    let index = 0;
-
-    function approveNext() {
-
-        if (index >= selected.length) {
-            window.location.reload();
-            return;
-        }
-
-        const id = selected[index];
-
-        index++;
-
-        const form = document.createElement('form');
-
-        form.method = 'POST';
-        form.action = window.location.href;
-        form.style.display = 'none';
-
-        const actionInput = document.createElement('input');
-        actionInput.type = 'hidden';
-        actionInput.name = 'action';
-        actionInput.value = 'approve';
-
-        const idInput = document.createElement('input');
-        idInput.type = 'hidden';
-        idInput.name = 'request_id';
-        idInput.value = id;
-
-        form.appendChild(actionInput);
-        form.appendChild(idInput);
-
-        document.body.appendChild(form);
-
-        /*
-         * The server redirects after each approval,
-         * so this function normally stops at the first request.
-         *
-         * Individual approval is the recommended path.
-         */
-        form.submit();
-    }
-
-    approveNext();
-}
-
-function rejectSelected() {
-
-    const selected = getSelectedIds();
-
-    if (selected.length === 0) {
-        alert('Please select at least one pending leave request.');
-        return;
-    }
-
-    if (selected.length > 1) {
-        alert(
-            'Please reject leave requests individually so that a separate reason can be recorded for each request.'
-        );
-        return;
-    }
-
-    rejectRequest(selected[0]);
-}
-
 document.addEventListener('DOMContentLoaded', function () {
 
     const selectAll =
@@ -1684,50 +1503,5 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 </script>
-
-<style>
-
-#proposalModal .modal-dialog,
-#rejectModal .modal-dialog {
-    max-height: calc(100vh - 2rem);
-}
-
-#proposalModal .modal-content,
-#rejectModal .modal-content {
-    max-height: calc(100vh - 2rem);
-}
-
-#proposalModal .modal-body,
-#rejectModal .modal-body {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-@media (max-width: 575.98px) {
-
-    #proposalModal .modal-dialog,
-    #rejectModal .modal-dialog {
-        margin: 0.5rem;
-        max-height: calc(100vh - 1rem);
-    }
-
-    #proposalModal .modal-content,
-    #rejectModal .modal-content {
-        max-height: calc(100vh - 1rem);
-    }
-
-    #proposalModal .modal-footer,
-    #rejectModal .modal-footer {
-        padding: 0.75rem;
-    }
-
-    #proposalModal .modal-footer .btn,
-    #rejectModal .modal-footer .btn {
-        flex: 1 1 auto;
-    }
-
-}
-
-</style>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
