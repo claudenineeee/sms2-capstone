@@ -1,6 +1,6 @@
 <?php
+require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
-require_once __DIR__ . '/../../models/FacultyModel.php';
 require_once __DIR__ . '/../../controllers/FacultyPerformanceController.php';
 
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
@@ -20,6 +20,7 @@ $breadcrumbs  = [
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
+
 ?>
 
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
