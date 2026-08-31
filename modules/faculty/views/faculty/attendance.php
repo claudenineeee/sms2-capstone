@@ -29,64 +29,69 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>    
 </div>
 
-<!-- Summary Cards (4-Column Grid) -->
-<div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-3 mb-4">
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-success bg-opacity-10 text-success rounded-3 fs-5">
+<!-- Summary Cards (4-Column Grid with styled indicator bars) -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #28a745; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #28a745;">
                     <i class="fas fa-percentage"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Attendance Rate</span>
-                    <h4 class="fw-bold mb-0">92% <small class="text-muted fs-6">this mo.</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Attendance Rate</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #28a745;">92% <small class="text-muted fs-6">this mo.</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-3 fs-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Days Present</span>
-                    <h4 class="fw-bold mb-0">18 <small class="text-muted fs-6">days</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Days Present</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;">18 <small class="text-muted fs-6">days</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3 fs-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ffc107; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #ffc107;">
                     <i class="fas fa-clock"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Late Arrivals</span>
-                    <h4 class="fw-bold mb-0">2 <small class="text-muted fs-6">times</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Late Arrivals</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #ffc107;">2 <small class="text-muted fs-6">times</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-danger bg-opacity-10 text-danger rounded-3 fs-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ff4d4d; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #ff4d4d;">
                     <i class="fas fa-user-times"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Absences</span>
-                    <h4 class="fw-bold mb-0">1 <small class="text-muted fs-6">day</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Absences</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #ff4d4d;">1 <small class="text-muted fs-6">day</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 </div>
+
 <!-- Side-by-Side Section: Date Selector & Teacher Subject Attendance -->
 <div class="row g-4 mb-4">
     <!-- Left Table: Date Selection with Week/Month Filters -->
@@ -104,7 +109,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                <div class="table-responsive custom-scrollbar" style="max-height: 320px; overflow-y: auto;">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light sticky-top">
                             <tr>
@@ -124,7 +129,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 ['date' => 'Jul 25, 2025', 'day' => 'Friday', 'active' => false],
                             ];
                             foreach ($dates as $d): 
-                                $activeClass = $d['active'] ? 'table-primary' : '';
+                                $activeClass = $d['active'] ? 'table-active' : '';
                             ?>
                                 <tr class="<?= $activeClass ?>" style="cursor: pointer;">
                                     <td class="ps-3 fw-medium small text-nowrap"><?= $d['date'] ?></td>
@@ -157,9 +162,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </span>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
+                <div class="table-responsive custom-scrollbar" style="max-height: 320px; overflow-y: auto;">
                     <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
+                        <thead class="table-light sticky-top">
                             <tr>
                                 <th class="ps-3 text-body-secondary fw-semibold small text-nowrap">Time</th>
                                 <th class="text-body-secondary fw-semibold small">Subject</th>
@@ -282,6 +287,38 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 </div>
+
+<style>
+    /* Custom Scrollbar Styles (Chrome, Safari, Edge, Firefox) */
+    .custom-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.25);
+        border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(13, 110, 253, 0.6);
+    }
+
+    /* Light Theme Scrollbar Adjustments */
+    [data-bs-theme="light"] .custom-scrollbar,
+    body:not([data-bs-theme="dark"]) .custom-scrollbar {
+        scrollbar-color: rgba(13, 110, 253, 0.3) transparent;
+    }
+    [data-bs-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb,
+    body:not([data-bs-theme="dark"]) .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(13, 110, 253, 0.3);
+    }
+</style>
 
 <script>
 let canvas, ctx;
