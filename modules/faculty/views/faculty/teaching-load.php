@@ -36,30 +36,32 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <!-- Summary Cards -->
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-6">
-        <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-body p-4 d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-body-secondary small fw-semibold text-uppercase tracking-wider d-block mb-1" style="font-size: 0.725rem;">Current Load</span>
-                    <h3 class="fw-bold mb-0 text-dark">24 <span class="fs-6 text-muted fw-normal">units</span></h3>
+        <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
+                    <i class="fas fa-book"></i>
                 </div>
-                <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                    <i class="fas fa-book fs-4"></i>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Current Load</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;">24 <small class="text-muted fs-6 fw-normal">units</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
     <div class="col-12 col-md-6">
-        <div class="card border-0 shadow-sm rounded-3 h-100">
-            <div class="card-body p-4 d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-body-secondary small fw-semibold text-uppercase tracking-wider d-block mb-1" style="font-size: 0.725rem;">Total Subjects</span>
-                    <h3 class="fw-bold mb-0 text-dark">8</h3>
+        <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #28a745; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #28a745;">
+                    <i class="fas fa-layer-group"></i>
                 </div>
-                <div class="rounded-3 bg-success bg-opacity-10 text-success p-3 d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                    <i class="fas fa-layer-group fs-4"></i>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Subjects</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #28a745;">8 <small class="text-muted fs-6 fw-normal">subjects</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 

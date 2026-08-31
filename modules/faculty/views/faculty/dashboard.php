@@ -23,10 +23,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <!-- Page Header -->
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
-        <h1><i class="fas fa-user text-purple me-2"></i>Faculty Dashboard</h1>
-        <p class="text-muted mb-0">Welcome, Prof. Maria Santos</p>
+        <h1 class="h3 fw-bold mb-1"><i class="fas fa-user text-purple me-2"></i>Faculty Dashboard</h1>
+        <p class="text-muted mb-0 small">Welcome, Prof. Maria Santos</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-outline-secondary btn-sm fw-medium" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/users/faculty/pages/leave-request.php'">
@@ -38,79 +38,65 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<div class="container-fluid py-4">
-    <!-- Stat Metric Cards (Subtle & Neutral) -->
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-5 g-3 mb-4">  
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 p-2 bg-body">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-3 fs-5">
-                    <i class="fas fa-book-open"></i>
+<div class="container-fluid px-0 py-2">
+    <!-- Stat Metric Cards (Updated Layout & Design) -->
+    <div class="row g-3 mb-4">  
+        <div class="col-12 col-sm-6 col-xl">
+            <section class="card stat-card primary border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center p-3">
+                    <div class="stat-icon me-3 text-primary fs-4">
+                        <i class="fas fa-book-open"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Teaching Load</h6>
+                        <h4 class="mb-0 fw-bold fs-5">24 <small class="text-muted fs-6">units</small></h4>
+                    </div>
                 </div>
-                <div>
-                    <span class="text-body-secondary small d-block fw-medium">Teaching Load</span>
-                    <h4 class="fw-bold mb-0">24 <small class="text-muted fs-6">units</small></h4>
-                </div>
-            </div>
+            </section>
         </div>
-    </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 p-2 bg-body">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-success bg-opacity-10 text-success rounded-3 fs-5">
-                    <i class="fas fa-calendar-day"></i>
+        <div class="col-12 col-sm-6 col-xl">
+            <section class="card stat-card success border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center p-3">
+                    <div class="stat-icon me-3 text-success fs-4">
+                        <i class="fas fa-calendar-day"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Classes Today</h6>
+                        <h4 class="mb-0 fw-bold fs-5">3</h4>
+                    </div>
                 </div>
-                <div>
-                    <span class="text-body-secondary small d-block fw-medium">Classes Today</span>
-                    <h4 class="fw-bold mb-0">3</h4>
-                </div>
-            </div>
+            </section>
         </div>
-    </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 p-2 bg-body">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-info bg-opacity-10 text-info rounded-3 fs-5">
-                    <i class="fas fa-user-check"></i>
+        <div class="col-12 col-sm-6 col-xl">
+            <section class="card stat-card info border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center p-3">
+                    <div class="stat-icon me-3 text-info fs-4">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Attendance Rate</h6>
+                        <h4 class="mb-0 fw-bold fs-5">92%</h4>
+                    </div>
                 </div>
-                <div>
-                    <span class="text-body-secondary small d-block fw-medium">Attendance Rate</span>
-                    <h4 class="fw-bold mb-0">92%</h4>
-                </div>
-            </div>
+            </section>
         </div>
-    </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 p-2 bg-body">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3 fs-5">
-                    <i class="fas fa-star-half-alt"></i>
+        <div class="col-12 col-sm-6 col-xl">
+            <section class="card stat-card warning border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center p-3">
+                    <div class="stat-icon me-3 text-warning fs-4">
+                        <i class="fas fa-star-half-alt"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Rating</h6>
+                        <h4 class="mb-0 fw-bold fs-5">4.6 <small class="text-muted fs-6">/5.0</small></h4>
+                    </div>
                 </div>
-                <div>
-                    <span class="text-body-secondary small d-block fw-medium">Rating</span>
-                    <h4 class="fw-bold mb-0">4.6 <small class="text-muted fs-6">/5.0</small></h4>
-                </div>
-            </div>
+            </section>
         </div>
     </div>
-
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 p-2 bg-body">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-secondary bg-opacity-10 text-secondary rounded-3 fs-5">
-                    <i class="fas fa-plane"></i>
-                </div>
-                <div>
-                    <span class="text-body-secondary small d-block fw-medium">Leave Balance</span>
-                    <h4 class="fw-bold mb-0">10 <small class="text-muted fs-6">days</small></h4>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
     
   <!-- Main Content Area -->
 <div class="row g-4">
@@ -118,18 +104,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="col-12 col-lg-8">         
         <!-- Schedule Card -->
         <div class="card border shadow-sm rounded-3 mb-4">
-            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="fw-bold text-dark mb-0">
                     <i class="far fa-clock text-primary me-2"></i>Today's Schedule
                 </h6>
                 <span class="badge bg-light text-secondary border fw-normal">August 1, 2025</span>
             </div>
             <div class="card-body p-3">
-                <div class="d-flex flex-column gap-2">
+                <div class="d-flex flex-column gap-3">
 
                     <!-- Class Row 1 -->
                     <div class="p-3 rounded-2 border bg-white">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
                             <div>
                                 <h6 class="fw-bold text-dark mb-1">CS101 — Intro to Computer Science</h6>
                                 <span class="text-secondary small"><i class="fas fa-map-marker-alt me-1 text-primary"></i> Room 201</span>
@@ -143,7 +129,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                     <!-- Class Row 2 -->
                     <div class="p-3 rounded-2 border bg-white">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
                             <div>
                                 <h6 class="fw-bold text-dark mb-1">CS401 — Software Engineering</h6>
                                 <span class="text-secondary small"><i class="fas fa-map-marker-alt me-1 text-primary"></i> Room 203</span>
@@ -157,7 +143,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                     <!-- Class Row 3 -->
                     <div class="p-3 rounded-2 border bg-light">
-                        <div class="d-flex justify-content-between align-items-start">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                             <div>
                                 <h6 class="fw-semibold text-secondary mb-1">CS301 — Design & Analysis of Algorithms</h6>
                                 <span class="text-muted small"><i class="fas fa-map-marker-alt me-1"></i> Room 301</span>
@@ -177,7 +163,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <i class="far fa-calendar-check text-primary me-2"></i>Upcoming Deadlines
                 </h6>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-0 custom-scrollbar" style="max-height: 300px; overflow-y: auto;">
                 <ul class="list-group list-group-flush">
                     <?php
                     $deadlines = [
@@ -192,8 +178,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <span class="d-block fw-bold small"><?= $d['date'] ?></span>
                             </div>
                             <div class="flex-grow-1 min-w-0">
-                                <h6 class="mb-0 fw-semibold text-dark text-truncate small"><?= $d['title'] ?></h6>
-                                <small class="text-secondary d-block style-tiny"><?= $d['desc'] ?></small>
+                                <h6 class="mb-0 fw-semibold text-dark small"><?= $d['title'] ?></h6>
+                                <small class="text-secondary d-block"><?= $d['desc'] ?></small>
                             </div>
                         </li>
                     <?php endforeach; ?>
@@ -228,7 +214,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <li class="list-group-item p-3 border-bottom">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <strong class="small text-dark"><?= $n['title'] ?></strong>
-                                <span class="text-muted style-tiny" style="font-size: 0.75rem;"><?= $n['time'] ?></span>
+                                <span class="text-muted" style="font-size: 0.75rem;"><?= $n['time'] ?></span>
                             </div>
                             <p class="mb-0 small text-secondary"><?= $n['msg'] ?></p>
                         </li>
@@ -240,5 +226,38 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 
 </div>
+</div>
+
+<style>
+    /* Custom Scrollbar Styles (Chrome, Safari, Edge, Firefox) */
+    .custom-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.25);
+        border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(13, 110, 253, 0.6);
+    }
+
+    /* Light Theme Scrollbar Adjustments */
+    [data-bs-theme="light"] .custom-scrollbar,
+    body:not([data-bs-theme="dark"]) .custom-scrollbar {
+        scrollbar-color: rgba(13, 110, 253, 0.3) transparent;
+    }
+    [data-bs-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb,
+    body:not([data-bs-theme="dark"]) .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(13, 110, 253, 0.3);
+    }
+</style>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
