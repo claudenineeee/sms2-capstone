@@ -279,7 +279,15 @@ class FacultyModel {
                 AVG(CASE WHEN e.source_type = 'Peer'     THEN e.composite_score END) AS peer_score,
                 AVG(CASE WHEN e.source_type = 'DeptHead' THEN e.composite_score END) AS teaching_score
             FROM faculty_db.faculty_profiles fp
-            LEFT JOIN evaluations e ON e.faculty_id = fp.id
+            LEFT JOIN faculty_db.faculty f ON f.faculty_id = (
+                SELECT f2.faculty_id
+                FROM faculty_db.faculty f2
+                WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+                   OR f2.faculty_no = fp.faculty_id
+                ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+                LIMIT 1
+            )
+            LEFT JOIN faculty_db.evaluations e ON e.faculty_id = f.faculty_id
         ";
 
         if (!(empty($deptId) || $deptId === '1' || $deptId === 1)) {

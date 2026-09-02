@@ -5,8 +5,7 @@ require_once __DIR__ . '/../../controllers/faculty-data.php';
 
 requireAuth();
 $pageTitle = 'Leave Request';
-$activeModule = 'faculty';
-$activePage = 'leave-request';
+$activeModule = 'faculty';$activePage = 'leave-request';
 
 $breadcrumbs = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
@@ -14,8 +13,7 @@ $breadcrumbs = [
     ['label' => 'Leave Request', 'url' => null],
 ];
 
-$leaveRequests = [];
-$totalBalance = null;
+$leaveRequests = [];$totalBalance = null;
 $pendingCount = 0;
 $approvedCount = 0;
 $rejectedCount = 0;
@@ -23,8 +21,7 @@ $finishedCount = 0;
 $documentRequiredCount = 0;
 
 $formError = '';
-$formSuccess = '';
-$alertMessages = [];
+$formSuccess = '';$alertMessages = [];
 
 try {
     $pdo = facultyDb();
@@ -189,10 +186,10 @@ try {
                 if (!$row) {
                     $formError = 'Leave request not found.';
                 } else {
-                    // Prevent follow-up uploads for requests that are already rejected
+                    // Prevent follow-up uploads for requests that are already rejected or approved
                     $currentStatus = strtolower(trim((string) ($row['status'] ?? '')));
-                    if ($currentStatus === 'rejected') {
-                        $formError = 'Cannot upload follow-up for a rejected request.';
+                    if ($currentStatus === 'rejected' || $currentStatus === 'approved') {
+                        $formError = 'Cannot upload follow-up for this request status.';
                     } else {
                     // confirm ownership by matching faculty_profiles.user_id
                     $fp = $pdo->prepare('SELECT id FROM faculty_db.faculty_profiles WHERE id = :fp_id AND user_id = :user_id LIMIT 1');
@@ -360,62 +357,66 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </button>
 </div>
 
-<!-- Summary Metrics Bar -->
-<div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-3 mb-4">
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-success bg-opacity-10 text-success rounded-3 fs-5">
+<!-- Summary Cards (4-Column Grid with styled indicator bars) -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Total Requests</span>
-                    <h4 class="fw-bold mb-0"><?php echo count($leaveRequests); ?> <small class="text-muted fs-6">entries</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Requests</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?php echo count($leaveRequests); ?> <small class="text-muted fs-6">entries</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3 fs-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ffc107; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #ffc107;">
                     <i class="fas fa-hourglass-half"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Pending</span>
-                    <h4 class="fw-bold mb-0 text-warning"><?php echo $pendingCount; ?> <small class="text-muted fs-6">awaiting review</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #ffc107;"><?php echo $pendingCount; ?> <small class="text-muted fs-6">awaiting review</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-3 fs-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #28a745; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #28a745;">
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Approved</span>
-                    <h4 class="fw-bold mb-0 text-primary"><?php echo $approvedCount; ?> <small class="text-muted fs-6">requests</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Approved</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #28a745;"><?php echo $approvedCount; ?> <small class="text-muted fs-6">requests</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-secondary bg-opacity-10 text-secondary rounded-3 fs-5">
-                    <i class="fas fa-times-circle"></i>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #dc3545; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #dc3545;">
+                    <i class="fas fa-triangle-exclamation"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Rejected</span>
-                    <h4 class="fw-bold mb-0 text-secondary"><?php echo $rejectedCount; ?> <small class="text-muted fs-6">requests</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Rejected</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #dc3545;"><?php echo $rejectedCount; ?> <small class="text-muted fs-6">requests</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 
@@ -429,64 +430,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
-
-<!-- Leave Category Breakdown (Visual Allocation Progress) -->
-<!-- <div class="card border-0 shadow-sm rounded-4 mb-4">
-    <div class="card-header bg-transparent border-0 pt-3 px-4">
-        <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
-            <i class="fas fa-chart-pie text-primary"></i>
-            Leave Entitlement Breakdown
-        </h6>
-    </div>
-    <div class="card-body px-4 pb-4">
-        <div class="row g-3">
-            <div class="col-6 col-md-3">
-                <div class="p-3 bg-light rounded-3 border border-light-subtle">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="small fw-semibold text-dark">Vacation</span>
-                        <span class="fw-bold text-primary">5 <small class="text-muted fw-normal">/ 10</small></span>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: 50%"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="p-3 bg-light rounded-3 border border-light-subtle">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="small fw-semibold text-dark">Sick Leave</span>
-                        <span class="fw-bold text-success">3 <small class="text-muted fw-normal">/ 5</small></span>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                        <div class="progress-bar bg-success" role="progressbar" style="width: 60%"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="p-3 bg-light rounded-3 border border-light-subtle">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="small fw-semibold text-dark">Emergency</span>
-                        <span class="fw-bold text-warning">2 <small class="text-muted fw-normal">/ 3</small></span>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                        <div class="progress-bar bg-warning" role="progressbar" style="width: 66%"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="p-3 bg-light rounded-3 border border-light-subtle">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="small fw-semibold text-dark">Study Leave</span>
-                        <span class="fw-bold text-secondary">0 <small class="text-muted fw-normal">/ 0</small></span>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                        <div class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div> WAG MUNA NATIN TO SALI HAHAHA--> 
 
 <!-- Requests Data Table -->
 <div class="card border-0 shadow-sm rounded-4 mb-4">
@@ -585,17 +528,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <td><span class="badge border rounded-pill px-2.5 py-1.5 <?= $badgeClass ?>"><?= $statusText ?></span></td>
                             <td class="small text-muted"><?= $fileDate ?></td>
                             <td class="pe-4 text-end">
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-light text-primary border" title="View Details" onclick='viewDetails(<?= htmlspecialchars(json_encode($dataObj), ENT_QUOTES, 'UTF-8') ?>)'>
+                                <div class="d-inline-flex align-items-center gap-1 bg-light p-1 rounded-pill border">
+                                    <button class="btn btn-sm btn-white text-primary rounded-circle shadow-none px-2 py-1 border-0" title="View Details" onclick='viewDetails(<?= htmlspecialchars(json_encode($dataObj), ENT_QUOTES, 'UTF-8') ?>)'>
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if (strtolower($status) !== 'rejected' && strtolower($status) !== 'finished'): ?>
-                                    <button class="btn btn-light text-secondary border" title="Upload Follow-up / Supporting Document" onclick="openUploadModal(<?= (int)$row['id'] ?>)">
+                                    <?php if (!in_array(strtolower($status), ['rejected', 'finished', 'approved'])): ?>
+                                    <button class="btn btn-sm btn-white text-secondary rounded-circle shadow-none px-2 py-1 border-0" title="Upload Follow-up / Supporting Document" onclick="openUploadModal(<?= (int)$row['id'] ?>)">
                                         <i class="fas fa-upload"></i>
                                     </button>
                                     <?php endif; ?>
                                     <?php if (strtolower($status) === 'pending'): ?>
-                                    <button class="btn btn-light text-danger border" title="Cancel Request" onclick="cancelRequest('<?= $id ?>')">
+                                    <button class="btn btn-sm btn-white text-danger rounded-circle shadow-none px-2 py-1 border-0" title="Cancel Request" onclick="cancelRequest('<?= $id ?>')">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                     <?php endif; ?>
