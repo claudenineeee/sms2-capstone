@@ -222,22 +222,13 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                     oninput="filterArchives()">
                             </div>
                         </div>
-                        <div class="col-12 col-sm-6 col-md-3">
+                        <div class="col-12 col-sm-6 col-md-4">
                             <select id="archiveTermFilter" class="form-select form-select-sm"
                                 onchange="filterArchives()">
                                 <option value="all">All Academic Terms</option>
                             </select>
                         </div>
                         <div class="col-12 col-sm-6 col-md-3">
-                            <select id="archiveIntentFilter" class="form-select form-select-sm"
-                                onchange="filterArchives()">
-                                <option value="all">All Intent Types</option>
-                                <option value="renewal">Contract Renewal / Extension</option>
-                                <option value="regularization">Regularization</option>
-                                <option value="resignation">Proceed with Clearance</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-2">
                             <select id="archiveEmpFilter" class="form-select form-select-sm"
                                 onchange="filterArchives()">
                                 <option value="all">All Statuses</option>
@@ -254,7 +245,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                             <tr>
                                 <th class="ps-3">Faculty</th>
                                 <th>Academic Term</th>
-                                <th>Statement of Intent</th>
                                 <th>Contract Expiry</th>
                                 <th>Requirements Summary</th>
                                 <th>Date Cleared</th>
@@ -341,24 +331,18 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <div class="card bg-body-tertiary border mb-4">
                     <div class="card-body p-3">
                         <div class="row g-3 text-body">
-                            <div class="col-12 col-sm-6 col-md-3 border-end-md border-body-subtle">
+                            <div class="col-12 col-md-4 border-end-md border-body-subtle">
                                 <small class="text-body-secondary d-block">Current Contract Expiry</small>
                                 <span class="fw-bold fs-6 text-body-emphasis" id="summaryContractExpiry">—</span>
                                 <small class="d-block" id="summaryDaysRemaining"></small>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3 border-end-md border-body-subtle">
+                            <div class="col-12 col-md-4 border-end-md border-body-subtle">
                                 <small class="text-body-secondary d-block mb-1">Employment Status</small>
                                 <span
                                     class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"
                                     id="summaryEmpStatus">—</span>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3 border-end-md border-body-subtle">
-                                <small class="text-body-secondary d-block mb-1">Statement of Intent</small>
-                                <span
-                                    class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"
-                                    id="summaryIntentType">—</span>
-                            </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-md-4">
                                 <small class="text-body-secondary d-block">Clearance Progress</small>
                                 <div class="d-flex align-items-center gap-2 mt-1">
                                     <div class="progress flex-grow-1" style="height: 8px;">
@@ -370,6 +354,16 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+                <!-- Clearance Agreement Form Status & Review Card -->
+                <div class="card border mb-4 shadow-sm" id="agreementFormReviewCard">
+                    <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-bold small text-uppercase"><i class="fas fa-file-contract text-primary me-2"></i>Clearance Agreement Form</span>
+                        <span id="agreementFormStatusBadge" class="badge bg-secondary-subtle text-body-secondary border">Not Submitted</span>
+                    </div>
+                    <div class="card-body p-3" id="agreementFormReviewBody">
+                        <!-- Loaded dynamically in openReview() -->
                     </div>
                 </div>
 
@@ -390,93 +384,64 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     </table>
                 </div>
 
-                <!-- Contract Renewal & Employment Status Management Section -->
-                <div class="card border-success shadow-sm" id="renewalCard">
-                    <div
-                        class="card-header bg-success-subtle border-bottom border-success-subtle py-2 d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
-                        <span class="fw-bold text-success small text-uppercase"><i
-                                class="fas fa-user-edit me-2"></i>Contract Renewal &amp; Employment Status (Probationary
-                            / Regular)</span>
-                        <span class="badge bg-success text-white align-self-start align-self-sm-auto">Faculty Status
-                            Management</span>
+                <!-- Faculty Declaration & Final Digital Signature Card -->
+                <div class="card border mb-4 shadow-sm" id="facultyDeclarationReviewCard">
+                    <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-bold small text-uppercase"><i class="fas fa-file-signature text-primary me-2"></i>Faculty Declaration &amp; Digital Signature</span>
+                        <span id="declarationReviewBadge" class="badge bg-secondary-subtle text-body-secondary border px-2 py-1">
+                            <i class="fas fa-lock me-1"></i>Pending Document Approvals
+                        </span>
                     </div>
-                    <div class="card-body p-3 p-md-4">
-                        <p class="text-body-secondary small mb-4">Set whether the faculty member is
-                            <strong>Probationary</strong> or <strong>Regular</strong>, and configure their contract
-                            renewal date. Submitting immediately updates their account across the portal.
-                        </p>
-
-                        <form id="renewalForm" onsubmit="event.preventDefault(); submitContractRenewal();">
-                            <div class="row g-3">
-                                <!-- Field 1: Employment Status -->
-                                <div class="col-12 col-md-6">
-                                    <label for="employmentStatusSelect"
-                                        class="form-label fw-semibold small text-body-emphasis mb-1">
-                                        Employment Status <span class="text-danger">*</span>
-                                    </label>
-                                    <select id="employmentStatusSelect" class="form-select mb-2" required>
-                                        <option value="Probationary">Probationary</option>
-                                        <option value="Regular">Regular</option>
-                                        <option value="Part-Time">Part-Time</option>
-                                    </select>
-                                    <div id="empStatusHint" class="small text-body-secondary">
-                                        Select Probationary or Regular
-                                    </div>
-                                </div>
-
-                                <!-- Field 2: New Contract End Date & Presets -->
-                                <div class="col-12 col-md-6">
-                                    <label for="newContractEndDate"
-                                        class="form-label fw-semibold small text-body-emphasis mb-1">
-                                        New Contract End Date <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="date" id="newContractEndDate" class="form-control mb-2" required>
-                                    <div class="d-flex align-items-center gap-1 flex-wrap">
-                                        <small class="text-body-secondary me-1 fw-medium">Presets:</small>
-                                        <div class="btn-group btn-group-sm">
-                                            <button type="button" class="btn btn-outline-secondary py-1 px-2 small"
-                                                onclick="applyRenewalPreset(6)">+6 Mo (1 Sem)</button>
-                                            <button type="button" class="btn btn-outline-secondary py-1 px-2 small"
-                                                onclick="applyRenewalPreset(12)">+1 Yr (1 AY)</button>
-                                            <button type="button" class="btn btn-outline-secondary py-1 px-2 small"
-                                                onclick="applyRenewalPreset(24)">+2 Yrs</button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Field 3: Department Head Remarks -->
-                                <div class="col-12">
-                                    <label for="renewalRemarks"
-                                        class="form-label fw-semibold small text-body-emphasis mb-1">
-                                        Department Head Remarks / Note <small
-                                            class="text-body-secondary">(Optional)</small>
-                                    </label>
-                                    <input type="text" id="renewalRemarks" class="form-control"
-                                        placeholder="e.g., Status updated to Regular / Contract renewed following successful clearance completion.">
-                                </div>
-                            </div>
-
-                            <!-- Action Button Bar -->
-                            <div class="d-flex justify-content-end align-items-center gap-2 mt-4 pt-3 border-top">
-                                <button type="submit" class="btn btn-success px-4 py-2 fw-semibold w-100 w-sm-auto"
-                                    id="btnSubmitRenewal">
-                                    <i class="fas fa-save me-2"></i>Save &amp; Update
-                                </button>
-                            </div>
-                        </form>
+                    <div class="card-body p-3" id="declarationReviewBody">
+                        <!-- Loaded dynamically in openReview() -->
                     </div>
                 </div>
 
             </div>
-            <div class="modal-footer bg-body-tertiary border-top">
-                <button type="button" class="btn btn-secondary px-4 w-100 w-sm-auto"
-                    data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer bg-body-tertiary border-top d-flex justify-content-between align-items-center gap-2">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success fw-semibold px-4 d-none" id="btnConfirmDeclarationArchive"
+                    onclick="confirmDeclarationAndArchive()">
+                    <i class="fas fa-check me-1"></i> Confirm
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ARCHIVE DETAIL MODAL -->
+<!-- CONFIRM ARCHIVE MODAL -->
+<div class="modal fade" id="confirmArchiveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning bg-opacity-10 border-bottom border-warning-subtle py-3">
+                <h6 class="modal-title fw-bold text-body-emphasis mb-0">
+                    <i class="fas fa-archive text-warning me-2"></i>Archive Clearance Record
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="rounded-circle bg-warning-subtle text-warning d-flex align-items-center justify-content-center mx-auto mb-3"
+                    style="width: 56px; height: 56px;">
+                    <i class="fas fa-archive fs-3"></i>
+                </div>
+                <h6 class="fw-bold text-body-emphasis mb-2">Are you sure you want to archive this clearance record?</h6>
+                <p class="text-body-secondary small mb-3">
+                    Faculty: <strong class="text-body-emphasis" id="archiveTargetFacultyName">—</strong>
+                </p>
+                <div class="alert alert-info border border-info-subtle py-2 px-3 small text-start mb-0">
+                    <i class="fas fa-info-circle me-1"></i> Archiving saves a permanent record snapshot in the <strong>Archived Completed Records</strong> tab.
+                </div>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top py-2">
+                <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning fw-semibold px-4" id="btnExecuteArchive"
+                    onclick="executeArchiveClearance()">
+                    <i class="fas fa-archive me-1"></i> Yes, Archive Record
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="archiveDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">
@@ -525,20 +490,15 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 <small class="text-body-secondary d-block">Department</small>
                                 <span id="archiveDepartment">—</span>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Academic Rank</small>
                                 <span id="archiveRank">—</span>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
-                                <small class="text-body-secondary d-block mb-1">Statement of Intent</small>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle"
-                                    id="archiveIntent">—</span>
-                            </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Contract Expiration Date</small>
                                 <strong class="text-success" id="archiveContractEnd">—</strong>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Employment Status</small>
                                 <span id="archiveEmpStatus">—</span>
                             </div>
@@ -588,6 +548,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     let archiveDetailModal;
     let currentReviewFacultyId = null;
     let currentReviewProfile = null;
+    let currentReviewClearance = null;
     let activeStatusGroup = 'all';
     let currentPage = 1;
     const trackingPageSize = 5;
@@ -677,9 +638,9 @@ require_once ROOT_PATH . '/includes/layout-start.php';
 
     function statusGroupFor(row) {
         const status = row.clearance?.status || 'Not Submitted';
-        if (status === 'Pending Verification' || status === 'Under Review') return 'pending';
-        if (status === 'Action Required' || status === 'Resubmission') return 'action';
-        if (status === 'Completed' || status === 'Approved' || status === 'Archived') return 'completed';
+        if (status === 'Pending Verification' || status === 'Under Review' || status === 'Under Verification' || status === 'For Final Approval' || status === 'For Department Head Approval') return 'pending';
+        if (status === 'Action Required' || status === 'Resubmission' || status === 'With Deficiency') return 'action';
+        if (status === 'Completed' || status === 'Approved' || status === 'Archived' || status === 'Cleared') return 'completed';
         return 'not-submitted';
     }
 
@@ -709,7 +670,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
                     ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
                     : 'Not set';
-                const tone = c.status === 'Action Required' ? 'danger' : (c.status === 'Completed' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : 'info'));
+                const tone = (c.status === 'Action Required' || c.status === 'With Deficiency') ? 'danger' : (c.status === 'Completed' || c.status === 'Cleared' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : (c.status === 'For Final Approval' || c.status === 'For Department Head Approval' ? 'warning' : 'info')));
 
                 const emp = row.employment_status || 'Probationary';
                 const empBadge = emp === 'Regular'
@@ -731,7 +692,16 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${tone}" style="width:${c.progress}%"></div></div><small class="text-body-secondary">${c.progress}% (${c.approved_items}/${c.total_items})</small></td>
                 <td><span class="badge bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-2 py-1">${escapeHtml(c.status)}</span></td>
                 <td>${row.submitted_at ? new Date(row.submitted_at.replace(' ', 'T')).toLocaleDateString() : '—'}</td>
-                <td class="text-end pe-3"><button class="btn btn-sm btn-outline-primary" onclick="openReview(${row.id})"><i class="fas fa-search me-1"></i>Review</button></td>
+                <td class="text-end pe-3">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="openReview(${row.id})" title="Review Clearance Details">
+                            <i class="fas fa-search me-1"></i>Review
+                        </button>
+                        ${c.signature_data ? `<button class="btn btn-success" onclick="confirmDeclarationAndArchiveFromRow(${row.id}, '${escapeHtml(row.name)}', ${row.clearance?.clearance_id || 0})" title="Confirm Faculty Declaration and archive">
+                            <i class="fas fa-check me-1"></i>Confirm
+                        </button>` : ''}
+                    </div>
+                </td>
             </tr>`;
             }).join('');
         }
@@ -766,7 +736,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     function getFilteredArchives() {
         const query = (document.getElementById('archiveSearch')?.value || '').toLowerCase();
         const termFilter = document.getElementById('archiveTermFilter')?.value || 'all';
-        const intentFilter = document.getElementById('archiveIntentFilter')?.value || 'all';
         const empFilter = document.getElementById('archiveEmpFilter')?.value || 'all';
 
         return archiveRows.filter(row => {
@@ -774,10 +743,9 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             const matchesQuery = !query || text.includes(query);
             const termLabel = `${row.academic_year} · ${row.semester}`;
             const matchesTerm = termFilter === 'all' || termLabel === termFilter;
-            const matchesIntent = intentFilter === 'all' || row.intent_type === intentFilter;
             const rowEmp = row.employment_status || '';
             const matchesEmp = empFilter === 'all' || rowEmp.toLowerCase() === empFilter.toLowerCase();
-            return matchesQuery && matchesTerm && matchesIntent && matchesEmp;
+            return matchesQuery && matchesTerm && matchesEmp;
         });
     }
 
@@ -826,7 +794,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     <small class="d-block text-body-secondary">${escapeHtml(row.faculty_no || '')} · ${escapeHtml(row.designated_department || '')}</small>
                 </td>
                 <td><span class="badge bg-secondary-subtle text-body-secondary border">${escapeHtml(row.academic_year)} · ${escapeHtml(row.semester)}</span></td>
-                <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">${escapeHtml(intentLabel)}</span></td>
                 <td><strong class="text-success">${expiry}</strong></td>
                 <td style="max-width: 250px;">${reqTags || '<span class="text-body-secondary small">No requirements</span>'}</td>
                 <td><small class="text-body-secondary">${clearedAt}</small></td>
@@ -875,7 +842,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             document.getElementById('archiveFacultyNo').textContent = r.faculty_no || '—';
             document.getElementById('archiveDepartment').textContent = r.designated_department || '—';
             document.getElementById('archiveRank').textContent = r.academic_rank || r.position || '—';
-            document.getElementById('archiveIntent').textContent = r.intent_type === 'renewal' ? 'Contract Renewal / Extension' : (r.intent_type === 'regularization' ? 'Regularization' : 'Proceed with Clearance');
             document.getElementById('archiveContractEnd').textContent = r.contractual_end && r.contractual_end !== '0000-00-00' ? new Date(`${r.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set';
             document.getElementById('archiveEmpStatus').textContent = r.employment_status || 'Regular';
             document.getElementById('archiveEmail').textContent = r.email || '—';
@@ -912,7 +878,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             alert('No archived clearance records available to export.');
             return;
         }
-        const headers = ['Clearance ID', 'Faculty Name', 'Faculty ID', 'Department', 'Employment Status', 'Academic Term', 'Statement of Intent', 'Contract Expiry Date', 'Date Completed'];
+        const headers = ['Clearance ID', 'Faculty Name', 'Faculty ID', 'Department', 'Employment Status', 'Academic Term', 'Contract Expiry Date', 'Date Completed'];
         const rows = filtered.map(r => [
             r.clearance_id,
             `"${(r.name || '').replace(/"/g, '""')}"`,
@@ -951,6 +917,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     /* ACTIVE CLEARANCE REVIEW LOGIC */
     async function openReview(facultyId) {
         currentReviewFacultyId = facultyId;
+        currentReviewClearance = null;
+        toggleConfirmArchiveAction(false);
         const alertBox = document.getElementById('reviewAlert');
         if (alertBox) alertBox.classList.add('d-none');
 
@@ -962,6 +930,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             const profile = data.profile;
             const c = data.clearance;
             currentReviewProfile = profile;
+            currentReviewClearance = c;
+            toggleConfirmArchiveAction(!!c.signature_data);
 
             document.getElementById('reviewTitle').innerHTML = `<i class="fas fa-clipboard-check me-2"></i>Review Clearance - ${escapeHtml(profile.first_name)} ${escapeHtml(profile.last_name)}`;
             document.getElementById('reviewMeta').textContent = `${profile.faculty_id || ''} · ${profile.designated_department || 'Department'}`;
@@ -988,36 +958,74 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 empEl.className = `badge ${empStatus === 'Regular' ? 'bg-success-subtle text-success border border-success-subtle' : (empStatus === 'Probationary' ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-secondary-subtle text-body-secondary border')} px-2 py-1`;
             }
 
-            const intentTypeLabel = (c.intent_type === 'renewal')
-                ? 'Contract Renewal / Extension'
-                : (c.intent_type === 'regularization' ? 'Regularization' : (c.intent_type === 'resignation' ? 'Proceed with Clearance' : (c.intent_type || 'Contract Renewal')));
-            const intentEl = document.getElementById('summaryIntentType');
-            if (intentEl) intentEl.textContent = intentTypeLabel;
-
             const progressBar = document.getElementById('summaryProgressBar');
             if (progressBar) progressBar.style.width = `${c.progress}%`;
             const progressText = document.getElementById('summaryProgressText');
             if (progressText) progressText.textContent = `${c.progress}% (${c.approved_items}/${c.total_items})`;
 
-            // Pre-fill renewal date with +1 year from base
-            const baseDate = (profile.contractual_end && profile.contractual_end !== '0000-00-00')
-                ? new Date(`${profile.contractual_end}T00:00:00`)
-                : new Date();
-            const nextYear = new Date(baseDate);
-            nextYear.setFullYear(nextYear.getFullYear() + 1);
-            const dateInput = document.getElementById('newContractEndDate');
-            if (dateInput) dateInput.value = nextYear.toISOString().split('T')[0];
 
-            // Pre-select employment status
-            const empSelect = document.getElementById('employmentStatusSelect');
-            const empHint = document.getElementById('empStatusHint');
-            if (empSelect) {
-                if (c.intent_type === 'regularization') {
-                    empSelect.value = 'Regular';
-                    if (empHint) empHint.innerHTML = '<span class="text-success fw-bold"><i class="fas fa-check me-1"></i>Regularization requested in Letter of Intent</span>';
+
+            // Clearance Agreement Form Review Section
+            const formBadge = document.getElementById('agreementFormStatusBadge');
+            const formBody = document.getElementById('agreementFormReviewBody');
+            if (formBadge && formBody) {
+                const isFormSub = !!c.form_submitted;
+                const formSt = c.form_status || (isFormSub ? 'Pending Review' : 'Not Submitted');
+                const formDate = c.form_submitted_at ? new Date(c.form_submitted_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+                const appDate = c.form_approved_at ? new Date(c.form_approved_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
+                if (formSt === 'Approved') {
+                    formBadge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1';
+                    formBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Approved &amp; Endorsed';
+                    formBody.innerHTML = `
+                        <div class="p-3 bg-success-subtle bg-opacity-25 rounded border border-success-subtle">
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                <div>
+                                    <strong class="text-success-emphasis d-block mb-1"><i class="fas fa-file-signature me-1"></i>Clearance Agreement Form Endorsed</strong>
+                                    <small class="text-body-secondary">Submitted on <strong>${formDate}</strong> · Approved on <strong>${appDate}</strong></small>
+                                </div>
+                                <span class="badge bg-success text-white px-3 py-2"><i class="fas fa-check me-1"></i>Endorsed by Dept Head</span>
+                            </div>
+                        </div>
+                    `;
+                } else if (isFormSub && formSt === 'Pending Review') {
+                    formBadge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1';
+                    formBadge.innerHTML = '<i class="fas fa-hourglass-half me-1"></i>Pending Department Head Review';
+                    formBody.innerHTML = `
+                        <div class="p-3 bg-warning-subtle bg-opacity-25 rounded border border-warning-subtle">
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                <div>
+                                    <h6 class="fw-bold text-warning-emphasis mb-1"><i class="fas fa-exclamation-circle me-1"></i>Action Required: Review &amp; Endorse Agreement Form</h6>
+                                    <div class="small text-body-secondary mb-1">Submitted on <strong>${formDate}</strong> with agreement acknowledgment.</div>
+                                    <div class="small text-body-secondary fst-italic">&ldquo;I hereby acknowledge and agree that I have complied with the rules, regulations, policies, and professional standards of the institution.&rdquo;</div>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                    <button type="button" class="btn btn-success btn-sm fw-semibold px-3 py-2" onclick="endorseClearanceForm(${facultyId}, 'approve')">
+                                        <i class="fas fa-check me-1"></i> Approve &amp; Endorse
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm fw-semibold px-3 py-2" onclick="endorseClearanceForm(${facultyId}, 'reject')">
+                                        <i class="fas fa-rotate-left me-1"></i> Return
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (formSt === 'Rejected') {
+                    formBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1';
+                    formBadge.innerHTML = '<i class="fas fa-times-circle me-1"></i>Returned for Revision';
+                    formBody.innerHTML = `
+                        <div class="p-2 bg-danger-subtle bg-opacity-25 rounded border border-danger-subtle small">
+                            <strong class="text-danger"><i class="fas fa-info-circle me-1"></i>Returned to Faculty for Revision:</strong> ${escapeHtml(c.form_remarks || 'Revision required.')}
+                        </div>
+                    `;
                 } else {
-                    empSelect.value = empStatus;
-                    if (empHint) empHint.textContent = 'Current status: ' + empStatus;
+                    formBadge.className = 'badge bg-secondary-subtle text-body-secondary border px-2 py-1';
+                    formBadge.innerHTML = '<i class="fas fa-circle-xmark me-1"></i>Not Submitted';
+                    formBody.innerHTML = `
+                        <div class="small text-body-secondary">
+                            <i class="fas fa-info-circle me-1"></i>The faculty member has not submitted their Clearance Agreement Form for this term yet.
+                        </div>
+                    `;
                 }
             }
 
@@ -1048,6 +1056,102 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             </tr>`;
             }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No clearance submitted.</td></tr>';
 
+            // Faculty Declaration & Final Digital Signature Section
+            const declBadge = document.getElementById('declarationReviewBadge');
+            const declBody = document.getElementById('declarationReviewBody');
+            if (declBadge && declBody) {
+                const allApproved = c.total_items > 0 && c.approved_items >= c.total_items;
+                const hasSig = !!c.signature_data;
+
+                if (hasSig) {
+                    const awaitingDeptHead = c.status === 'For Department Head Approval' || c.overall_status === 'For Department Head Approval';
+                    declBadge.className = awaitingDeptHead
+                        ? 'badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1'
+                        : 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1';
+                    declBadge.innerHTML = awaitingDeptHead
+                        ? '<i class="fas fa-hourglass-half me-1"></i>Submitted for Department Head Review'
+                        : '<i class="fas fa-check-circle me-1"></i>Signed &amp; Complete';
+                    declBody.innerHTML = `
+                        <div class="p-3 ${awaitingDeptHead ? 'bg-warning-subtle border-warning-subtle' : 'bg-success-subtle border-success-subtle'} bg-opacity-25 rounded border">
+                            <div class="d-flex flex-column flex-md-row gap-4 align-items-md-start">
+                                <!-- Declaration Text -->
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold ${awaitingDeptHead ? 'text-warning-emphasis' : 'text-success-emphasis'} mb-2">
+                                        <i class="fas ${awaitingDeptHead ? 'fa-user-check' : 'fa-check-circle'} me-2"></i>
+                                        ${awaitingDeptHead ? 'Faculty Declaration received — pending your review' : 'Faculty Declaration Completed'}
+                                    </div>
+                                    <p class="text-body-secondary small fst-italic mb-3 ps-2 border-start border-success-subtle border-3">
+                                        &ldquo;I hereby certify that I have completed and submitted the required documents and have returned any school property, records, or other accountable items assigned to me.&rdquo;
+                                    </p>
+                                    <div class="d-flex flex-wrap gap-3 small text-body-secondary">
+                                        <span><i class="fas fa-user text-primary me-1"></i><strong>${escapeHtml(profile.first_name + ' ' + (profile.last_name || ''))}</strong></span>
+                                        <span><i class="fas fa-calendar-check text-primary me-1"></i>Declaration signed during clearance submission</span>
+                                    </div>
+                                </div>
+                                <!-- Signature Preview -->
+                                <div class="flex-shrink-0 text-center p-3 bg-white rounded-3 border shadow-sm" style="min-width:200px;">
+                                    <div class="small text-body-secondary fw-semibold text-uppercase mb-2" style="font-size:0.65rem;letter-spacing:.06em;">
+                                        <i class="fas fa-signature text-primary me-1"></i>Digital Signature
+                                    </div>
+                                    <img src="${c.signature_data}" alt="Faculty Digital Signature"
+                                        class="rounded mb-2"
+                                        style="max-width:180px;max-height:80px;object-fit:contain;display:block;margin:0 auto;border:1px solid #dee2e6;padding:6px;background:#fff;">
+                                    <div class="small ${awaitingDeptHead ? 'text-warning' : 'text-success'} fw-semibold">
+                                        <i class="fas ${awaitingDeptHead ? 'fa-hourglass-half' : 'fa-check-circle'} me-1"></i>
+                                        ${awaitingDeptHead ? 'Received for Review' : 'Verified &amp; Signed'}
+                                    </div>
+                                    <div class="small text-body-secondary mt-1" style="font-size:0.7rem;">
+                                        ${escapeHtml(profile.first_name + ' ' + (profile.last_name || ''))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-end mt-3 pt-3 border-top">
+                                <button type="button" class="btn btn-success fw-semibold px-4" onclick="confirmDeclarationAndArchive()">
+                                    <i class="fas fa-check me-1"></i> Confirm
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else if (allApproved) {
+                    declBadge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1';
+                    declBadge.innerHTML = '<i class="fas fa-hourglass-half me-1"></i>Awaiting Faculty Signature';
+                    declBody.innerHTML = `
+                        <div class="p-3 bg-warning-subtle bg-opacity-25 rounded border border-warning-subtle d-flex align-items-center gap-3">
+                            <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;">
+                                <i class="fas fa-pen-clip"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold text-warning-emphasis">All documents approved — awaiting faculty signature</div>
+                                <div class="small text-body-secondary">
+                                    All ${c.total_items} required documents have been cleared. The faculty member can now draw their digital signature to finalize their declaration. This section will update once they sign.
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    declBadge.className = 'badge bg-secondary-subtle text-body-secondary border px-2 py-1';
+                    declBadge.innerHTML = '<i class="fas fa-lock me-1"></i>Pending Document Approvals';
+                    declBody.innerHTML = `
+                        <div class="p-3 text-center">
+                            <i class="fas fa-lock text-secondary mb-2" style="font-size:1.6rem;opacity:.4;"></i>
+                            <div class="fw-bold text-body-emphasis small mb-1">Digital Signature Locked</div>
+                            <div class="small text-body-secondary">
+                                The Faculty Declaration section unlocks once all required office documents are approved.
+                                <span class="d-block mt-1">
+                                    <strong>${c.approved_items}</strong> of <strong>${c.total_items}</strong> document${c.total_items !== 1 ? 's' : ''} approved so far.
+                                </span>
+                            </div>
+                            ${c.total_items > 0 ? `
+                                <div class="progress mt-3" style="height:6px;max-width:220px;margin:0 auto;">
+                                    <div class="progress-bar bg-primary" style="width:${c.progress}%" role="progressbar"></div>
+                                </div>
+                                <div class="small text-body-secondary mt-1">${c.progress}% complete</div>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+            }
+
             reviewModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal'));
             reviewModal.show();
         } catch (error) {
@@ -1055,42 +1159,122 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         }
     }
 
-    function applyRenewalPreset(months) {
-        const baseDate = (currentReviewProfile && currentReviewProfile.contractual_end && currentReviewProfile.contractual_end !== '0000-00-00')
-            ? new Date(`${currentReviewProfile.contractual_end}T00:00:00`)
-            : new Date();
-        baseDate.setMonth(baseDate.getMonth() + months);
-        const dateInput = document.getElementById('newContractEndDate');
-        if (dateInput) {
-            dateInput.value = baseDate.toISOString().split('T')[0];
-        }
+    // ── Archive Confirmation Pop-up Handlers ────────────────────────────────────
+    let pendingArchiveTarget = { facultyId: 0, facultyName: '', clearanceId: 0 };
+    let confirmArchiveModalInstance = null;
+
+    function confirmArchiveClearance(facultyId, facultyName, clearanceId) {
+        pendingArchiveTarget = { facultyId, facultyName, clearanceId };
+        const nameEl = document.getElementById('archiveTargetFacultyName');
+        if (nameEl) nameEl.textContent = facultyName || `Faculty #${facultyId}`;
+        confirmArchiveModalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmArchiveModal'));
+        confirmArchiveModalInstance.show();
     }
 
-    async function submitContractRenewal() {
+    function toggleConfirmArchiveAction(hasSignature) {
+        const btn = document.getElementById('btnConfirmDeclarationArchive');
+        if (!btn) return;
+        btn.classList.toggle('d-none', !hasSignature);
+        btn.disabled = !hasSignature;
+    }
+
+    function confirmArchiveFromReview() {
+        confirmDeclarationAndArchive();
+    }
+
+    function confirmDeclarationAndArchiveFromRow(facultyId, facultyName, clearanceId) {
+        pendingArchiveTarget = { facultyId, facultyName, clearanceId };
+        executeArchiveClearance();
+    }
+
+    function confirmDeclarationAndArchive() {
         if (!currentReviewFacultyId) return;
-        const dateInput = document.getElementById('newContractEndDate');
-        const newDate = dateInput?.value;
-        if (!newDate) {
-            alert('Please select a valid new contract expiration date.');
-            dateInput?.focus();
+        if (!currentReviewClearance?.signature_data) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning';
+                alertBox.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Confirm is available only after the faculty submits a Faculty Declaration signature.';
+                alertBox.classList.remove('d-none');
+            }
             return;
         }
-        const remarks = document.getElementById('renewalRemarks')?.value || '';
-        const empStatus = document.getElementById('employmentStatusSelect')?.value || 'Probationary';
+        const name = currentReviewProfile ? `${currentReviewProfile.first_name} ${currentReviewProfile.last_name || ''}`.trim() : `Faculty #${currentReviewFacultyId}`;
+        pendingArchiveTarget = {
+            facultyId: currentReviewFacultyId,
+            facultyName: name,
+            clearanceId: currentReviewClearance?.clearance_id || 0
+        };
+        executeArchiveClearance();
+    }
 
-        const btn = document.getElementById('btnSubmitRenewal');
+    async function executeArchiveClearance() {
+        const btn = document.getElementById('btnConfirmDeclarationArchive');
+        const modalBtn = document.getElementById('btnExecuteArchive');
         const originalHtml = btn ? btn.innerHTML : '';
+        const originalModalHtml = modalBtn ? modalBtn.innerHTML : '';
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Confirming…';
+        }
+        if (modalBtn) {
+            modalBtn.disabled = true;
+            modalBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Archiving...';
         }
 
         const form = new FormData();
-        form.append('action', 'renew-contract');
-        form.append('faculty_id', currentReviewFacultyId);
-        form.append('new_contract_end', newDate);
-        form.append('employment_status', empStatus);
-        form.append('renewal_remark', remarks);
+        form.append('action', 'archive-clearance');
+        form.append('faculty_id', pendingArchiveTarget.facultyId);
+        if (pendingArchiveTarget.clearanceId) {
+            form.append('clearance_id', pendingArchiveTarget.clearanceId);
+        }
+
+        try {
+            const response = await fetch(clearanceApi, { method: 'POST', body: form });
+            const data = await response.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to archive clearance record.');
+
+            showTrackingAlert(data.message || 'Faculty Declaration confirmed. The clearance record has been archived.', 'success');
+            confirmArchiveModalInstance?.hide();
+            reviewModal?.hide();
+            loadTracking();
+            switchToArchiveTab();
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml || '<i class="fas fa-check me-1"></i> Confirm';
+            }
+            if (modalBtn) {
+                modalBtn.disabled = false;
+                modalBtn.innerHTML = originalModalHtml || '<i class="fas fa-archive me-1"></i> Yes, Archive Record';
+            }
+        }
+    }
+
+    async function endorseClearanceForm(facultyId, decision) {
+        let remark = '';
+        if (decision === 'reject') {
+            const res = await openRemarkModal({
+                title: 'Return Clearance Agreement Form',
+                sub: 'Provide a reason or instructions for the faculty member',
+                label: 'Reason for Return *',
+                hint: 'Explain what needs correction before the agreement form can be endorsed.',
+                confirmText: 'Return Form',
+                confirmClass: 'btn-danger',
+                iconClass: 'bg-danger text-white',
+                icon: '<i class="fas fa-rotate-left"></i>',
+                requireRemark: true,
+            });
+            if (!res.confirmed) return;
+            remark = res.remark;
+        }
+
+        const form = new FormData();
+        form.append('action', 'endorse-clearance-form');
+        form.append('faculty_id', facultyId);
+        form.append('decision', decision);
+        form.append('remark', remark);
 
         try {
             const response = await fetch(clearanceApi, { method: 'POST', body: form });
@@ -1098,23 +1282,10 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             if (!data.ok) throw new Error(data.error);
 
             showTrackingAlert(data.message, 'success');
-            reviewModal?.hide();
-            loadTracking();
-            loadArchives();
+            await openReview(facultyId);
+            refreshCurrentTab();
         } catch (error) {
-            const alertBox = document.getElementById('reviewAlert');
-            if (alertBox) {
-                alertBox.className = 'alert alert-danger';
-                alertBox.textContent = error.message;
-                alertBox.classList.remove('d-none');
-            } else {
-                showTrackingAlert(error.message, 'danger');
-            }
-        } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-            }
+            showTrackingAlert(error.message, 'danger');
         }
     }
 

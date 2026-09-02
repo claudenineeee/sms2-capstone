@@ -207,6 +207,7 @@ CREATE TABLE `clearance_items` (
 CREATE TABLE `clearance_offices` (
   `clearance_office_id` int(10) UNSIGNED NOT NULL,
   `name` varchar(150) NOT NULL,
+  `description` text DEFAULT NULL,
   `sequence_order` smallint(5) UNSIGNED NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -214,11 +215,13 @@ CREATE TABLE `clearance_offices` (
 -- Dumping data for table `clearance_offices`
 --
 
-INSERT INTO `clearance_offices` (`clearance_office_id`, `name`, `sequence_order`) VALUES
-(1, 'Letter of Intent', 1),
-(2, 'Updated Resume', 2),
-(3, 'Personal Evaluation', 3),
-(4, 'Summary Evaluation', 4);
+INSERT INTO `clearance_offices` (`clearance_office_id`, `name`, `description`, `sequence_order`) VALUES
+(1, 'Academic Clearance', 'Grade sheets, class records, syllabus, attendance/DTR, pending student academic concerns.', 1),
+(2, 'Department Clearance', 'Department reports, assigned duties, committee responsibilities, Department Head verification.', 2),
+(3, 'Library Clearance', 'No unreturned books/materials, library accountabilities cleared.', 3),
+(4, 'Property Clearance', 'School equipment returned, ID/keys/other issued institutional property returned.', 4),
+(5, 'Financial Clearance', 'No outstanding financial obligations, cash advances/accountabilities settled.', 5),
+(6, 'HR Clearance', 'Required HR documents submitted, contract/employment records, final HR verification.', 6);
 
 -- --------------------------------------------------------
 
@@ -1445,6 +1448,109 @@ ALTER TABLE `teaching_load_requests`
 ALTER TABLE `teaching_load_request_items`
   ADD CONSTRAINT `fk_load_items_request` FOREIGN KEY (`load_request_id`) REFERENCES `teaching_load_requests` (`load_request_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_load_items_schedule` FOREIGN KEY (`class_schedule_id`) REFERENCES `class_schedules` (`class_schedule_id`) ON DELETE CASCADE;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `clearance_offices`
+--
+
+CREATE TABLE IF NOT EXISTS `clearance_offices` (
+  `clearance_office_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) NOT NULL,
+  `description` text DEFAULT NULL,
+  `sequence_order` smallint(5) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`clearance_office_id`),
+  UNIQUE KEY `uq_clearance_offices_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `clearance_requests`
+--
+
+CREATE TABLE IF NOT EXISTS `clearance_requests` (
+  `clearance_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `faculty_id` int(10) unsigned NOT NULL,
+  `term_id` int(10) unsigned NOT NULL,
+  `intent_type` enum('renewal','resignation','regularization') NOT NULL,
+  `form_submitted` tinyint(1) NOT NULL DEFAULT 0,
+  `form_submitted_at` datetime DEFAULT NULL,
+  `faculty_declaration` text DEFAULT NULL,
+  `signature_data` longtext DEFAULT NULL,
+  `overall_status` varchar(50) NOT NULL DEFAULT 'In Progress',
+  `submitted_at` datetime DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`clearance_id`),
+  UNIQUE KEY `uq_clearance_faculty_term` (`faculty_id`,`term_id`),
+  KEY `fk_clearance_term` (`term_id`),
+  CONSTRAINT `fk_clearance_faculty` FOREIGN KEY (`faculty_id`) REFERENCES `faculty` (`faculty_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_clearance_term` FOREIGN KEY (`term_id`) REFERENCES `academic_terms` (`term_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `clearance_items`
+--
+
+CREATE TABLE IF NOT EXISTS `clearance_items` (
+  `clearance_item_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `clearance_id` int(10) unsigned NOT NULL,
+  `clearance_office_id` int(10) unsigned NOT NULL,
+  `status` varchar(50) NOT NULL DEFAULT 'Missing',
+  `remarks` varchar(255) DEFAULT NULL,
+  `file_path` varchar(500) DEFAULT NULL,
+  `original_name` varchar(255) DEFAULT NULL,
+  `cleared_by_external_id` varchar(64) DEFAULT NULL,
+  `cleared_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`clearance_item_id`),
+  UNIQUE KEY `uq_clearance_items` (`clearance_id`,`clearance_office_id`),
+  KEY `fk_clearance_items_office` (`clearance_office_id`),
+  CONSTRAINT `fk_clearance_items_office` FOREIGN KEY (`clearance_office_id`) REFERENCES `clearance_offices` (`clearance_office_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_clearance_items_request` FOREIGN KEY (`clearance_id`) REFERENCES `clearance_requests` (`clearance_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `faculty_clearance_archives`
+--
+
+CREATE TABLE IF NOT EXISTS `faculty_clearance_archives` (
+  `archive_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `clearance_id` int(10) unsigned NOT NULL,
+  `faculty_id` int(10) unsigned NOT NULL,
+  `term_id` int(10) unsigned NOT NULL,
+  `profile_id` int(10) unsigned DEFAULT NULL,
+  `faculty_no` varchar(50) DEFAULT NULL,
+  `first_name` varchar(100) DEFAULT NULL,
+  `middle_name` varchar(100) DEFAULT NULL,
+  `last_name` varchar(100) DEFAULT NULL,
+  `suffix` varchar(20) DEFAULT NULL,
+  `email` varchar(150) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `designated_department` varchar(100) DEFAULT NULL,
+  `position` varchar(100) DEFAULT NULL,
+  `academic_rank` varchar(100) DEFAULT NULL,
+  `tier` varchar(50) DEFAULT NULL,
+  `employment_status` varchar(50) DEFAULT NULL,
+  `contractual_end` date DEFAULT NULL,
+  `academic_year` varchar(20) DEFAULT NULL,
+  `semester` varchar(50) DEFAULT NULL,
+  `intent_type` varchar(50) DEFAULT 'renewal',
+  `overall_status` varchar(50) DEFAULT 'Cleared',
+  `items_json` longtext DEFAULT NULL,
+  `submitted_at` datetime DEFAULT NULL,
+  `completed_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`archive_id`),
+  KEY `idx_fca_faculty` (`faculty_id`),
+  KEY `idx_fca_term` (`term_id`),
+  KEY `idx_fca_clearance` (`clearance_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

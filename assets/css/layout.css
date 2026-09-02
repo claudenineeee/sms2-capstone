@@ -379,6 +379,7 @@ body.sidebar-collapsed .crad-officer-sidebar .crad-sidebar-link {
 .sidebar-chevron {
     font-size: 0.62rem;
     margin-top: 0;
+    margin-left: auto;
     flex-shrink: 0;
     opacity: 0.7;
     color: var(--sms-sidebar-text-muted) !important;
@@ -388,6 +389,9 @@ body.sidebar-collapsed .crad-officer-sidebar .crad-sidebar-link {
     transform: rotate(180deg);
     opacity: 1;
     color: var(--sms-sidebar-icon) !important;
+}
+.sidebar-nav .sidebar-parent.active .sidebar-chevron {
+    color: var(--sms-sidebar-active-accent) !important;
 }
 
 /* ============================================================
