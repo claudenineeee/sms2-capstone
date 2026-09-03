@@ -187,12 +187,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </html>
                         ";
 
-                        $apiKey = 're_R9zrMDPh_GVyTGtVrbwGcroz9YcXLH0Jz'; 
+                        $apiKey = 're_VtXzynve_2fV9grnUZybc3Fb7eFLMFeMh'; 
                         $apiUrl = 'https://api.resend.com/emails';
 
                         $payload = [
                             'from'    => 'No Reply - Bestlink College <onboarding@resend.dev>',
-                            'to'      => [$facultyEmail], 
+                            'to'      => ['jcespejo002@gmail.com'], 
                             'subject' => $mailSubject,
                             'html'    => $mailMessage
                         ];
