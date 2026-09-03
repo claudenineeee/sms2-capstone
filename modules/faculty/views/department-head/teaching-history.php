@@ -4,8 +4,11 @@
  * Module: Faculty Management
  */
 require_once __DIR__ . '/../../../../config/config.php';
+<<<<<<< HEAD
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
+=======
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
 
 // Establish Database Connection
 if (!isset($pdo) || !$pdo) {
@@ -34,7 +37,11 @@ $deptHeadDept  = null;
 
 if ($currentUserId) {
     try {
+<<<<<<< HEAD
         $stmt = $pdo->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
+=======
+        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
         $stmt->execute(['uid' => $currentUserId, 'id' => $currentUserId]);
         $row = $stmt->fetch();
         if ($row) {
@@ -56,8 +63,20 @@ $facultyQuerySql = "
     SELECT fp.id, fp.faculty_id AS profile_faculty_no, fp.first_name, fp.last_name,
            fp.designated_department, fp.position, fp.email,
            f.faculty_id AS real_faculty_id
+<<<<<<< HEAD
     FROM faculty_db.faculty_profiles fp
     LEFT JOIN faculty_db.faculty f ON f.faculty_id = fp.id
+=======
+    FROM faculty_profiles fp
+    LEFT JOIN faculty f ON f.faculty_id = (
+        SELECT f2.faculty_id
+        FROM faculty f2
+        WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+           OR f2.faculty_no = fp.faculty_id
+        ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+        LIMIT 1
+    )
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
 ";
 
 if (!empty($deptHeadDept)) {
@@ -88,7 +107,11 @@ foreach ($facultyMembers as $fac) {
         try {
             $stmtHistory = $pdo->prepare("
                 SELECT academic_year, semester, subject_code, subject_title, units, section, status, created_at
+<<<<<<< HEAD
                 FROM faculty_db.teaching_load_history
+=======
+                FROM teaching_load_history
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                 WHERE faculty_id = :fac_id
                 ORDER BY academic_year DESC, semester DESC, created_at DESC
             ");
@@ -103,7 +126,11 @@ foreach ($facultyMembers as $fac) {
         try {
             $stmtHistoryAlt = $pdo->prepare("
                 SELECT academic_year, semester, subject_code, subject_title, units, section, status, created_at
+<<<<<<< HEAD
                 FROM faculty_db.teaching_load_history
+=======
+                FROM teaching_load_history
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                 WHERE faculty_id = :fac_id_str OR faculty_no = :fac_no
                 ORDER BY academic_year DESC, semester DESC, created_at DESC
             ");
@@ -155,14 +182,35 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
 
 <style>
+<<<<<<< HEAD
+=======
+    /* Custom Scrollbar Styles */
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
     .custom-scrollbar {
         scrollbar-width: thin;
         scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
     }
+<<<<<<< HEAD
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.25); border-radius: 10px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(13, 110, 253, 0.6); }
+=======
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.25);
+        border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(13, 110, 253, 0.6);
+    }
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
 
     [data-bs-theme="light"] .custom-scrollbar,
     body:not([data-bs-theme="dark"]) .custom-scrollbar {
@@ -173,6 +221,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         background-color: rgba(13, 110, 253, 0.3);
     }
 
+<<<<<<< HEAD
     .faculty-list-scroll { max-height: 480px; overflow-y: auto; }
     .history-table-container { max-height: 420px; overflow-y: auto; }
     .history-table-custom { min-width: 700px; }
@@ -182,6 +231,60 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     @media (min-width: 992px) {
         .col-faculty-left { flex: 0 0 30% !important; max-width: 30% !important; }
         .col-faculty-right { flex: 0 0 70% !important; max-width: 70% !important; }
+=======
+    .faculty-list-scroll {
+        max-height: 480px;
+        overflow-y: auto;
+    }
+
+    .history-table-container {
+        max-height: 420px;
+        overflow-y: auto;
+    }
+    
+    .history-table-custom {
+        min-width: 700px; /* Forces proper horizontal scroll on mobile instead of crushing columns */
+    }
+
+    .history-table-custom th {
+        font-size: 12px !important;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+    .history-table-custom td {
+        font-size: 13.5px !important;
+        padding-top: 12px !important;
+        padding-bottom: 12px !important;
+    }
+
+    /* Updated Layout: 30% Left (Department Faculty) and 70% Right (Teaching History Log) on large screens */
+    @media (min-width: 992px) {
+        .col-faculty-left {
+            flex: 0 0 30% !important;
+            max-width: 30% !important;
+        }
+        .col-faculty-right {
+            flex: 0 0 70% !important;
+            max-width: 70% !important;
+        }
+    }
+
+    /* Responsive adjustments for smaller screens */
+    @media (max-width: 575.98px) {
+        .faculty-name {
+            font-size: 12px !important;
+        }
+        .faculty-subject {
+            font-size: 10px !important;
+        }
+        .faculty-card .btn {
+            font-size: 10px !important;
+            padding: 2px 8px !important;
+        }
+        .filter-select-group {
+            width: 100% !important;
+        }
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
     }
 </style>
 
@@ -197,7 +300,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <div class="container-fluid my-2 my-sm-4 p-2 p-sm-3 rounded-3">
     <div class="row g-3 g-lg-4">
         
+<<<<<<< HEAD
         <!-- LEFT COLUMN: Department Faculty -->
+=======
+        <!-- LEFT COLUMN: Department Faculty (30% Width on Large Screens) -->
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
         <div class="col-12 col-lg-4 col-faculty-left">
             <div class="card shadow-sm border border-secondary border-opacity-25 h-100">
                 <div class="card-header border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center py-2 py-sm-3">
@@ -207,11 +314,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 
                 <div class="p-2 p-sm-3 border-bottom border-secondary border-opacity-25">
                     <div class="input-group input-group-sm mb-0">
+<<<<<<< HEAD
                         <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="fas fa-search"></i></span>
+=======
+                        <span class="input-group-text bg-transparent border-end-0 text-muted">
+                            <i class="fas fa-search"></i>
+                        </span>
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                         <input type="text" id="facultySearchInput" class="form-control border-start-0 ps-0 bg-transparent" placeholder="Search faculty..." onkeyup="onSearchInput()">
                     </div>
                 </div>
 
+<<<<<<< HEAD
+=======
+                <!-- Scrollable Faculty Card List with multi-line wrap protection against overflow -->
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                 <div class="card-body p-2 p-sm-3 custom-scrollbar faculty-list-scroll">
                     <div class="d-flex flex-column gap-2" id="facultyListContainer">
                         <?php if (!empty($facultyMembers)): ?>
@@ -246,6 +363,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
                 </div>
 
+<<<<<<< HEAD
+=======
+                <!-- Footer Pagination Controls -->
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                 <div class="card-footer border-top border-secondary border-opacity-25 py-2 px-3 d-flex align-items-center justify-content-between bg-transparent" id="facultyPaginationWrapper">
                     <small class="text-muted" style="font-size: 11px;" id="paginationInfo">Showing 1-10</small>
                     <nav>
@@ -256,9 +377,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
         </div>
 
+<<<<<<< HEAD
         <!-- RIGHT COLUMN: Faculty Teaching History Log -->
         <div class="col-12 col-lg-8 col-faculty-right">
             
+=======
+        <!-- RIGHT COLUMN: Faculty Teaching History Log (70% Width on Large Screens) -->
+        <div class="col-12 col-lg-8 col-faculty-right">
+            
+            <!-- Header Card -->
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
             <div class="card border shadow-sm mb-3">
                 <div class="card-body p-3">
                     <div class="d-flex flex-row align-items-start justify-content-between gap-2">
@@ -287,10 +415,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
             </div>
 
+<<<<<<< HEAD
+=======
+            <!-- Teaching History Table Card with Filter Controls -->
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
             <div class="card border shadow-sm">
                 <div class="card-header border-bottom border-secondary border-opacity-25 py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
                     <h6 class="mb-0 fw-bold small text-uppercase"><i class="fas fa-list-ul me-2 text-primary"></i>Assigned Subjects & Load History</h6>
                     
+<<<<<<< HEAD
+=======
+                    <!-- School Year & Semester Selector Filters -->
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <div class="input-group input-group-sm filter-select-group" style="width: 150px;">
                             <select id="filterAcademicYear" class="form-select form-select-sm bg-transparent" onchange="renderData()">
@@ -339,10 +475,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <script>
+<<<<<<< HEAD
     // Pass the PHP data to JavaScript
     const teachingHistoryDB = <?= json_encode($teachingHistoryDB) ?>;
     
     // CRITICAL FIX: Automatically select the first faculty member if none is selected
+=======
+    const teachingHistoryDB = <?= json_encode($teachingHistoryDB) ?>;
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
     let activeFacultyId = Object.keys(teachingHistoryDB)[0] || null;
 
     const itemsPerPage = 10;
@@ -492,6 +632,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     document.addEventListener('DOMContentLoaded', () => {
         initFacultyPagination();
+<<<<<<< HEAD
         
         // CRITICAL FIX: Ensure the first faculty is selected and data is rendered on load
         if (activeFacultyId) {
@@ -503,6 +644,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 firstCard.closest('.faculty-card').classList.add('border-primary');
             }
         }
+=======
+        renderData();
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
     });
 </script>
 

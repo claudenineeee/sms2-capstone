@@ -197,7 +197,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Today's Rate</h6>
+<<<<<<< HEAD
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'], 1) ?>%</h4>
+=======
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'] ?? 0, 1) ?>%</h4>
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['today_present'] ?> Present / <?= $summaryMetrics['today_total'] ?> Scheduled
                     </small>
@@ -215,7 +219,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">7-Day Average</h6>
+<<<<<<< HEAD
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'], 1) ?>%</h4>
+=======
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'] ?? 0, 1) ?>%</h4>
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['weekly_present'] ?> Present / <?= $summaryMetrics['weekly_total'] ?> Total Classes
                     </small>
@@ -233,7 +241,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Monthly Rate (<?= date('M Y', strtotime($selectedMonth)) ?>)</h6>
+<<<<<<< HEAD
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'], 1) ?>%</h4>
+=======
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'] ?? 0, 1) ?>%</h4>
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['monthly_present'] ?> Present / <?= $summaryMetrics['monthly_total'] ?> Total Classes
                     </small>
