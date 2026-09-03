@@ -155,11 +155,11 @@ $facultyDepartmentHeadNavGroups = [
         ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-load-approval.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load Approval'],
     ],
     'Attendance' => [
-<<<<<<< HEAD
+
         ['slug' => 'faculty-member-evaluation', 'href' => BASE_URL . '/modules/faculty/views/department-head/attendance.php', 'icon' => 'fa-user-check', 'label' => 'Attendance'],
-=======
+
          ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/attendance-summary.php', 'icon' => 'fa-user-check', 'label' => 'Attendance'],
->>>>>>> 0a63fccac4d494aa9f85ba2b10a59901b7497f1d
+
     ],
     'Evaluation & Leave Request' => [
         ['slug' => 'faculty-member-evaluation', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-member-evaluation.php', 'icon' => 'fa-user-check', 'label' => 'Peer Evaluation'],
