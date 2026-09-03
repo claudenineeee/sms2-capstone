@@ -19,6 +19,9 @@ $leaveRequests = [];
 $pendingCount = 0;
 $screenedCount = 0;
 $returnedCount = 0;
+$totalRecords = 0;
+$totalPages = 1;
+$page = 1;
 
 $formError = '';
 $formSuccess = '';
@@ -35,8 +38,6 @@ try {
         throw new RuntimeException('Unable to connect to the faculty database.');
     }
 
-    // Department-scoped, same helper used across the app for secretary /
-    // department_head / monitoring_officer roles.
     $restrictedDeptId = function_exists('getRestrictedDepartmentId') ? getRestrictedDepartmentId() : null;
     $restrictedDeptCode = null;
 
@@ -48,15 +49,6 @@ try {
 
     /*
      * Process screening decision before any HTML is sent.
-     *
-     *   YES (Approve) -> "Sign the leave application" -> screening_status
-     *                     = 'Screened', which makes it visible to the
-     *                     Department Head on leave-request-approval.php.
-     *   NO  (Reject)  -> "End" -> screening_status = 'Returned', overall
-     *                     status flips to 'Document Required' so the
-     *                     faculty member sees it needs attention and can
-     *                     use the existing Upload Follow-up flow on their
-     *                     own leave-request.php page.
      */
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -94,7 +86,6 @@ try {
             throw new RuntimeException('The selected leave request could not be found.');
         }
 
-        // Department scoping enforced server-side too, not just in the listing query.
         if ($restrictedDeptCode !== null && $request['designated_department'] !== $restrictedDeptCode) {
             throw new RuntimeException('This leave request does not belong to your department.');
         }
@@ -104,7 +95,6 @@ try {
         }
 
         if ($action === 'screen_approve') {
-
             $signature = trim((string) ($_POST['signature'] ?? ''));
 
             if ($signature === '' || strpos($signature, 'data:image/') !== 0) {
@@ -134,7 +124,6 @@ try {
             $redirectMessage = 'Leave request signed and submitted to the Department Head for approval.';
 
         } else { // screen_return
-
             $comment = trim((string) ($_POST['comment'] ?? ''));
 
             if ($comment === '') {
@@ -171,10 +160,14 @@ try {
     }
 
     /*
-     * Listing.
+     * Listing, Filtering & Pagination Logic
      */
     $q = trim((string) ($_GET['q'] ?? ''));
     $filterStatus = trim((string) ($_GET['screening_status'] ?? ''));
+    $filterType = trim((string) ($_GET['leave_type'] ?? ''));
+    
+    $limit = 10;
+    $page = max(1, (int)($_GET['page'] ?? 1));
 
     $where = [];
     $params = [];
@@ -194,37 +187,158 @@ try {
         $where[] = 'lr.screening_status = :screening_status';
         $params[':screening_status'] = $filterStatus;
     }
-
-    $sql = "SELECT lr.*, fp.id AS faculty_profile_id, fp.designated_department, CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name, DATEDIFF(lr.end_date, lr.start_date) + 1 AS days
-            FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id";
-
-    if (!empty($where)) {
-        $sql .= ' WHERE ' . implode(' AND ', $where);
+    
+    if ($filterType !== '') {
+        $where[] = 'lr.leave_type = :leave_type';
+        $params[':leave_type'] = $filterType;
     }
 
-    $sql .= " ORDER BY CASE WHEN lr.screening_status = 'Pending' THEN 0 ELSE 1 END, lr.created_at DESC";
+    $whereClause = !empty($where) ? ' WHERE ' . implode(' AND ', $where) : '';
+
+    // Aggregated counts for cards
+    $statsSql = "SELECT lr.screening_status, COUNT(*) as cnt
+                 FROM faculty_db.leave_requests lr
+                 LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+                 $whereClause
+                 GROUP BY lr.screening_status";
+                 
+    $stmtStats = $pdo->prepare($statsSql);
+    foreach ($params as $k => $v) {
+        $stmtStats->bindValue($k, $v, PDO::PARAM_STR);
+    }
+    $stmtStats->execute();
+    
+    while ($row = $stmtStats->fetch(PDO::FETCH_ASSOC)) {
+        $s = $row['screening_status'];
+        if ($s === 'Pending') $pendingCount = (int)$row['cnt'];
+        elseif ($s === 'Screened') $screenedCount = (int)$row['cnt'];
+        elseif ($s === 'Returned') $returnedCount = (int)$row['cnt'];
+    }
+
+    // Total records for pagination
+    $countSql = "SELECT COUNT(*) FROM faculty_db.leave_requests lr LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id $whereClause";
+    $stmtCount = $pdo->prepare($countSql);
+    foreach ($params as $k => $v) {
+        $stmtCount->bindValue($k, $v, PDO::PARAM_STR);
+    }
+    $stmtCount->execute();
+    
+    $totalRecords = (int) $stmtCount->fetchColumn();
+    $totalPages = max(1, ceil($totalRecords / $limit));
+    if ($page > $totalPages) {
+        $page = $totalPages; 
+    }
+    $offset = ($page - 1) * $limit;
+
+    // Fetch paginated records
+    $sql = "SELECT lr.*, fp.id AS faculty_profile_id, fp.designated_department, CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name, DATEDIFF(lr.end_date, lr.start_date) + 1 AS days
+            FROM faculty_db.leave_requests lr
+            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+            $whereClause
+            ORDER BY CASE WHEN lr.screening_status = 'Pending' THEN 0 ELSE 1 END, lr.created_at DESC
+            LIMIT :limit OFFSET :offset";
 
     $stmt = $pdo->prepare($sql);
     foreach ($params as $k => $v) {
         $stmt->bindValue($k, $v, PDO::PARAM_STR);
     }
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
 
     $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    foreach ($leaveRequests as $r) {
-        switch ($r['screening_status'] ?? '') {
-            case 'Pending':
-                $pendingCount++;
-                break;
-            case 'Screened':
-                $screenedCount++;
-                break;
-            case 'Returned':
-                $returnedCount++;
-                break;
+    // Handle AJAX request responses (Return JSON with updated HTML fragments)
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest' || isset($_GET['ajax'])) {
+        header('Content-Type: application/json');
+        
+        // Render table rows HTML
+        ob_start();
+        if (empty($leaveRequests)) {
+            echo '<tr><td colspan="8" class="text-center text-muted py-4">No leave requests found.</td></tr>';
+        } else {
+            foreach ($leaveRequests as $r) {
+                $screeningStatus = $r['screening_status'] ?? 'Pending';
+                $badgeClass = match ($screeningStatus) {
+                    'Screened' => 'badge-screened',
+                    'Returned' => 'badge-returned',
+                    default    => 'badge-pending',
+                };
+                $hasDocument = trim((string) ($r['documents'] ?? '')) !== '';
+                $documentUrl = $hasDocument ? BASE_URL . '/' . ltrim((string) $r['documents'], '/') : '';
+                ?>
+                <tr>
+                    <td class="fw-bold ps-3"><?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                    <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?></span></td>
+                    <td class="small text-muted"><?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?> &rarr; <?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                    <td><span class="fw-medium"><?= (int) ($r['days'] ?? 0) ?></span></td>
+                    <td>
+                        <?php if ($hasDocument): ?>
+                            <a href="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"
+                               class="status-badge badge-screened text-decoration-none">
+                                <i class="fas fa-paperclip"></i>View File
+                            </a>
+                        <?php else: ?>
+                            <span class="status-badge badge-none">None</span>
+                        <?php endif; ?>
+                    </td>
+                    <td><span class="status-badge <?= $badgeClass ?>"><?= htmlspecialchars($screeningStatus, ENT_QUOTES, 'UTF-8') ?></span></td>
+                    <td class="small text-muted"><?= htmlspecialchars($r['created_at'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                    <td class="text-end pe-3">
+                        <?php if ($screeningStatus === 'Pending'): ?>
+                            <button type="button" class="btn btn-sm btn-primary shadow-sm"
+                                    onclick="openReviewModal(<?= (int) $r['id'] ?>, '<?= htmlspecialchars(addslashes($r['faculty_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['leave_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['reason'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', <?= $hasDocument ? 'true' : 'false' ?>, '<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>')">
+                                <i class="fas fa-eye me-1"></i>Review
+                            </button>
+                        <?php elseif ($screeningStatus === 'Screened' && !empty($r['screening_signature'])): ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    onclick="viewSignature('<?= htmlspecialchars(addslashes($r['screening_signature']), ENT_QUOTES, 'UTF-8') ?>')">
+                                <i class="fas fa-signature me-1"></i>View Signature
+                            </button>
+                        <?php else: ?>
+                            <span class="text-muted small">&mdash;</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php
+            }
         }
+        $tableHtml = ob_get_clean();
+
+        // Render Pagination HTML
+        ob_start();
+        if ($totalPages > 1) {
+            $urlParams = $_GET;
+            unset($urlParams['page'], $urlParams['ajax']);
+            $baseUrl = '?' . http_build_query($urlParams) . (empty($urlParams) ? '' : '&') . 'page=';
+            ?>
+            <span class="text-muted small fw-medium">Showing page <?= $page ?> of <?= $totalPages ?> (Total: <?= $totalRecords ?> requests)</span>
+            <ul class="pagination pagination-sm mb-0 shadow-sm">
+                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                    <a class="page-link px-3 ajax-page-link" href="<?= $page <= 1 ? '#' : $baseUrl . ($page - 1) ?>" data-page="<?= $page - 1 ?>">Previous</a>
+                </li>
+                <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
+                    <li class="page-item <?= $page === $i ? 'active' : '' ?>">
+                        <a class="page-link ajax-page-link" href="<?= $baseUrl . $i ?>" data-page="<?= $i ?>"><?= $i ?></a>
+                    </li>
+                <?php endfor; ?>
+                <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                    <a class="page-link px-3 ajax-page-link" href="<?= $page >= $totalPages ? '#' : $baseUrl . ($page + 1) ?>" data-page="<?= $page + 1 ?>">Next</a>
+                </li>
+            </ul>
+            <?php
+        }
+        $paginationHtml = ob_get_clean();
+
+        echo json_encode([
+            'tableHtml' => $tableHtml,
+            'paginationHtml' => $paginationHtml,
+            'pendingCount' => $pendingCount,
+            'screenedCount' => $screenedCount,
+            'returnedCount' => $returnedCount,
+            'totalRecords' => $totalRecords
+        ]);
+        exit;
     }
 
 } catch (Throwable $e) {
@@ -246,7 +360,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 
 <style>
-    /* High-Contrast Theme-Adaptive Badge Styles */
     .status-badge {
         display: inline-flex;
         align-items: center;
@@ -260,35 +373,30 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         transition: background-color 0.2s, color 0.2s, border-color 0.2s;
     }
 
-    /* Pending (Yellow / Warning) */
     .badge-pending {
         background-color: rgba(245, 158, 11, 0.15) !important;
         color: #d97706 !important;
         border: 1px solid rgba(245, 158, 11, 0.3);
     }
 
-    /* Screened (Green / Success) */
     .badge-screened {
         background-color: rgba(16, 185, 129, 0.15) !important;
         color: #059669 !important;
         border: 1px solid rgba(16, 185, 129, 0.3);
     }
 
-    /* Returned (Red / Danger) */
     .badge-returned {
         background-color: rgba(239, 68, 68, 0.15) !important;
         color: #dc2626 !important;
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
 
-    /* Neutral / None (Gray) */
     .badge-none {
         background-color: rgba(148, 163, 184, 0.15) !important;
         color: #64748b !important;
         border: 1px solid rgba(148, 163, 184, 0.25);
     }
 
-    /* Dark Mode Overrides */
     [data-bs-theme="dark"] .badge-pending,
     [data-theme="dark"] .badge-pending,
     body.dark-mode .badge-pending {
@@ -326,7 +434,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
-        <h1 class="h3 fw-bold mb-1 text-black">
+        <h1 class="h3 fw-bold mb-1 text-body">
             <i class="fas fa-file-signature text-primary me-2"></i>
             Leave Request Screening
         </h1>
@@ -356,13 +464,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Review</h6>
-                    <h4 class="mb-0 fw-bold text-warning"><?= (int) $pendingCount ?></h4>
+                    <h4 class="mb-0 fw-bold text-warning" id="stat-pending"><?= (int) $pendingCount ?></h4>
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         Awaiting screening
                     </small>
                 </div>
             </div>
-            <a href="?screening_status=Pending" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="Filter Pending">
+            <a href="?screening_status=Pending" class="status-filter-card position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" data-status="Pending" style="width: 24px; height: 24px; font-size: 0.7rem; cursor:pointer;" title="Filter Pending">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -377,13 +485,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Signed / Sent to Dept. Head</h6>
-                    <h4 class="mb-0 fw-bold text-success"><?= (int) $screenedCount ?></h4>
+                    <h4 class="mb-0 fw-bold text-success" id="stat-screened"><?= (int) $screenedCount ?></h4>
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         Forwarded applications
                     </small>
                 </div>
             </div>
-            <a href="?screening_status=Screened" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="Filter Screened">
+            <a href="?screening_status=Screened" class="status-filter-card position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" data-status="Screened" style="width: 24px; height: 24px; font-size: 0.7rem; cursor:pointer;" title="Filter Screened">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -398,13 +506,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Returned to Faculty</h6>
-                    <h4 class="mb-0 fw-bold text-danger"><?= (int) $returnedCount ?></h4>
+                    <h4 class="mb-0 fw-bold text-danger" id="stat-returned"><?= (int) $returnedCount ?></h4>
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         Requires revision
                     </small>
                 </div>
             </div>
-            <a href="?screening_status=Returned" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="Filter Returned">
+            <a href="?screening_status=Returned" class="status-filter-card position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" data-status="Returned" style="width: 24px; height: 24px; font-size: 0.7rem; cursor:pointer;" title="Filter Returned">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -413,44 +521,58 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-md-6">
+        <form id="filterForm" class="row g-3 align-items-end" onsubmit="return false;">
+            <div class="col-md-4">
                 <label class="form-label small fw-bold text-muted mb-1">Search</label>
-                <input type="text" name="q" class="form-control" placeholder="Faculty name or reference no."
-                       value="<?= htmlspecialchars($q, ENT_QUOTES, 'UTF-8') ?>">
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-search"></i></span>
+                    <input type="text" name="q" id="searchInput" class="form-control border-start-0 ps-0 bg-light" placeholder="Faculty name or reference no."
+                           value="<?= htmlspecialchars($q, ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
+                </div>
             </div>
+            
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted mb-1">Leave Type</label>
+                <select name="leave_type" id="filterLeaveType" class="form-select bg-light">
+                    <option value="">All Categories</option>
+                    <?php 
+                        $types = ['Vacation Leave', 'Sick Leave', 'Emergency Leave', 'Study Leave'];
+                        foreach ($types as $type): 
+                    ?>
+                        <option value="<?= $type ?>" <?= $filterType === $type ? 'selected' : '' ?>><?= $type ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
             <div class="col-md-4">
                 <label class="form-label small fw-bold text-muted mb-1">Screening Status</label>
-                <select name="screening_status" class="form-select">
+                <select name="screening_status" id="filterScreeningStatus" class="form-select bg-light">
                     <option value="">All</option>
                     <?php foreach (['Pending', 'Screened', 'Returned'] as $s): ?>
                         <option value="<?= $s ?>" <?= $filterStatus === $s ? 'selected' : '' ?>><?= $s ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filter</button>
-            </div>
         </form>
     </div>
 </div>
 
-<div class="card border-0 shadow-sm">
+<div class="card border-0 shadow-sm mb-4">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>Faculty</th>
+                    <th class="ps-3">Faculty</th>
                     <th>Type</th>
                     <th>Duration</th>
                     <th>Days</th>
                     <th>Documents</th>
                     <th>Screening Status</th>
                     <th>Filed</th>
-                    <th class="text-end">Action</th>
+                    <th class="text-end pe-3">Action</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="leaveTableBody">
                 <?php if (empty($leaveRequests)): ?>
                     <tr>
                         <td colspan="8" class="text-center text-muted py-4">No leave requests found.</td>
@@ -468,10 +590,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             $documentUrl = $hasDocument ? BASE_URL . '/' . ltrim((string) $r['documents'], '/') : '';
                         ?>
                         <tr>
-                            <td class="fw-bold"><?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?> &ndash; <?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><?= (int) ($r['days'] ?? 0) ?></td>
+                            <td class="fw-bold ps-3"><?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?></span></td>
+                            <td class="small text-muted"><?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?> &rarr; <?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><span class="fw-medium"><?= (int) ($r['days'] ?? 0) ?></span></td>
                             <td>
                                 <?php if ($hasDocument): ?>
                                     <a href="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"
@@ -483,10 +605,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <?php endif; ?>
                             </td>
                             <td><span class="status-badge <?= $badgeClass ?>"><?= htmlspecialchars($screeningStatus, ENT_QUOTES, 'UTF-8') ?></span></td>
-                            <td><?= htmlspecialchars($r['created_at'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                            <td class="text-end">
+                            <td class="small text-muted"><?= htmlspecialchars($r['created_at'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td class="text-end pe-3">
                                 <?php if ($screeningStatus === 'Pending'): ?>
-                                    <button type="button" class="btn btn-sm btn-primary"
+                                    <button type="button" class="btn btn-sm btn-primary shadow-sm"
                                             onclick="openReviewModal(<?= (int) $r['id'] ?>, '<?= htmlspecialchars(addslashes($r['faculty_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['leave_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['reason'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', <?= $hasDocument ? 'true' : 'false' ?>, '<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>')">
                                         <i class="fas fa-eye me-1"></i>Review
                                     </button>
@@ -505,9 +627,34 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </tbody>
         </table>
     </div>
+    
+    <!-- Pagination UI Container -->
+    <div class="card-footer bg-transparent border-top p-3 d-flex justify-content-between align-items-center flex-wrap gap-2" id="paginationContainer">
+        <?php if ($totalPages > 1): ?>
+            <?php
+            $urlParams = $_GET;
+            unset($urlParams['page']);
+            $baseUrl = '?' . http_build_query($urlParams) . (empty($urlParams) ? '' : '&') . 'page=';
+            ?>
+            <span class="text-muted small fw-medium">Showing page <?= $page ?> of <?= $totalPages ?> (Total: <?= $totalRecords ?> requests)</span>
+            <ul class="pagination pagination-sm mb-0 shadow-sm">
+                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                    <a class="page-link px-3 ajax-page-link" href="<?= $page <= 1 ? '#' : $baseUrl . ($page - 1) ?>" data-page="<?= $page - 1 ?>">Previous</a>
+                </li>
+                <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
+                    <li class="page-item <?= $page === $i ? 'active' : '' ?>">
+                        <a class="page-link ajax-page-link" href="<?= $baseUrl . $i ?>" data-page="<?= $i ?>"><?= $i ?></a>
+                    </li>
+                <?php endfor; ?>
+                <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                    <a class="page-link px-3 ajax-page-link" href="<?= $page >= $totalPages ? '#' : $baseUrl . ($page + 1) ?>" data-page="<?= $page + 1 ?>">Next</a>
+                </li>
+            </ul>
+        <?php endif; ?>
+    </div>
 </div>
 
-<!-- Review Modal: Review Application -> Approve? -> Sign / Return -->
+<!-- Review Modal -->
 <div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -518,15 +665,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <div class="modal-body">
                 <dl class="row mb-0">
                     <dt class="col-4 text-muted small">Faculty</dt>
-                    <dd class="col-8" id="rm-faculty"></dd>
+                    <dd class="col-8 fw-semibold" id="rm-faculty"></dd>
+                    
                     <dt class="col-4 text-muted small">Leave Type</dt>
                     <dd class="col-8" id="rm-type"></dd>
+                    
                     <dt class="col-4 text-muted small">Duration</dt>
                     <dd class="col-8" id="rm-duration"></dd>
-                    <dt class="col-4 text-muted small">Reason</dt>
-                    <dd class="col-8" id="rm-reason"></dd>
-                    <dt class="col-4 text-muted small">Documents</dt>
-                    <dd class="col-8" id="rm-documents-wrapper">
+                    
+                    <dt class="col-4 text-muted small mt-2">Reason</dt>
+                    <dd class="col-8 mt-2 bg-light p-2 rounded small" id="rm-reason"></dd>
+                    
+                    <dt class="col-4 text-muted small align-self-center">Documents</dt>
+                    <dd class="col-8 mb-0" id="rm-documents-wrapper">
                         <span id="rm-documents"></span>
                         <a href="#" id="rm-document-link" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary ms-2 d-none">
                             <i class="fas fa-paperclip me-1"></i>View File
@@ -534,11 +685,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </dd>
                 </dl>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-danger" onclick="openReturnModal()">
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-outline-danger px-3 rounded-pill" onclick="openReturnModal()">
                     <i class="fas fa-undo me-1"></i>Return (No)
                 </button>
-                <button type="button" class="btn btn-success" onclick="approveFromModal()">
+                <button type="button" class="btn btn-success px-4 rounded-pill" onclick="approveFromModal()">
                     <i class="fas fa-signature me-1"></i>Approve &amp; Sign
                 </button>
             </div>
@@ -546,7 +697,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- Return Modal: reason required, ends the flow (no submission to Dept. Head) -->
+<!-- Return Modal -->
 <div class="modal fade" id="returnModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -556,17 +707,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="modal-body">
                 <label class="form-label small fw-bold text-muted">Reason for returning to faculty</label>
-                <textarea id="return-reason" class="form-control" rows="3" placeholder="e.g. missing supporting document, incomplete details"></textarea>
+                <textarea id="return-reason" class="form-control bg-light" rows="3" placeholder="e.g. missing supporting document, incomplete details"></textarea>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" onclick="confirmReturn()">Confirm Return</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Signature Pad Modal: captures the Secretary's drawn signature before signing -->
+<!-- Signature Pad Modal -->
 <div class="modal fade" id="signatureModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -576,10 +727,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="modal-body">
                 <p class="text-muted small mb-2">Draw your signature below to certify this leave application and forward it to the Department Head.</p>
-                <div class="border rounded-3 overflow-hidden position-relative" id="sig-pad-wrapper" style="touch-action: none; min-height: 180px;">
+                <div class="border rounded-3 overflow-hidden position-relative shadow-sm" id="sig-pad-wrapper" style="touch-action: none; min-height: 180px;">
                     <canvas id="signature-pad" height="180" style="width: 100%; height: 180px; cursor: crosshair; display: block;"></canvas>
                 </div>
-                <div class="d-flex justify-content-between align-items-center mt-2">
+                <div class="d-flex justify-content-between align-items-center mt-3">
                     <div class="d-flex align-items-center gap-2">
                         <label for="pen-color-picker" class="small text-muted fw-bold mb-0">Pen Color:</label>
                         <div class="position-relative d-inline-block">
@@ -593,17 +744,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </button>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success" onclick="confirmSignature()">
-                    <i class="fas fa-signature me-1"></i>Confirm &amp; Sign
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success rounded-pill px-4" onclick="confirmSignature()">
+                    <i class="fas fa-check me-1"></i>Confirm &amp; Sign
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- View Signature Modal: shows a previously captured signature -->
+<!-- View Signature Modal -->
 <div class="modal fade" id="viewSignatureModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -611,8 +762,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <h5 class="modal-title fw-bold">Screening Signature</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body text-center">
-                <img id="vs-img" src="" alt="Screening signature" class="border rounded-3 bg-white" style="max-width: 100%;">
+            <div class="modal-body text-center bg-light rounded-bottom">
+                <img id="vs-img" src="" alt="Screening signature" class="border rounded-3 bg-white shadow-sm" style="max-width: 100%;">
             </div>
         </div>
     </div>
@@ -649,6 +800,97 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <script>
+// AJAX-powered Filtering and Search Script
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const leaveTypeSelect = document.getElementById('filterLeaveType');
+    const screeningStatusSelect = document.getElementById('filterScreeningStatus');
+    
+    let searchTimeout = null;
+
+    function fetchFilteredData(page = 1) {
+        const query = searchInput.value.trim();
+        const leaveType = leaveTypeSelect.value;
+        const status = screeningStatusSelect.value;
+
+        const params = new URLSearchParams({
+            q: query,
+            leave_type: leaveType,
+            screening_status: status,
+            page: page,
+            ajax: 1
+        });
+
+        // Update browser URL without reloading page
+        const newUrl = '?' + new URLSearchParams({
+            q: query,
+            leave_type: leaveType,
+            screening_status: status,
+            page: page
+        }).toString();
+        window.history.pushState({path: newUrl}, '', newUrl);
+
+        fetch(newUrl + '&ajax=1', {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('leaveTableBody').innerHTML = data.tableHtml;
+            document.getElementById('paginationContainer').innerHTML = data.paginationHtml;
+            document.getElementById('stat-pending').textContent = data.pendingCount;
+            document.getElementById('stat-screened').textContent = data.screenedCount;
+            document.getElementById('stat-returned').textContent = data.returnedCount;
+            
+            attachPaginationListeners();
+        })
+        .catch(error => console.error('Error loading filtered data:', error));
+    }
+
+    function attachPaginationListeners() {
+        document.querySelectorAll('.ajax-page-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = this.getAttribute('data-page');
+                if (page) {
+                    fetchFilteredData(page);
+                }
+            });
+        });
+    }
+
+    // Input Debounce for Search
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                fetchFilteredData(1);
+            }, 400);
+        });
+    }
+
+    // Dropdown change events
+    if (leaveTypeSelect) {
+        leaveTypeSelect.addEventListener('change', () => fetchFilteredData(1));
+    }
+    if (screeningStatusSelect) {
+        screeningStatusSelect.addEventListener('change', () => fetchFilteredData(1));
+    }
+
+    // Status filter cards
+    document.querySelectorAll('.status-filter-card').forEach(card => {
+        card.addEventListener('click', function(e) {
+            e.preventDefault();
+            const status = this.getAttribute('data-status');
+            screeningStatusSelect.value = status;
+            fetchFilteredData(1);
+        });
+    });
+
+    attachPaginationListeners();
+});
+
 let currentReviewId = null;
 
 function openReviewModal(id, faculty, type, startDate, endDate, reason, hasDocument, documentUrl) {
@@ -685,7 +927,6 @@ function approveFromModal() {
     }, 200);
 }
 
-/* ---- Dynamic Theme Helpers & Signature Pad ---- */
 let sigCanvas, sigCtx, sigDrawing = false, sigHasDrawn = false;
 let currentPenColor = '#000000';
 
