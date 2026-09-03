@@ -80,13 +80,11 @@ $cfTotalCount = (int) ($clearance['total_items'] ?? count($offices));
 $cfPct = $cfTotalCount > 0 ? (int) round(($cfApprovedCount / $cfTotalCount) * 100) : 0;
 
 // Workflow lifecycle step calculation
-// Steps: 1: Faculty Submit | 2: Dept Head Review | 3: Offices/Units Verification | 4: HR Final Approval | 5: Cleared
+// Steps: 1: Faculty Submit | 2: Dept Head Review | 3: Offices/Units Verification | 4: Cleared
 $activeLifecycleStep = 1;
 if ($status === 'Cleared') {
-    $activeLifecycleStep = 5;
-} elseif ($status === 'For Final Approval') {
     $activeLifecycleStep = 4;
-} elseif ($cfFormApproved || $status === 'Under Verification' || $cfApprovedCount > 0) {
+} elseif ($cfFormApproved || $status === 'Under Verification' || $cfApprovedCount > 0 || $status === 'For Final Approval') {
     $activeLifecycleStep = 3;
 } elseif ($cfFormSubmitted || $status === 'For Department Head Approval') {
     $activeLifecycleStep = 2;
@@ -197,25 +195,64 @@ if ($status === 'Cleared') {
         background: #198754;
     }
 
-    /* ── Sections & Cards ─────────────────────────────────────────── */
+    /* ── Sections & Cards (Dean Faculty Directory style) ───────────── */
     .clr-card {
-        background: var(--bs-body-bg);
-        border: 1px solid var(--bs-border-color);
-        border-radius: .85rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, .04);
+        background: var(--bs-card-bg, var(--bs-body-bg));
+        border: 0 !important;
+        border-radius: 1rem;
+        box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
         margin-bottom: 1.5rem;
         overflow: hidden;
     }
 
     .clr-card-header {
         padding: 1rem 1.4rem;
-        background: var(--bs-tertiary-bg, rgba(0, 0, 0, .02));
-        border-bottom: 1px solid var(--bs-border-color);
+        background-color: var(--bs-primary, #0d6efd);
+        color: #ffffff;
+        border-bottom: 0;
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: .75rem;
         flex-wrap: wrap;
+    }
+
+    .clr-card-header .fw-bold,
+    .clr-card-header h5,
+    .clr-card-header h6,
+    .clr-card-header .card-title {
+        color: #ffffff !important;
+    }
+
+    .clr-card-header .text-body-secondary,
+    .clr-card-header .small {
+        color: rgba(255, 255, 255, 0.78) !important;
+    }
+
+    .card-header .rounded-circle.bg-white,
+    .office-card-header .rounded-circle.bg-white,
+    .clr-card-header .rounded-circle.bg-white,
+    .clr-card-icon-wrap,
+    .office-icon-wrap {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background-color: #ffffff !important;
+        color: var(--bs-primary, #0d6efd) !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, .12);
+    }
+
+    .card-header .rounded-circle.bg-white i,
+    .office-card-header .rounded-circle.bg-white i,
+    .clr-card-header .rounded-circle.bg-white i,
+    .clr-card-icon-wrap i,
+    .office-icon-wrap i {
+        color: var(--bs-primary, #0d6efd) !important;
     }
 
     .clr-info-grid {
@@ -259,12 +296,14 @@ if ($status === 'Cleared') {
         background: linear-gradient(90deg, #198754, #20c997);
     }
 
-    /* ── Office Section Grid & Cards ──────────────────────────────── */
+    /* ── Office Section Grid & Cards (Dean Faculty Directory style) ── */
     .office-card {
-        background: var(--bs-body-bg);
-        border: 1px solid var(--bs-border-color);
-        border-radius: .85rem;
-        transition: all .2s ease;
+        background: var(--bs-card-bg, var(--bs-body-bg));
+        border: 0 !important;
+        border-radius: 1rem;
+        box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
+        overflow: hidden;
+        transition: transform .2s ease, box-shadow .2s ease;
         display: flex;
         flex-direction: column;
         height: 100%;
@@ -272,32 +311,178 @@ if ($status === 'Cleared') {
     }
 
     .office-card:hover {
-        box-shadow: 0 6px 18px rgba(0, 0, 0, .06);
-        border-color: rgba(13, 110, 253, .3);
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .1) !important;
     }
 
     .office-card-header {
         padding: 1rem 1.25rem;
-        border-bottom: 1px solid var(--bs-border-color);
-        background: var(--bs-tertiary-bg, rgba(0, 0, 0, .015));
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: .75rem;
-        border-radius: .85rem .85rem 0 0;
-    }
-
-    .office-icon-wrap {
-        width: 38px;
-        height: 38px;
-        border-radius: 10px;
-        background: rgba(13, 110, 253, .08);
-        color: #0d6efd;
+        background-color: var(--bs-primary, #0d6efd);
+        color: #ffffff;
+        border-bottom: 0;
         display: flex;
         align-items: center;
-        justify-content: center;
-        font-size: 1.1rem;
-        flex-shrink: 0;
+        justify-content: space-between;
+        gap: .75rem;
+    }
+
+    .office-card-header .fw-bold {
+        color: #ffffff !important;
+    }
+
+    .office-card-header .text-body-secondary {
+        color: rgba(255, 255, 255, 0.78) !important;
+    }
+
+    /* Status chip on primary office header — white pill badges */
+    .office-card-header .clr-chip,
+    .card-header .clr-chip {
+        background: #ffffff !important;
+        border: none !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
+    }
+
+    .office-card-header .clr-chip-cleared {
+        color: #198754 !important;
+    }
+
+    .office-card-header .clr-chip-review {
+        color: #0d6efd !important;
+    }
+
+    .office-card-header .clr-chip-deficiency {
+        color: #dc3545 !important;
+    }
+
+    .office-card-header .clr-chip-onhold {
+        color: #997404 !important;
+    }
+
+    .office-card-header .clr-chip-pending {
+        color: #6c757d !important;
+    }
+
+    /* ── Dark Mode Consistency (Matches the User's Dark Theme Banner) ── */
+    [data-theme="dark"] .clr-card,
+    [data-theme="dark"] .office-card {
+        background: var(--sms-surface, rgba(18, 28, 52, 0.72)) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+
+    [data-theme="dark"] .clr-card-header,
+    [data-theme="dark"] .office-card-header,
+    [data-theme="dark"] .card-header.bg-primary {
+        background-color: rgba(96, 165, 250, 0.22) !important;
+        color: #ffffff !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+
+    [data-theme="dark"] .card-header .rounded-circle.bg-white,
+    [data-theme="dark"] .office-card-header .rounded-circle.bg-white,
+    [data-theme="dark"] .clr-card-header .rounded-circle.bg-white,
+    [data-theme="dark"] .clr-card-icon-wrap,
+    [data-theme="dark"] .office-icon-wrap,
+    [data-theme="dark"] .rounded-circle.bg-white {
+        background-color: var(--sms-surface-muted, #131c30) !important;
+        color: var(--sms-primary, #60a5fa) !important;
+        border: 1px solid rgba(96, 165, 250, 0.2) !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, .3) !important;
+    }
+
+    [data-theme="dark"] .card-header .rounded-circle.bg-white i,
+    [data-theme="dark"] .office-card-header .rounded-circle.bg-white i,
+    [data-theme="dark"] .clr-card-header .rounded-circle.bg-white i,
+    [data-theme="dark"] .clr-card-icon-wrap i,
+    [data-theme="dark"] .office-icon-wrap i {
+        color: var(--sms-primary, #60a5fa) !important;
+    }
+
+    [data-theme="dark"] .card-header .btn-light {
+        background-color: #ffffff !important;
+        color: #2563eb !important;
+        border: none !important;
+    }
+
+    [data-theme="dark"] .card-header .badge.bg-white,
+    [data-theme="dark"] .office-card-header .clr-chip,
+    [data-theme="dark"] .card-header .clr-chip {
+        background-color: var(--sms-surface-muted, #131c30) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .2) !important;
+    }
+
+    [data-theme="dark"] .office-card-header .clr-chip-cleared {
+        color: #34d399 !important;
+    }
+
+    [data-theme="dark"] .office-card-header .clr-chip-review {
+        color: #60a5fa !important;
+    }
+
+    [data-theme="dark"] .office-card-header .clr-chip-deficiency {
+        color: #f87171 !important;
+    }
+
+    [data-theme="dark"] .office-card-header .clr-chip-onhold {
+        color: #fbbf24 !important;
+    }
+
+    [data-theme="dark"] .office-card-header .clr-chip-pending {
+        color: #94a3b8 !important;
+    }
+
+    [data-theme="dark"] .clr-flow-stepper {
+        background: var(--sms-surface, rgba(18, 28, 52, 0.72)) !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    [data-theme="dark"] .clr-flow-circle {
+        background: var(--sms-surface-muted, #131c30) !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+        color: var(--sms-text-muted, #94a3b8) !important;
+    }
+
+    [data-theme="dark"] .clr-flow-step.active .clr-flow-circle {
+        border-color: #60a5fa !important;
+        background: #3b82f6 !important;
+        color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(96, 165, 250, .25) !important;
+    }
+
+    [data-theme="dark"] .clr-flow-step.completed .clr-flow-circle {
+        border-color: #34d399 !important;
+        background: #10b981 !important;
+        color: #fff !important;
+    }
+
+    [data-theme="dark"] .clr-flow-divider {
+        background: rgba(255, 255, 255, 0.12) !important;
+    }
+
+    [data-theme="dark"] .clr-flow-divider.completed {
+        background: #10b981 !important;
+    }
+
+    [data-theme="dark"] .clr-info-label {
+        color: var(--sms-text-muted, #94a3b8) !important;
+    }
+
+    [data-theme="dark"] .clr-info-value {
+        color: var(--sms-text-strong, #f8fafc) !important;
+    }
+
+    [data-theme="dark"] .office-checklist li {
+        color: var(--sms-text, #cbd5e1) !important;
+    }
+
+    [data-theme="dark"] .office-upload-zone {
+        background: rgba(15, 23, 42, 0.4) !important;
+        border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+
+    [data-theme="dark"] .office-upload-zone:hover {
+        border-color: rgba(96, 165, 250, 0.4) !important;
+        background: rgba(15, 23, 42, 0.6) !important;
     }
 
     .office-card-body {
@@ -805,19 +990,22 @@ if ($status === 'Cleared') {
 
         <!-- ════════════════ VIEW 1: CLEARANCE OF CONDUCT AGREEMENT ════════════════ -->
         <div id="viewAgreementSection" class="d-none mb-4">
-            <div class="clr-card mb-3" id="facultyClearanceFormCard">
-                <div class="clr-card-header d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="fas fa-file-contract text-primary fs-5"></i>
+            <div class="card border-0 shadow-sm overflow-hidden mb-3" id="facultyClearanceFormCard">
+                <div
+                    class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center flex-shrink-0 fw-bold shadow-sm"
+                            style="width:42px;height:42px;">
+                            <i class="fas fa-file-contract fs-5 text-primary"></i>
+                        </div>
                         <div>
-                            <div class="fw-bold mb-0">Clearance Agreement Form</div>
-                            <div class="small text-body-secondary">Official Faculty Clearance Form
-                            </div>
+                            <h5 class="fw-bold text-white mb-0 fs-6">Clearance Agreement Form</h5>
+                            <div class="small text-white-75">Official Faculty Clearance Form</div>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button"
-                            class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 shadow-sm"
+                            class="btn btn-sm btn-light fw-semibold d-flex align-items-center gap-1 shadow-sm px-3"
                             onclick="printClearanceAgreementForm()" title="Print Clearance Agreement Form">
                             <i class="fas fa-print"></i>
                             <span class="d-none d-sm-inline">Print Form</span>
@@ -1028,21 +1216,10 @@ if ($status === 'Cleared') {
                     <div class="clr-flow-title">Offices / Units<br>Verification</div>
                 </div>
 
-                <div class="clr-flow-divider <?= $activeLifecycleStep > 3 ? 'completed' : '' ?>"></div>
+                <div class="clr-flow-divider <?= $activeLifecycleStep >= 4 ? 'completed' : '' ?>"></div>
 
-                <!-- 4. HR Final Approval -->
-                <div
-                    class="clr-flow-step <?= $activeLifecycleStep > 4 ? 'completed' : ($activeLifecycleStep === 4 ? 'active' : '') ?>">
-                    <div class="clr-flow-circle">
-                        <?= $activeLifecycleStep > 4 ? '<i class="fas fa-check"></i>' : '4' ?>
-                    </div>
-                    <div class="clr-flow-title">HR Final<br>Approval</div>
-                </div>
-
-                <div class="clr-flow-divider <?= $activeLifecycleStep >= 5 ? 'completed' : '' ?>"></div>
-
-                <!-- 5. Cleared -->
-                <div class="clr-flow-step <?= $activeLifecycleStep === 5 ? 'completed' : '' ?>">
+                <!-- 4. Cleared -->
+                <div class="clr-flow-step <?= $activeLifecycleStep === 4 ? 'completed' : '' ?>">
                     <div class="clr-flow-circle">
                         <i class="fas fa-check-double"></i>
                     </div>
@@ -1053,65 +1230,75 @@ if ($status === 'Cleared') {
             <!-- ── Clearance Agreement Form Gate Banner ─────────────────────── -->
             <?php if (!$cfFormApproved): ?>
                 <?php if ($cfFormSubmitted && $cfFormStatus === 'Pending Review'): ?>
-                    <div
-                        class="alert alert-warning border border-warning-subtle shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center flex-shrink-0"
-                                style="width:38px;height:38px;">
-                                <i class="fas fa-hourglass-half fs-5"></i>
+                    <div class="card border-0 shadow-sm overflow-hidden mb-4">
+                        <div
+                            class="card-header bg-primary text-white py-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center flex-shrink-0 fw-bold shadow-sm"
+                                    style="width:42px;height:42px;">
+                                    <i class="fas fa-hourglass-half fs-5 text-primary"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold text-white mb-1 fs-6">Clearance Agreement Form Under Department Head Review
+                                    </h6>
+                                    <p class="small text-white-75 mb-0">Your Clearance Form has been submitted and is awaiting
+                                        Department Head review and endorsement. Requirement uploads and portal submission will
+                                        unlock
+                                        once approved.</p>
+                                </div>
                             </div>
-                            <div>
-                                <h6 class="fw-bold text-warning-emphasis mb-0">Clearance Agreement Form Under Department Head Review
-                                </h6>
-                                <p class="small text-body-secondary mb-0">Your Clearance Form has been submitted and is awaiting
-                                    Department Head review and endorsement. Requirement uploads and portal submission will unlock
-                                    once approved.</p>
-                            </div>
+                            <button type="button" class="btn btn-sm btn-light text-primary fw-semibold shadow-sm px-3"
+                                onclick="switchClearanceView('agreement')">
+                                <i class="fas fa-file-contract me-1"></i>View Agreement Form
+                            </button>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-semibold"
-                            onclick="switchClearanceView('agreement')">
-                            <i class="fas fa-file-contract me-1"></i>View Agreement Form
-                        </button>
                     </div>
                 <?php else: ?>
-                    <div
-                        class="alert alert-info border border-info-subtle shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="rounded-circle bg-info text-dark d-flex align-items-center justify-content-center flex-shrink-0"
-                                style="width:38px;height:38px;">
-                                <i class="fas fa-file-signature fs-5"></i>
+                    <div class="card border-0 shadow-sm overflow-hidden mb-4">
+                        <div
+                            class="card-header bg-primary text-white py-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center flex-shrink-0 fw-bold shadow-sm"
+                                    style="width:42px;height:42px;">
+                                    <i class="fas fa-file-signature fs-5 text-primary"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold text-white mb-1 fs-6">Step 1 Required: Submit Clearance Agreement Form</h6>
+                                    <p class="small text-white-75 mb-0">You must submit and obtain Department Head endorsement on
+                                        your Clearance Agreement Form before unit requirement uploads can begin.</p>
+                                </div>
                             </div>
-                            <div>
-                                <h6 class="fw-bold text-info-emphasis mb-0">Step 1 Required: Submit Clearance Agreement Form</h6>
-                                <p class="small text-body-secondary mb-0">You must submit and obtain Department Head endorsement on
-                                    your Clearance Agreement Form before unit requirement uploads can begin.</p>
-                            </div>
+                            <button type="button" class="btn btn-sm btn-light text-primary fw-semibold shadow-sm px-3"
+                                onclick="switchClearanceView('agreement')">
+                                <i class="fas fa-file-contract me-1"></i>Open Agreement Form
+                            </button>
                         </div>
-                        <button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="switchClearanceView('agreement')">
-                            <i class="fas fa-file-contract me-1"></i>Open Agreement Form
-                        </button>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
 
             <!-- ── Faculty Information Card ───────────────────────────────── -->
-            <div class="clr-card mb-4">
-                <div class="clr-card-header">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="fas fa-id-card text-primary fs-5"></i>
+            <div class="card border-0 shadow-sm overflow-hidden mb-4">
+                <div
+                    class="card-header bg-primary text-white py-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center flex-shrink-0 fw-bold shadow-sm"
+                            style="width:42px;height:42px;">
+                            <i class="fas fa-id-card fs-5 text-primary"></i>
+                        </div>
                         <div>
-                            <div class="fw-bold mb-0">Faculty Information</div>
-                            <div class="small text-body-secondary">Official Personnel &amp; Department Record</div>
+                            <h5 class="fw-bold text-white mb-0 fs-6">Faculty Information</h5>
+                            <div class="small text-white-75">Official Personnel &amp; Department Record</div>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span
-                            class="badge fs-7 px-2 py-1 <?= $cfSubmitted ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-body-secondary' ?>"
+                            class="badge bg-white fs-7 px-2 py-1 shadow-sm <?= $cfSubmitted ? 'text-success' : 'text-secondary' ?> fw-semibold"
                             id="formSubmittedBadge">
                             <i class="fas <?= $cfSubmitted ? 'fa-check-circle' : 'fa-circle-dot' ?> me-1"></i>
                             <?= $cfSubmitted ? 'Clearance Submitted' : 'Pending Submission' ?>
                         </span>
-                        <span class="small text-body-secondary d-none d-md-inline">Form No:
+                        <span class="badge bg-white text-dark fs-7 px-2 py-1 shadow-sm d-none d-md-inline">Form No:
                             <strong><?= facultyClearanceEsc($cfFormNo) ?></strong></span>
                     </div>
                 </div>
@@ -1192,8 +1379,7 @@ if ($status === 'Cleared') {
                     <p class="text-body-secondary small mb-0">Each responsible office reviews and confirms your clearance
                         accountabilities directly.</p>
                 </div>
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1">6 Clearance
-                    Units</span>
+                <span class="badge bg-primary text-white shadow-sm px-3 py-2">6 Clearance Units</span>
             </div>
 
             <div class="row g-3 mb-4">
@@ -1250,15 +1436,18 @@ if ($status === 'Cleared') {
                     ?>
                     <div class="col-12 col-md-6 col-lg-4">
                         <div class="office-card" data-office-row-id="<?= $fOid ?>">
-                            <div class="office-card-header">
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="office-icon-wrap">
-                                        <i class="fas <?= $meta['icon'] ?? 'fa-circle-check' ?>"></i>
+                            <div
+                                class="office-card-header card-header bg-primary text-white py-3 d-flex align-items-center justify-content-between gap-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center flex-shrink-0 fw-bold shadow-sm"
+                                        style="width:42px;height:42px;">
+                                        <i class="fas <?= $meta['icon'] ?? 'fa-circle-check' ?> text-primary"></i>
                                     </div>
                                     <div>
-                                        <div class="fw-bold" style="font-size:.9rem;"><?= facultyClearanceEsc($meta['name']) ?>
+                                        <div class="fw-bold text-white" style="font-size:.9rem;">
+                                            <?= facultyClearanceEsc($meta['name']) ?>
                                         </div>
-                                        <div class="text-body-secondary small" style="font-size:.72rem;">
+                                        <div class="text-white-75 small" style="font-size:.72rem;">
                                             <i class="fas fa-building me-1"></i><?= facultyClearanceEsc($meta['office']) ?>
                                         </div>
                                     </div>
@@ -1372,18 +1561,21 @@ if ($status === 'Cleared') {
             </div>
 
             <!-- ── Faculty Declaration & Digital Signature (Placed at the bottom) ──────────────────────── -->
-            <div class="clr-card mb-4" id="facultyDeclarationCard">
-                <div class="clr-card-header d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="fas fa-file-signature text-primary fs-5"></i>
+            <div class="card border-0 shadow-sm overflow-hidden mb-4" id="facultyDeclarationCard">
+                <div
+                    class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center flex-shrink-0 fw-bold shadow-sm"
+                            style="width:42px;height:42px;">
+                            <i class="fas fa-file-signature fs-5 text-primary"></i>
+                        </div>
                         <div>
-                            <div class="fw-bold mb-0">Faculty Declaration</div>
-                            <div class="small text-body-secondary">Official Clearance Certification &amp; Digital Signature
-                            </div>
+                            <h5 class="fw-bold text-white mb-0 fs-6">Faculty Declaration</h5>
+                            <div class="small text-white-75">Official Clearance Certification &amp; Digital Signature</div>
                         </div>
                     </div>
                     <span
-                        class="badge fs-7 px-3 py-2 <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-warning-subtle text-warning border border-warning-subtle') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-secondary-subtle text-body-secondary border') ?>"
+                        class="badge bg-white fs-7 px-3 py-2 shadow-sm fw-semibold <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'text-success' : 'text-warning') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'text-primary' : 'text-secondary') ?>"
                         id="declarationBadge">
                         <i
                             class="fas <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'fa-check-circle' : 'fa-hourglass-half') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'fa-pen-clip' : 'fa-lock') ?> me-1"></i>
@@ -2110,16 +2302,14 @@ if ($status === 'Cleared') {
         }
     });
 
-    // ── Workflow Stepper Dynamic Updater ─────────────────────────────────────────
+    // ── Workflow Stepper Dynamic Updater (4 steps — HR Final Approval removed) ────
     function updateLifecycleStepper(status, approvedItems = 0, totalItems = 6) {
         let step = 1;
         if (status === 'Cleared') {
-            step = 5;
-        } else if (status === 'For Final Approval') {
             step = 4;
-        } else if (status === 'For Department Head Approval') {
+        } else if (status === 'Under Verification' || approvedItems > 0 || status === 'With Deficiency' || status === 'For Final Approval') {
             step = 3;
-        } else if (status === 'Under Verification' || approvedItems > 0 || status === 'With Deficiency') {
+        } else if (status === 'For Department Head Approval') {
             step = 2;
         }
 
@@ -2128,7 +2318,7 @@ if ($status === 'Cleared') {
         const steps = stepper.querySelectorAll('.clr-flow-step');
         const dividers = stepper.querySelectorAll('.clr-flow-divider');
 
-        if (steps.length >= 5) {
+        if (steps.length >= 4) {
             // Step 1: Faculty Submit
             steps[0].className = `clr-flow-step ${step > 1 ? 'completed' : (step === 1 ? 'active' : '')}`;
             const c1 = steps[0].querySelector('.clr-flow-circle');
@@ -2137,40 +2327,32 @@ if ($status === 'Cleared') {
             // Divider 1
             if (dividers[0]) dividers[0].className = `clr-flow-divider ${step > 1 ? 'completed' : ''}`;
 
-            // Step 2: Offices / Units Verification
-            if (status === 'With Deficiency') {
-                steps[1].className = 'clr-flow-step deficiency';
-                const c2 = steps[1].querySelector('.clr-flow-circle');
-                if (c2) c2.innerHTML = '<i class="fas fa-exclamation"></i>';
-            } else {
-                steps[1].className = `clr-flow-step ${step > 2 ? 'completed' : (step === 2 ? 'active' : '')}`;
-                const c2 = steps[1].querySelector('.clr-flow-circle');
-                if (c2) c2.innerHTML = step > 2 ? '<i class="fas fa-check"></i>' : '2';
-            }
+            // Step 2: Dept Head Review
+            steps[1].className = `clr-flow-step ${step > 2 ? 'completed' : (step === 2 ? 'active' : '')}`;
+            const c2 = steps[1].querySelector('.clr-flow-circle');
+            if (c2) c2.innerHTML = step > 2 ? '<i class="fas fa-check"></i>' : '2';
 
             // Divider 2
             if (dividers[1]) dividers[1].className = `clr-flow-divider ${step > 2 ? 'completed' : ''}`;
 
-            // Step 3: Dept Head Review
-            steps[2].className = `clr-flow-step ${step > 3 ? 'completed' : (step === 3 ? 'active' : '')}`;
-            const c3 = steps[2].querySelector('.clr-flow-circle');
-            if (c3) c3.innerHTML = step > 3 ? '<i class="fas fa-check"></i>' : '3';
+            // Step 3: Offices / Units Verification
+            if (status === 'With Deficiency') {
+                steps[2].className = 'clr-flow-step deficiency';
+                const c3 = steps[2].querySelector('.clr-flow-circle');
+                if (c3) c3.innerHTML = '<i class="fas fa-exclamation"></i>';
+            } else {
+                steps[2].className = `clr-flow-step ${step > 3 ? 'completed' : (step === 3 ? 'active' : '')}`;
+                const c3 = steps[2].querySelector('.clr-flow-circle');
+                if (c3) c3.innerHTML = step > 3 ? '<i class="fas fa-check"></i>' : '3';
+            }
 
             // Divider 3
-            if (dividers[2]) dividers[2].className = `clr-flow-divider ${step > 3 ? 'completed' : ''}`;
+            if (dividers[2]) dividers[2].className = `clr-flow-divider ${step >= 4 ? 'completed' : ''}`;
 
-            // Step 4: HR Final Approval
-            steps[3].className = `clr-flow-step ${step > 4 ? 'completed' : (step === 4 ? 'active' : '')}`;
+            // Step 4: Cleared / Completed
+            steps[3].className = `clr-flow-step ${step === 4 ? 'completed' : ''}`;
             const c4 = steps[3].querySelector('.clr-flow-circle');
-            if (c4) c4.innerHTML = step > 4 ? '<i class="fas fa-check"></i>' : '4';
-
-            // Divider 4
-            if (dividers[3]) dividers[3].className = `clr-flow-divider ${step >= 5 ? 'completed' : ''}`;
-
-            // Step 5: Cleared / Completed
-            steps[4].className = `clr-flow-step ${step === 5 ? 'completed' : ''}`;
-            const c5 = steps[4].querySelector('.clr-flow-circle');
-            if (c5) c5.innerHTML = '<i class="fas fa-check-double"></i>';
+            if (c4) c4.innerHTML = '<i class="fas fa-check-double"></i>';
         }
     }
 
