@@ -154,8 +154,9 @@ $facultyDepartmentHeadNavGroups = [
         ['slug' => 'schedule-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/schedule-approval.php', 'icon' => 'fa-calendar-check', 'label' => 'Schedule Approval'],
         ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-load-approval.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load Approval'],
     ],
-    'Attendance' => [
+    'Attendance & Teaching-History' => [
         ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/attendance-summary.php', 'icon' => 'fa-user-check', 'label' => 'Attendance'],
+        ['slug' => 'teaching-history', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-history.php', 'icon' => 'fa-history', 'label' => 'Teaching History'],
 
     ],
     'Evaluation & Leave Request' => [

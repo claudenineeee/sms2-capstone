@@ -1,4 +1,8 @@
 <?php
+/**
+ * Attendance Reports & Analytics
+ * Purpose: Search faculty and view attendance logs across customizable time periods.
+ */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
@@ -25,7 +29,7 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
 <!-- Header & Action Buttons -->
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
-        <h1 class="h3 fw-bold mb-1 text-black">
+        <h1 class="h3 fw-bold mb-1 text-white">
             <i class="fas fa-clipboard-list text-primary me-2"></i>Attendance Reports & Analytics
         </h1>
         <p class="text-muted mb-0 small">
@@ -46,14 +50,14 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
 <div class="row g-3 mb-4">
     <!-- Today's Rate Card (Primary) -->
     <div class="col-12 col-md-4">
-        <section class="card stat-card primary border shadow-sm position-relative h-100">
+        <section class="card stat-card primary border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
                 <div class="stat-icon me-3 text-primary fs-4">
                     <i class="fas fa-calendar-day"></i>
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Today's Rate</h6>
-                    <h4 class="mb-0 fw-bold"><?= number_format($summaryMetrics['today_percentage'] ?? 0, 1) ?>%</h4>
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'] ?? 0, 1) ?>%</h4>
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['today_present'] ?? 0 ?> Present / <?= $summaryMetrics['today_total'] ?? 0 ?> Scheduled
                     </small>
@@ -67,14 +71,14 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
 
     <!-- 7-Day Average Card (Info) -->
     <div class="col-12 col-md-4">
-        <section class="card stat-card info border shadow-sm position-relative h-100">
+        <section class="card stat-card info border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
                 <div class="stat-icon me-3 text-info fs-4">
                     <i class="fas fa-chart-line"></i>
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">7-Day Average</h6>
-                    <h4 class="mb-0 fw-bold"><?= number_format($summaryMetrics['weekly_percentage'] ?? 0, 1) ?>%</h4>
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'] ?? 0, 1) ?>%</h4>
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['weekly_present'] ?? 0 ?> Present / <?= $summaryMetrics['weekly_total'] ?? 0 ?> Total Classes
                     </small>
@@ -88,14 +92,14 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
 
     <!-- Monthly Attendance Card (Success) -->
     <div class="col-12 col-md-4">
-        <section class="card stat-card success border shadow-sm position-relative h-100">
+        <section class="card stat-card success border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
                 <div class="stat-icon me-3 text-success fs-4">
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Monthly Rate (<?= date('M Y', strtotime($selectedMonth)) ?>)</h6>
-                    <h4 class="mb-0 fw-bold"><?= number_format($summaryMetrics['monthly_percentage'] ?? 0, 1) ?>%</h4>
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'] ?? 0, 1) ?>%</h4>
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['monthly_present'] ?? 0 ?> Present / <?= $summaryMetrics['monthly_total'] ?? 0 ?> Total Classes
                     </small>
@@ -167,7 +171,7 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
                                 <td class="ps-3 fw-semibold text-body py-2 py-md-3">
                                     <?= htmlspecialchars($row['name']) ?>
                                 </td>
-                                <td class="text-center py-2 py-md-3">
+                                <td class="text-center py-2 py-md-3 text-body">
                                     <?= $row['total_classes'] ?>
                                 </td>
                                 <td class="text-center py-2 py-md-3">
