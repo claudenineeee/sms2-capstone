@@ -155,7 +155,15 @@ $facultyDepartmentHeadNavGroups = [
         ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-load-approval.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load Approval'],
     ],
     'Attendance' => [
+
+
+        ['slug' => 'faculty-member-evaluation', 'href' => BASE_URL . '/modules/faculty/views/department-head/attendance.php', 'icon' => 'fa-user-check', 'label' => 'Attendance'],
+
         ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/attendance-summary.php', 'icon' => 'fa-user-check', 'label' => 'Attendance'],
+
+
+        ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/attendance-summary.php', 'icon' => 'fa-user-check', 'label' => 'Attendance'],
+
     ],
     'Evaluation & Leave Request' => [
         ['slug' => 'faculty-member-evaluation', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-member-evaluation.php', 'icon' => 'fa-user-check', 'label' => 'Peer Evaluation'],
@@ -248,7 +256,9 @@ $facultyScheduleOfficerNavGroups = [
             <?php if ($isStudentPortal): ?>
                 <?php foreach ($studentNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
-                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
                         <?php
@@ -266,14 +276,18 @@ $facultyScheduleOfficerNavGroups = [
                                     style="cursor:not-allowed;opacity:0.5;">
                                     <i class="fas fa-lock me-1" aria-hidden="true" style="font-size:0.75rem;"></i>
                                     <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span><?= htmlspecialchars($item['label']) ?></span>
+                                    <span>
+                                        <?= htmlspecialchars($item['label']) ?>
+                                    </span>
                                 </span>
                             <?php else: ?>
                                 <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
                                     data-title="<?= htmlspecialchars($item['label']) ?>"
                                     title="<?= htmlspecialchars($item['label']) ?>">
                                     <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span><?= htmlspecialchars($item['label']) ?></span>
+                                    <span>
+                                        <?= htmlspecialchars($item['label']) ?>
+                                    </span>
                                 </a>
                             <?php endif; ?>
                         </li>
@@ -285,7 +299,9 @@ $facultyScheduleOfficerNavGroups = [
             <?php elseif (in_array($roleKey, ['faculty_admin'], true)): ?>
                 <?php foreach ($facultyAdministrator as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
-                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
                         <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
@@ -294,7 +310,9 @@ $facultyScheduleOfficerNavGroups = [
                                 data-title="<?= htmlspecialchars($item['label']) ?>"
                                 title="<?= htmlspecialchars($item['label']) ?>">
                                 <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                <span><?= htmlspecialchars($item['label']) ?></span>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
                             </a>
                         </li>
                     <?php endforeach; ?>
@@ -304,7 +322,9 @@ $facultyScheduleOfficerNavGroups = [
             <?php elseif (in_array($roleKey, ['dean', 'hr'], true)): ?>
                 <?php foreach ($facultyDeanNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
-                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
                         <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
@@ -313,7 +333,9 @@ $facultyScheduleOfficerNavGroups = [
                                 data-title="<?= htmlspecialchars($item['label']) ?>"
                                 title="<?= htmlspecialchars($item['label']) ?>">
                                 <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                <span><?= htmlspecialchars($item['label']) ?></span>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
                             </a>
                         </li>
                     <?php endforeach; ?>
@@ -323,7 +345,9 @@ $facultyScheduleOfficerNavGroups = [
             <?php elseif (in_array($roleKey, ['department_head', 'department-head', 'dept_head', 'depthead'], true)): ?>
                 <?php foreach ($facultyDepartmentHeadNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
-                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
                         <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
@@ -332,7 +356,9 @@ $facultyScheduleOfficerNavGroups = [
                                 data-title="<?= htmlspecialchars($item['label']) ?>"
                                 title="<?= htmlspecialchars($item['label']) ?>">
                                 <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                <span><?= htmlspecialchars($item['label']) ?></span>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
                             </a>
                         </li>
                     <?php endforeach; ?>
@@ -342,7 +368,9 @@ $facultyScheduleOfficerNavGroups = [
             <?php elseif (in_array($roleKey, ['secretary'], true)): ?>
                 <?php foreach ($facultySecretaryNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
-                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
                         <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
@@ -351,7 +379,9 @@ $facultyScheduleOfficerNavGroups = [
                                 data-title="<?= htmlspecialchars($item['label']) ?>"
                                 title="<?= htmlspecialchars($item['label']) ?>">
                                 <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                <span><?= htmlspecialchars($item['label']) ?></span>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
                             </a>
                         </li>
                     <?php endforeach; ?>
@@ -361,7 +391,9 @@ $facultyScheduleOfficerNavGroups = [
             <?php elseif (in_array($roleKey, ['monitoring_officer'], true)): ?>
                 <?php foreach ($facultyAttendanceMonitoringNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
-                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
                         <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
@@ -370,7 +402,9 @@ $facultyScheduleOfficerNavGroups = [
                                 data-title="<?= htmlspecialchars($item['label']) ?>"
                                 title="<?= htmlspecialchars($item['label']) ?>">
                                 <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                <span><?= htmlspecialchars($item['label']) ?></span>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
                             </a>
                         </li>
                     <?php endforeach; ?>
@@ -383,7 +417,9 @@ $facultyScheduleOfficerNavGroups = [
                 ?>
                 <?php foreach ($facultyTeacherNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
-                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
                         <?php if (!empty($item['children'])): ?>
@@ -399,7 +435,9 @@ $facultyScheduleOfficerNavGroups = [
                                     data-title="<?= htmlspecialchars($item['label']) ?>"
                                     title="<?= htmlspecialchars($item['label']) ?>">
                                     <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span><?= htmlspecialchars($item['label']) ?></span>
+                                    <span>
+                                        <?= htmlspecialchars($item['label']) ?>
+                                    </span>
                                     <i class="fas fa-chevron-down sidebar-chevron" aria-hidden="true"></i>
                                 </a>
                                 <div class="collapse sidebar-submenu <?= $isParentActive ? 'show' : '' ?>" id="<?= $submenuId ?>">
@@ -418,7 +456,9 @@ $facultyScheduleOfficerNavGroups = [
                                                     data-title="<?= htmlspecialchars($child['label']) ?>"
                                                     title="<?= htmlspecialchars($child['label']) ?>">
                                                     <i class="fas <?= htmlspecialchars($child['icon']) ?>" aria-hidden="true"></i>
-                                                    <span><?= htmlspecialchars($child['label']) ?></span>
+                                                    <span>
+                                                        <?= htmlspecialchars($child['label']) ?>
+                                                    </span>
                                                 </a>
                                             </li>
                                         <?php endforeach; ?>
@@ -432,7 +472,9 @@ $facultyScheduleOfficerNavGroups = [
                                     data-title="<?= htmlspecialchars($item['label']) ?>"
                                     title="<?= htmlspecialchars($item['label']) ?>">
                                     <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span><?= htmlspecialchars($item['label']) ?></span>
+                                    <span>
+                                        <?= htmlspecialchars($item['label']) ?>
+                                    </span>
                                 </a>
                             </li>
                         <?php endif; ?>
@@ -443,7 +485,9 @@ $facultyScheduleOfficerNavGroups = [
             <?php elseif (in_array($roleKey, ['faculty_schedule_officer'], true)): ?>
                 <?php foreach ($facultyScheduleOfficerNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
-                        <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
                         <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
@@ -452,7 +496,9 @@ $facultyScheduleOfficerNavGroups = [
                                 data-title="<?= htmlspecialchars($item['label']) ?>"
                                 title="<?= htmlspecialchars($item['label']) ?>">
                                 <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                <span><?= htmlspecialchars($item['label']) ?></span>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
                             </a>
                         </li>
                     <?php endforeach; ?>
@@ -494,7 +540,9 @@ $facultyScheduleOfficerNavGroups = [
                         foreach ($module['groups'] as $groupLabel => $groupSlugs):
                             ?>
                             <li class="nav-item sidebar-group-label">
-                                <span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span>
+                                <span class="nav-link sidebar-group-heading">
+                                    <?= htmlspecialchars($groupLabel) ?>
+                                </span>
                             </li>
                             <?php foreach ($groupSlugs as $slug): ?>
                                 <?php
@@ -508,7 +556,9 @@ $facultyScheduleOfficerNavGroups = [
                                     <a class="nav-link sidebar-sub <?= $isPageActive ? 'active' : '' ?>"
                                         href="<?= htmlspecialchars($pageHref) ?>">
                                         <i class="fas <?= htmlspecialchars(smsNavPageIcon($slug)) ?>" aria-hidden="true"></i>
-                                        <span><?= htmlspecialchars($pageTitles[$slug]) ?></span>
+                                        <span>
+                                            <?= htmlspecialchars($pageTitles[$slug]) ?>
+                                        </span>
                                     </a>
                                 </li>
                             <?php endforeach; ?>
@@ -532,7 +582,9 @@ $facultyScheduleOfficerNavGroups = [
                                 <a class="nav-link sidebar-sub <?= $isPageActive ? 'active' : '' ?>"
                                     href="<?= htmlspecialchars($pageHref) ?>">
                                     <i class="fas <?= htmlspecialchars(smsNavPageIcon($page['slug'])) ?>" aria-hidden="true"></i>
-                                    <span><?= htmlspecialchars($page['title']) ?></span>
+                                    <span>
+                                        <?= htmlspecialchars($page['title']) ?>
+                                    </span>
                                 </a>
                             </li>
                         <?php endforeach; ?>

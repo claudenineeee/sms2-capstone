@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 28, 2026 at 06:44 PM
+-- Generation Time: Sep 02, 2026 at 02:01 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -190,13 +190,25 @@ CREATE TABLE `clearance_items` (
   `clearance_item_id` int(10) UNSIGNED NOT NULL,
   `clearance_id` int(10) UNSIGNED NOT NULL,
   `clearance_office_id` int(10) UNSIGNED NOT NULL,
-  `status` enum('Missing','Pending Review','Cleared','Hold') NOT NULL DEFAULT 'Pending Review',
+  `status` varchar(50) NOT NULL DEFAULT 'Missing',
   `remarks` varchar(255) DEFAULT NULL,
   `file_path` varchar(500) DEFAULT NULL,
   `original_name` varchar(500) DEFAULT NULL,
   `cleared_by_external_id` varchar(64) DEFAULT NULL,
   `cleared_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `clearance_items`
+--
+
+INSERT INTO `clearance_items` (`clearance_item_id`, `clearance_id`, `clearance_office_id`, `status`, `remarks`, `file_path`, `original_name`, `cleared_by_external_id`, `cleared_at`) VALUES
+(15, 1, 5005, 'Missing', NULL, NULL, NULL, NULL, NULL),
+(16, 1, 5006, 'Missing', NULL, NULL, NULL, NULL, NULL),
+(17, 1, 5007, 'Missing', NULL, NULL, NULL, NULL, NULL),
+(18, 1, 5008, 'Missing', NULL, NULL, NULL, NULL, NULL),
+(19, 1, 5009, 'Missing', NULL, NULL, NULL, NULL, NULL),
+(20, 1, 5010, 'Missing', NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -216,12 +228,16 @@ CREATE TABLE `clearance_offices` (
 --
 
 INSERT INTO `clearance_offices` (`clearance_office_id`, `name`, `description`, `sequence_order`) VALUES
-(1, 'Academic Clearance', 'Grade sheets, class records, syllabus, attendance/DTR, pending student academic concerns.', 1),
-(2, 'Department Clearance', 'Department reports, assigned duties, committee responsibilities, Department Head verification.', 2),
-(3, 'Library Clearance', 'No unreturned books/materials, library accountabilities cleared.', 3),
-(4, 'Property Clearance', 'School equipment returned, ID/keys/other issued institutional property returned.', 4),
-(5, 'Financial Clearance', 'No outstanding financial obligations, cash advances/accountabilities settled.', 5),
-(6, 'HR Clearance', 'Required HR documents submitted, contract/employment records, final HR verification.', 6);
+(1, 'Letter of Intent', NULL, 1),
+(2, 'Updated Resume', NULL, 2),
+(3, 'Personal Evaluation', NULL, 3),
+(4, 'Summary Evaluation', NULL, 4),
+(5005, 'Academic Clearance', 'Grade sheets, class records, syllabus, attendance/DTR, pending student academic concerns.', 1),
+(5006, 'Department Clearance', 'Department reports, assigned duties, committee responsibilities, Department Head verification.', 2),
+(5007, 'Library Clearance', 'No unreturned books/materials, library accountabilities cleared.', 3),
+(5008, 'Property Clearance', 'School equipment returned, ID/keys/other issued institutional property returned.', 4),
+(5009, 'Financial Clearance', 'No outstanding financial obligations, cash advances/accountabilities settled.', 5),
+(5010, 'HR Clearance', 'Required HR documents submitted, contract/employment records, final HR verification.', 6);
 
 -- --------------------------------------------------------
 
@@ -234,7 +250,7 @@ CREATE TABLE `clearance_requests` (
   `faculty_id` int(10) UNSIGNED NOT NULL,
   `term_id` int(10) UNSIGNED NOT NULL,
   `intent_type` enum('renewal','resignation','regularization') NOT NULL,
-  `overall_status` enum('Cleared','In Progress','With Hold') NOT NULL DEFAULT 'In Progress',
+  `overall_status` varchar(50) NOT NULL DEFAULT 'In Progress',
   `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -320,7 +336,9 @@ CREATE TABLE `evaluations` (
 INSERT INTO `evaluations` (`evaluation_id`, `faculty_id`, `term_id`, `source_type`, `evaluator_id`, `evaluator_external_id`, `composite_score`, `rating_label`, `eval_count`, `response_rate`, `submitted_at`) VALUES
 (3, 77, 1, 'Peer', 35, NULL, 4.00, NULL, 0, NULL, '2026-08-28 01:38:59'),
 (4, 77, 1, 'DeptHead', 53, NULL, 3.33, NULL, 0, NULL, '2026-08-28 01:49:43'),
-(5, 75, 1, 'Peer', 35, NULL, 5.00, NULL, 0, NULL, '2026-08-28 20:43:18');
+(5, 75, 1, 'Peer', 35, NULL, 5.00, NULL, 0, NULL, '2026-08-28 20:43:18'),
+(6, 75, 1, 'DeptHead', 53, NULL, 5.00, NULL, 0, NULL, '2026-08-31 00:44:41'),
+(7, 92, 1, 'DeptHead', 53, NULL, 4.33, NULL, 0, NULL, '2026-09-01 00:13:35');
 
 -- --------------------------------------------------------
 
@@ -377,7 +395,7 @@ CREATE TABLE `faculty` (
   `email` varchar(150) DEFAULT NULL,
   `department_id` int(10) UNSIGNED DEFAULT NULL,
   `campus_id` int(10) UNSIGNED DEFAULT NULL,
-  `position` enum('Faculty Secretary','Faculty Professor','Department Head','Department Secretary','Attendance Monitoring Officer') NOT NULL DEFAULT 'Faculty Professor',
+  `position` enum('Faculty Secretary','Faculty Professor','Department Head','Department Secretary','Attendance Monitoring Officer','Dean') DEFAULT NULL,
   `assignment_label` varchar(100) DEFAULT NULL,
   `is_coordinator` tinyint(1) NOT NULL DEFAULT 0,
   `coordinator_type` enum('NSTP','OJT','RESEARCH') DEFAULT NULL,
@@ -419,7 +437,8 @@ INSERT INTO `faculty` (`faculty_id`, `faculty_no`, `external_user_id`, `first_na
 (89, 'FAC-2026-0060', NULL, 'Christopher', NULL, 'Navarro', NULL, NULL, NULL, NULL, 'christopher.navarro@gmail.com', NULL, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, NULL, NULL, '2026-08-27 11:48:27', '2026-08-27 11:48:27'),
 (90, 'FAC-2026-0006-B', '156', 'ming', 'ming', 'ming', '', '2005-10-11', 'male', '09318298352', 'ming2026@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-02-17', NULL, '2026-08-27 16:30:39', '2026-08-27 16:30:39'),
 (91, 'FAC-2026-0007-B', '158', 'dwadsadwa', 'adawda', 'Qwerty', '', '1997-06-09', 'male', '09318298352', 'asdfghjkl@gmail.com', 1, NULL, 'Faculty Secretary', NULL, 0, NULL, 'instructor', NULL, 'Part-Time', 'Active', 0.00, '2025-06-10', '2028-10-17', '2026-08-27 16:30:39', '2026-08-27 16:30:39'),
-(92, 'FAC-2026-0008-B', '159', 'Claude', 'O.', 'Claude', '', '2007-10-17', 'male', '09318298352', 'jeanie@gmail.com', 1, NULL, 'Attendance Monitoring Officer', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, '2026-08-08', '2028-07-05', '2026-08-27 16:30:39', '2026-08-27 16:30:39');
+(92, 'FAC-2026-0008-B', '159', 'Claude', 'O.', 'Claude', '', '2007-10-17', 'male', '09318298352', 'jeanie@gmail.com', 1, NULL, 'Attendance Monitoring Officer', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, '2026-08-08', '2028-07-05', '2026-08-27 16:30:39', '2026-08-27 16:30:39'),
+(93, 'FAC-2026-0061', '210', 'Adrian', 'a', 'Santos', '', '2004-03-10', 'male', '09318298352', 'adrian.santos@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-06-09', NULL, '2026-09-01 16:53:16', '2026-09-01 16:53:16');
 
 -- --------------------------------------------------------
 
@@ -603,7 +622,8 @@ INSERT INTO `faculty_profiles` (`id`, `faculty_id`, `first_name`, `middle_name`,
 (57, 'FAC-2026-0057', 'michaels', 'a', 'jordan', NULL, '1998-02-11', 28, 'MALE', '09318298352', 'michaeljordan@gmail.com', 'BSBA', 'Department Head', NULL, 0, NULL, NULL, '2025-10-21', NULL, NULL, 'Regular', 'Active', 'pending', '2026-08-22 11:32:46', '2026-08-25 08:23:25', NULL, NULL, NULL, NULL, NULL, NULL, 179),
 (58, 'FAC-2026-0100', 'Jeannn', NULL, 'Claude', NULL, '1990-01-01', 36, 'MALE', NULL, 'dean@bestlink.edu.ph', 'BSIT', 'Dean', NULL, 0, NULL, NULL, '2026-08-22', NULL, NULL, 'Regular', 'Active', 'approved', '2026-08-23 18:10:32', '2026-08-25 08:26:51', NULL, NULL, NULL, NULL, NULL, NULL, 8),
 (59, 'FAC-2026-0059', 'Michael Vincent', 'V', 'Castillo', '', '2000-06-13', 26, 'MALE', '09318298352', 'michael.castillo@gmail.com', 'BSIT', 'Attendance Monitoring Officer', NULL, 0, NULL, NULL, '2025-06-10', NULL, NULL, 'regular', 'Active', 'pending', '2026-08-25 08:58:59', '2026-08-25 09:03:05', NULL, NULL, NULL, NULL, NULL, NULL, 198),
-(60, 'FAC-2026-0060', 'Christopher', 'J', 'Navarro', '', '1996-06-04', 30, 'MALE', '09318298352', 'christopher.navarro@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-10-15', NULL, NULL, 'regular', 'Pending Approval', 'pending', '2026-08-25 09:02:18', '2026-08-25 09:02:18', NULL, NULL, NULL, NULL, NULL, NULL, 199);
+(60, 'FAC-2026-0060', 'Christopher', 'J', 'Navarro', '', '1996-06-04', 30, 'MALE', '09318298352', 'christopher.navarro@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-10-15', NULL, NULL, 'regular', 'Active', 'approved', '2026-08-25 09:02:18', '2026-08-31 17:23:12', NULL, NULL, NULL, NULL, NULL, NULL, 199),
+(61, 'FAC-2026-0061', 'Adrian', 'a', 'Santos', '', '2004-03-10', 22, 'MALE', '09318298352', 'adrian.santos@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2026-06-09', NULL, NULL, 'regular', 'Active', 'approved', '2026-09-01 16:52:13', '2026-09-01 16:53:16', NULL, NULL, NULL, NULL, NULL, NULL, 210);
 
 -- --------------------------------------------------------
 
@@ -720,9 +740,8 @@ CREATE TABLE `leave_requests` (
 --
 
 INSERT INTO `leave_requests` (`id`, `request_ref`, `faculty_id`, `leave_type`, `start_date`, `end_date`, `total_days`, `reason`, `documents_status`, `screening_status`, `screened_by_external_id`, `screened_at`, `screening_signature`, `approval_status`, `status`, `approver_id`, `approver_at`, `approver_comment`, `documents`, `notification`, `updated_at`, `approved_by_external_id`, `approved_at`, `comments`, `created_at`) VALUES
-(1, 'LR-20260823024136-80', 35, 'Study Leave', '2026-08-24', '2026-08-28', 5, 'test', 'Incomplete', 'Screened', '158', '2026-08-23 14:03:53', NULL, 'Pending', 'Pending', NULL, NULL, NULL, 'modules/faculty/uploads/leave_requests/1787424096_wallpaper.png', 0, '2026-08-23 14:03:53', NULL, NULL, NULL, '2026-08-23 02:41:36'),
-(2, 'LR-20260823141319-23', 35, 'Sick Leave', '2026-08-23', '2026-08-26', 4, 'test ulit', 'Incomplete', 'Screened', '158', '2026-08-23 14:22:29', 'data:image/png;base64,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6XtsEzABEzg5AYvQyW8AT98ETMAEtiSwjQhtOWOPbQImYAImsBsCFqHdLIUdMQETMIHzEbAInW/NPeNtCHhUEzCBAQIWoQEoLjIBEzABE1iHgEVoHc4exQRMwATOR2DCjC1CEyC5igmYgAmYwDIELELLcHWvJmACJmACEwhYhCZAcpWaCNhXEzCBmghYhGpaLftqAiZgAgcjYBE62IJ6OiZgAucjUPOMLUI1r559NwETMIHKCViEKl9Au28CJmACNROwCNW8elv67rFNwARMYAYCFqEZILoLEzABEzCB5whYhJ7j5lYmYALnI+AZL0DAIrQAVHdpAiZgAiYwjYBFaBon1zIBEzABE1iAgEVoAahzdum+TMAETODIBCxCR15dz80ETMAEdk7AIrTzBbJ7JnA+Ap7xmQhYhM602p6rCZiACeyMgEVoZwtid0zABEzgTAQsQm+r7VcTMAETMIENCFiENoDuIU3ABEzABN4IWITeOPjVBM5HwDM2gR0QsAjtYBHsggmYgAmclYBF6Kwr73mbgAmYwA4IrCxCO5ixXTABEzABE9gNAYvQbpbCjpiACZjA+QhYhM635p7xygQ8nAmYwDgBi9A4G18xARMwARNYmMAfAAAA//90OdKaAAAABklEQVQDAOijLgac802ZAAAAAElFTkSuQmCC', 'Pending', 'Approved', 149, '2026-08-23 14:52:19', NULL, 'modules/faculty/uploads/leave_requests/1787465599_wallpaper.png', 0, '2026-08-23 14:52:19', NULL, NULL, NULL, '2026-08-23 14:13:19'),
-(3, 'LR-20260823142934-49', 35, 'Vacation Leave', '2026-09-01', '2027-09-24', 389, 'test', 'Incomplete', 'Pending', NULL, NULL, NULL, 'Pending', 'Pending', NULL, NULL, NULL, 'modules/faculty/uploads/leave_requests/1787466574_wallpaper.png', 0, NULL, NULL, NULL, NULL, '2026-08-23 14:29:34');
+(1, 'LR-20260823024136-80', 35, 'Study Leave', '2026-08-24', '2026-08-28', 5, 'test', 'Incomplete', 'Screened', '158', '2026-08-23 14:03:53', NULL, 'Pending', 'Approved', 149, '2026-08-31 02:54:47', NULL, 'modules/faculty/uploads/leave_requests/1787424096_wallpaper.png', 0, '2026-08-31 02:54:47', NULL, NULL, NULL, '2026-08-23 02:41:36'),
+(2, 'LR-20260823141319-23', 35, 'Sick Leave', '2026-08-23', '2026-08-26', 4, 'test ulit', 'Incomplete', 'Screened', '158', '2026-08-23 14:22:29', 'data:image/png;base64,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6XtsEzABEzg5AYvQyW8AT98ETMAEtiSwjQhtOWOPbQImYAImsBsCFqHdLIUdMQETMIHzEbAInW/NPeNtCHhUEzCBAQIWoQEoLjIBEzABE1iHgEVoHc4exQRMwATOR2DCjC1CEyC5igmYgAmYwDIELELLcHWvJmACJmACEwhYhCZAcpWaCNhXEzCBmghYhGpaLftqAiZgAgcjYBE62IJ6OiZgAucjUPOMLUI1r559NwETMIHKCViEKl9Au28CJmACNROwCNW8elv67rFNwARMYAYCFqEZILoLEzABEzCB5whYhJ7j5lYmYALnI+AZL0DAIrQAVHdpAiZgAiYwjYBFaBon1zIBEzABE1iAgEVoAahzdum+TMAETODIBCxCR15dz80ETMAEdk7AIrTzBbJ7JnA+Ap7xmQhYhM602p6rCZiACeyMgEVoZwtid0zABEzgTAQsQm+r7VcTMAETMIENCFiENoDuIU3ABEzABN4IWITeOPjVBM5HwDM2gR0QsAjtYBHsggmYgAmclYBF6Kwr73mbgAmYwA4IrCxCO5ixXTABEzABE9gNAYvQbpbCjpiACZjA+QhYhM635p7xygQ8nAmYwDgBi9A4G18xARMwARNYmMAfAAAA//90OdKaAAAABklEQVQDAOijLgac802ZAAAAAElFTkSuQmCC', 'Pending', 'Approved', 149, '2026-08-23 14:52:19', NULL, 'modules/faculty/uploads/leave_requests/1787465599_wallpaper.png', 0, '2026-08-23 14:52:19', NULL, NULL, NULL, '2026-08-23 14:13:19');
 
 -- --------------------------------------------------------
 
@@ -1141,13 +1160,13 @@ ALTER TABLE `class_schedules`
 -- AUTO_INCREMENT for table `clearance_items`
 --
 ALTER TABLE `clearance_items`
-  MODIFY `clearance_item_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `clearance_item_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=315;
 
 --
 -- AUTO_INCREMENT for table `clearance_offices`
 --
 ALTER TABLE `clearance_offices`
-  MODIFY `clearance_office_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2617;
+  MODIFY `clearance_office_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5611;
 
 --
 -- AUTO_INCREMENT for table `clearance_requests`
@@ -1171,7 +1190,7 @@ ALTER TABLE `documents`
 -- AUTO_INCREMENT for table `evaluations`
 --
 ALTER TABLE `evaluations`
-  MODIFY `evaluation_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `evaluation_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `evaluation_categories`
@@ -1189,7 +1208,7 @@ ALTER TABLE `evaluation_feedback`
 -- AUTO_INCREMENT for table `faculty`
 --
 ALTER TABLE `faculty`
-  MODIFY `faculty_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=93;
+  MODIFY `faculty_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=94;
 
 --
 -- AUTO_INCREMENT for table `faculty_class_assignments`
@@ -1219,7 +1238,7 @@ ALTER TABLE `faculty_department_assignments`
 -- AUTO_INCREMENT for table `faculty_profiles`
 --
 ALTER TABLE `faculty_profiles`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=61;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=62;
 
 --
 -- AUTO_INCREMENT for table `faculty_profile_department_assignments`
@@ -1448,109 +1467,6 @@ ALTER TABLE `teaching_load_requests`
 ALTER TABLE `teaching_load_request_items`
   ADD CONSTRAINT `fk_load_items_request` FOREIGN KEY (`load_request_id`) REFERENCES `teaching_load_requests` (`load_request_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_load_items_schedule` FOREIGN KEY (`class_schedule_id`) REFERENCES `class_schedules` (`class_schedule_id`) ON DELETE CASCADE;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `clearance_offices`
---
-
-CREATE TABLE IF NOT EXISTS `clearance_offices` (
-  `clearance_office_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(150) NOT NULL,
-  `description` text DEFAULT NULL,
-  `sequence_order` smallint(5) unsigned NOT NULL DEFAULT 0,
-  PRIMARY KEY (`clearance_office_id`),
-  UNIQUE KEY `uq_clearance_offices_name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `clearance_requests`
---
-
-CREATE TABLE IF NOT EXISTS `clearance_requests` (
-  `clearance_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `faculty_id` int(10) unsigned NOT NULL,
-  `term_id` int(10) unsigned NOT NULL,
-  `intent_type` enum('renewal','resignation','regularization') NOT NULL,
-  `form_submitted` tinyint(1) NOT NULL DEFAULT 0,
-  `form_submitted_at` datetime DEFAULT NULL,
-  `faculty_declaration` text DEFAULT NULL,
-  `signature_data` longtext DEFAULT NULL,
-  `overall_status` varchar(50) NOT NULL DEFAULT 'In Progress',
-  `submitted_at` datetime DEFAULT NULL,
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`clearance_id`),
-  UNIQUE KEY `uq_clearance_faculty_term` (`faculty_id`,`term_id`),
-  KEY `fk_clearance_term` (`term_id`),
-  CONSTRAINT `fk_clearance_faculty` FOREIGN KEY (`faculty_id`) REFERENCES `faculty` (`faculty_id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_clearance_term` FOREIGN KEY (`term_id`) REFERENCES `academic_terms` (`term_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `clearance_items`
---
-
-CREATE TABLE IF NOT EXISTS `clearance_items` (
-  `clearance_item_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `clearance_id` int(10) unsigned NOT NULL,
-  `clearance_office_id` int(10) unsigned NOT NULL,
-  `status` varchar(50) NOT NULL DEFAULT 'Missing',
-  `remarks` varchar(255) DEFAULT NULL,
-  `file_path` varchar(500) DEFAULT NULL,
-  `original_name` varchar(255) DEFAULT NULL,
-  `cleared_by_external_id` varchar(64) DEFAULT NULL,
-  `cleared_at` datetime DEFAULT NULL,
-  PRIMARY KEY (`clearance_item_id`),
-  UNIQUE KEY `uq_clearance_items` (`clearance_id`,`clearance_office_id`),
-  KEY `fk_clearance_items_office` (`clearance_office_id`),
-  CONSTRAINT `fk_clearance_items_office` FOREIGN KEY (`clearance_office_id`) REFERENCES `clearance_offices` (`clearance_office_id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_clearance_items_request` FOREIGN KEY (`clearance_id`) REFERENCES `clearance_requests` (`clearance_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `faculty_clearance_archives`
---
-
-CREATE TABLE IF NOT EXISTS `faculty_clearance_archives` (
-  `archive_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `clearance_id` int(10) unsigned NOT NULL,
-  `faculty_id` int(10) unsigned NOT NULL,
-  `term_id` int(10) unsigned NOT NULL,
-  `profile_id` int(10) unsigned DEFAULT NULL,
-  `faculty_no` varchar(50) DEFAULT NULL,
-  `first_name` varchar(100) DEFAULT NULL,
-  `middle_name` varchar(100) DEFAULT NULL,
-  `last_name` varchar(100) DEFAULT NULL,
-  `suffix` varchar(20) DEFAULT NULL,
-  `email` varchar(150) DEFAULT NULL,
-  `phone` varchar(50) DEFAULT NULL,
-  `designated_department` varchar(100) DEFAULT NULL,
-  `position` varchar(100) DEFAULT NULL,
-  `academic_rank` varchar(100) DEFAULT NULL,
-  `tier` varchar(50) DEFAULT NULL,
-  `employment_status` varchar(50) DEFAULT NULL,
-  `contractual_end` date DEFAULT NULL,
-  `academic_year` varchar(20) DEFAULT NULL,
-  `semester` varchar(50) DEFAULT NULL,
-  `intent_type` varchar(50) DEFAULT 'renewal',
-  `overall_status` varchar(50) DEFAULT 'Cleared',
-  `items_json` longtext DEFAULT NULL,
-  `submitted_at` datetime DEFAULT NULL,
-  `completed_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`archive_id`),
-  KEY `idx_fca_faculty` (`faculty_id`),
-  KEY `idx_fca_term` (`term_id`),
-  KEY `idx_fca_clearance` (`clearance_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
