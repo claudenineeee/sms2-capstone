@@ -72,6 +72,36 @@ class AttendanceModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // CHANGED: new — powers the Reports & Analytics page's "Past Attendance
+    // Logs" panel. Returns a faculty member's real saved sessions
+    // (class_attendance_sessions) within a date range, joined to their
+    // actual subject/room codes. faculty_id here is faculty_profiles.id —
+    // the same value class_attendance_sessions.faculty_id already stores.
+    public function getSessionsForFaculty($facultyProfileId, $startDate, $endDate) {
+        $this->ensureDb();
+        $stmt = $this->db->prepare("
+            SELECT 
+                cas.session_id,
+                cas.session_date,
+                s.code AS subject_code,
+                r.room_code,
+                cas.status,
+                cas.attending_students
+            FROM faculty_db.class_attendance_sessions cas
+            LEFT JOIN faculty_db.subjects s ON cas.subject_id = s.subject_id
+            LEFT JOIN faculty_db.rooms r ON cas.room_id = r.room_id
+            WHERE cas.faculty_id = :faculty_id
+              AND cas.session_date BETWEEN :start_date AND :end_date
+            ORDER BY cas.session_date DESC, cas.created_at DESC
+        ");
+        $stmt->execute([
+            ':faculty_id' => $facultyProfileId,
+            ':start_date' => $startDate,
+            ':end_date'   => $endDate,
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // Calculate daily statistics for the department
     public function getDepartmentStats($deptId, $date) {
         $this->ensureDb();
@@ -297,6 +327,40 @@ class AttendanceModel {
             }
             throw $e;
         }
+    }
+
+    // =====================================================================
+    // NEW METHOD ADDED: Fetch attendance records for a specific faculty 
+    // member (for "My Attendance" page)
+    // =====================================================================
+    public function getFacultyAttendanceRecords($facultyProfileId, $limit = 10) {
+        $this->ensureDb();
+        
+        // We fetch from class_attendance_sessions because it holds the daily session logs
+        // created by the Monitoring Officer.
+        $stmt = $this->db->prepare("
+            SELECT 
+                cas.session_id,
+                cas.session_date,
+                cas.time_slot,
+                cas.status,
+                cas.attending_students,
+                s.code AS subject_code,
+                r.room_code
+            FROM faculty_db.class_attendance_sessions cas
+            LEFT JOIN faculty_db.subjects s ON cas.subject_id = s.subject_id
+            LEFT JOIN faculty_db.rooms r ON cas.room_id = r.room_id
+            WHERE cas.faculty_id = :faculty_id
+            ORDER BY cas.session_date DESC, cas.time_slot DESC
+            LIMIT :limit
+        ");
+        
+        // Bind parameters (casting limit to int for PDO)
+        $stmt->bindParam(':faculty_id', $facultyProfileId, PDO::PARAM_INT);
+        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 

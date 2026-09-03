@@ -3,7 +3,11 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
+<<<<<<< Updated upstream
 -- Generation Time: Sep 02, 2026 at 02:01 PM
+=======
+-- Generation Time: Sep 03, 2026 at 09:33 AM
+>>>>>>> Stashed changes
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -438,7 +442,15 @@ INSERT INTO `faculty` (`faculty_id`, `faculty_no`, `external_user_id`, `first_na
 (90, 'FAC-2026-0006-B', '156', 'ming', 'ming', 'ming', '', '2005-10-11', 'male', '09318298352', 'ming2026@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-02-17', NULL, '2026-08-27 16:30:39', '2026-08-27 16:30:39'),
 (91, 'FAC-2026-0007-B', '158', 'dwadsadwa', 'adawda', 'Qwerty', '', '1997-06-09', 'male', '09318298352', 'asdfghjkl@gmail.com', 1, NULL, 'Faculty Secretary', NULL, 0, NULL, 'instructor', NULL, 'Part-Time', 'Active', 0.00, '2025-06-10', '2028-10-17', '2026-08-27 16:30:39', '2026-08-27 16:30:39'),
 (92, 'FAC-2026-0008-B', '159', 'Claude', 'O.', 'Claude', '', '2007-10-17', 'male', '09318298352', 'jeanie@gmail.com', 1, NULL, 'Attendance Monitoring Officer', NULL, 0, NULL, 'instructor', NULL, 'Probationary', 'Active', 0.00, '2026-08-08', '2028-07-05', '2026-08-27 16:30:39', '2026-08-27 16:30:39'),
+<<<<<<< Updated upstream
 (93, 'FAC-2026-0061', '210', 'Adrian', 'a', 'Santos', '', '2004-03-10', 'male', '09318298352', 'adrian.santos@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-06-09', NULL, '2026-09-01 16:53:16', '2026-09-01 16:53:16');
+=======
+(93, 'FAC-2026-0061', '210', 'Adrian', 'a', 'Santos', '', '2004-03-10', 'male', '09318298352', 'adrian.santos@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-06-09', NULL, '2026-09-01 16:53:16', '2026-09-01 16:53:16'),
+(94, 'FAC-2026-0064', '213', 'Eren', 'C', 'Yeager', '', '2001-01-31', 'male', '09318298352', 'eren.yeager.demo@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2025-07-09', NULL, '2026-09-02 17:17:32', '2026-09-02 17:17:32'),
+(95, 'FAC-2026-0065', '214', 'Gray', 'R', 'Fullbuster', '', '1999-07-08', 'male', '09318278392', 'bardpanget2025@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2025-11-12', NULL, '2026-09-02 17:19:29', '2026-09-02 17:19:29'),
+(96, 'FAC-2026-0066', '216', 'Yuno', 'Q', 'Grinberryall', '', '2003-02-26', 'male', '09318298352', 'brianbrix002@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Regular', 'Active', 0.00, '2026-02-25', NULL, '2026-09-02 17:25:03', '2026-09-02 17:25:03'),
+(97, 'FAC-2026-0063', '212', 'Daniel', 'V', 'Cruz', '', '2002-03-07', 'male', '09318298352', 'daniel.cruz.demo@gmail.com', 1, NULL, 'Faculty Professor', NULL, 0, NULL, 'instructor', NULL, 'Part-Time', 'Active', 0.00, '2025-11-12', '2028-10-17', '2026-09-02 17:54:35', '2026-09-02 17:54:35');
+>>>>>>> Stashed changes
 
 -- --------------------------------------------------------
 
@@ -623,7 +635,16 @@ INSERT INTO `faculty_profiles` (`id`, `faculty_id`, `first_name`, `middle_name`,
 (58, 'FAC-2026-0100', 'Jeannn', NULL, 'Claude', NULL, '1990-01-01', 36, 'MALE', NULL, 'dean@bestlink.edu.ph', 'BSIT', 'Dean', NULL, 0, NULL, NULL, '2026-08-22', NULL, NULL, 'Regular', 'Active', 'approved', '2026-08-23 18:10:32', '2026-08-25 08:26:51', NULL, NULL, NULL, NULL, NULL, NULL, 8),
 (59, 'FAC-2026-0059', 'Michael Vincent', 'V', 'Castillo', '', '2000-06-13', 26, 'MALE', '09318298352', 'michael.castillo@gmail.com', 'BSIT', 'Attendance Monitoring Officer', NULL, 0, NULL, NULL, '2025-06-10', NULL, NULL, 'regular', 'Active', 'pending', '2026-08-25 08:58:59', '2026-08-25 09:03:05', NULL, NULL, NULL, NULL, NULL, NULL, 198),
 (60, 'FAC-2026-0060', 'Christopher', 'J', 'Navarro', '', '1996-06-04', 30, 'MALE', '09318298352', 'christopher.navarro@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-10-15', NULL, NULL, 'regular', 'Active', 'approved', '2026-08-25 09:02:18', '2026-08-31 17:23:12', NULL, NULL, NULL, NULL, NULL, NULL, 199),
+<<<<<<< Updated upstream
 (61, 'FAC-2026-0061', 'Adrian', 'a', 'Santos', '', '2004-03-10', 22, 'MALE', '09318298352', 'adrian.santos@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2026-06-09', NULL, NULL, 'regular', 'Active', 'approved', '2026-09-01 16:52:13', '2026-09-01 16:53:16', NULL, NULL, NULL, NULL, NULL, NULL, 210);
+=======
+(61, 'FAC-2026-0061', 'Adrian', 'a', 'Santos', '', '2004-03-10', 22, 'MALE', '09318298352', 'adrian.santos@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2026-06-09', NULL, NULL, 'regular', 'Active', 'approved', '2026-09-01 16:52:13', '2026-09-01 16:53:16', NULL, NULL, NULL, NULL, NULL, NULL, 210),
+(62, 'FAC-2026-0062', 'Miguel', 'v', 'Reyes', '', '2008-02-06', 18, 'MALE', '09318298352', 'miguel.reyes.demo@gmail.com', 'BSIT', 'Faculty Secretary', NULL, 0, NULL, NULL, '2026-06-16', NULL, NULL, 'regular', 'Pending Approval', 'pending', '2026-09-02 17:07:05', '2026-09-02 17:07:05', NULL, NULL, NULL, NULL, NULL, NULL, 211),
+(63, 'FAC-2026-0063', 'Daniel', 'V', 'Cruz', '', '2002-03-07', 24, 'MALE', '09318298352', 'daniel.cruz.demo@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-11-12', '2028-10-17', NULL, 'part-time', 'Active', 'approved', '2026-09-02 17:08:08', '2026-09-02 17:54:35', NULL, NULL, NULL, NULL, NULL, NULL, 212),
+(64, 'FAC-2026-0064', 'Eren', 'C', 'Yeager', '', '2001-01-31', 25, 'MALE', '09318298352', 'eren.yeager.demo@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-07-09', NULL, NULL, 'regular', 'Active', 'approved', '2026-09-02 17:09:09', '2026-09-02 17:17:32', NULL, NULL, NULL, NULL, NULL, NULL, 213),
+(65, 'FAC-2026-0065', 'Gray', 'R', 'Fullbuster', '', '1999-07-08', 27, 'MALE', '09318278392', 'bardpanget2025@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2025-11-12', NULL, NULL, 'regular', 'Active', 'approved', '2026-09-02 17:19:02', '2026-09-02 17:19:29', NULL, NULL, NULL, NULL, NULL, NULL, 214),
+(66, 'FAC-2026-0066', 'Yuno', 'Q', 'Grinberryall', '', '2003-02-26', 23, 'MALE', '09318298352', 'brianbrix002@gmail.com', 'BSIT', 'Faculty Professor', NULL, 0, NULL, NULL, '2026-02-25', NULL, NULL, 'regular', 'Active', 'approved', '2026-09-02 17:24:40', '2026-09-02 17:25:03', NULL, NULL, NULL, NULL, NULL, NULL, 216);
+>>>>>>> Stashed changes
 
 -- --------------------------------------------------------
 
@@ -678,8 +699,16 @@ CREATE TABLE `generated_reports` (
   `file_path` varchar(500) DEFAULT NULL,
   `filters_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`filters_json`)),
   `generated_by_external_id` varchar(64) DEFAULT NULL,
-  `generated_at` datetime NOT NULL DEFAULT current_timestamp()
+  `generated_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `generated_reports`
+--
+
+INSERT INTO `generated_reports` (`report_id`, `report_name`, `report_type`, `file_format`, `file_path`, `filters_json`, `generated_by_external_id`, `generated_at`, `created_at`) VALUES
+(1, 'Daily Activity Log', 'Daily', 'PDF', NULL, NULL, NULL, '2026-09-02 23:52:46', '2026-09-02 15:52:46');
 
 -- --------------------------------------------------------
 
@@ -1160,13 +1189,21 @@ ALTER TABLE `class_schedules`
 -- AUTO_INCREMENT for table `clearance_items`
 --
 ALTER TABLE `clearance_items`
+<<<<<<< Updated upstream
   MODIFY `clearance_item_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=315;
+=======
+  MODIFY `clearance_item_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=399;
+>>>>>>> Stashed changes
 
 --
 -- AUTO_INCREMENT for table `clearance_offices`
 --
 ALTER TABLE `clearance_offices`
+<<<<<<< Updated upstream
   MODIFY `clearance_office_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5611;
+=======
+  MODIFY `clearance_office_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5797;
+>>>>>>> Stashed changes
 
 --
 -- AUTO_INCREMENT for table `clearance_requests`
@@ -1208,7 +1245,11 @@ ALTER TABLE `evaluation_feedback`
 -- AUTO_INCREMENT for table `faculty`
 --
 ALTER TABLE `faculty`
+<<<<<<< Updated upstream
   MODIFY `faculty_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=94;
+=======
+  MODIFY `faculty_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=98;
+>>>>>>> Stashed changes
 
 --
 -- AUTO_INCREMENT for table `faculty_class_assignments`
@@ -1238,7 +1279,11 @@ ALTER TABLE `faculty_department_assignments`
 -- AUTO_INCREMENT for table `faculty_profiles`
 --
 ALTER TABLE `faculty_profiles`
+<<<<<<< Updated upstream
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=62;
+=======
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=67;
+>>>>>>> Stashed changes
 
 --
 -- AUTO_INCREMENT for table `faculty_profile_department_assignments`
@@ -1256,7 +1301,7 @@ ALTER TABLE `faculty_profile_details`
 -- AUTO_INCREMENT for table `generated_reports`
 --
 ALTER TABLE `generated_reports`
-  MODIFY `report_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `report_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `leave_entitlements`

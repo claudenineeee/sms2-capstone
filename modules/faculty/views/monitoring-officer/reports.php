@@ -17,33 +17,84 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 // Period filtering parameters
 $period     = $_GET['period'] ?? 'past_week';
-$startDate  = $_GET['start_date'] ?? date('Y-m-d', strtotime('-7 days'));
-$endDate    = $_GET['end_date'] ?? date('Y-m-d');
 
-// Simplified Faculty Roster
-$facultyList = [
-    ['id' => 'FAC-001', 'name' => 'Dr. Earl Salvame'],
-    ['id' => 'FAC-002', 'name' => 'Prof. Juan Dela Cruz'],
-    ['id' => 'FAC-003', 'name' => 'Dr. Maria Santos'],
-    ['id' => 'FAC-004', 'name' => 'Prof. Luis Tan'],
-];
+// CHANGED: was only ever computing a default past-7-days range regardless
+// of which $period was actually selected — "Today"/"Past Month"/"Current
+// Semester" all silently used the same 7-day window. Now each option
+// computes its own real range.
+switch ($period) {
+    case 'today':
+        $startDate = date('Y-m-d');
+        $endDate   = date('Y-m-d');
+        break;
+    case 'past_month':
+        $startDate = date('Y-m-d', strtotime('-30 days'));
+        $endDate   = date('Y-m-d');
+        break;
+    case 'this_semester':
+        // Best-effort: start of the current calendar year through today.
+        // Swap this for a real academic_terms lookup if you want exact
+        // semester boundaries.
+        $startDate = date('Y-01-01');
+        $endDate   = date('Y-m-d');
+        break;
+    case 'custom':
+        $startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-7 days'));
+        $endDate   = $_GET['end_date'] ?? date('Y-m-d');
+        break;
+    case 'past_week':
+    default:
+        $startDate = date('Y-m-d', strtotime('-7 days'));
+        $endDate   = date('Y-m-d');
+        break;
+}
 
-// Historical attendance dataset tied to faculty ID
-$allReportData = [
-    'FAC-001' => [
-        ['id' => 101, 'date' => date('Y-m-d', strtotime('-1 day')),  'faculty' => 'Dr. Earl Salvame',     'subject' => 'SIA-201',  'room' => '403-B', 'status' => 'Present', 'students' => '38/40'],
-        ['id' => 105, 'date' => date('Y-m-d', strtotime('-5 days')), 'faculty' => 'Dr. Earl Salvame',     'subject' => 'SIA-202',  'room' => '403-B', 'status' => 'Present', 'students' => '39/40'],
-    ],
-    'FAC-002' => [
-        ['id' => 102, 'date' => date('Y-m-d', strtotime('-2 days')), 'faculty' => 'Prof. Juan Dela Cruz', 'subject' => 'ITE-101',  'room' => '301-A', 'status' => 'Present', 'students' => '42/45'],
-    ],
-    'FAC-003' => [
-        ['id' => 103, 'date' => date('Y-m-d', strtotime('-3 days')), 'faculty' => 'Dr. Maria Santos',     'subject' => 'EDUC-30', 'room' => '202-C', 'status' => 'Absent',  'students' => '0/35'],
-    ],
-    'FAC-004' => [
-        ['id' => 104, 'date' => date('Y-m-d', strtotime('-4 days')), 'faculty' => 'Prof. Luis Tan',       'subject' => 'BUS-110',  'room' => '104-A', 'status' => 'Present', 'students' => '28/30'],
-    ]
-];
+// CHANGED: this whole block was hardcoded mock data (4 fake names, fake
+// FAC-00X ids, fake attendance rows). Replaced with the real faculty
+// roster and real saved attendance sessions, same data sources
+// daily-attendance-log.php uses.
+require_once __DIR__ . '/../../../../config/database.php';  // defines db() — same folder as config.php above
+require_once __DIR__ . '/../../controllers/faculty-data.php'; // defines facultyDb()
+require_once __DIR__ . '/../../controllers/FacultyController.php';
+require_once __DIR__ . '/../../models/AttendanceModel.php';
+
+$facultyController = new FacultyController();
+$facultyListRaw = $facultyController->getDirectoryList();
+// Same position filter as daily-attendance-log.php, so this list matches
+// who actually shows up in that page's dropdown.
+$facultyListRaw = array_filter($facultyListRaw, function ($member) {
+    $position = strtolower(trim((string) ($member['position'] ?? '')));
+    return $position === 'faculty professor' || $position === 'teacher' || $position === '';
+});
+
+$attendanceModel = new AttendanceModel(db());
+
+$facultyList = [];
+$allReportData = [];
+foreach ($facultyListRaw as $member) {
+    $facId = (string) $member['id']; // faculty_profiles.id — matches class_attendance_sessions.faculty_id
+    $facName = trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? ''));
+    $facultyList[] = ['id' => $facId, 'name' => $facName];
+
+    $sessions = $attendanceModel->getSessionsForFaculty($member['id'], $startDate, $endDate);
+    $allReportData[$facId] = array_map(function ($row) use ($facName) {
+        return [
+            'id'       => $row['session_id'],
+            'date'     => $row['session_date'],
+            'faculty'  => $facName,
+            'subject'  => $row['subject_code'] ?? 'N/A',
+            'room'     => $row['room_code'] ?? 'N/A',
+            'status'   => $row['status'],
+            // CHANGED: original mock showed a fraction like "38/40"
+            // (attended/expected). We only store the actual headcount
+            // (attending_students) — there's no "expected enrollees" number
+            // tracked anywhere in the schema — so this shows the real
+            // saved headcount as a plain number instead of a fabricated
+            // fraction.
+            'students' => (string) $row['attending_students'],
+        ];
+    }, $sessions);
+}
 ?>
 
 <div class="container-fluid py-3 px-2 px-md-3">
