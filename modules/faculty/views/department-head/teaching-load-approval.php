@@ -44,61 +44,72 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <i class="fas fa-file-excel me-1"></i>
             <span>Export</span>
         </button>
-
     </div>
 </div>
 
 <!-- Summary Metrics Bar -->
 <div class="row g-3 mb-4">
-    <div class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body p-3 d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center">
-                    <div class="p-2.5 rounded bg-warning bg-opacity-10 text-warning me-3">
-                        <i class="fas fa-clock fs-4"></i>
-                    </div>
-                    <div>
-                        <span class="d-block text-uppercase text-body-secondary fw-semibold small" style="font-size: 0.7rem;">Pending Approvals</span>
-                        <h4 class="fw-bold mb-0 text-body">5</h4>
-                    </div>
+    <div class="col-12 col-sm-4">
+        <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100 bg-white">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ffc107; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 text-warning fs-4"><i class="fas fa-clock"></i></div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Approvals</h6>
+                    <h4 class="mb-0 fw-bold">
+                        <?php 
+                        // TODO: Fetch pending approvals count from database
+                        // $pendingCount = $pdo->query("SELECT COUNT(*) FROM teaching_loads WHERE status = 'pending'")->fetchColumn();
+                        // echo htmlspecialchars($pendingCount);
+                        echo '0'; 
+                        ?>
+                    </h4>
+                    <small class="text-warning fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-clock me-1"></i>0 New</small>
                 </div>
-                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle rounded-pill">5 New</span>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body p-3 d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center">
-                    <div class="p-2.5 rounded bg-success bg-opacity-10 text-success me-3">
-                        <i class="fas fa-check-circle fs-4"></i>
-                    </div>
-                    <div>
-                        <span class="d-block text-uppercase text-body-secondary fw-semibold small" style="font-size: 0.7rem;">Approved Today</span>
-                        <h4 class="fw-bold mb-0 text-body">12</h4>
-                    </div>
+    <div class="col-12 col-sm-4">
+        <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100 bg-white">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #198754; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 text-success fs-4"><i class="fas fa-check-circle"></i></div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Approved Today</h6>
+                    <h4 class="mb-0 fw-bold">
+                        <?php 
+                        // TODO: Fetch approved today count from database
+                        // $approvedToday = $pdo->query("SELECT COUNT(*) FROM teaching_loads WHERE status = 'approved' AND DATE(updated_at) = CURDATE()")->fetchColumn();
+                        // echo htmlspecialchars($approvedToday);
+                        echo '0'; 
+                        ?>
+                    </h4>
+                    <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-up me-1"></i>0%</small>
                 </div>
-                <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle rounded-pill"><i class="fas fa-arrow-up me-1"></i>100%</span>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body p-3 d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center">
-                    <div class="p-2.5 rounded bg-danger bg-opacity-10 text-danger me-3">
-                        <i class="fas fa-times-circle fs-4"></i>
-                    </div>
-                    <div>
-                        <span class="d-block text-uppercase text-body-secondary fw-semibold small" style="font-size: 0.7rem;">Rejected Today</span>
-                        <h4 class="fw-bold mb-0 text-body">1</h4>
-                    </div>
+    <div class="col-12 col-sm-4">
+        <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100 bg-white">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #dc3545; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 text-danger fs-4"><i class="fas fa-times-circle"></i></div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Rejected Today</h6>
+                    <h4 class="mb-0 fw-bold">
+                        <?php 
+                        // TODO: Fetch rejected today count from database
+                        // $rejectedToday = $pdo->query("SELECT COUNT(*) FROM teaching_loads WHERE status = 'rejected' AND DATE(updated_at) = CURDATE()")->fetchColumn();
+                        // echo htmlspecialchars($rejectedToday);
+                        echo '0'; 
+                        ?>
+                    </h4>
+                    <small class="text-secondary fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-minus me-1"></i>0 Action Required</small>
                 </div>
-                <span class="badge bg-secondary bg-opacity-10 text-secondary border rounded-pill">0 Action Required</span>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 
@@ -155,7 +166,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="card-header bg-body-tertiary py-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
         <div class="d-flex align-items-center gap-3">
             <h6 class="mb-0 fw-bold text-body">
-                <i class="fas fa-list-check text-primary me-2"></i>Pending Proposals (5)
+                <i class="fas fa-list-check text-primary me-2"></i>Pending Proposals (0)
             </h6>
             <!-- Batch Action Bar (Appears when checkboxes selected) -->
             <div class="d-none d-sm-flex align-items-center gap-2 border-start ps-3" id="batchActionBar">
@@ -195,115 +206,26 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Row 1 -->
+                    <?php
+                    /* 
+                    TODO: Replace this section with dynamic database loop for integration
+                    Example:
+                    $stmt = $pdo->query("SELECT * FROM teaching_load_proposals WHERE status = 'pending'");
+                    while ($row = $stmt->fetch()) {
+                        // Render table rows dynamically here
+                    }
+                    if ($stmt->rowCount() === 0) {
+                    */
+                    ?>
                     <tr>
-                        <td class="ps-3">
-                            <input type="checkbox" class="form-check-input row-checkbox">
-                        </td>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <div class="avatar-sm bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-2.5 fw-bold" style="width:36px; height:36px;">
-                                    LT
-                                </div>
-                                <div>
-                                    <span class="fw-semibold text-body d-block">Prof. Luis Tan</span>
-                                    <span class="small text-body-secondary">Full-Time • CS Dept</span>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="badge bg-body-secondary text-body border me-1">CS101</span>
-                            <span class="badge bg-body-secondary text-body border me-1">CS201</span>
-                            <span class="badge bg-body-secondary text-body border">+4 subjects</span>
-                        </td>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <strong class="text-body">22 Units</strong>
-                                <span class="small text-body-secondary">(Prev: 21)</span>
-                            </div>
-                            <div class="progress mt-1" style="height: 4px; width: 100px;">
-                                <div class="progress-bar bg-success" style="width: 90%;"></div>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">
-                                <i class="fas fa-clock me-1"></i>Pending
-                            </span>
-                        </td>
-                        <td>
-                            <span class="small text-body d-block">Today, 10:30 AM</span>
-                            <span class="small text-body-secondary">Via Portal</span>
-                        </td>
-                        <td class="text-end pe-3">
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#proposalModal">
-                                    <i class="fas fa-eye me-1"></i> Review
-                                </button>
-                                <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <span class="visually-hidden">Toggle Dropdown</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                    <li><a class="dropdown-item text-success" href="#"><i class="fas fa-check me-2"></i>Quick Approve</a></li>
-                                    <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#rejectModal"><i class="fas fa-times me-2"></i>Reject</a></li>
-                                </ul>
-                            </div>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="fas fa-folder-open fa-2x mb-2 d-block text-secondary opacity-50"></i>
+                            No pending teaching load proposals found.
                         </td>
                     </tr>
-
-                    <!-- Row 2 -->
-                    <tr>
-                        <td class="ps-3">
-                            <input type="checkbox" class="form-check-input row-checkbox">
-                        </td>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <div class="avatar-sm bg-info-subtle text-info rounded-circle d-flex align-items-center justify-content-center me-2.5 fw-bold" style="width:36px; height:36px;">
-                                    MS
-                                </div>
-                                <div>
-                                    <span class="fw-semibold text-body d-block">Dr. Maria Santos</span>
-                                    <span class="small text-body-secondary">Professor • CS Dept</span>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="badge bg-body-secondary text-body border me-1">CS301</span>
-                            <span class="badge bg-body-secondary text-body border me-1">CS401</span>
-                            <span class="badge bg-body-secondary text-body border">+3 subjects</span>
-                        </td>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <strong class="text-danger">26 Units</strong>
-                                <span class="small text-body-secondary">(Prev: 24)</span>
-                            </div>
-                            <div class="progress mt-1" style="height: 4px; width: 100px;">
-                                <div class="progress-bar bg-danger" style="width: 100%;"></div>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">
-                                <i class="fas fa-clock me-1"></i>Pending
-                            </span>
-                        </td>
-                        <td>
-                            <span class="small text-body d-block">Yesterday</span>
-                            <span class="small text-body-secondary">Via Portal</span>
-                        </td>
-                        <td class="text-end pe-3">
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#proposalModal">
-                                    <i class="fas fa-eye me-1"></i> Review
-                                </button>
-                                <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <span class="visually-hidden">Toggle Dropdown</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                    <li><a class="dropdown-item text-success" href="#"><i class="fas fa-check me-2"></i>Quick Approve</a></li>
-                                    <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#rejectModal"><i class="fas fa-times me-2"></i>Reject</a></li>
-                                </ul>
-                            </div>
-                        </td>
-                    </tr>
+                    <?php 
+                    // } 
+                    ?>
                 </tbody>
             </table>
         </div>
@@ -311,7 +233,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     <!-- Table Footer / Pagination -->
     <div class="card-footer bg-body-tertiary py-2.5 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
-        <small class="text-body-secondary">Showing 1 to 5 of 5 pending proposals</small>
+        <small class="text-body-secondary">Showing 0 to 0 of 0 pending proposals</small>
         <nav>
             <ul class="pagination pagination-sm mb-0">
                 <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
@@ -333,7 +255,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
                     <div>
                         <h5 class="modal-title fw-bold text-body mb-0">Teaching Load Proposal</h5>
-                        <span class="small text-body-secondary">Submitted on 2nd Semester AY 2025-2026</span>
+                        <span class="small text-body-secondary">Submitted proposal details</span>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -345,19 +267,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <div class="row g-3 text-center text-sm-start">
                         <div class="col-6 col-sm-3 border-end-sm">
                             <span class="d-block text-uppercase text-body-secondary fw-semibold small" style="font-size:0.68rem;">Faculty</span>
-                            <strong class="text-body">Prof. Luis Tan</strong>
+                            <strong class="text-body"><!-- Dynamically populated via JS/PHP -->--</strong>
                         </div>
                         <div class="col-6 col-sm-3 border-end-sm">
                             <span class="d-block text-uppercase text-body-secondary fw-semibold small" style="font-size:0.68rem;">Submission Date</span>
-                            <strong class="text-body">Today, 10:30 AM</strong>
+                            <strong class="text-body">--</strong>
                         </div>
                         <div class="col-6 col-sm-3 border-end-sm">
                             <span class="d-block text-uppercase text-body-secondary fw-semibold small" style="font-size:0.68rem;">Proposed Units</span>
-                            <strong class="text-primary">22 Units</strong>
+                            <strong class="text-primary">-- Units</strong>
                         </div>
                         <div class="col-6 col-sm-3">
                             <span class="d-block text-uppercase text-body-secondary fw-semibold small" style="font-size:0.68rem;">Previous Load</span>
-                            <strong class="text-body">21 Units</strong>
+                            <strong class="text-body">-- Units</strong>
                         </div>
                     </div>
                 </div>
@@ -375,12 +297,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td class="ps-3 fw-semibold text-primary">CS101</td><td>Intro to Computer Science</td><td class="text-center"><span class="badge bg-light text-body border">A</span></td><td class="text-center">3</td></tr>
-                            <tr><td class="ps-3 fw-semibold text-primary">CS101</td><td>Intro to Computer Science</td><td class="text-center"><span class="badge bg-light text-body border">B</span></td><td class="text-center">3</td></tr>
-                            <tr><td class="ps-3 fw-semibold text-primary">CS201</td><td>Data Structures</td><td class="text-center"><span class="badge bg-light text-body border">A</span></td><td class="text-center">3</td></tr>
-                            <tr><td class="ps-3 fw-semibold text-primary">CS201</td><td>Data Structures</td><td class="text-center"><span class="badge bg-light text-body border">B</span></td><td class="text-center">3</td></tr>
-                            <tr><td class="ps-3 fw-semibold text-primary">CS301</td><td>Algorithms</td><td class="text-center"><span class="badge bg-light text-body border">A</span></td><td class="text-center">3</td></tr>
-                            <tr><td class="ps-3 fw-semibold text-primary">CS401</td><td>Software Engineering</td><td class="text-center"><span class="badge bg-light text-body border">A</span></td><td class="text-center">3</tr>
+                            <!-- TODO: Populate subject assignments dynamically via database query or AJAX injection -->
+                            <tr>
+                                <td colspan="4" class="text-center py-3 text-muted">No subjects loaded for review.</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -442,12 +362,12 @@ document.addEventListener("DOMContentLoaded", function () {
             labels: ['< 18 Units', '18 - 20 Units', '21 - 24 Units', '> 24 Units'],
             datasets: [{
                 label: 'Faculty Count',
-                data: [2, 6, 8, 2],
+                data: [0, 0, 0, 0], // TODO: Populate dynamically with real integration data
                 backgroundColor: [
-                    '#ff9800',  // Underloaded (Orange)
-                    '#00d084',  // Full Load (Green)
-                    '#00d084',  // Full Load (Green)
-                    '#ff5263'   // Overloaded (Coral/Red)
+                    '#ff9800',  
+                    '#00d084',  
+                    '#00d084',  
+                    '#ff5263'   
                 ],
                 borderRadius: 6,
                 borderSkipped: false,
