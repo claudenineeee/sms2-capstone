@@ -20,6 +20,7 @@ $breadcrumbs  = [
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
+
 ?>
 
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">

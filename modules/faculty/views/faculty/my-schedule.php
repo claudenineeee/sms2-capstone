@@ -33,62 +33,67 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <button class="btn btn-outline-success"><i class="fas fa-file-pdf me-1"></i>Download PDF</button>
     </div>
 </div>
-<!-- Summary Cards (5-Column Layout) -->
-<div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 row-cols-xl-4 g-3 mb-4">
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-3 fs-5">
+
+<!-- Summary Cards (4-Column Grid with styled indicator bars) -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
                     <i class="fas fa-book-open"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Teaching Load</span>
-                    <h4 class="fw-bold mb-0">24 <small class="text-muted fs-6">units</small></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Teaching Load</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;">24 <small class="text-muted fs-6">units</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-success bg-opacity-10 text-success rounded-3 fs-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #28a745; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #28a745;">
                     <i class="fas fa-journal-whills"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Total Subjects</span>
-                    <h4 class="fw-bold mb-0">8</h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Subjects</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #28a745;">8</h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-info bg-opacity-10 text-info rounded-3 fs-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0dcaf0; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #0dcaf0;">
                     <i class="fas fa-layer-group"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Sections</span>
-                    <h4 class="fw-bold mb-0">6</h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Sections</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #0dcaf0;">6</h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-3 h-100 bg-body p-2">
-            <div class="card-body p-2 d-flex align-items-center gap-3">
-                <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3 fs-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ffc107; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #ffc107;">
                     <i class="fas fa-calendar-day"></i>
                 </div>
                 <div>
-                    <span class="text-body-secondary small d-block fw-medium">Classes Today</span>
-                    <h4 class="fw-bold mb-0">3</h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Classes Today</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #ffc107;">3</h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 

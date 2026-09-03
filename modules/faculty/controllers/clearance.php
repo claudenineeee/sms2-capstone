@@ -5,24 +5,143 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once ROOT_PATH . '/includes/authentication.php';
 
+function facultyClearanceRequirementDefinitions(): array
+{
+    return [
+        ['Academic Clearance', 'Grade sheets, class records, syllabus, attendance/DTR, pending student academic concerns.'],
+        ['Department Clearance', 'Department reports, assigned duties, committee responsibilities, Department Head verification.'],
+        ['Library Clearance', 'No unreturned books/materials, library accountabilities cleared.'],
+        ['Property Clearance', 'School equipment returned, ID/keys/other issued institutional property returned.'],
+        ['Financial Clearance', 'No outstanding financial obligations, cash advances/accountabilities settled.'],
+        ['HR Clearance', 'Required HR documents submitted, contract/employment records, final HR verification.'],
+    ];
+}
+
+function facultyClearanceSections(): array
+{
+    return [
+        'Academic Clearance' => [
+            'name' => 'Academic Clearance',
+            'office' => 'Academic Affairs / Registrar',
+            'icon' => 'fa-graduation-cap',
+            'description' => 'Grade sheets, class records, syllabus, attendance/DTR, pending student academic concerns.',
+            'items' => [
+                'Grade sheets submitted and finalized',
+                'Class records & grading sheets completed',
+                'Course syllabi & instructional materials submitted',
+                'Attendance records & DTR completed',
+                'Pending student academic concerns resolved',
+            ],
+        ],
+        'Department Clearance' => [
+            'name' => 'Department Clearance',
+            'office' => 'Department Head / Dean',
+            'icon' => 'fa-building-columns',
+            'description' => 'Department reports, assigned duties, committee responsibilities, Department Head verification.',
+            'items' => [
+                'Departmental reports submitted',
+                'Assigned department duties completed',
+                'Committee responsibilities fulfilled',
+                'Department Head / Dean verification & endorsement',
+            ],
+        ],
+        'Library Clearance' => [
+            'name' => 'Library Clearance',
+            'office' => 'University / College Library',
+            'icon' => 'fa-book-bookmark',
+            'description' => 'No unreturned books/materials, library accountabilities cleared.',
+            'items' => [
+                'No unreturned books, journals, or media',
+                'No outstanding library fines or accountabilities',
+                'Borrower status verified & cleared in library system',
+            ],
+        ],
+        'Property Clearance' => [
+            'name' => 'Property Clearance',
+            'office' => 'Property & Custodian Office',
+            'icon' => 'fa-boxes-stacked',
+            'description' => 'School equipment returned, ID/keys/other issued institutional property returned.',
+            'items' => [
+                'School-issued laptop & equipment returned/accounted for',
+                'Facility keys, laboratory tools & apparatus returned',
+                'Property accountability & gate passes cleared',
+            ],
+        ],
+        'Financial Clearance' => [
+            'name' => 'Financial Clearance',
+            'office' => 'Accounting & Finance Office',
+            'icon' => 'fa-receipt',
+            'description' => 'No outstanding financial obligations, cash advances/accountabilities settled.',
+            'items' => [
+                'No outstanding cash advances or unliquidated balances',
+                'Emergency loans & faculty fund accountabilities settled',
+                'Official statement of account cleared',
+            ],
+        ],
+        'HR Clearance' => [
+            'name' => 'HR Clearance',
+            'office' => 'Human Resources (HR)',
+            'icon' => 'fa-user-check',
+            'description' => 'Required HR documents submitted, contract/employment records, final HR verification.',
+            'items' => [
+                'Required annual HR documents & PDS/CV submitted',
+                'Contract & employment records updated',
+                'Final HR sign-off and administrative clearance',
+            ],
+        ],
+    ];
+}
+
+function facultyClearanceRequirementNames(): array
+{
+    return array_column(facultyClearanceRequirementDefinitions(), 0);
+}
+
 function facultyClearanceOffices(PDO $db): array
 {
-    $names = [
-        ['Letter of Intent', 'Signed letter stating the faculty member intent.'],
-        ['Updated Resume', 'Most recent faculty curriculum vitae or resume.'],
-        ['Personal Evaluation', 'Completed personal evaluation document.'],
-        ['Summary Evaluation', 'Completed summary evaluation document.'],
-    ];
+    $definitions = facultyClearanceRequirementDefinitions();
 
-    $insert = $db->prepare('INSERT IGNORE INTO clearance_offices (name, sequence_order) VALUES (?, ?)');
-    foreach ($names as $index => [$name]) {
-        $insert->execute([$name, $index + 1]);
+    try {
+        $cols = $db->query("SHOW COLUMNS FROM clearance_offices LIKE 'description'")->fetchAll();
+        if (empty($cols)) {
+            $db->exec("ALTER TABLE clearance_offices ADD COLUMN description TEXT NULL AFTER name");
+        }
+        $db->exec("ALTER TABLE clearance_requests MODIFY COLUMN overall_status VARCHAR(50) NOT NULL DEFAULT 'In Progress'");
+        $db->exec("ALTER TABLE clearance_items MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Missing'");
+
+        $formStatusCols = $db->query("SHOW COLUMNS FROM clearance_requests LIKE 'form_status'")->fetchAll();
+        if (empty($formStatusCols)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_status VARCHAR(50) NOT NULL DEFAULT 'Not Submitted' AFTER form_submitted_at");
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_approved_at DATETIME NULL AFTER form_status");
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_approved_by INT UNSIGNED NULL AFTER form_approved_at");
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_remarks TEXT NULL AFTER form_approved_by");
+        }
+    } catch (Throwable $e) {
+        // Table or column already adjusted
     }
 
+    $insert = $db->prepare('INSERT INTO clearance_offices (name, description, sequence_order) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE sequence_order = VALUES(sequence_order), description = VALUES(description)');
+    foreach ($definitions as $index => [$name, $desc]) {
+        try {
+            $insert->execute([$name, $desc, $index + 1]);
+        } catch (Throwable $e) {
+            $db->prepare('INSERT INTO clearance_offices (name, sequence_order) VALUES (?, ?) ON DUPLICATE KEY UPDATE sequence_order = VALUES(sequence_order)')->execute([$name, $index + 1]);
+        }
+    }
+
+    $names = array_column($definitions, 0);
     $placeholders = implode(',', array_fill(0, count($names), '?'));
     $stmt = $db->prepare('SELECT clearance_office_id, name, sequence_order FROM clearance_offices WHERE name IN (' . $placeholders . ') ORDER BY sequence_order, clearance_office_id');
-    $stmt->execute(array_column($names, 0));
-    return $stmt->fetchAll();
+    $stmt->execute($names);
+    $rows = $stmt->fetchAll();
+
+    $descMap = array_column($definitions, 1, 0);
+    foreach ($rows as &$r) {
+        $r['description'] = $r['description'] ?? ($descMap[$r['name']] ?? '');
+    }
+    unset($r);
+
+    return $rows;
 }
 
 function facultyClearanceProfile(PDO $db, int $userId): ?array
@@ -155,15 +274,24 @@ function facultyClearanceRequest(PDO $db, int $facultyId, ?int $termId = null): 
         return null;
     }
 
-    $allowedNames = ['Letter of Intent', 'Updated Resume', 'Personal Evaluation', 'Summary Evaluation'];
+    $clearanceId = (int) $request['clearance_id'];
+    $offices = facultyClearanceOffices($db);
+    $allowedNames = facultyClearanceRequirementNames();
+
+    // Ensure all 6 active clearance offices have rows in clearance_items
+    $insertItem = $db->prepare('INSERT IGNORE INTO clearance_items (clearance_id, clearance_office_id, status) VALUES (?, ?, \'Missing\')');
+    foreach ($offices as $office) {
+        $insertItem->execute([$clearanceId, (int) $office['clearance_office_id']]);
+    }
+
     $placeholders = implode(',', array_fill(0, count($allowedNames), '?'));
     $items = $db->prepare('SELECT ci.*, co.name, co.sequence_order FROM clearance_items ci JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id WHERE ci.clearance_id = ? AND co.name IN (' . $placeholders . ') ORDER BY co.sequence_order, co.clearance_office_id');
-    $items->execute(array_merge([(int) $request['clearance_id']], $allowedNames));
+    $items->execute(array_merge([$clearanceId], $allowedNames));
     $request['items'] = $items->fetchAll();
     $total = count($request['items']);
-    $approved = count(array_filter($request['items'], static fn(array $item): bool => $item['status'] === 'Cleared'));
+    $approved = count(array_filter($request['items'], static fn(array $item): bool => in_array($item['status'] ?? '', ['Cleared', 'Approved'], true)));
     $submitted = count(array_filter($request['items'], static fn(array $item): bool => !empty($item['file_path'])));
-    $request['total_items'] = $total;
+    $request['total_items'] = $total > 0 ? $total : count($allowedNames);
     $request['approved_items'] = $approved;
     $request['submitted_items'] = $submitted;
     $request['progress'] = $total > 0 ? (int) round(($approved / $total) * 100) : 0;
@@ -172,52 +300,90 @@ function facultyClearanceRequest(PDO $db, int $facultyId, ?int $termId = null): 
 
 function facultyClearanceStatus(?array $request): string
 {
-    if (!$request) {
+    if (!$request || empty($request['items'])) {
         return 'Not Submitted';
     }
-    if (($request['overall_status'] ?? '') === 'Cleared') {
-        return 'Completed';
+
+    $items = $request['items'] ?? [];
+    $totalCount = count($items);
+    if ($totalCount === 0) {
+        return 'Not Submitted';
     }
-    foreach ($request['items'] ?? [] as $item) {
-        if ($item['status'] === 'Hold') {
-            return 'Action Required';
+
+    $statuses = array_map(static fn($it) => $it['status'] ?? '', $items);
+    $hasDeficiency = in_array('Denied', $statuses, true) || in_array('Hold', $statuses, true) || in_array('With Deficiency', $statuses, true) || in_array('On Hold', $statuses, true);
+    $clearedCount = count(array_filter($statuses, static fn($s) => in_array($s, ['Cleared', 'Approved'], true)));
+    $hasUploads = count(array_filter($items, static fn($it) => !empty($it['file_path']) || in_array($it['status'] ?? '', ['Pending Review', 'Under Verification', 'Cleared', 'Approved'], true))) > 0;
+    $formSubmitted = !empty($request['form_submitted']);
+
+    // 1. All office requirements cleared — declaration still goes to Department Head
+    if ($clearedCount >= 6 && $clearedCount >= $totalCount) {
+        $hasSignature = !empty($request['signature_data']);
+        $overall = (string) ($request['overall_status'] ?? '');
+        if ($hasSignature && in_array($overall, ['For Department Head Approval', 'For Final Approval'], true)) {
+            return 'For Department Head Approval';
         }
+        if ($hasSignature && $overall === 'Cleared') {
+            return 'Cleared';
+        }
+        if (!$hasSignature) {
+            return 'For Final Approval';
+        }
+        return 'Cleared';
     }
-    if ((int) ($request['submitted_items'] ?? 0) === 0) {
-        return 'Not Started';
+
+    // 2. Deficiency if any office flagged issue
+    if ($hasDeficiency) {
+        return 'With Deficiency';
     }
-    return 'Pending Verification';
+
+    // 3. HR Final Approval stage when clearance verification is completed by offices
+    if ($clearedCount >= 5) {
+        return 'For Final Approval';
+    }
+
+    // 4. Offices / Units Verification stage
+    if ($clearedCount > 0) {
+        return 'Under Verification';
+    }
+
+    // 5. Initial submission is reviewed first by Department Head before proceeding
+    if (!empty($request['submitted_at']) || $formSubmitted || $hasUploads) {
+        return 'For Department Head Approval';
+    }
+
+    return 'Not Submitted';
 }
 
 function facultyClearanceItemLabel(array $item): string
 {
     $status = (string) ($item['status'] ?? '');
-    if ($status === 'Cleared') {
-        return 'Approved';
+    if ($status === 'Cleared' || $status === 'Approved') {
+        return 'Cleared';
     }
-    if ($status === 'Denied' || $status === 'Hold') {
-        return 'Denied';
+    if ($status === 'Denied' || $status === 'Hold' || $status === 'With Deficiency') {
+        return 'With Deficiency';
     }
     if ($status === 'On Hold') {
         return 'On Hold';
     }
-    if ($status === 'Pending Review') {
-        return 'Pending Review';
+    if ($status === 'Pending Review' || $status === 'Pending Verification' || $status === 'Under Verification') {
+        return 'Under Verification';
     }
-    if (empty($item['file_path']) || $status === 'Missing' || $status === '') {
-        return 'Missing';
+    if ($status === 'Missing' || $status === '') {
+        return 'Pending Verification';
     }
     return $status;
 }
 
 function facultyClearanceCanResubmit(array $item): bool
 {
-    return in_array($item['status'] ?? '', ['Hold', 'Denied', 'On Hold'], true);
+    return in_array($item['status'] ?? '', ['Hold', 'Denied', 'On Hold', 'With Deficiency'], true);
 }
 
 function facultyIntentCanUploadAgain(array $item): bool
 {
-    return in_array($item['status'] ?? '', ['Cleared', 'Hold', 'Denied', 'On Hold'], true);
+    return in_array($item['status'] ?? '', ['Cleared', 'Hold', 'Denied', 'On Hold', 'With Deficiency'], true);
 }
 
 function facultyClearanceJson(?array $request): array
@@ -225,11 +391,20 @@ function facultyClearanceJson(?array $request): array
     return [
         'clearance_id' => $request ? (int) $request['clearance_id'] : null,
         'intent_type' => $request['intent_type'] ?? 'renewal',
+        'form_submitted' => !empty($request['form_submitted']),
+        'form_submitted_at' => $request['form_submitted_at'] ?? null,
+        'form_status' => $request['form_status'] ?? (!empty($request['form_submitted']) ? 'Pending Review' : 'Not Submitted'),
+        'form_approved_at' => $request['form_approved_at'] ?? null,
+        'form_approved_by' => $request['form_approved_by'] ?? null,
+        'form_remarks' => $request['form_remarks'] ?? null,
+        'faculty_declaration' => $request['faculty_declaration'] ?? null,
+        'signature_data' => $request['signature_data'] ?? null,
+        'overall_status' => $request['overall_status'] ?? null,
         'status' => facultyClearanceStatus($request),
         'progress' => (int) ($request['progress'] ?? 0),
         'submitted_items' => (int) ($request['submitted_items'] ?? 0),
         'approved_items' => (int) ($request['approved_items'] ?? 0),
-        'total_items' => (int) ($request['total_items'] ?? 0),
+        'total_items' => (int) ($request['total_items'] ?? 6),
         'submitted_at' => $request['submitted_at'] ?? null,
         'updated_at' => $request['updated_at'] ?? null,
         'items' => array_map(static function (array $item): array {
@@ -251,13 +426,36 @@ function facultyClearanceJson(?array $request): array
 
 function facultyClearanceRecalculate(PDO $db, int $clearanceId): void
 {
-    $allowedNames = ['Letter of Intent', 'Updated Resume', 'Personal Evaluation', 'Summary Evaluation'];
+    $offices = facultyClearanceOffices($db);
+    $allowedNames = facultyClearanceRequirementNames();
+
+    // Ensure all 6 active clearance offices have rows in clearance_items
+    $insertItem = $db->prepare('INSERT IGNORE INTO clearance_items (clearance_id, clearance_office_id, status) VALUES (?, ?, \'Missing\')');
+    foreach ($offices as $office) {
+        $insertItem->execute([$clearanceId, (int) $office['clearance_office_id']]);
+    }
+
     $placeholders = implode(',', array_fill(0, count($allowedNames), '?'));
     $stmt = $db->prepare('SELECT ci.status FROM clearance_items ci JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id WHERE ci.clearance_id = ? AND co.name IN (' . $placeholders . ')');
     $stmt->execute(array_merge([$clearanceId], $allowedNames));
     $statuses = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    $hasHold = in_array('Hold', $statuses, true) || in_array('Denied', $statuses, true) || in_array('On Hold', $statuses, true);
-    $overall = $statuses && !array_diff($statuses, ['Cleared']) ? 'Cleared' : ($hasHold ? 'With Hold' : 'In Progress');
+
+    $hasDeficiency = in_array('Hold', $statuses, true) || in_array('Denied', $statuses, true) || in_array('With Deficiency', $statuses, true) || in_array('On Hold', $statuses, true);
+    $clearedCount = count(array_filter($statuses, static fn($s) => in_array($s, ['Cleared', 'Approved'], true)));
+    $totalCount = count($allowedNames);
+
+    if ($clearedCount >= $totalCount && $totalCount >= 6) {
+        $overall = 'Cleared';
+    } elseif ($hasDeficiency) {
+        $overall = 'With Deficiency';
+    } elseif ($clearedCount >= 5) {
+        $overall = 'For Final Approval';
+    } elseif ($clearedCount >= 4) {
+        $overall = 'For Department Head Approval';
+    } else {
+        $overall = 'Under Verification';
+    }
+
     $update = $db->prepare('UPDATE clearance_requests SET overall_status = ? WHERE clearance_id = ?');
     $update->execute([$overall, $clearanceId]);
 
@@ -317,7 +515,7 @@ function facultyClearanceArchiveRecord(PDO $db, int $clearanceId): void
             return;
         }
 
-        $allowedNames = ['Letter of Intent', 'Updated Resume', 'Personal Evaluation', 'Summary Evaluation'];
+        $allowedNames = facultyClearanceRequirementNames();
         $placeholders = implode(',', array_fill(0, count($allowedNames), '?'));
         $itemsStmt = $db->prepare('SELECT ci.*, co.name AS requirement_name, co.sequence_order 
                                   FROM clearance_items ci 

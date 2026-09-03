@@ -294,31 +294,32 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <!-- Evaluation Stats Row -->
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-6">
-        <div class="card bg-body text-body border-secondary-subtle shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="p-3 bg-primary-subtle text-primary rounded-3 me-3 fs-4 d-flex align-items-center justify-content-center">
+        <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
                     <i class="fas fa-users"></i>
                 </div>
                 <div>
-                    <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Department Peers</h6>
-                    <h4 class="mb-0 fw-bold text-body"><?= $totalPeers ?> Colleagues</h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Department Peers</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= $totalPeers ?> <small class="text-muted fs-6 fw-normal">Colleagues</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
-
     <div class="col-12 col-md-6">
-        <div class="card bg-body text-body border-secondary-subtle shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="p-3 bg-success-subtle text-success rounded-3 me-3 fs-4 d-flex align-items-center justify-content-center">
+        <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #28a745; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #28a745;">
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div>
-                    <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Completed Ratings</h6>
-                    <h4 class="mb-0 fw-bold text-body"><?= $evaluatedCount ?> / <?= $totalPeers ?> Evaluated</h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Completed Ratings</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #28a745;"><?= $evaluatedCount ?> <small class="text-muted fs-6 fw-normal">/ <?= $totalPeers ?> Evaluated</small></h4>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 </div>
 
