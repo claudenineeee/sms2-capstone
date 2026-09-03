@@ -80,11 +80,13 @@ $cfTotalCount = (int) ($clearance['total_items'] ?? count($offices));
 $cfPct = $cfTotalCount > 0 ? (int) round(($cfApprovedCount / $cfTotalCount) * 100) : 0;
 
 // Workflow lifecycle step calculation
-// Steps: 1: Faculty Submit | 2: Dept Head Review | 3: Offices/Units Verification | 4: Cleared
+// Steps: 1: Faculty Submit | 2: Dept Head Review | 3: Offices/Units Verification | 4: HR Final Approval | 5: Cleared
 $activeLifecycleStep = 1;
 if ($status === 'Cleared') {
+    $activeLifecycleStep = 5;
+} elseif ($status === 'For Final Approval') {
     $activeLifecycleStep = 4;
-} elseif ($cfFormApproved || $status === 'Under Verification' || $cfApprovedCount > 0 || $status === 'For Final Approval') {
+} elseif ($cfFormApproved || $status === 'Under Verification' || $cfApprovedCount > 0) {
     $activeLifecycleStep = 3;
 } elseif ($cfFormSubmitted || $status === 'For Department Head Approval') {
     $activeLifecycleStep = 2;
@@ -296,6 +298,80 @@ if ($status === 'Cleared') {
         justify-content: center;
         font-size: 1.1rem;
         flex-shrink: 0;
+    }
+
+    .office-card-body {
+        padding: 1.15rem 1.25rem;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        gap: .85rem;
+    }
+
+    .office-checklist {
+        list-style: none;
+        padding-left: 0;
+        margin-bottom: 0;
+        font-size: .8rem;
+    }
+
+    .office-checklist li {
+        padding: .25rem 0;
+        display: flex;
+        align-items: flex-start;
+        gap: .5rem;
+        color: var(--bs-body-color);
+        line-height: 1.35;
+    }
+
+    .office-checklist li i {
+        font-size: .75rem;
+        margin-top: .2rem;
+        color: var(--bs-secondary-color);
+        opacity: .7;
+    }
+
+    /* ── Status Badges & Chips ────────────────────────────────────── */
+    .clr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .3rem .75rem;
+        border-radius: 50px;
+        font-size: .74rem;
+        font-weight: 700;
+        letter-spacing: .02em;
+        white-space: nowrap;
+    }
+
+    .clr-chip-cleared {
+        background: rgba(25, 135, 84, .12);
+        color: #198754;
+        border: 1px solid rgba(25, 135, 84, .3);
+    }
+
+    .clr-chip-review {
+        background: rgba(13, 202, 240, .12);
+        color: #0aa2c0;
+        border: 1px solid rgba(13, 202, 240, .3);
+    }
+
+    .clr-chip-deficiency {
+        background: rgba(220, 53, 69, .12);
+        color: #dc3545;
+        border: 1px solid rgba(220, 53, 69, .3);
+    }
+
+    .clr-chip-onhold {
+        background: rgba(255, 193, 7, .15);
+        color: #997404;
+        border: 1px solid rgba(255, 193, 7, .35);
+    }
+
+    .clr-chip-pending {
+        background: rgba(108, 117, 125, .1);
+        color: var(--bs-secondary-color);
+        border: 1px solid rgba(108, 117, 125, .25);
     }
 
     /* ── Remarks & Deficiency Alerts ──────────────────────────────── */
@@ -952,10 +1028,21 @@ if ($status === 'Cleared') {
                     <div class="clr-flow-title">Offices / Units<br>Verification</div>
                 </div>
 
-                <div class="clr-flow-divider <?= $activeLifecycleStep >= 4 ? 'completed' : '' ?>"></div>
+                <div class="clr-flow-divider <?= $activeLifecycleStep > 3 ? 'completed' : '' ?>"></div>
 
-                <!-- 4. Cleared -->
-                <div class="clr-flow-step <?= $activeLifecycleStep === 4 ? 'completed' : '' ?>">
+                <!-- 4. HR Final Approval -->
+                <div
+                    class="clr-flow-step <?= $activeLifecycleStep > 4 ? 'completed' : ($activeLifecycleStep === 4 ? 'active' : '') ?>">
+                    <div class="clr-flow-circle">
+                        <?= $activeLifecycleStep > 4 ? '<i class="fas fa-check"></i>' : '4' ?>
+                    </div>
+                    <div class="clr-flow-title">HR Final<br>Approval</div>
+                </div>
+
+                <div class="clr-flow-divider <?= $activeLifecycleStep >= 5 ? 'completed' : '' ?>"></div>
+
+                <!-- 5. Cleared -->
+                <div class="clr-flow-step <?= $activeLifecycleStep === 5 ? 'completed' : '' ?>">
                     <div class="clr-flow-circle">
                         <i class="fas fa-check-double"></i>
                     </div>
@@ -1176,8 +1263,8 @@ if ($status === 'Cleared') {
                                         </div>
                                     </div>
                                 </div>
-                                <span class="clr-chip clr-chip-<?= $fChip ?> office-chip" id="badgeStatus<?= $fOid ?>">
-                                    <i class="fas <?= $fChipIcon ?> me-1"></i><span class="chip-label"><?= $fChipLabel ?></span>
+                                <span class="clr-chip clr-chip-<?= $fChip ?> office-chip">
+                                    <i class="fas <?= $fChipIcon ?>"></i> <span class="chip-label"><?= $fChipLabel ?></span>
                                 </span>
                             </div>
 
@@ -1285,30 +1372,23 @@ if ($status === 'Cleared') {
             </div>
 
             <!-- ── Faculty Declaration & Digital Signature (Placed at the bottom) ──────────────────────── -->
-            <div class="clr-card card border-0 shadow-sm overflow-hidden mb-4" id="facultyDeclarationCard">
-                <div class="clr-card-header card-header bg-primary text-white py-3">
-                    <div class="d-flex justify-content-between align-items-start gap-2 w-100 flex-wrap">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="clr-card-icon-wrap rounded-circle bg-white text-primary d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
-                                style="width:44px;height:44px;font-size:1.15rem;box-shadow:0 2px 5px rgba(0,0,0,.12);">
-                                <i class="fas fa-file-signature"></i>
+            <div class="clr-card mb-4" id="facultyDeclarationCard">
+                <div class="clr-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-file-signature text-primary fs-5"></i>
+                        <div>
+                            <div class="fw-bold mb-0">Faculty Declaration</div>
+                            <div class="small text-body-secondary">Official Clearance Certification &amp; Digital Signature
                             </div>
-                            <div>
-                                <h5 class="card-title mb-1 fs-6 fw-bold text-white">Faculty Declaration</h5>
-                                <p class="mb-0 text-white-75 small">Official Clearance Certification &amp; Digital Signature
-                                </p>
-                            </div>
-                        </div>
-                        <div class="text-end">
-                            <span
-                                class="badge bg-white fs-7 px-3 py-2 shadow-sm text-capitalize fw-bold <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'text-success' : 'text-warning') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'text-primary' : 'text-secondary') ?>"
-                                id="declarationBadge">
-                                <i
-                                    class="fas <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'fa-check-circle' : 'fa-hourglass-half') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'fa-pen-clip' : 'fa-lock') ?> me-1"></i>
-                                <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'Signed' : 'Pending Department Head Review') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'Ready to Sign' : 'Locked — Pending Document Approvals') ?>
-                            </span>
                         </div>
                     </div>
+                    <span
+                        class="badge fs-7 px-3 py-2 <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-warning-subtle text-warning border border-warning-subtle') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-secondary-subtle text-body-secondary border') ?>"
+                        id="declarationBadge">
+                        <i
+                            class="fas <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'fa-check-circle' : 'fa-hourglass-half') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'fa-pen-clip' : 'fa-lock') ?> me-1"></i>
+                        <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'Signed' : 'Pending Department Head Review') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'Ready to Sign' : 'Locked — Pending Document Approvals') ?>
+                    </span>
                 </div>
 
                 <div class="p-4">
@@ -2034,10 +2114,12 @@ if ($status === 'Cleared') {
     function updateLifecycleStepper(status, approvedItems = 0, totalItems = 6) {
         let step = 1;
         if (status === 'Cleared') {
+            step = 5;
+        } else if (status === 'For Final Approval') {
             step = 4;
-        } else if (status === 'Under Verification' || approvedItems > 0 || status === 'With Deficiency' || status === 'For Final Approval') {
-            step = 3;
         } else if (status === 'For Department Head Approval') {
+            step = 3;
+        } else if (status === 'Under Verification' || approvedItems > 0 || status === 'With Deficiency') {
             step = 2;
         }
 
@@ -2046,7 +2128,7 @@ if ($status === 'Cleared') {
         const steps = stepper.querySelectorAll('.clr-flow-step');
         const dividers = stepper.querySelectorAll('.clr-flow-divider');
 
-        if (steps.length >= 4) {
+        if (steps.length >= 5) {
             // Step 1: Faculty Submit
             steps[0].className = `clr-flow-step ${step > 1 ? 'completed' : (step === 1 ? 'active' : '')}`;
             const c1 = steps[0].querySelector('.clr-flow-circle');
@@ -2055,32 +2137,40 @@ if ($status === 'Cleared') {
             // Divider 1
             if (dividers[0]) dividers[0].className = `clr-flow-divider ${step > 1 ? 'completed' : ''}`;
 
-            // Step 2: Dept Head Review
-            steps[1].className = `clr-flow-step ${step > 2 ? 'completed' : (step === 2 ? 'active' : '')}`;
-            const c2 = steps[1].querySelector('.clr-flow-circle');
-            if (c2) c2.innerHTML = step > 2 ? '<i class="fas fa-check"></i>' : '2';
+            // Step 2: Offices / Units Verification
+            if (status === 'With Deficiency') {
+                steps[1].className = 'clr-flow-step deficiency';
+                const c2 = steps[1].querySelector('.clr-flow-circle');
+                if (c2) c2.innerHTML = '<i class="fas fa-exclamation"></i>';
+            } else {
+                steps[1].className = `clr-flow-step ${step > 2 ? 'completed' : (step === 2 ? 'active' : '')}`;
+                const c2 = steps[1].querySelector('.clr-flow-circle');
+                if (c2) c2.innerHTML = step > 2 ? '<i class="fas fa-check"></i>' : '2';
+            }
 
             // Divider 2
             if (dividers[1]) dividers[1].className = `clr-flow-divider ${step > 2 ? 'completed' : ''}`;
 
-            // Step 3: Offices / Units Verification
-            if (status === 'With Deficiency') {
-                steps[2].className = 'clr-flow-step deficiency';
-                const c3 = steps[2].querySelector('.clr-flow-circle');
-                if (c3) c3.innerHTML = '<i class="fas fa-exclamation"></i>';
-            } else {
-                steps[2].className = `clr-flow-step ${step > 3 ? 'completed' : (step === 3 ? 'active' : '')}`;
-                const c3 = steps[2].querySelector('.clr-flow-circle');
-                if (c3) c3.innerHTML = step > 3 ? '<i class="fas fa-check"></i>' : '3';
-            }
+            // Step 3: Dept Head Review
+            steps[2].className = `clr-flow-step ${step > 3 ? 'completed' : (step === 3 ? 'active' : '')}`;
+            const c3 = steps[2].querySelector('.clr-flow-circle');
+            if (c3) c3.innerHTML = step > 3 ? '<i class="fas fa-check"></i>' : '3';
 
             // Divider 3
-            if (dividers[2]) dividers[2].className = `clr-flow-divider ${step >= 4 ? 'completed' : ''}`;
+            if (dividers[2]) dividers[2].className = `clr-flow-divider ${step > 3 ? 'completed' : ''}`;
 
-            // Step 4: Cleared / Completed
-            steps[3].className = `clr-flow-step ${step === 4 ? 'completed' : ''}`;
+            // Step 4: HR Final Approval
+            steps[3].className = `clr-flow-step ${step > 4 ? 'completed' : (step === 4 ? 'active' : '')}`;
             const c4 = steps[3].querySelector('.clr-flow-circle');
-            if (c4) c4.innerHTML = '<i class="fas fa-check-double"></i>';
+            if (c4) c4.innerHTML = step > 4 ? '<i class="fas fa-check"></i>' : '4';
+
+            // Divider 4
+            if (dividers[3]) dividers[3].className = `clr-flow-divider ${step >= 5 ? 'completed' : ''}`;
+
+            // Step 5: Cleared / Completed
+            steps[4].className = `clr-flow-step ${step === 5 ? 'completed' : ''}`;
+            const c5 = steps[4].querySelector('.clr-flow-circle');
+            if (c5) c5.innerHTML = '<i class="fas fa-check-double"></i>';
         }
     }
 
@@ -2121,7 +2211,7 @@ if ($status === 'Cleared') {
                         }
 
                         if (chip) {
-                            chip.className = `clr-chip clr-chip-${chipClass} office-chip badge bg-white text-capitalize shadow-sm`;
+                            chip.className = `clr-chip clr-chip-${chipClass} office-chip`;
                             const ico = chip.querySelector('i');
                             if (ico) ico.className = `fas ${chipIcon}`;
                         }
