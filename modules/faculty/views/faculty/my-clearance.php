@@ -195,53 +195,25 @@ if ($status === 'Cleared') {
         background: #198754;
     }
 
-    /* ── Sections & Cards (Faculty Directory Dean Card Theme) ─────── */
+    /* ── Sections & Cards ─────────────────────────────────────────── */
     .clr-card {
         background: var(--bs-body-bg);
-        border: 0 !important;
-        border-radius: 1rem;
-        box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
+        border: 1px solid var(--bs-border-color);
+        border-radius: .85rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, .04);
         margin-bottom: 1.5rem;
         overflow: hidden;
     }
 
     .clr-card-header {
         padding: 1rem 1.4rem;
-        background-color: var(--bs-primary, #0d6efd) !important;
-        color: #ffffff !important;
-        border-bottom: 0;
+        background: var(--bs-tertiary-bg, rgba(0, 0, 0, .02));
+        border-bottom: 1px solid var(--bs-border-color);
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: .75rem;
         flex-wrap: wrap;
-    }
-
-    .clr-card-header .card-title,
-    .clr-card-header h5,
-    .clr-card-header h6 {
-        color: #ffffff !important;
-        font-weight: 700;
-        margin-bottom: 0.15rem;
-    }
-
-    .clr-card-header .text-white-75 {
-        color: rgba(255, 255, 255, 0.78) !important;
-        font-size: 0.78rem;
-    }
-
-    .clr-card-icon-wrap {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        background: #ffffff !important;
-        color: var(--bs-primary, #0d6efd) !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.15rem;
-        flex-shrink: 0;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, .12);
     }
 
     .clr-info-grid {
@@ -285,14 +257,12 @@ if ($status === 'Cleared') {
         background: linear-gradient(90deg, #198754, #20c997);
     }
 
-    /* ── Office Section Grid & Cards (Faculty Directory Dean Card Theme) ── */
+    /* ── Office Section Grid & Cards ──────────────────────────────── */
     .office-card {
         background: var(--bs-body-bg);
-        border: 0 !important;
-        border-radius: 1rem;
-        box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
-        overflow: hidden;
-        transition: transform .2s ease, box-shadow .2s ease;
+        border: 1px solid var(--bs-border-color);
+        border-radius: .85rem;
+        transition: all .2s ease;
         display: flex;
         flex-direction: column;
         height: 100%;
@@ -300,156 +270,32 @@ if ($status === 'Cleared') {
     }
 
     .office-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .1) !important;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, .06);
+        border-color: rgba(13, 110, 253, .3);
     }
 
     .office-card-header {
         padding: 1rem 1.25rem;
-        background-color: var(--bs-primary, #0d6efd);
-        color: #ffffff !important;
-        border-bottom: 0;
+        border-bottom: 1px solid var(--bs-border-color);
+        background: var(--bs-tertiary-bg, rgba(0, 0, 0, .015));
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: space-between;
         gap: .75rem;
+        border-radius: .85rem .85rem 0 0;
     }
 
     .office-icon-wrap {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        background: #ffffff !important;
-        color: var(--bs-primary, #0d6efd) !important;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: rgba(13, 110, 253, .08);
+        color: #0d6efd;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.15rem;
+        font-size: 1.1rem;
         flex-shrink: 0;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, .12);
-    }
-
-    .office-card-header .card-title,
-    .office-card-header h5 {
-        color: #ffffff !important;
-        font-size: 0.95rem;
-        font-weight: 700;
-        margin-bottom: 0.15rem;
-    }
-
-    .office-card-header .text-white-75 {
-        color: rgba(255, 255, 255, 0.78) !important;
-        font-size: 0.75rem;
-    }
-
-    .office-card-body {
-        padding: 1.15rem 1.25rem;
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        gap: .85rem;
-    }
-
-    .office-checklist {
-        list-style: none;
-        padding-left: 0;
-        margin-bottom: 0;
-        font-size: .8rem;
-    }
-
-    .office-checklist li {
-        padding: .25rem 0;
-        display: flex;
-        align-items: flex-start;
-        gap: .5rem;
-        color: var(--bs-body-color);
-        line-height: 1.35;
-    }
-
-    .office-checklist li i {
-        font-size: .75rem;
-        margin-top: .2rem;
-        color: var(--bs-secondary-color);
-        opacity: .7;
-    }
-
-    /* ── Status Badges & Chips ────────────────────────────────────── */
-    .clr-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        padding: .3rem .75rem;
-        border-radius: 50px;
-        font-size: .74rem;
-        font-weight: 700;
-        letter-spacing: .02em;
-        white-space: nowrap;
-    }
-
-    .clr-chip-cleared {
-        background: rgba(25, 135, 84, .12);
-        color: #198754;
-        border: 1px solid rgba(25, 135, 84, .3);
-    }
-
-    .clr-chip-review {
-        background: rgba(13, 202, 240, .12);
-        color: #0aa2c0;
-        border: 1px solid rgba(13, 202, 240, .3);
-    }
-
-    .clr-chip-deficiency {
-        background: rgba(220, 53, 69, .12);
-        color: #dc3545;
-        border: 1px solid rgba(220, 53, 69, .3);
-    }
-
-    .clr-chip-onhold {
-        background: rgba(255, 193, 7, .15);
-        color: #997404;
-        border: 1px solid rgba(255, 193, 7, .35);
-    }
-
-    .clr-chip-pending {
-        background: rgba(108, 117, 125, .1);
-        color: var(--bs-secondary-color);
-        border: 1px solid rgba(108, 117, 125, .25);
-    }
-
-    /* Status badge style on primary office card header (Dean Faculty Directory card look) */
-    .office-card-header .clr-chip {
-        background: #ffffff !important;
-        border: none !important;
-        border-radius: 50px;
-        padding: 0.35rem 0.8rem;
-        font-size: 0.74rem;
-        font-weight: 700;
-        letter-spacing: .02em;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        white-space: nowrap;
-    }
-
-    .office-card-header .clr-chip-cleared {
-        color: #198754 !important;
-    }
-
-    .office-card-header .clr-chip-review {
-        color: #0d6efd !important;
-    }
-
-    .office-card-header .clr-chip-deficiency {
-        color: #dc3545 !important;
-    }
-
-    .office-card-header .clr-chip-onhold {
-        color: #b45309 !important;
-    }
-
-    .office-card-header .clr-chip-pending {
-        color: #475569 !important;
     }
 
     /* ── Remarks & Deficiency Alerts ──────────────────────────────── */
@@ -883,28 +729,25 @@ if ($status === 'Cleared') {
 
         <!-- ════════════════ VIEW 1: CLEARANCE OF CONDUCT AGREEMENT ════════════════ -->
         <div id="viewAgreementSection" class="d-none mb-4">
-            <div class="clr-card card border-0 shadow-sm overflow-hidden mb-3" id="facultyClearanceFormCard">
-                <div
-                    class="clr-card-header card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="clr-card-icon-wrap rounded-circle bg-white text-primary d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
-                            style="width:44px;height:44px;font-size:1.15rem;box-shadow:0 2px 5px rgba(0,0,0,.12);">
-                            <i class="fas fa-file-contract"></i>
-                        </div>
+            <div class="clr-card mb-3" id="facultyClearanceFormCard">
+                <div class="clr-card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-file-contract text-primary fs-5"></i>
                         <div>
-                            <h5 class="card-title mb-1 fs-6 fw-bold text-white">Clearance Agreement Form</h5>
-                            <p class="mb-0 text-white-75 small">Official Faculty Clearance Form</p>
+                            <div class="fw-bold mb-0">Clearance Agreement Form</div>
+                            <div class="small text-body-secondary">Official Faculty Clearance Form
+                            </div>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button"
-                            class="btn btn-sm btn-light text-primary fw-bold px-3 py-2 shadow-sm d-flex align-items-center gap-1"
+                            class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 shadow-sm"
                             onclick="printClearanceAgreementForm()" title="Print Clearance Agreement Form">
                             <i class="fas fa-print"></i>
                             <span class="d-none d-sm-inline">Print Form</span>
                         </button>
                         <span
-                            class="badge bg-white fs-7 px-3 py-2 shadow-sm fw-bold <?= $cfFormApproved ? 'text-success' : ($cfFormSubmitted ? 'text-warning' : 'text-primary') ?>"
+                            class="badge fs-7 px-3 py-2 <?= $cfFormApproved ? 'bg-success-subtle text-success border border-success-subtle' : ($cfFormSubmitted ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-primary-subtle text-primary border border-primary-subtle') ?>"
                             id="formStatusBadge">
                             <i
                                 class="fas <?= $cfFormApproved ? 'fa-check-circle' : ($cfFormSubmitted ? 'fa-hourglass-half' : 'fa-circle-play') ?> me-1"></i>
@@ -1124,75 +967,65 @@ if ($status === 'Cleared') {
             <?php if (!$cfFormApproved): ?>
                 <?php if ($cfFormSubmitted && $cfFormStatus === 'Pending Review'): ?>
                     <div
-                        class="card bg-primary text-white border-0 shadow-sm rounded-4 p-3 p-md-4 mb-4 d-flex flex-row align-items-center justify-content-between flex-wrap gap-3">
+                        class="alert alert-warning border border-warning-subtle shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
                         <div class="d-flex align-items-center gap-3">
-                            <div class="rounded-circle bg-white text-warning d-flex align-items-center justify-content-center flex-shrink-0 fw-bold"
-                                style="width:44px;height:44px;font-size:1.15rem;box-shadow:0 2px 5px rgba(0,0,0,.12);">
-                                <i class="fas fa-hourglass-half"></i>
+                            <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center flex-shrink-0"
+                                style="width:38px;height:38px;">
+                                <i class="fas fa-hourglass-half fs-5"></i>
                             </div>
                             <div>
-                                <h6 class="fw-bold text-white mb-1 fs-6">Clearance Agreement Form Under Department Head Review
+                                <h6 class="fw-bold text-warning-emphasis mb-0">Clearance Agreement Form Under Department Head Review
                                 </h6>
-                                <p class="small text-white-75 mb-0">Your Clearance Form has been submitted and is awaiting
+                                <p class="small text-body-secondary mb-0">Your Clearance Form has been submitted and is awaiting
                                     Department Head review and endorsement. Requirement uploads and portal submission will unlock
                                     once approved.</p>
                             </div>
                         </div>
-                        <button type="button"
-                            class="btn btn-sm btn-light text-primary fw-bold px-3 py-2 shadow-sm d-inline-flex align-items-center gap-1"
+                        <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-semibold"
                             onclick="switchClearanceView('agreement')">
-                            <i class="fas fa-file-contract"></i>View Agreement Form
+                            <i class="fas fa-file-contract me-1"></i>View Agreement Form
                         </button>
                     </div>
                 <?php else: ?>
                     <div
-                        class="card bg-primary text-white border-0 shadow-sm rounded-4 p-3 p-md-4 mb-4 d-flex flex-row align-items-center justify-content-between flex-wrap gap-3">
+                        class="alert alert-info border border-info-subtle shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
                         <div class="d-flex align-items-center gap-3">
-                            <div class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center flex-shrink-0 fw-bold"
-                                style="width:44px;height:44px;font-size:1.15rem;box-shadow:0 2px 5px rgba(0,0,0,.12);">
-                                <i class="fas fa-file-signature"></i>
+                            <div class="rounded-circle bg-info text-dark d-flex align-items-center justify-content-center flex-shrink-0"
+                                style="width:38px;height:38px;">
+                                <i class="fas fa-file-signature fs-5"></i>
                             </div>
                             <div>
-                                <h6 class="fw-bold text-white mb-1 fs-6">Step 1 Required: Submit Clearance Agreement Form</h6>
-                                <p class="small text-white-75 mb-0">You must submit and obtain Department Head endorsement on
+                                <h6 class="fw-bold text-info-emphasis mb-0">Step 1 Required: Submit Clearance Agreement Form</h6>
+                                <p class="small text-body-secondary mb-0">You must submit and obtain Department Head endorsement on
                                     your Clearance Agreement Form before unit requirement uploads can begin.</p>
                             </div>
                         </div>
-                        <button type="button"
-                            class="btn btn-sm btn-light text-primary fw-bold px-3 py-2 shadow-sm d-inline-flex align-items-center gap-1"
-                            onclick="switchClearanceView('agreement')">
-                            <i class="fas fa-file-contract"></i>Open Clearance Form
+                        <button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="switchClearanceView('agreement')">
+                            <i class="fas fa-file-contract me-1"></i>Open Agreement Form
                         </button>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
 
             <!-- ── Faculty Information Card ───────────────────────────────── -->
-            <div class="clr-card card border-0 shadow-sm overflow-hidden mb-4">
-                <div class="clr-card-header card-header bg-primary text-white py-3">
-                    <div class="d-flex justify-content-between align-items-start gap-2 w-100 flex-wrap">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="clr-card-icon-wrap rounded-circle bg-white text-primary d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
-                                style="width:44px;height:44px;font-size:1.15rem;box-shadow:0 2px 5px rgba(0,0,0,.12);">
-                                <i class="fas fa-id-card"></i>
-                            </div>
-                            <div>
-                                <h5 class="card-title mb-1 fs-6 fw-bold text-white">Faculty Information</h5>
-                                <p class="mb-0 text-white-75 small">Official Personnel &amp; Department Record</p>
-                            </div>
+            <div class="clr-card mb-4">
+                <div class="clr-card-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-id-card text-primary fs-5"></i>
+                        <div>
+                            <div class="fw-bold mb-0">Faculty Information</div>
+                            <div class="small text-body-secondary">Official Personnel &amp; Department Record</div>
                         </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <span
-                                class="badge bg-white <?= $cfSubmitted ? 'text-success' : 'text-secondary' ?> fs-7 px-3 py-2 shadow-sm text-capitalize fw-bold"
-                                id="formSubmittedBadge">
-                                <i class="fas <?= $cfSubmitted ? 'fa-check-circle' : 'fa-circle-dot' ?> me-1"></i>
-                                <?= $cfSubmitted ? 'Clearance Submitted' : 'Pending Submission' ?>
-                            </span>
-                            <span
-                                class="badge bg-white text-dark fs-7 px-3 py-2 shadow-sm d-none d-md-inline fw-semibold">Form
-                                No:
-                                <strong><?= facultyClearanceEsc($cfFormNo) ?></strong></span>
-                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span
+                            class="badge fs-7 px-2 py-1 <?= $cfSubmitted ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-body-secondary' ?>"
+                            id="formSubmittedBadge">
+                            <i class="fas <?= $cfSubmitted ? 'fa-check-circle' : 'fa-circle-dot' ?> me-1"></i>
+                            <?= $cfSubmitted ? 'Clearance Submitted' : 'Pending Submission' ?>
+                        </span>
+                        <span class="small text-body-secondary d-none d-md-inline">Form No:
+                            <strong><?= facultyClearanceEsc($cfFormNo) ?></strong></span>
                     </div>
                 </div>
 
@@ -1329,35 +1162,26 @@ if ($status === 'Cleared') {
                     };
                     ?>
                     <div class="col-12 col-md-6 col-lg-4">
-                        <div class="office-card card h-100 border-0 shadow-sm overflow-hidden"
-                            data-office-row-id="<?= $fOid ?>">
-                            <div class="office-card-header card-header bg-primary text-white py-3">
-                                <div class="d-flex justify-content-between align-items-start gap-2 w-100">
-                                    <div class="d-flex align-items-center gap-3">
-                                        <div
-                                            class="office-icon-wrap rounded-circle bg-white text-primary d-flex align-items-center justify-content-center fw-bold">
-                                            <i class="fas <?= $meta['icon'] ?? 'fa-circle-check' ?>"></i>
-                                        </div>
-                                        <div>
-                                            <h5 class="card-title mb-1 fs-6 fw-bold text-white text-capitalize">
-                                                <strong><?= facultyClearanceEsc($meta['name']) ?></strong>
-                                            </h5>
-                                            <p class="mb-0 text-white-75 small text-capitalize"><i
-                                                    class="fas fa-building me-1"></i><?= facultyClearanceEsc($meta['office']) ?>
-                                            </p>
-                                        </div>
+                        <div class="office-card" data-office-row-id="<?= $fOid ?>">
+                            <div class="office-card-header">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="office-icon-wrap">
+                                        <i class="fas <?= $meta['icon'] ?? 'fa-circle-check' ?>"></i>
                                     </div>
-                                    <div class="text-end">
-                                        <span
-                                            class="clr-chip clr-chip-<?= $fChip ?> office-chip badge bg-white text-capitalize shadow-sm">
-                                            <i class="fas <?= $fChipIcon ?>"></i> <span
-                                                class="chip-label"><?= $fChipLabel ?></span>
-                                        </span>
+                                    <div>
+                                        <div class="fw-bold" style="font-size:.9rem;"><?= facultyClearanceEsc($meta['name']) ?>
+                                        </div>
+                                        <div class="text-body-secondary small" style="font-size:.72rem;">
+                                            <i class="fas fa-building me-1"></i><?= facultyClearanceEsc($meta['office']) ?>
+                                        </div>
                                     </div>
                                 </div>
+                                <span class="clr-chip clr-chip-<?= $fChip ?> office-chip" id="badgeStatus<?= $fOid ?>">
+                                    <i class="fas <?= $fChipIcon ?> me-1"></i><span class="chip-label"><?= $fChipLabel ?></span>
+                                </span>
                             </div>
 
-                            <div class="office-card-body card-body bg-body p-3">
+                            <div class="office-card-body">
                                 <div>
                                     <div class="text-uppercase fw-bold text-body-secondary mb-2"
                                         style="font-size:.65rem;letter-spacing:.05em;">
