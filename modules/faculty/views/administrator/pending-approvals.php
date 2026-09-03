@@ -187,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </html>
                         ";
 
-                        $apiKey = 're_VtXzynve_2fV9grnUZybc3Fb7eFLMFeMh'; 
+                        $apiKey = $_ENV['RESEND_API_KEY'] ?? getenv('RESEND_API_KEY');
                         $apiUrl = 'https://api.resend.com/emails';
 
                         $payload = [
