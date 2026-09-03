@@ -29,22 +29,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->beginTransaction();
 
                 if ($action === 'approve') {
-                    // 1. Fetch first_name and last_name directly from faculty_db.faculty_profiles
-                    $profileStmt = $pdo->prepare("SELECT first_name, last_name FROM faculty_db.faculty_profiles WHERE user_id = :user_id");
+                    // 1. Fetch first_name, last_name, and email directly from faculty_db.faculty_profiles
+                    $profileStmt = $pdo->prepare("SELECT first_name, last_name, email FROM faculty_db.faculty_profiles WHERE user_id = :user_id");
                     $profileStmt->execute([':user_id' => $userId]);
                     $profileData = $profileStmt->fetch(PDO::FETCH_ASSOC);
 
-                    $firstName = trim($profileData['first_name'] ?? '');
-                    $lastName  = trim($profileData['last_name'] ?? '');
-                    $fullName  = trim($firstName . ' ' . $lastName);
+                    $firstName  = trim($profileData['first_name'] ?? '');
+                    $lastName   = trim($profileData['last_name'] ?? '');
+                    $facultyEmail = trim($profileData['email'] ?? '');
+                    $fullName   = trim($firstName . ' ' . $lastName);
 
-                    // Fallback: If faculty profile missing, check full_name in sms2_db
-                    if ($lastName === '') {
-                        $userStmt = $pdo->prepare("SELECT full_name FROM sms2_db.users WHERE id = :user_id");
+                    // Fallback: If faculty profile missing name or email, check sms2_db
+                    if ($lastName === '' || $facultyEmail === '') {
+                        $userStmt = $pdo->prepare("SELECT full_name, email FROM sms2_db.users WHERE id = :user_id");
                         $userStmt->execute([':user_id' => $userId]);
                         $userData = $userStmt->fetch(PDO::FETCH_ASSOC);
                         
-                        $fullName = trim($userData['full_name'] ?? '');
+                        if ($fullName === '') {
+                            $fullName = trim($userData['full_name'] ?? '');
+                        }
+                        if ($facultyEmail === '') {
+                            $facultyEmail = trim($userData['email'] ?? '');
+                        }
                         $nameParts = array_filter(explode(' ', $fullName));
                         $lastName = !empty($nameParts) ? end($nameParts) : 'User';
                     }
@@ -125,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     ':birthdate'            => !empty($fp['birthdate']) ? $fp['birthdate'] : null,
                                     ':sex'                  => !empty($fp['sex']) ? strtolower($fp['sex']) : null,
                                     ':phone'                => $fp['phone'] ?? null,
-                                    ':email'                => $fp['email'] ?? null,
+                                    ':email'                => $facultyEmail,
                                     ':department_id'        => $departmentId,
                                     ':position'             => $fp['position'] ?? null,
                                     ':employment_status'    => $fp['employment_status'] ?: 'Probationary',
@@ -139,8 +145,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $pdo->commit();
-                    $message = "Account successfully approved! Default password set to: " . htmlspecialchars($defaultPassword);
-                    $messageType = "success";
+
+                    // 6. Send notification email using Resend API via cURL
+                    if (!empty($facultyEmail)) {
+                        $mailSubject = "Your Faculty Account Has Been Approved";
+                        $loginUrl = BASE_URL . "/login.php"; 
+                        
+                        $mailMessage = "
+                        <html>
+                        <head>
+                            <style>
+                                body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+                                .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9; }
+                                .header { background: #0d6efd; color: #fff; padding: 10px 20px; border-radius: 6px 6px 0 0; text-align: center; }
+                                .content { padding: 20px; background: #fff; border-radius: 0 0 6px 6px; }
+                                .credentials { background: #f1f3f5; padding: 15px; border-left: 4px solid #0d6efd; margin: 15px 0; border-radius: 4px; }
+                                .btn { display: inline-block; padding: 10px 20px; background: #198754; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class='container'>
+                                <div class='header'>
+                                    <h2>Account Approved</h2>
+                                </div>
+                                <div class='content'>
+                                    <p>Hello <strong>" . htmlspecialchars($fullName) . "</strong>,</p>
+                                    <p>Your faculty account request has been officially reviewed and <strong>approved</strong> by the administrator.</p>
+                                    <p>You can now log in to the system using your credentials below:</p>
+                                    
+                                    <div class='credentials'>
+                                        <p style='margin: 5px 0;'><strong>Email / Username:</strong> " . htmlspecialchars($facultyEmail) . "</p>
+                                        <p style='margin: 5px 0;'><strong>Temporary Password:</strong> <span style='font-family: monospace; background: #e9ecef; padding: 2px 6px; border-radius: 3px;'>" . htmlspecialchars($defaultPassword) . "</span></p>
+                                    </div>
+                                    
+                                    <p><em>Note: For security reasons, you will be required to change your password immediately upon your first login.</em></p>
+                                    
+                                    <a href='" . $loginUrl . "' class='btn'>Login to Your Account</a>
+                                </div>
+                            </div>
+                        </body>
+                        </html>
+                        ";
+
+                        $apiKey = 're_R9zrMDPh_GVyTGtVrbwGcroz9YcXLH0Jz'; 
+                        $apiUrl = 'https://api.resend.com/emails';
+
+                        $payload = [
+                            'from'    => 'No Reply - Bestlink College <onboarding@resend.dev>',
+                            'to'      => [$facultyEmail], 
+                            'subject' => $mailSubject,
+                            'html'    => $mailMessage
+                        ];
+
+                        $ch = curl_init($apiUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Authorization: Bearer ' . $apiKey,
+                            'Content-Type: application/json'
+                        ]);
+
+                        $response = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        $curlError = curl_error($ch);
+                        curl_close($ch);
+
+                        if ($httpCode >= 200 && $httpCode < 300) {
+                            $message = "Account successfully approved! Notification email sent to " . htmlspecialchars($facultyEmail) . " with temporary password: " . htmlspecialchars($defaultPassword);
+                            $messageType = "success";
+                        } else {
+                            error_log("Resend API Error (HTTP $httpCode): " . $response . " | cURL Error: " . $curlError);
+                            $message = "Account approved, but email failed. Resend API response: " . htmlspecialchars($response);
+                            $messageType = "warning";
+                        }
+                    }
 
                 } elseif ($action === 'reject') {
                     $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'rejected' WHERE id = :user_id");
@@ -469,7 +548,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- Dynamic Action Confirmation Dialog Modal (Matches Logout Modal Design) -->
+<!-- Dynamic Action Confirmation Dialog Modal -->
 <div class="modal fade" id="actionConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 rounded-4 shadow bg-body text-body">
@@ -540,7 +619,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         if (action === 'approve') {
             titleEl.textContent = 'Approve Account Request';
             iconEl.className = 'fas fa-user-check text-success';
-            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account and generate a default password.`;
+            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account, generate a temporary password, and email their login details.`;
             submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
             submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Yes, Approve';
         } else {
