@@ -214,9 +214,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </h1>
         <p class="text-body-secondary mb-0">Add, configure, and manage academic departments and degree programs across campus.</p>
     </div>
-    <button type="button" class="btn btn-primary btn-sm small fw-semibold px-3 rounded-3 shadow-sm text-nowrap" data-bs-toggle="modal" data-bs-target="#addDeptModal">
-        <i class="fas fa-plus me-1"></i> Add New Department
-    </button>
 </div>
 
 <?php if ($formError !== ''): ?>

@@ -29,22 +29,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->beginTransaction();
 
                 if ($action === 'approve') {
-                    // 1. Fetch first_name and last_name directly from faculty_db.faculty_profiles
-                    $profileStmt = $pdo->prepare("SELECT first_name, last_name FROM faculty_db.faculty_profiles WHERE user_id = :user_id");
+                    // 1. Fetch first_name, last_name, and email directly from faculty_db.faculty_profiles
+                    $profileStmt = $pdo->prepare("SELECT first_name, last_name, email FROM faculty_db.faculty_profiles WHERE user_id = :user_id");
                     $profileStmt->execute([':user_id' => $userId]);
                     $profileData = $profileStmt->fetch(PDO::FETCH_ASSOC);
 
-                    $firstName = trim($profileData['first_name'] ?? '');
-                    $lastName  = trim($profileData['last_name'] ?? '');
-                    $fullName  = trim($firstName . ' ' . $lastName);
+                    $firstName  = trim($profileData['first_name'] ?? '');
+                    $lastName   = trim($profileData['last_name'] ?? '');
+                    $facultyEmail = trim($profileData['email'] ?? '');
+                    $fullName   = trim($firstName . ' ' . $lastName);
 
-                    // Fallback: If faculty profile missing, check full_name in sms2_db
-                    if ($lastName === '') {
-                        $userStmt = $pdo->prepare("SELECT full_name FROM sms2_db.users WHERE id = :user_id");
+                    // Fallback: If faculty profile missing name or email, check sms2_db
+                    if ($lastName === '' || $facultyEmail === '') {
+                        $userStmt = $pdo->prepare("SELECT full_name, email FROM sms2_db.users WHERE id = :user_id");
                         $userStmt->execute([':user_id' => $userId]);
                         $userData = $userStmt->fetch(PDO::FETCH_ASSOC);
                         
-                        $fullName = trim($userData['full_name'] ?? '');
+                        if ($fullName === '') {
+                            $fullName = trim($userData['full_name'] ?? '');
+                        }
+                        if ($facultyEmail === '') {
+                            $facultyEmail = trim($userData['email'] ?? '');
+                        }
                         $nameParts = array_filter(explode(' ', $fullName));
                         $lastName = !empty($nameParts) ? end($nameParts) : 'User';
                     }
@@ -68,30 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':user_id'       => $userId
                     ]);
 
-                    // 4. Activate faculty profile - status the Dean/Admin
-                    // sees ("Active") AND the underlying request_status
-                    // ("approved") both need to move together. Only
-                    // updating profile_status left request_status stuck
-                    // on its default 'pending' forever.
+                    // 4. Activate faculty profile
                     $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Active', request_status = 'approved' WHERE user_id = :user_id");
                     $stmt2->execute([':user_id' => $userId]);
 
                     // 5. Ensure a bridging faculty_db.faculty record exists.
-                    //
-                    // Evaluations (and the Peer Evaluation directory, Dean
-                    // summary, etc.) all key off faculty.faculty_id - NEVER
-                    // faculty_profiles.id. A profile with no matching faculty
-                    // row shows up everywhere as "NOT LINKED" and can never
-                    // be evaluated, no matter how "Active"/"approved" it is.
-                    // Approval is the right moment to create that row if it
-                    // doesn't already exist, using the same email/faculty_no
-                    // bridging rule used everywhere else in this app.
-                    //
-                    // Wrapped in its own try/catch, separate from the outer
-                    // one: if this step fails (e.g. an enum value mismatch),
-                    // the account should still be approved/activated rather
-                    // than the whole approval being rolled back over a
-                    // linking problem the Dean/Admin can fix later.
                     try {
                         $fullProfileStmt = $pdo->prepare("SELECT * FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
                         $fullProfileStmt->execute([':user_id' => $userId]);
@@ -144,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     ':birthdate'            => !empty($fp['birthdate']) ? $fp['birthdate'] : null,
                                     ':sex'                  => !empty($fp['sex']) ? strtolower($fp['sex']) : null,
                                     ':phone'                => $fp['phone'] ?? null,
-                                    ':email'                => $fp['email'] ?? null,
+                                    ':email'                => $facultyEmail,
                                     ':department_id'        => $departmentId,
                                     ':position'             => $fp['position'] ?? null,
                                     ':employment_status'    => $fp['employment_status'] ?: 'Probationary',
@@ -154,19 +141,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
                     } catch (Throwable $linkError) {
-                        // Don't let a linking hiccup block the approval itself.
                         error_log('Auto-link faculty record on approval failed for user_id=' . $userId . ': ' . $linkError->getMessage());
                     }
 
                     $pdo->commit();
-                    $message = "Account successfully approved! Default password set to: " . htmlspecialchars($defaultPassword);
-                    $messageType = "success";
+
+                    // 6. Send notification email using Resend API via cURL
+                    if (!empty($facultyEmail)) {
+                        $mailSubject = "Your Faculty Account Has Been Approved";
+                        $loginUrl = BASE_URL . "/login.php"; 
+                        
+                        $mailMessage = "
+                        <html>
+                        <head>
+                            <style>
+                                body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+                                .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9; }
+                                .header { background: #0d6efd; color: #fff; padding: 10px 20px; border-radius: 6px 6px 0 0; text-align: center; }
+                                .content { padding: 20px; background: #fff; border-radius: 0 0 6px 6px; }
+                                .credentials { background: #f1f3f5; padding: 15px; border-left: 4px solid #0d6efd; margin: 15px 0; border-radius: 4px; }
+                                .btn { display: inline-block; padding: 10px 20px; background: #198754; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class='container'>
+                                <div class='header'>
+                                    <h2>Account Approved</h2>
+                                </div>
+                                <div class='content'>
+                                    <p>Hello <strong>" . htmlspecialchars($fullName) . "</strong>,</p>
+                                    <p>Your faculty account request has been officially reviewed and <strong>approved</strong> by the administrator.</p>
+                                    <p>You can now log in to the system using your credentials below:</p>
+                                    
+                                    <div class='credentials'>
+                                        <p style='margin: 5px 0;'><strong>Email / Username:</strong> " . htmlspecialchars($facultyEmail) . "</p>
+                                        <p style='margin: 5px 0;'><strong>Temporary Password:</strong> <span style='font-family: monospace; background: #e9ecef; padding: 2px 6px; border-radius: 3px;'>" . htmlspecialchars($defaultPassword) . "</span></p>
+                                    </div>
+                                    
+                                    <p><em>Note: For security reasons, you will be required to change your password immediately upon your first login.</em></p>
+                                    
+                                    <a href='" . $loginUrl . "' class='btn'>Login to Your Account</a>
+                                </div>
+                            </div>
+                        </body>
+                        </html>
+                        ";
+
+                        $apiKey = 're_R9zrMDPh_GVyTGtVrbwGcroz9YcXLH0Jz'; 
+                        $apiUrl = 'https://api.resend.com/emails';
+
+                        $payload = [
+                            'from'    => 'No Reply - Bestlink College <onboarding@resend.dev>',
+                            'to'      => [$facultyEmail], 
+                            'subject' => $mailSubject,
+                            'html'    => $mailMessage
+                        ];
+
+                        $ch = curl_init($apiUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Authorization: Bearer ' . $apiKey,
+                            'Content-Type: application/json'
+                        ]);
+
+                        $response = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        $curlError = curl_error($ch);
+                        curl_close($ch);
+
+                        if ($httpCode >= 200 && $httpCode < 300) {
+                            $message = "Account successfully approved! Notification email sent to " . htmlspecialchars($facultyEmail) . " with temporary password: " . htmlspecialchars($defaultPassword);
+                            $messageType = "success";
+                        } else {
+                            error_log("Resend API Error (HTTP $httpCode): " . $response . " | cURL Error: " . $curlError);
+                            $message = "Account approved, but email failed. Resend API response: " . htmlspecialchars($response);
+                            $messageType = "warning";
+                        }
+                    }
 
                 } elseif ($action === 'reject') {
-                    // Reject account and update profile status - same fix
-                    // as approve: request_status must move to 'rejected'
-                    // alongside profile_status, or it's left stuck on
-                    // 'pending' even though the account itself is rejected.
                     $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'rejected' WHERE id = :user_id");
                     $stmt1->execute([':user_id' => $userId]);
 
@@ -414,19 +469,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                             <i class="fas fa-eye"></i>
                                         </button>
 
-                                        <!-- Approve and Reject Actions -->
-                                        <form method="post" class="d-inline-flex gap-1">
-                                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-                                            <input type="hidden" name="user_id" value="<?= htmlspecialchars($row['auth_user_id']) ?>">
-                                            
-                                            <button type="submit" name="action" value="approve" class="btn btn-sm btn-success rounded-3 fw-bold px-2" title="Approve">
-                                                <i class="fas fa-check"></i><span class="d-none d-sm-inline ms-1"> Approve</span>
-                                            </button>
-                                            
-                                            <button type="submit" name="action" value="reject" class="btn btn-sm btn-outline-danger rounded-3 fw-bold px-2" onclick="return confirm('Are you sure you want to reject this account request?');" title="Reject">
-                                                <i class="fas fa-times"></i><span class="d-none d-sm-inline ms-1"> Reject</span>
-                                            </button>
-                                        </form>
+                                        <!-- Approve and Reject Trigger Buttons -->
+                                        <button type="button" class="btn btn-sm btn-success rounded-3 fw-bold px-2" onclick="openActionModal('approve', '<?= (int)$row['auth_user_id'] ?>', '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>')" title="Approve">
+                                            <i class="fas fa-check"></i><span class="d-none d-sm-inline ms-1"> Approve</span>
+                                        </button>
+                                        
+                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-3 fw-bold px-2" onclick="openActionModal('reject', '<?= (int)$row['auth_user_id'] ?>', '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>')" title="Reject">
+                                            <i class="fas fa-times"></i><span class="d-none d-sm-inline ms-1"> Reject</span>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -441,7 +491,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <!-- Details Review Modal -->
 <div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 rounded-4 shadow">
+        <div class="modal-content border-0 rounded-4 shadow bg-body text-body">
             <div class="modal-header border-bottom border-light-subtle py-3 px-4">
                 <h5 class="modal-title fw-bold fs-6"><i class="fas fa-user-shield text-warning me-2"></i>Review Account Request</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -484,14 +534,42 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-between flex-wrap gap-2">
                 <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">Close</button>
-                <form method="post" id="modalActionForm" class="d-inline-flex gap-2 w-100 w-sm-auto justify-content-end">
-                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-                    <input type="hidden" name="user_id" id="modalUserId" value="">
-                    <button type="submit" name="action" value="reject" class="btn btn-outline-danger btn-sm rounded-3 fw-bold flex-fill flex-sm-grow-0" onclick="return confirm('Reject this account request?');">
+                <div class="d-inline-flex gap-2 w-100 w-sm-auto justify-content-end">
+                    <input type="hidden" id="modalUserId" value="">
+                    <button type="button" class="btn btn-outline-danger btn-sm rounded-3 fw-bold flex-fill flex-sm-grow-0" onclick="openActionModal('reject', document.getElementById('modalUserId').value, document.getElementById('modalFullName').textContent)">
                         <i class="fas fa-times me-1"></i> Reject Request
                     </button>
-                    <button type="submit" name="action" value="approve" class="btn btn-success btn-sm rounded-3 fw-bold px-3 flex-fill flex-sm-grow-0">
+                    <button type="button" class="btn btn-success btn-sm rounded-3 fw-bold px-3 flex-fill flex-sm-grow-0" onclick="openActionModal('approve', document.getElementById('modalUserId').value, document.getElementById('modalFullName').textContent)">
                         <i class="fas fa-check me-1"></i> Approve & Activate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dynamic Action Confirmation Dialog Modal -->
+<div class="modal fade" id="actionConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow bg-body text-body">
+            <div class="modal-header border-bottom border-light-subtle py-3 px-4">
+                <h5 class="modal-title fw-bold fs-6 d-flex align-items-center gap-2" id="confirmModalTitle">
+                    <i id="confirmModalIcon" class="fas fa-check-circle text-success"></i>
+                    <span id="confirmModalHeading">Confirm Action</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 fs-7">
+                <p class="mb-0" id="confirmModalMessage">Are you sure you want to perform this action?</p>
+            </div>
+            <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" id="confirmActionForm" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                    <input type="hidden" name="user_id" id="confirmUserId" value="">
+                    <input type="hidden" name="action" id="confirmActionInput" value="">
+                    <button type="submit" id="confirmSubmitBtn" class="btn btn-success btn-sm rounded-3 fw-bold px-3">
+                        <i class="fas fa-check me-1"></i> Confirm
                     </button>
                 </form>
             </div>
@@ -527,6 +605,49 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         if (modalEl && window.bootstrap && bootstrap.Modal) {
             bootstrap.Modal.getOrCreateInstance(modalEl).show();
         }
+    }
+
+    function openActionModal(action, userId, userName) {
+        document.getElementById('confirmUserId').value = userId;
+        document.getElementById('confirmActionInput').value = action;
+
+        const titleEl = document.getElementById('confirmModalHeading');
+        const iconEl = document.getElementById('confirmModalIcon');
+        const msgEl = document.getElementById('confirmModalMessage');
+        const submitBtn = document.getElementById('confirmSubmitBtn');
+
+        if (action === 'approve') {
+            titleEl.textContent = 'Approve Account Request';
+            iconEl.className = 'fas fa-user-check text-success';
+            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account, generate a temporary password, and email their login details.`;
+            submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
+            submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Yes, Approve';
+        } else {
+            titleEl.textContent = 'Reject Account Request';
+            iconEl.className = 'fas fa-user-times text-danger';
+            msgEl.innerHTML = `Are you sure you want to reject the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>?`;
+            submitBtn.className = 'btn btn-danger btn-sm rounded-3 fw-bold px-3';
+            submitBtn.innerHTML = '<i class="fas fa-times me-1"></i> Yes, Reject';
+        }
+
+        // Hide review details modal if open
+        const reviewModalEl = document.getElementById('reviewModal');
+        if (reviewModalEl) {
+            const reviewModal = bootstrap.Modal.getInstance(reviewModalEl);
+            if (reviewModal) {
+                reviewModal.hide();
+            }
+        }
+
+        // Show confirmation dialog modal
+        const confirmModalEl = document.getElementById('actionConfirmModal');
+        if (confirmModalEl && window.bootstrap && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance(confirmModalEl).show();
+        }
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 </script>
 
