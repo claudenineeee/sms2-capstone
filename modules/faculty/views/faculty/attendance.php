@@ -19,13 +19,97 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
+<?php
+// =====================================================================
+// CRITICAL FIX: Resolve the correct faculty_profiles.id for the logged-in user
+// =====================================================================
+require_once __DIR__ . '/../../models/AttendanceModel.php';
+
+$currentFacultyId = null;
+
+// 1. Check if session already has faculty_profile_id (most direct)
+if (!empty($_SESSION['user']['faculty_profile_id'])) {
+    $currentFacultyId = $_SESSION['user']['faculty_profile_id'];
+} 
+// 2. Check if session has faculty_id
+elseif (!empty($_SESSION['user']['faculty_id'])) {
+    $currentFacultyId = $_SESSION['user']['faculty_id'];
+}
+// 3. If not found, look it up using the system user ID from the session
+else {
+    $systemUserId = $_SESSION['user_id'] ?? $_SESSION['user']['id'] ?? null;
+    if ($systemUserId) {
+        try {
+            // We assume there is a connection to the database available
+            // We query faculty_profiles to find the matching profile ID using the system user_id
+            $stmt = db()->prepare("SELECT id FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
+            $stmt->execute([':user_id' => $systemUserId]);
+            $currentFacultyId = $stmt->fetchColumn();
+        } catch (Throwable $e) {
+            error_log('Failed to fetch faculty profile ID: ' . $e->getMessage());
+        }
+    }
+}
+
+$myAttendanceRecords = [];
+$myStats = [
+    'days_present' => 0,
+    'days_absent' => 0,
+    'total_logs' => 0
+];
+
+if ($currentFacultyId) {
+    $attendanceModel = new AttendanceModel(db());
+    
+    try {
+        // Fetch the actual records saved by the Monitoring Officer
+        $myAttendanceRecords = $attendanceModel->getFacultyAttendanceRecords($currentFacultyId, 15);
+        
+        // Calculate simple stats based on the fetched records
+        foreach ($myAttendanceRecords as $rec) {
+            $myStats['total_logs']++;
+            if ($rec['status'] === 'Present') {
+                $myStats['days_present']++;
+            } elseif ($rec['status'] === 'Absent') {
+                $myStats['days_absent']++;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('Faculty attendance fetch failed: ' . $e->getMessage());
+    }
+}
+
+// Compute attendance rate (if there are any logs)
+$attendanceRate = ($myStats['total_logs'] > 0) 
+    ? round(($myStats['days_present'] / $myStats['total_logs']) * 100) 
+    : 0;
+
+// Prepare unique dates for the left table
+$uniqueDates = [];
+foreach ($myAttendanceRecords as $rec) {
+    $dateKey = $rec['session_date'];
+    if (!isset($uniqueDates[$dateKey])) {
+        $dateObj = new DateTime($dateKey);
+        $uniqueDates[$dateKey] = [
+            'date' => $dateObj->format('M d, Y'),
+            'day' => $dateObj->format('l'),
+            'active' => false
+        ];
+    }
+}
+$uniqueDates = array_values($uniqueDates);
+if (empty($uniqueDates)) {
+    $uniqueDates[] = ['date' => date('M d, Y'), 'day' => date('l'), 'active' => true];
+}
+?>
+
 <!-- Page Header -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
     <div>
         <h1 class="h3 fw-bold mb-1">
-            <i class="fas fa-user-check text-primary me-2"></i>Faculty Attendance
+            <i class="fas fa-user-check text-primary me-2"></i>My Attendance
         </h1>
-        <p class="text-body-secondary mb-0">Track and manage your daily check-in logs and teaching hours</p>
+        <p class="text-body-secondary mb-0">Track your daily check-in logs and teaching hours recorded by the Monitoring Officer</p>
     </div>    
 </div>
 
@@ -39,8 +123,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <i class="fas fa-percentage"></i>
                 </div>
                 <div>
+                    <!-- Dynamic attendance rate -->
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Attendance Rate</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #28a745;">92% <small class="text-muted fs-6">this mo.</small></h4>
+                    <h4 class="mb-0 fw-bold" style="color: #28a745;"><?= $attendanceRate ?>% <small class="text-muted fs-6">overall</small></h4>
                 </div>
             </div>
         </section>
@@ -54,8 +139,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div>
+                    <!-- Dynamic days present -->
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Days Present</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;">18 <small class="text-muted fs-6">days</small></h4>
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= $myStats['days_present'] ?> <small class="text-muted fs-6">days</small></h4>
                 </div>
             </div>
         </section>
@@ -69,8 +155,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <i class="fas fa-clock"></i>
                 </div>
                 <div>
-                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Late Arrivals</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #ffc107;">2 <small class="text-muted fs-6">times</small></h4>
+                    <!-- Dynamic days absent -->
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Absences</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #ffc107;"><?= $myStats['days_absent'] ?> <small class="text-muted fs-6">days</small></h4>
                 </div>
             </div>
         </section>
@@ -84,8 +171,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <i class="fas fa-user-times"></i>
                 </div>
                 <div>
-                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Absences</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #ff4d4d;">1 <small class="text-muted fs-6">day</small></h4>
+                    <!-- Dynamic total records -->
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Logs</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #ff4d4d;"><?= $myStats['total_logs'] ?> <small class="text-muted fs-6">entries</small></h4>
                 </div>
             </div>
         </section>
@@ -94,7 +182,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <!-- Side-by-Side Section: Date Selector & Teacher Subject Attendance -->
 <div class="row g-4 mb-4">
-    <!-- Left Table: Date Selection with Week/Month Filters -->
+    <!-- Left Table: Date Selection -->
     <div class="col-12 col-lg-5 col-xl-4">
         <div class="card border-0 shadow-sm rounded-3 h-100">
             <div class="card-header bg-transparent py-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -119,23 +207,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php
-                            $dates = [
-                                ['date' => 'Aug 01, 2025', 'day' => 'Friday', 'active' => true],
-                                ['date' => 'Jul 31, 2025', 'day' => 'Thursday', 'active' => false],
-                                ['date' => 'Jul 30, 2025', 'day' => 'Wednesday', 'active' => false],
-                                ['date' => 'Jul 29, 2025', 'day' => 'Tuesday', 'active' => false],
-                                ['date' => 'Jul 28, 2025', 'day' => 'Monday', 'active' => false],
-                                ['date' => 'Jul 25, 2025', 'day' => 'Friday', 'active' => false],
-                            ];
-                            foreach ($dates as $d): 
-                                $activeClass = $d['active'] ? 'table-active' : '';
+                            <?php foreach ($uniqueDates as $index => $d): 
+                                $activeClass = $index === 0 ? 'table-active' : '';
                             ?>
                                 <tr class="<?= $activeClass ?>" style="cursor: pointer;">
                                     <td class="ps-3 fw-medium small text-nowrap"><?= $d['date'] ?></td>
                                     <td class="small text-body-secondary text-nowrap"><?= $d['day'] ?></td>
                                     <td class="text-end pe-3 text-nowrap">
-                                        <?php if ($d['active']): ?>
+                                        <?php if ($index === 0): ?>
                                             <span class="badge bg-primary rounded-pill">Selected</span>
                                         <?php else: ?>
                                             <button class="btn btn-xs btn-outline-secondary py-0 px-2 style-tiny" style="font-size:0.75rem;">View</button>
@@ -150,15 +229,15 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- Right Table: Teacher Class & Subject Attendance Logs -->
+    <!-- Right Table: My Attendance Logs (Saved by Monitoring Officer) -->
     <div class="col-12 col-lg-7 col-xl-8">
         <div class="card border-0 shadow-sm rounded-3 h-100">
             <div class="card-header bg-transparent py-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
                 <h6 class="mb-0 fw-semibold text-primary">
-                    <i class="fas fa-chalkboard-teacher me-2"></i>Class Schedule & Status — <span class="text-body-emphasis text-nowrap">Aug 01, 2025</span>
+                    <i class="fas fa-chalkboard-teacher me-2"></i>My Attendance Log
                 </h6>
-                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 px-sm-3 py-1 rounded-pill small text-nowrap">
-                    <i class="fas fa-check-circle me-1"></i>2 Present / 0 Absent
+                <span class="badge <?= ($myStats['days_present'] > 0) ? 'bg-success bg-opacity-10 text-success border border-success border-opacity-25' : 'bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25' ?> px-2 px-sm-3 py-1 rounded-pill small text-nowrap">
+                    <i class="fas fa-check-circle me-1"></i><?= $myStats['days_present'] ?> Present / <?= $myStats['days_absent'] ?> Absent
                 </span>
             </div>
             <div class="card-body p-0">
@@ -166,124 +245,51 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light sticky-top">
                             <tr>
-                                <th class="ps-3 text-body-secondary fw-semibold small text-nowrap">Time</th>
+                                <th class="ps-3 text-body-secondary fw-semibold small text-nowrap">Date & Time</th>
                                 <th class="text-body-secondary fw-semibold small">Subject</th>
                                 <th class="text-body-secondary fw-semibold small text-nowrap">Room</th>
                                 <th class="pe-3 text-body-secondary fw-semibold small text-end text-nowrap">Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php
-                            $classes = [
-                                ['time' => '08:00 - 09:30 AM', 'code' => 'CS101', 'subject' => 'Intro to Computer Science', 'room' => 'Room 201', 'status' => 'Present'],
-                                ['time' => '09:30 - 11:00 AM', 'code' => 'CS401', 'subject' => 'Software Engineering', 'room' => 'Room 203', 'status' => 'Present'],
-                                ['time' => '01:00 - 03:00 PM', 'code' => 'CS301', 'subject' => 'Design & Analysis of Algorithms', 'room' => 'Room 301', 'status' => 'Upcoming'],
-                            ];
-                            foreach ($classes as $c):
-                                $statusBadge = match($c['status']) {
-                                    'Present' => 'bg-success bg-opacity-10 text-success border-success',
-                                    'Absent'  => 'bg-danger bg-opacity-10 text-danger border-danger',
-                                    default   => 'bg-secondary bg-opacity-10 text-secondary border-secondary'
-                                };
-                            ?>
+                            <?php if (empty($myAttendanceRecords)): ?>
                                 <tr>
-                                    <td class="ps-3 font-monospace small fw-medium text-body-secondary text-nowrap"><?= $c['time'] ?></td>
-                                    <td style="min-width: 160px;">
-                                        <div class="fw-bold text-body small text-truncate" style="max-width: 220px;"><?= $c['code'] ?></div>
-                                        <div class="text-body-secondary style-tiny text-truncate" style="font-size:0.75rem; max-width: 220px;"><?= $c['subject'] ?></div>
-                                    </td>
-                                    <td class="small text-nowrap">
-                                        <i class="fas fa-map-marker-alt me-1 text-primary"></i><?= $c['room'] ?>
-                                    </td>
-                                    <td class="pe-3 text-end text-nowrap">
-                                        <span class="badge border border-opacity-25 rounded-pill px-2 px-sm-3 py-1 <?= $statusBadge ?>">
-                                            <?= $c['status'] ?>
-                                        </span>
-                                    </td>
+                                    <td colspan="4" class="text-center text-muted py-4">No attendance records found yet. Please check back after your Monitoring Officer logs your first session.</td>
                                 </tr>
-                            <?php endforeach; ?>
+                            <?php else: ?>
+                                <?php foreach ($myAttendanceRecords as $c): 
+                                    $timeDisplay = $c['time_slot']; 
+                                    $dateDisplay = date('M d, Y', strtotime($c['session_date']));
+                                    
+                                    $statusBadge = match($c['status']) {
+                                        'Present' => 'bg-success bg-opacity-10 text-success border-success',
+                                        'Absent'  => 'bg-danger bg-opacity-10 text-danger border-danger',
+                                        default   => 'bg-secondary bg-opacity-10 text-secondary border-secondary'
+                                    };
+                                ?>
+                                    <tr>
+                                        <td class="ps-3 font-monospace small fw-medium text-body-secondary text-nowrap">
+                                            <?= htmlspecialchars($dateDisplay) ?>
+                                            <small class="d-block text-muted"><?= htmlspecialchars($timeDisplay) ?></small>
+                                        </td>
+                                        <td style="min-width: 160px;">
+                                            <div class="fw-bold text-body small text-truncate" style="max-width: 220px;"><?= htmlspecialchars($c['subject_code'] ?? 'N/A') ?></div>
+                                        </td>
+                                        <td class="small text-nowrap">
+                                            <i class="fas fa-map-marker-alt me-1 text-primary"></i><?= htmlspecialchars($c['room_code'] ?? 'N/A') ?>
+                                        </td>
+                                        <td class="pe-3 text-end text-nowrap">
+                                            <span class="badge border border-opacity-25 rounded-pill px-2 px-sm-3 py-1 <?= $statusBadge ?>">
+                                                <?= htmlspecialchars($c['status']) ?>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- Check-in Modal with Canvas Signature -->
-<div class="modal fade" id="checkInModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title fw-semibold fs-6">
-                    <i class="fas fa-file-signature me-2"></i>Faculty Check-In Confirmation
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="checkInForm" onsubmit="handleCheckIn(event)">
-                <div class="modal-body p-3 p-sm-4">
-                    <div class="text-center mb-3">
-                        <span class="text-body-secondary small d-block">Current Time</span>
-                        <h2 class="fw-bold text-success mb-0" id="checkInTime">--:--</h2>
-                    </div>
-
-                    <div class="alert bg-success bg-opacity-10 border border-success border-opacity-25 text-success rounded-3 small mb-3">
-                        <i class="fas fa-info-circle me-1"></i> Logged in as Faculty. Please sign below to verify your check-in.
-                    </div>
-
-                    <!-- Signature Pad Area -->
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label class="form-label small text-body-secondary fw-semibold mb-0">Faculty Confirmation Signature</label>
-                            <button type="button" class="btn btn-link btn-sm text-decoration-none p-0" onclick="clearSignature()">Clear</button>
-                        </div>
-                        <div class="border rounded-3 bg-light overflow-hidden position-relative" style="height: 150px;">
-                            <canvas id="signatureCanvas" class="w-100 h-100" style="cursor: crosshair; touch-action: none;"></canvas>
-                        </div>
-                        <input type="hidden" id="signatureData" name="signature" required>
-                        <div class="invalid-feedback small">Please provide a signature before confirming.</div>
-                    </div>
-
-                    <div class="mb-0">
-                        <label for="checkInNotes" class="form-label small text-body-secondary fw-semibold">Notes / Remarks <small class="text-muted fw-normal">(Optional)</small></label>
-                        <input type="text" class="form-control form-control-sm" id="checkInNotes" placeholder="e.g., Early arrival for lab setup">
-                    </div>
-                </div>
-                <div class="modal-footer bg-light px-3 px-sm-4 py-3">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success px-4">Confirm Check In</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Check-out Modal -->
-<div class="modal fade" id="checkOutModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title fw-semibold fs-6">
-                    <i class="fas fa-sign-out-alt me-2"></i>Faculty Check-Out Confirmation
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form onsubmit="handleCheckOut(event)">
-                <div class="modal-body p-3 p-sm-4">
-                    <div class="text-center mb-3">
-                        <span class="text-body-secondary small d-block">Current Time</span>
-                        <h2 class="fw-bold text-warning-emphasis mb-0" id="checkOutTime">--:--</h2>
-                    </div>
-
-                    <div class="alert bg-warning bg-opacity-10 border border-warning border-opacity-25 text-warning-emphasis rounded-3 small mb-0">
-                        <i class="fas fa-exclamation-triangle me-1"></i> Are you sure you want to log out for the day?
-                    </div>
-                </div>
-                <div class="modal-footer bg-light px-3 px-sm-4 py-3">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning px-4">Confirm Check Out</button>
-                </div>
-            </form>
         </div>
     </div>
 </div>
@@ -319,116 +325,5 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         background-color: rgba(13, 110, 253, 0.3);
     }
 </style>
-
-<script>
-let canvas, ctx;
-let isDrawing = false;
-let isSigned = false;
-
-function initSignatureCanvas() {
-    canvas = document.getElementById('signatureCanvas');
-    if (!canvas) return;
-    
-    ctx = canvas.getContext('2d');
-    
-    // Resize canvas internal buffer to fit displayed element size
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
-    
-    ctx.strokeStyle = "#0d6efd";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-
-    // Mouse Events
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseleave', stopDrawing);
-
-    // Touch Events for Mobile / Tablets
-    canvas.addEventListener('touchstart', (e) => {
-        const touch = e.touches[0];
-        const rect = canvas.getBoundingClientRect();
-        startDrawing({ clientX: touch.clientX, clientY: touch.clientY, rect });
-    }, { passive: true });
-
-    canvas.addEventListener('touchmove', (e) => {
-        const touch = e.touches[0];
-        const rect = canvas.getBoundingClientRect();
-        draw({ clientX: touch.clientX, clientY: touch.clientY, rect });
-    }, { passive: true });
-
-    canvas.addEventListener('touchend', stopDrawing);
-}
-
-function startDrawing(e) {
-    isDrawing = true;
-    const rect = e.rect || canvas.getBoundingClientRect();
-    ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-}
-
-function draw(e) {
-    if (!isDrawing) return;
-    isSigned = true;
-    const rect = e.rect || canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-    ctx.stroke();
-}
-
-function stopDrawing() {
-    if (isDrawing) {
-        isDrawing = false;
-        if (isSigned) {
-            document.getElementById('signatureData').value = canvas.toDataURL();
-        }
-    }
-}
-
-function clearSignature() {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    document.getElementById('signatureData').value = '';
-    isSigned = false;
-}
-
-function checkIn() {
-    const modalEl = document.getElementById('checkInModal');
-    const modal = new bootstrap.Modal(modalEl);
-    document.getElementById('checkInTime').textContent = new Date().toLocaleTimeString();
-    
-    modalEl.addEventListener('shown.bs.modal', function () {
-        initSignatureCanvas();
-        clearSignature();
-    }, { once: true });
-
-    modal.show();
-}
-
-function checkOut() {
-    const modal = new bootstrap.Modal(document.getElementById('checkOutModal'));
-    document.getElementById('checkOutTime').textContent = new Date().toLocaleTimeString();
-    modal.show();
-}
-
-function handleCheckIn(event) {
-    event.preventDefault();
-    if (!isSigned) {
-        alert("Please provide a signature before confirming check-in.");
-        return;
-    }
-    const signatureImageBase64 = document.getElementById('signatureData').value;
-    console.log("Submitted Base64 Signature:", signatureImageBase64);
-    
-    // Insert backend AJAX or form submission here
-    bootstrap.Modal.getInstance(document.getElementById('checkInModal')).hide();
-}
-
-function handleCheckOut(event) {
-    event.preventDefault();
-    // Insert backend AJAX or form submission here
-    bootstrap.Modal.getInstance(document.getElementById('checkOutModal')).hide();
-}
-</script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

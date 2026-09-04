@@ -7,6 +7,150 @@ require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 
+// =====================================================================
+// NEW LOGIC: Fetch Department Head's Dept and Attendance Data
+// =====================================================================
+require_once __DIR__ . '/../../models/AttendanceModel.php';
+$attendanceModel = new AttendanceModel(db());
+
+// 1. Identify Department Head's Department Name
+$currentUserId = $_SESSION['user_id'] ?? $_SESSION['id'] ?? 0;
+$deptHeadDept  = null;
+
+if ($currentUserId) {
+    try {
+        $stmt = db()->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
+        $stmt->execute(['uid' => $currentUserId, 'id' => $currentUserId]);
+        $row = $stmt->fetch();
+        if ($row) {
+            $deptHeadDept = trim($row['designated_department'] ?? '');
+        }
+    } catch (Throwable $e) {
+        $deptHeadDept = null;
+    }
+}
+
+if (empty($deptHeadDept)) {
+    $deptHeadDept = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? '');
+}
+
+// 2. Find the numeric Department ID (since attendance saves with INT department_id)
+$deptId = 1; // Default fallback
+if (!empty($deptHeadDept)) {
+    try {
+        $stmt = db()->prepare("SELECT department_id FROM faculty_db.departments WHERE code = :code OR name = :name LIMIT 1");
+        $stmt->execute(['code' => $deptHeadDept, 'name' => $deptHeadDept]);
+        $fetchedDeptId = $stmt->fetchColumn();
+        if ($fetchedDeptId) {
+            $deptId = (int) $fetchedDeptId;
+        }
+    } catch (Throwable $e) {
+        $deptId = 1;
+    }
+}
+
+// Filter parameters
+$selectedPeriod = $_GET['period'] ?? '7days';
+$selectedMonth  = $_GET['month'] ?? date('Y-m');
+
+// 3. Fetch Faculty in this department (Passing the NAME for the query, since that's what it uses)
+$facultyInDept = $attendanceModel->getFacultyByDepartment($deptHeadDept ?? '1') ?? [];
+
+// 4. Build Summary Metrics based on period
+$summaryMetrics = [
+    'today_present'   => 0,
+    'today_total'     => 0,
+    'today_percentage'=> 0,
+    'weekly_present'  => 0,
+    'weekly_total'    => 0,
+    'weekly_percentage'=> 0,
+    'monthly_present' => 0,
+    'monthly_total'   => 0,
+    'monthly_percentage'=> 0
+];
+
+// Fetch logs based on periods
+$today = date('Y-m-d');
+$weekStart = date('Y-m-d', strtotime('-7 days'));
+$monthStart = date('Y-m-01');
+
+foreach ($facultyInDept as $fac) {
+    $facId = $fac['id'];
+    
+    // Today's Logs
+    $todayLogs = $attendanceModel->getSessionsForFaculty($facId, $today, $today) ?? [];
+    foreach ($todayLogs as $log) {
+        $summaryMetrics['today_total']++;
+        if ($log['status'] === 'Present') $summaryMetrics['today_present']++;
+    }
+    
+    // Weekly Logs
+    $weekLogs = $attendanceModel->getSessionsForFaculty($facId, $weekStart, $today) ?? [];
+    foreach ($weekLogs as $log) {
+        $summaryMetrics['weekly_total']++;
+        if ($log['status'] === 'Present') $summaryMetrics['weekly_present']++;
+    }
+    
+    // Monthly Logs
+    $monthLogs = $attendanceModel->getSessionsForFaculty($facId, $monthStart, $today) ?? [];
+    foreach ($monthLogs as $log) {
+        $summaryMetrics['monthly_total']++;
+        if ($log['status'] === 'Present') $summaryMetrics['monthly_present']++;
+    }
+}
+
+// Calculate Percentages
+$summaryMetrics['today_percentage'] = $summaryMetrics['today_total'] > 0 ? ($summaryMetrics['today_present'] / $summaryMetrics['today_total']) * 100 : 0;
+$summaryMetrics['weekly_percentage'] = $summaryMetrics['weekly_total'] > 0 ? ($summaryMetrics['weekly_present'] / $summaryMetrics['weekly_total']) * 100 : 0;
+$summaryMetrics['monthly_percentage'] = $summaryMetrics['monthly_total'] > 0 ? ($summaryMetrics['monthly_present'] / $summaryMetrics['monthly_total']) * 100 : 0;
+
+// 5. Build Faculty Summaries for the table
+$facultySummaries = [];
+
+// Determine Date Range based on selected period
+$dateRangeStart = $today;
+$dateRangeEnd = $today;
+
+if ($selectedPeriod === '7days') {
+    $dateRangeStart = $weekStart;
+} elseif ($selectedPeriod === 'monthly') {
+    $dateRangeStart = $monthStart;
+    $dateRangeEnd = date('Y-m-t');
+}
+
+foreach ($facultyInDept as $fac) {
+    $fullName = htmlspecialchars($fac['first_name'] . ' ' . $fac['last_name']);
+    
+    // Use the model to fetch actual saved records
+    $logs = $attendanceModel->getSessionsForFaculty($fac['id'], $dateRangeStart, $dateRangeEnd) ?? [];
+    
+    $present = 0;
+    $absent = 0;
+    $late = 0;
+    
+    foreach ($logs as $log) {
+        if ($log['status'] === 'Present') {
+            $present++;
+        } elseif ($log['status'] === 'Absent') {
+            $absent++;
+        } elseif ($log['status'] === 'Late') {
+            $late++;
+        }
+    }
+    
+    $total = count($logs);
+    $rate = $total > 0 ? ($present / $total) * 100 : 0;
+    
+    $facultySummaries[] = [
+        'name' => $fullName,
+        'total_classes' => $total,
+        'present_count' => $present,
+        'late_count' => $late,
+        'absent_count' => $absent,
+        'rate' => $rate
+    ];
+}
+
 $pageTitle    = 'Attendance Reports & Analytics';
 $activeModule = 'faculty';
 $activePage   = 'attendance-summary';
@@ -18,10 +162,6 @@ $breadcrumbs  = [
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php'; 
-
-// Filter parameters
-$selectedPeriod = $_GET['period'] ?? '7days';
-$selectedMonth  = $_GET['month'] ?? date('Y-m');
 ?>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
@@ -48,7 +188,7 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
 
 <!-- Stat Cards -->
 <div class="row g-3 mb-4">
-    <!-- Today's Rate Card (Primary) -->
+    <!-- Today's Rate Card -->
     <div class="col-12 col-md-4">
         <section class="card stat-card primary border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -57,19 +197,20 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Today's Rate</h6>
+<<<<<<< HEAD
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'], 1) ?>%</h4>
+=======
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'] ?? 0, 1) ?>%</h4>
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
-                        <?= $summaryMetrics['today_present'] ?? 0 ?> Present / <?= $summaryMetrics['today_total'] ?? 0 ?> Scheduled
+                        <?= $summaryMetrics['today_present'] ?> Present / <?= $summaryMetrics['today_total'] ?> Scheduled
                     </small>
                 </div>
             </div>
-            <a href="javascript:void(0)" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
-                <i class="fas fa-arrow-up-right-from-square"></i>
-            </a>
         </section>
     </div>
 
-    <!-- 7-Day Average Card (Info) -->
+    <!-- 7-Day Average Card -->
     <div class="col-12 col-md-4">
         <section class="card stat-card info border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -78,19 +219,20 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">7-Day Average</h6>
+<<<<<<< HEAD
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'], 1) ?>%</h4>
+=======
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'] ?? 0, 1) ?>%</h4>
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
-                        <?= $summaryMetrics['weekly_present'] ?? 0 ?> Present / <?= $summaryMetrics['weekly_total'] ?? 0 ?> Total Classes
+                        <?= $summaryMetrics['weekly_present'] ?> Present / <?= $summaryMetrics['weekly_total'] ?> Total Classes
                     </small>
                 </div>
             </div>
-            <a href="javascript:void(0)" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
-                <i class="fas fa-arrow-up-right-from-square"></i>
-            </a>
         </section>
     </div>
 
-    <!-- Monthly Attendance Card (Success) -->
+    <!-- Monthly Attendance Card -->
     <div class="col-12 col-md-4">
         <section class="card stat-card success border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -99,15 +241,16 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Monthly Rate (<?= date('M Y', strtotime($selectedMonth)) ?>)</h6>
+<<<<<<< HEAD
+                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'], 1) ?>%</h4>
+=======
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'] ?? 0, 1) ?>%</h4>
+>>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
-                        <?= $summaryMetrics['monthly_present'] ?? 0 ?> Present / <?= $summaryMetrics['monthly_total'] ?? 0 ?> Total Classes
+                        <?= $summaryMetrics['monthly_present'] ?> Present / <?= $summaryMetrics['monthly_total'] ?> Total Classes
                     </small>
                 </div>
             </div>
-            <a href="javascript:void(0)" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
-                <i class="fas fa-arrow-up-right-from-square"></i>
-            </a>
         </section>
     </div>
 </div>
@@ -147,7 +290,7 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
                 Faculty Attendance Breakdown
             </h6>
             <span class="badge bg-secondary-subtle text-secondary border rounded-pill">
-                <?= count($facultySummaries ?? []) ?> Faculty
+                <?= count($facultySummaries) ?> Faculty
             </span>
         </div>
     </div>
