@@ -133,7 +133,7 @@ $facultyDeanNavGroups = [
     ],
     'Subject & Attendance' => [
         ['slug' => 'subject-load-tracker', 'href' => BASE_URL . '/modules/faculty/views/dean/subject-load-tracker.php', 'icon' => 'fa-book-open', 'label' => 'Subject Load Tracker'],
-        ['slug' => 'attendance-monitoring', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-monitoring.php', 'icon' => 'fa-user-check', 'label' => 'Attendance Monitoring'],
+        ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-monitoring.php', 'icon' => 'fa-user-check', 'label' => 'Attendance Monitoring'],
     ],
     'Leave' => [
         ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/leave-application-approval.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Application & Approval'],

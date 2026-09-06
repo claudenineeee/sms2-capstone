@@ -18,10 +18,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 // Period filtering parameters
 $period     = $_GET['period'] ?? 'past_week';
 
-// CHANGED: was only ever computing a default past-7-days range regardless
-// of which $period was actually selected — "Today"/"Past Month"/"Current
-// Semester" all silently used the same 7-day window. Now each option
-// computes its own real range.
 switch ($period) {
     case 'today':
         $startDate = date('Y-m-d');
@@ -32,9 +28,6 @@ switch ($period) {
         $endDate   = date('Y-m-d');
         break;
     case 'this_semester':
-        // Best-effort: start of the current calendar year through today.
-        // Swap this for a real academic_terms lookup if you want exact
-        // semester boundaries.
         $startDate = date('Y-01-01');
         $endDate   = date('Y-m-d');
         break;
@@ -49,19 +42,13 @@ switch ($period) {
         break;
 }
 
-// CHANGED: this whole block was hardcoded mock data (4 fake names, fake
-// FAC-00X ids, fake attendance rows). Replaced with the real faculty
-// roster and real saved attendance sessions, same data sources
-// daily-attendance-log.php uses.
-require_once __DIR__ . '/../../../../config/database.php';  // defines db() — same folder as config.php above
-require_once __DIR__ . '/../../controllers/faculty-data.php'; // defines facultyDb()
+require_once __DIR__ . '/../../../../config/database.php';  
+require_once __DIR__ . '/../../controllers/faculty-data.php'; 
 require_once __DIR__ . '/../../controllers/FacultyController.php';
 require_once __DIR__ . '/../../models/AttendanceModel.php';
 
 $facultyController = new FacultyController();
 $facultyListRaw = $facultyController->getDirectoryList();
-// Same position filter as daily-attendance-log.php, so this list matches
-// who actually shows up in that page's dropdown.
 $facultyListRaw = array_filter($facultyListRaw, function ($member) {
     $position = strtolower(trim((string) ($member['position'] ?? '')));
     return $position === 'faculty professor' || $position === 'teacher' || $position === '';
@@ -72,7 +59,7 @@ $attendanceModel = new AttendanceModel(db());
 $facultyList = [];
 $allReportData = [];
 foreach ($facultyListRaw as $member) {
-    $facId = (string) $member['id']; // faculty_profiles.id — matches class_attendance_sessions.faculty_id
+    $facId = (string) $member['id']; 
     $facName = trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? ''));
     $facultyList[] = ['id' => $facId, 'name' => $facName];
 
@@ -85,12 +72,6 @@ foreach ($facultyListRaw as $member) {
             'subject'  => $row['subject_code'] ?? 'N/A',
             'room'     => $row['room_code'] ?? 'N/A',
             'status'   => $row['status'],
-            // CHANGED: original mock showed a fraction like "38/40"
-            // (attended/expected). We only store the actual headcount
-            // (attending_students) — there's no "expected enrollees" number
-            // tracked anywhere in the schema — so this shows the real
-            // saved headcount as a plain number instead of a fabricated
-            // fraction.
             'students' => (string) $row['attending_students'],
         ];
     }, $sessions);
@@ -157,7 +138,7 @@ foreach ($facultyListRaw as $member) {
         
         <!-- Left Table: Simplified Faculty List with Search -->
         <div class="col-12 col-lg-4">
-            <div class="card bg-body-tertiary text-body border-0 shadow-sm rounded-4 h-100">
+            <div class="card bg-body-tertiary text-body border-0 shadow-sm rounded-4 h-100 d-flex flex-column">
                 <div class="card-header bg-transparent border-bottom border-light-subtle p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5 class="fw-bold mb-0 fs-6"><i class="fas fa-users me-2 text-primary"></i>Faculty List</h5>
@@ -171,7 +152,7 @@ foreach ($facultyListRaw as $member) {
                         <input type="text" id="facultySearchInput" class="form-control bg-body text-body border-light-subtle border-start-0 shadow-none fs-7" placeholder="Search faculty name..." onkeyup="filterFacultyList()">
                     </div>
                 </div>
-                <div class="table-responsive">
+                <div class="table-responsive flex-grow-1">
                     <table class="table table-hover align-middle mb-0 fs-7">
                         <thead>
                             <tr class="text-body-secondary border-light-subtle">
@@ -180,30 +161,24 @@ foreach ($facultyListRaw as $member) {
                             </tr>
                         </thead>
                         <tbody id="facultyTableBody">
-                            <?php foreach ($facultyList as $fac): ?>
-                                <tr class="faculty-row">
-                                    <td class="fw-bold text-body faculty-name"><?= $fac['name'] ?></td>
-                                    <td class="text-end text-sm-center">
-                                        <button type="button" class="btn btn-primary btn-sm rounded-3 px-2 px-sm-3" onclick="checkFacultyLogs('<?= $fac['id'] ?>', '<?= addslashes($fac['name']) ?>')">
-                                            <i class="fas fa-clipboard-check me-1"></i> Check
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <tr id="noFacultyFoundRow" class="d-none">
-                                <td colspan="2" class="text-center text-body-secondary py-4">
-                                    <i class="fas fa-search me-1"></i> No matching faculty found.
-                                </td>
-                            </tr>
+                            <!-- Populated dynamically via JS pagination -->
                         </tbody>
                     </table>
+                </div>
+                <div class="card-footer bg-transparent border-top border-light-subtle p-2 d-flex justify-content-between align-items-center">
+                    <small class="text-body-secondary fs-8" id="facultyPaginationInfo">Showing 0-0 of 0</small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="facultyPaginationControls">
+                            <!-- Populated via JS -->
+                        </ul>
+                    </nav>
                 </div>
             </div>
         </div>
 
         <!-- Right Table: Past Attendance Logs -->
         <div class="col-12 col-lg-8">
-            <div class="card bg-body-tertiary text-body border-0 shadow-sm rounded-4 h-100">
+            <div class="card bg-body-tertiary text-body border-0 shadow-sm rounded-4 h-100 d-flex flex-column">
                 <div class="card-header bg-transparent border-bottom border-light-subtle p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h5 class="fw-bold mb-0 fs-6">
                         <i class="fas fa-history me-2 text-primary"></i>Past Attendance Logs 
@@ -211,7 +186,7 @@ foreach ($facultyListRaw as $member) {
                     </h5>
                     <span class="badge bg-primary-subtle text-primary" id="logCountBadge">0 Logs</span>
                 </div>
-                <div class="table-responsive">
+                <div class="table-responsive flex-grow-1">
                     <table class="table table-hover align-middle mb-0 fs-7">
                         <thead>
                             <tr class="text-body-secondary border-light-subtle">
@@ -233,6 +208,14 @@ foreach ($facultyListRaw as $member) {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="card-footer bg-transparent border-top border-light-subtle p-2 d-flex justify-content-between align-items-center">
+                    <small class="text-body-secondary fs-8" id="logsPaginationInfo">Showing 0-0 of 0</small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="logsPaginationControls">
+                            <!-- Populated via JS -->
+                        </ul>
+                    </nav>
                 </div>
             </div>
         </div>
@@ -267,53 +250,113 @@ foreach ($facultyListRaw as $member) {
 
 <script>
 // Master dataset passed from PHP
+const facultyMasterList = <?= json_encode($facultyList) ?>;
 const attendanceRecords = <?= json_encode($allReportData) ?>;
+
+let currentFacultyPage = 1;
+let currentLogsPage = 1;
+const rowsPerPage = 10;
+let activeFilteredFaculty = [...facultyMasterList];
+let activeLogs = [];
+let selectedFacultyId = null;
+let selectedFacultyName = '';
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', () => {
+    renderFacultyTable();
+});
 
 function filterFacultyList() {
     const query = document.getElementById('facultySearchInput').value.toLowerCase().trim();
-    const rows = document.querySelectorAll('#facultyTableBody .faculty-row');
-    const noMatchRow = document.getElementById('noFacultyFoundRow');
-    let visibleCount = 0;
-
-    rows.forEach(row => {
-        const name = row.querySelector('.faculty-name').textContent.toLowerCase();
-        if (name.includes(query)) {
-            row.classList.remove('d-none');
-            visibleCount++;
-        } else {
-            row.classList.add('d-none');
-        }
-    });
-
-    if (visibleCount === 0) {
-        noMatchRow.classList.remove('d-none');
-    } else {
-        noMatchRow.classList.add('d-none');
-    }
+    activeFilteredFaculty = facultyMasterList.filter(fac => fac.name.toLowerCase().includes(query));
+    currentFacultyPage = 1; // Reset to page 1 on search
+    renderFacultyTable();
 }
 
-function checkFacultyLogs(facultyId, facultyName) {
-    const tbody = document.getElementById('attendanceLogsBody');
-    const title = document.getElementById('selectedFacultyTitle');
-    const badge = document.getElementById('logCountBadge');
-    
-    title.textContent = `— ${facultyName}`;
-    
-    const logs = attendanceRecords[facultyId] || [];
-    badge.textContent = `${logs.length} Logs`;
+function renderFacultyTable() {
+    const tbody = document.getElementById('facultyTableBody');
+    const info = document.getElementById('facultyPaginationInfo');
+    const controls = document.getElementById('facultyPaginationControls');
 
-    if (logs.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center text-body-secondary py-4">
-                    <i class="fas fa-folder-open me-2"></i>No attendance logs found for ${facultyName}.
-                </td>
-            </tr>`;
+    const totalRows = activeFilteredFaculty.length;
+    if (totalRows === 0) {
+        tbody.innerHTML = `<tr><td colspan="2" class="text-center text-body-secondary py-4"><i class="fas fa-search me-1"></i> No matching faculty found.</td></tr>`;
+        info.textContent = `Showing 0-0 of 0`;
+        controls.innerHTML = ``;
         return;
     }
 
+    const totalPages = Math.ceil(totalRows / rowsPerPage);
+    if (currentFacultyPage > totalPages) currentFacultyPage = totalPages;
+
+    const start = (currentFacultyPage - 1) * rowsPerPage;
+    const end = Math.min(start + rowsPerPage, totalRows);
+    const paginatedRows = activeFilteredFaculty.slice(start, end);
+
+    let html = '';
+    paginatedRows.forEach(fac => {
+        html += `
+            <tr class="faculty-row">
+                <td class="fw-bold text-body faculty-name">${fac.name}</td>
+                <td class="text-end text-sm-center">
+                    <button type="button" class="btn btn-primary btn-sm rounded-3 px-2 px-sm-3" onclick="checkFacultyLogs('${fac.id}', '${escapeHtml(fac.name)}')">
+                        <i class="fas fa-clipboard-check me-1"></i> Check
+                    </button>
+                </td>
+            </tr>`;
+    });
+    tbody.innerHTML = html;
+
+    info.textContent = `Showing ${start + 1}-${end} of ${totalRows}`;
+    renderPaginationControls(totalPages, currentFacultyPage, 'changeFacultyPage', controls);
+}
+
+function changeFacultyPage(page) {
+    currentFacultyPage = page;
+    renderFacultyTable();
+}
+
+function checkFacultyLogs(facultyId, facultyName) {
+    selectedFacultyId = facultyId;
+    selectedFacultyName = facultyName;
+    currentLogsPage = 1;
+
+    const title = document.getElementById('selectedFacultyTitle');
+    title.textContent = `— ${facultyName}`;
+    
+    activeLogs = attendanceRecords[facultyId] || [];
+    document.getElementById('logCountBadge').textContent = `${activeLogs.length} Logs`;
+
+    renderLogsTable();
+}
+
+function renderLogsTable() {
+    const tbody = document.getElementById('attendanceLogsBody');
+    const info = document.getElementById('logsPaginationInfo');
+    const controls = document.getElementById('logsPaginationControls');
+
+    const totalRows = activeLogs.length;
+    if (totalRows === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-body-secondary py-4">
+                    <i class="fas fa-folder-open me-2"></i>No attendance logs found for ${selectedFacultyName}.
+                </td>
+            </tr>`;
+        info.textContent = `Showing 0-0 of 0`;
+        controls.innerHTML = ``;
+        return;
+    }
+
+    const totalPages = Math.ceil(totalRows / rowsPerPage);
+    if (currentLogsPage > totalPages) currentLogsPage = totalPages;
+
+    const start = (currentLogsPage - 1) * rowsPerPage;
+    const end = Math.min(start + rowsPerPage, totalRows);
+    const paginatedRows = activeLogs.slice(start, end);
+
     let rowsHtml = '';
-    logs.forEach(log => {
+    paginatedRows.forEach(log => {
         const badgeClass = log.status === 'Present' ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle';
         rowsHtml += `
             <tr>
@@ -332,6 +375,44 @@ function checkFacultyLogs(facultyId, facultyName) {
     });
 
     tbody.innerHTML = rowsHtml;
+    info.textContent = `Showing ${start + 1}-${end} of ${totalRows}`;
+    renderPaginationControls(totalPages, currentLogsPage, 'changeLogsPage', controls);
+}
+
+function changeLogsPage(page) {
+    currentLogsPage = page;
+    renderLogsTable();
+}
+
+function renderPaginationControls(totalPages, currentPage, jsFunctionNama, container) {
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = ``;
+    // Previous button
+    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <button class="page-link" onclick="${jsFunctionNama}(${currentPage - 1})">&laquo;</button>
+             </li>`;
+
+    // Page numbers
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+            html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <button class="page-link" onclick="${jsFunctionNama}(${i})">${i}</button>
+                     </li>`;
+        } else if (i === currentPage - 2 || i === currentPage + 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+
+    // Next button
+    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <button class="page-link" onclick="${jsFunctionNama}(${currentPage + 1})">&raquo;</button>
+             </li>`;
+
+    container.innerHTML = html;
 }
 
 function viewLogDetail(data) {
@@ -355,6 +436,10 @@ function toggleCustomDates(val) {
             el.classList.add('d-none');
         }
     });
+}
+
+function escapeHtml(str) {
+    return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 </script>
 

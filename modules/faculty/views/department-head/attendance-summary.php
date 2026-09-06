@@ -151,6 +151,21 @@ foreach ($facultyInDept as $fac) {
     ];
 }
 
+// =====================================================================
+// PAGINATION LOGIC (Max 15 per page)
+// =====================================================================
+$perPage      = 15;
+$totalFaculty = count($facultySummaries);
+$totalPages   = max(1, ceil($totalFaculty / $perPage));
+$page         = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+
+if ($page > $totalPages) {
+    $page = $totalPages;
+}
+
+$offset             = ($page - 1) * $perPage;
+$paginatedSummaries = array_slice($facultySummaries, $offset, $perPage);
+
 $pageTitle    = 'Attendance Reports & Analytics';
 $activeModule = 'faculty';
 $activePage   = 'attendance-summary';
@@ -197,11 +212,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Today's Rate</h6>
-<<<<<<< HEAD
-                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'], 1) ?>%</h4>
-=======
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'] ?? 0, 1) ?>%</h4>
->>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['today_present'] ?> Present / <?= $summaryMetrics['today_total'] ?> Scheduled
                     </small>
@@ -219,11 +230,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">7-Day Average</h6>
-<<<<<<< HEAD
-                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'], 1) ?>%</h4>
-=======
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'] ?? 0, 1) ?>%</h4>
->>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['weekly_present'] ?> Present / <?= $summaryMetrics['weekly_total'] ?> Total Classes
                     </small>
@@ -241,11 +248,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Monthly Rate (<?= date('M Y', strtotime($selectedMonth)) ?>)</h6>
-<<<<<<< HEAD
-                    <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'], 1) ?>%</h4>
-=======
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'] ?? 0, 1) ?>%</h4>
->>>>>>> 0c5cd14bf9400247bc1a9cf8f8652084429b82a4
                     <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
                         <?= $summaryMetrics['monthly_present'] ?> Present / <?= $summaryMetrics['monthly_total'] ?> Total Classes
                     </small>
@@ -290,7 +293,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 Faculty Attendance Breakdown
             </h6>
             <span class="badge bg-secondary-subtle text-secondary border rounded-pill">
-                <?= count($facultySummaries) ?> Faculty
+                <?= $totalFaculty ?> Faculty Total
             </span>
         </div>
     </div>
@@ -308,8 +311,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </tr>
                 </thead>
                 <tbody class="small">
-                    <?php if (!empty($facultySummaries)): ?>
-                        <?php foreach ($facultySummaries as $row): ?>
+                    <?php if (!empty($paginatedSummaries)): ?>
+                        <?php foreach ($paginatedSummaries as $row): ?>
                             <tr>
                                 <td class="ps-3 fw-semibold text-body py-2 py-md-3">
                                     <?= htmlspecialchars($row['name']) ?>
@@ -349,6 +352,39 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </table>
         </div>
     </div>
+    
+    <!-- Pagination Footer -->
+    <?php if ($totalPages > 1): ?>
+        <div class="card-footer bg-body-tertiary py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="small text-muted">
+                Showing <?= $offset + 1 ?> to <?= min($offset + $perPage, $totalFaculty) ?> of <?= $totalFaculty ?> entries
+            </div>
+            <nav aria-label="Faculty breakdown pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <!-- Previous Page Link -->
+                    <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                        <a class="page-link" href="?period=<?= urlencode($selectedPeriod) ?>&month=<?= urlencode($selectedMonth) ?>&page=<?= $page - 1 ?>" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+
+                    <!-- Page Numbers -->
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                            <a class="page-link" href="?period=<?= urlencode($selectedPeriod) ?>&month=<?= urlencode($selectedMonth) ?>&page=<?= $i ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+
+                    <!-- Next Page Link -->
+                    <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
+                        <a class="page-link" href="?period=<?= urlencode($selectedPeriod) ?>&month=<?= urlencode($selectedMonth) ?>&page=<?= $page + 1 ?>" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    <?php endif; ?>
 </div>
 
 <?php 

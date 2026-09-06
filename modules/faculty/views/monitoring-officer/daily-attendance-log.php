@@ -170,70 +170,62 @@ function renderSparkline($data, $color) {
     </div>
 
     <!-- Stat Cards -->
+    <!-- Stat Cards -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
-                <div class="d-flex justify-content-between align-items-start mb-2">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100 bg-white">
+                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+                <div class="card-body d-flex align-items-center ps-4">
+                    <div class="stat-icon me-3 text-primary fs-4"><i class="fas fa-clipboard-check"></i></div>
                     <div>
-                        <span class="text-uppercase text-muted fw-bold fs-7">Room Checks</span>
-                        <h3 class="fw-bold mb-0" id="statTotal"><?= $totalRecords ?></h3>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Room Checks</h6>
+                        <h4 class="mb-0 fw-bold" id="statTotal"><?= htmlspecialchars($totalRecords); ?></h4>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>Today's sessions</small>
                     </div>
-                    <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="fas fa-clipboard-check"></i></div>
                 </div>
-                <div class="d-flex justify-content-between text-muted fs-7 mb-2">
-                    <span>Today's sessions</span>
-                    <span class="text-success fw-bold"><i class="fas fa-arrow-up"></i> +<?= $totalRecords ?></span>
-                </div>
-                <?= renderSparkline([20,40,30,70,50,80,90], '#0d6efd') ?>
-            </div>
+            </section>
         </div>
-        <div class="col-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
-                <div class="d-flex justify-content-between align-items-start mb-2">
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100 bg-white">
+                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #198754; z-index: 1;"></div>
+                <div class="card-body d-flex align-items-center ps-4">
+                    <div class="stat-icon me-3 text-success fs-4"><i class="fas fa-user-check"></i></div>
                     <div>
-                        <span class="text-uppercase text-muted fw-bold fs-7">Present Faculty</span>
-                        <h3 class="fw-bold mb-0" id="statPresent"><?= $presentFaculty ?></h3>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Present Faculty</h6>
+                        <h4 class="mb-0 fw-bold" id="statPresent"><?= htmlspecialchars($presentFaculty); ?></h4>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-check me-1"></i>Presence rate: <?= htmlspecialchars($presentRate); ?>%</small>
                     </div>
-                    <div class="p-2 bg-success-subtle text-success rounded-3"><i class="fas fa-user-check"></i></div>
                 </div>
-                <div class="d-flex justify-content-between text-muted fs-7 mb-2">
-                    <span>Presence rate</span>
-                    <span class="text-success fw-bold"><i class="fas fa-arrow-up"></i> <?= $presentRate ?>%</span>
-                </div>
-                <?= renderSparkline([60,70,65,85,90,95,100], '#198754') ?>
-            </div>
+            </section>
         </div>
-        <div class="col-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
-                <div class="d-flex justify-content-between align-items-start mb-2">
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100 bg-white">
+                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #dc3545; z-index: 1;"></div>
+                <div class="card-body d-flex align-items-center ps-4">
+                    <div class="stat-icon me-3 text-danger fs-4"><i class="fas fa-user-times"></i></div>
                     <div>
-                        <span class="text-uppercase text-muted fw-bold fs-7">Absent Faculty</span>
-                        <h3 class="fw-bold mb-0" id="statAbsent"><?= $absentFaculty ?></h3>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Absent Faculty</h6>
+                        <h4 class="mb-0 fw-bold" id="statAbsent"><?= htmlspecialchars($absentFaculty); ?></h4>
+                        <small class="text-danger fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-triangle-exclamation me-1"></i>Unattended slots</small>
                     </div>
-                    <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="fas fa-user-times"></i></div>
                 </div>
-                <div class="d-flex justify-content-between text-muted fs-7 mb-2">
-                    <span>Unattended slots</span>
-                    <span class="text-muted fw-bold"><?= $totalRecords > 0 ? (100 - $presentRate) . '%' : '0%' ?></span>
-                </div>
-                <?= renderSparkline([10,5,15,0,10,5,0], '#ffc107') ?>
-            </div>
+            </section>
         </div>
-        <div class="col-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-4 p-3 h-100">
-                <div class="d-flex justify-content-between align-items-start mb-2">
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100 bg-white">
+                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0dcaf0; z-index: 1;"></div>
+                <div class="card-body d-flex align-items-center ps-4">
+                    <div class="stat-icon me-3 text-info fs-4"><i class="fas fa-users"></i></div>
                     <div>
-                        <span class="text-uppercase text-muted fw-bold fs-7">Student Attendance</span>
-                        <h3 class="fw-bold mb-0" id="statRate"><?= $overallAttendance ?>%</h3>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Student Attendance</h6>
+                        <h4 class="mb-0 fw-bold" id="statRate"><?= htmlspecialchars($overallAttendance); ?>%</h4>
+                        <small class="text-info fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-user-check me-1"></i><?= htmlspecialchars($totalStudents); ?> / <?= htmlspecialchars($totalExpected); ?> Present</small>
                     </div>
-                    <div class="p-2 bg-danger-subtle text-danger rounded-3"><i class="fas fa-users"></i></div>
                 </div>
-                <div class="d-flex justify-content-between text-muted fs-7 mb-2">
-                    <span>Enrollees total: <?= $totalExpected ?></span>
-                    <span class="text-primary fw-bold"><?= $totalStudents ?> Present</span>
-                </div>
-                <?= renderSparkline([50,60,75,70,80,85,90], '#dc3545') ?>
-            </div>
+            </section>
         </div>
     </div>
 
