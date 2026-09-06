@@ -41,6 +41,17 @@ function smsNormalizeRoleKey(string $roleKey): string
     if ($roleKey === 'admissionoffice' || $roleKey === 'admission_office') {
         return 'admission';
     }
+    if ($roleKey === 'hr' || $roleKey === 'hr_office') {
+        return 'hr_clearance';
+    }
+    // Matches registrar / registrar_office to registrar_clearance
+    if ($roleKey === 'registrar' || $roleKey === 'registrar_office' || $roleKey === 'registrar clearance') {
+        return 'registrar_clearance';
+    }
+    // Matches finance / finance_office
+    if ($roleKey === 'finance_office') {
+        return 'finance_office';
+    }
     return $roleKey;
 }
 
@@ -162,20 +173,20 @@ function smsDefaultModulesForRole(string $roleKey): array
 {
     $roleKey = smsNormalizeRoleKey($roleKey);
     $defaults = [
-        'superadmin'       => ['user-management', 'student_portal'],
-        'admin'            => ['user-management'],
-        'admission'        => ['enrollment'],
-        'student'          => ['student_portal'],
-        'registrar'        => ['registrar', 'curriculum', 'scheduling'],
-        'crad_officer'     => ['crad'],
-        'research_coordinator' => ['crad'],
-        'finance'          => ['payment'],
-        'hr'               => ['faculty'],
-        'adviser'          => ['faculty'],
-        'panel'            => ['faculty'],
-        'it_office'        => ['lms'],
-        'osa'              => ['cocurricular'],
-        'qa'               => ['accreditation'],
+        'superadmin'          => ['user-management', 'student_portal'],
+        'admin'               => ['user-management'],
+        'admission'           => ['enrollment'],
+        'student'             => ['student_portal'],
+        'registrar'           => ['registrar', 'curriculum', 'scheduling'],
+        'registrar_clearance' => ['registrar', 'faculty'], // Grants access to faculty views
+        'crad_officer'        => ['crad'],
+        'research_coordinator'=> ['crad'],
+        'finance_office'      => ['faculty'],                // Grants access to faculty views
+        'adviser'             => ['faculty'],
+        'panel'               => ['faculty'],
+        'it_office'           => ['lms'],
+        'osa'                 => ['cocurricular'],
+        'qa'                  => ['accreditation'],
         // Faculty module sub-roles
         'dean'             => ['faculty'],
         'department_head'  => ['faculty'],
@@ -403,7 +414,7 @@ function smsFacultySidebarPages(): array
 {
     $roleKey = getCurrentUserRoleKey();
 
-    if (in_array($roleKey, ['dean', 'hr'], true)) {
+    if (in_array($roleKey, ['dean'], true)) {
         return [
             ['label' => 'Faculty Profile',        'url' => 'faculty-profile.php'],
             ['label' => 'Faculty Directory',       'url' => 'faculty-directory.php'],
@@ -429,7 +440,7 @@ function smsPostLoginRedirectUrl(): string
     if ($roleKey === 'faculty_admin') {
         return BASE_URL . '/modules/faculty/views/administrator/dashboard.php';
     }
-    if ($roleKey === 'dean' || $roleKey === 'hr') {
+    if ($roleKey === 'dean') {
         return BASE_URL . '/modules/faculty/views/dean/faculty-profile.php';
     }
     if (in_array($roleKey, ['department_head', 'department-head', 'dept_head', 'depthead'], true)) {
@@ -444,6 +455,27 @@ function smsPostLoginRedirectUrl(): string
     
     if (in_array($roleKey, ['faculty', 'teacher'], true)) {
         return BASE_URL . '/modules/faculty/views/faculty/dashboard.php';
+    }
+
+    // NEW ADDED ROLES FOR ACCEPTING CLEARANCE
+    if (in_array($roleKey, ['hr', 'hr_clearance'], true)) {
+        return BASE_URL . '/modules/faculty/views/hr/dashboard.php';
+    }
+
+    if (in_array($roleKey, ['registrar', 'registrar_clearance'], true)) {
+        return BASE_URL . '/modules/faculty/views/registrar/dashboard.php';
+    }
+
+    if (in_array($roleKey, ['library_clearance'], true)) {
+        return BASE_URL . '/modules/faculty/views/library-clearance/dashboard.php';
+    }
+
+    if (in_array($roleKey, ['finance_office'], true)) {
+        return BASE_URL . '/modules/faculty/views/finance/dashboard.php';
+    }
+
+     if (in_array($roleKey, ['property_custodian_office'], true)) {
+        return BASE_URL . '/modules/faculty/views/property/dashboard.php';
     }
 
     $allowedModules = getAllowedModuleKeys();
