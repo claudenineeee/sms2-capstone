@@ -1111,7 +1111,7 @@ if ($status === 'Cleared') {
                                 </div>
                                 <button type="button" class="btn btn-primary fw-semibold px-4 py-2 shadow-sm text-nowrap"
                                     id="btnSubmitClearanceFormOnly" onclick="submitClearanceFormOnly()" disabled>
-                                    <i class="fas fa-paper-plane me-1"></i> Submit Clearance Form
+                                    <i class="fas fa-paper-plane me-1"></i> Submit Request Form
                                 </button>
                             </div>
                         <?php elseif ($cfFormStatus === 'Pending Review'): ?>
@@ -1270,7 +1270,7 @@ if ($status === 'Cleared') {
                             </div>
                             <button type="button" class="btn btn-sm btn-light text-primary fw-semibold shadow-sm px-3"
                                 onclick="switchClearanceView('agreement')">
-                                <i class="fas fa-file-contract me-1"></i>Open Agreement Form
+                                <i class="fas fa-file-contract me-1"></i>Open Request Form
                             </button>
                         </div>
                     </div>
