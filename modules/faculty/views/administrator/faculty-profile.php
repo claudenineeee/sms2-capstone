@@ -14,17 +14,15 @@ $pdo = db();
 $message = '';
 $messageType = 'success';
 
-// 1. Process Approval or Rejection POST Requests
+// 1. Process Approval, Rejection, or Inactive/Active Toggle POST Requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $userId = (int)($_POST['user_id'] ?? 0);
 
     if ($action === 'approve_account' && $userId > 0) {
-        // Activate user in authentication DB
         $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'active' WHERE id = :user_id");
         $res1 = $stmt1->execute([':user_id' => $userId]);
 
-        // Activate user profile in faculty DB
         $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Active' WHERE user_id = :user_id");
         $res2 = $stmt2->execute([':user_id' => $userId]);
 
@@ -36,11 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $messageType = 'danger';
         }
     } elseif ($action === 'reject_account' && $userId > 0) {
-        // Reject user in authentication DB
         $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'rejected' WHERE id = :user_id");
         $res1 = $stmt1->execute([':user_id' => $userId]);
 
-        // Mark profile as Rejected
         $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Rejected' WHERE user_id = :user_id");
         $res2 = $stmt2->execute([':user_id' => $userId]);
 
@@ -51,23 +47,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Failed to reject account.';
             $messageType = 'danger';
         }
+    } elseif ($action === 'toggle_inactive' && $userId > 0) {
+        $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'inactive' WHERE id = :user_id");
+        $res1 = $stmt1->execute([':user_id' => $userId]);
+
+        $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Inactive' WHERE user_id = :user_id");
+        $res2 = $stmt2->execute([':user_id' => $userId]);
+
+        if ($res1 && $res2) {
+            $message = 'Faculty account has been marked as inactive and blocked from logging in.';
+            $messageType = 'warning';
+        } else {
+            $message = 'Failed to update account status.';
+            $messageType = 'danger';
+        }
+    } elseif ($action === 'restore_active' && $userId > 0) {
+        $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'active' WHERE id = :user_id");
+        $res1 = $stmt1->execute([':user_id' => $userId]);
+
+        $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Active' WHERE user_id = :user_id");
+        $res2 = $stmt2->execute([':user_id' => $userId]);
+
+        if ($res1 && $res2) {
+            $message = 'Faculty account has been restored to active status.';
+            $messageType = 'success';
+        } else {
+            $message = 'Failed to restore account status.';
+            $messageType = 'danger';
+        }
     } else {
-        // Process standard profile updates
         $updateResult = $controller->handleUpdateFaculty();
         $message = $updateResult['message'] ?? '';
         $messageType = $updateResult['type'] ?? 'success';
     }
 }
 
+// Check if we are viewing the Inactive list
+$showInactive = isset($_GET['view']) && $_GET['view'] === 'inactive';
+
 // 2. Retrieve directory list with Role-Based Scope
 $rawProfiles = $controller->getDirectoryList();
 
-// Check for common session key variations
+// Filter profiles based on Active / Inactive view
+$rawProfiles = array_filter($rawProfiles, function ($profile) use ($showInactive) {
+    $pStatus = strtolower(trim($profile['profile_status'] ?? 'active'));
+    if ($showInactive) {
+        return $pStatus === 'inactive';
+    } else {
+        return $pStatus !== 'inactive';
+    }
+});
+
 $userRole       = strtolower($_SESSION['role'] ?? $_SESSION['user_role'] ?? '');
 $userCollege    = strtoupper($_SESSION['college'] ?? $_SESSION['assigned_college'] ?? $_SESSION['college_code'] ?? '');
 $userDepartment = $_SESSION['department'] ?? $_SESSION['assigned_dept'] ?? $_SESSION['dept'] ?? $_SESSION['user_dept'] ?? '';
 
-// College to Department Mapping
 $collegeScopes = [
     'CCS'  => ['BSIT', 'BSCS', 'BSCpE', 'Information Technology'],
     'CCJE' => ['BSCrim', 'Criminology'],
@@ -75,17 +109,14 @@ $collegeScopes = [
     'CED'  => ['BSED', 'Education'],
 ];
 
-// Department Synonym Mapping for BSIT / Information Technology
 $deptAliases = [
     'Information Technology' => ['BSIT', 'Information Technology'],
     'BSIT'                   => ['BSIT', 'Information Technology'],
 ];
 
 if (in_array($userRole, ['admin', 'superadmin', 'administrator'], true)) {
-    // Admin sees all faculty members
     $facultyProfiles = $rawProfiles;
 } elseif ($userRole === 'dean') {
-    // If college isn't directly mapped, default to CCS if dept is BSIT
     if (empty($userCollege) && in_array($userDepartment, ['BSIT', 'Information Technology'], true)) {
         $userCollege = 'CCS';
     }
@@ -96,7 +127,6 @@ if (in_array($userRole, ['admin', 'superadmin', 'administrator'], true)) {
         return in_array($dept, $allowedDepts, true);
     });
 } elseif (in_array($userRole, ['department_head', 'head', 'dept_head', 'department head'], true)) {
-    // Support both 'BSIT' and 'Information Technology' strings
     $targetDepts = $deptAliases[$userDepartment] ?? [$userDepartment];
     
     $facultyProfiles = array_filter($rawProfiles, function ($profile) use ($targetDepts) {
@@ -104,7 +134,6 @@ if (in_array($userRole, ['admin', 'superadmin', 'administrator'], true)) {
         return in_array($dept, $targetDepts, true);
     });
 } else {
-    // Default fallback to all profiles if role is undefined
     $facultyProfiles = $rawProfiles; 
 }
 
@@ -125,30 +154,31 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <div class="container-fluid py-3 px-2 px-md-3">
     <!-- 1. Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
             <h1 class="h4 h3-md text-body fw-bold mb-1 d-flex align-items-center gap-2">
                 <i class="fas fa-chalkboard-teacher text-primary"></i>
-                <span>Faculty Profile Directory</span>
+                <span>Faculty Profile</span>
             </h1>
             <p class="text-body-secondary small mb-0">View credentials, update personnel ranks, and process account status clearance.</p>
         </div>
     </div>
 
-    <!-- Alert Messages -->
-    <?php if ($message !== ''): ?>
-        <div class="alert alert-<?= htmlspecialchars($messageType, ENT_QUOTES, 'UTF-8') ?> alert-dismissible fade show rounded-3 shadow-sm fs-7 mb-4" role="alert">
-            <i class="fas <?= $messageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle' ?> me-2"></i>
-            <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    <?php endif; ?>
+    <!-- View Switcher Tabs / Buttons -->
+    <div class="d-flex gap-2 mb-4">
+        <a href="?view=active" class="btn btn-sm <?= !$showInactive ? 'btn-primary' : 'btn-outline-primary' ?> rounded-3 fw-bold">
+            <i class="fas fa-user-check me-1"></i> Active Profiles
+        </a>
+        <a href="?view=inactive" class="btn btn-sm <?= $showInactive ? 'btn-danger' : 'btn-outline-danger' ?> rounded-3 fw-bold">
+            <i class="fas fa-user-slash me-1"></i> Inactive Accounts
+        </a>
+    </div>
 
     <!-- Faculty List Section -->
     <div class="card bg-body-tertiary border border-light-subtle shadow-sm rounded-4">
         <div class="card-header bg-transparent border-bottom border-light-subtle py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
             <h6 class="card-title text-body mb-0 fw-bold fs-6">
-                <i class="fas fa-id-card text-info me-2"></i>Faculty Profiles & Credentials
+                <i class="fas fa-id-card text-info me-2"></i><?= $showInactive ? 'Inactive Faculty Accounts' : 'Faculty Profiles & Credentials' ?>
             </h6>
             <div class="col-12 col-sm-6 col-md-4 col-lg-3 ms-auto">
                 <div class="input-group input-group-sm">
@@ -171,7 +201,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <th class="d-none d-sm-table-cell">Department</th>
                             <th class="d-none d-md-table-cell">Position</th>
                             <th style="width: 130px;" class="text-center">Status</th>
-                            <th style="width: 100px;" class="text-center">Action</th>
+                            <th style="width: 120px;" class="text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody id="facultyListBody">
@@ -216,7 +246,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                         </div>
                                     </td>
                                     <td class="fw-bold text-info d-none d-sm-table-cell"><?= htmlspecialchars($facultyId ?: '—', ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td class="fw-semibold text-body"><?= htmlspecialchars($fullName ?: 'Unassigned', ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td class="fw-semibold text-body">
+                                        <span id="facultyName_<?= $userId ?>"><?= htmlspecialchars($fullName ?: 'Unassigned', ENT_QUOTES, 'UTF-8') ?></span>
+                                    </td>
                                     <td><span class="badge border border-primary text-primary fw-medium px-2 py-1"><?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?></span></td>
                                     <td class="text-body-secondary d-none d-md-table-cell"><?= htmlspecialchars($position ?: '—', ENT_QUOTES, 'UTF-8') ?></td>
                                     <td class="text-center">
@@ -242,6 +274,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                             <!-- View Action Button -->
                                             <button type="button" class="btn btn-sm btn-outline-primary rounded-3 px-2 py-1 fs-7" onclick="viewFaculty(this)"
                                                 data-profile-id="<?= (int) ($profile['id'] ?? 0) ?>"
+                                                data-user-id="<?= $userId ?>"
                                                 data-full-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-faculty-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>"
@@ -283,6 +316,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                                 title="Edit Profile">
                                                 <i class="fas fa-pen"></i>
                                             </button>
+
+                                            <!-- Toggle Inactive / Restore Action Button -->
+                                            <?php if ($showInactive): ?>
+                                                <button type="button" class="btn btn-sm btn-outline-success rounded-3 px-2 py-1 fs-7" onclick="openActionModal('restore_active', <?= $userId ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>')" title="Restore Account">
+                                                    <i class="fas fa-user-check"></i>
+                                                </button>
+                                            <?php else: ?>
+                                                <button type="button" class="btn btn-sm btn-outline-danger rounded-3 px-2 py-1 fs-7" onclick="openActionModal('toggle_inactive', <?= $userId ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>')" title="Make Inactive">
+                                                    <i class="fas fa-user-slash"></i>
+                                                </button>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -303,6 +347,49 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <!-- Dynamic Page Buttons -->
                 </ul>
             </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="liveToast" class="toast align-items-center border shadow-lg rounded-3 bg-body text-body" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex align-items-center p-2">
+            <div id="toastIconContainer" class="me-2 fs-5 px-1">
+                <i id="toastIcon" class="fas fa-check-circle"></i>
+            </div>
+            <div class="toast-body d-flex align-items-center fs-7 fw-semibold p-1 text-body" id="toastMessageText">
+                <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
+            </div>
+            <button type="button" class="btn-close ms-auto me-1 shadow-none" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Confirmation Modal using Bootstrap Native Theme Classes (.bg-body, .text-body, .border-light-subtle) -->
+<div class="modal fade" id="actionConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 450px;">
+        <div class="modal-content border border-light-subtle rounded-4 shadow bg-body text-body">
+            <div class="modal-header border-bottom border-light-subtle py-3 px-4">
+                <h5 class="modal-title fw-bold fs-6 d-flex align-items-center gap-2 text-body">
+                    <i id="confirmModalIcon" class="fas fa-exclamation-triangle text-warning"></i>
+                    <span id="confirmModalHeading">Confirmation</span>
+                </h5>
+                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 fs-7 text-body-secondary" id="confirmModalMessage">
+                Are you sure you want to proceed?
+            </div>
+            <div class="modal-footer border-top border-light-subtle py-2 px-4 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary btn-sm rounded-3 px-3 fs-7" data-bs-dismiss="modal">Cancel</button>
+                <form id="confirmActionForm" method="POST" action="" class="d-inline">
+                    <input type="hidden" name="action" id="confirmActionInput" value="">
+                    <input type="hidden" name="user_id" id="confirmUserId" value="">
+                    <button type="submit" class="btn btn-sm rounded-3 px-3 fs-7 fw-bold" id="confirmSubmitBtn">
+                        <i class="fas fa-check me-1"></i> Confirm
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -371,8 +458,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
                 </div>
             </div>
-            <div class="modal-footer border-top border-light-subtle py-2 px-4">
-                <button type="button" class="btn btn-secondary btn-sm rounded-3 fs-7" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-between flex-wrap gap-2">
+                <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">Close</button>
+                <div class="d-inline-flex gap-2 w-100 w-sm-auto justify-content-end">
+                    <input type="hidden" id="modalUserId" value="">
+                    <button type="button" class="btn btn-outline-danger btn-sm rounded-3 fw-bold flex-fill flex-sm-grow-0" onclick="openActionModal('reject_account', document.getElementById('modalUserId').value, document.getElementById('viewFullName').textContent)">
+                        <i class="fas fa-times me-1"></i> Reject Request
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm rounded-3 fw-bold px-3 flex-fill flex-sm-grow-0" onclick="openActionModal('approve_account', document.getElementById('modalUserId').value, document.getElementById('viewFullName').textContent)">
+                        <i class="fas fa-check me-1"></i> Approve & Activate
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -476,7 +572,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-end gap-2">
                     <button type="button" class="btn btn-secondary btn-sm rounded-3 fs-7" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm rounded-3 fw-bold fs-7 px-4">Save Changes</button>
+                    <button type="submit" class="btn btn-primary btn-sm rounded-bold fs-7 px-4">Save Changes</button>
                 </div>
             </form>
         </div>
@@ -490,6 +586,36 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     document.addEventListener('DOMContentLoaded', () => {
         initPagination();
+
+        // Trigger Bootstrap Toast if message is present with proper dark/light mode styling
+        const phpMessage = <?= json_encode($message) ?>;
+        const messageType = <?= json_encode($messageType) ?>;
+        
+        if (phpMessage && phpMessage.trim() !== '') {
+            const toastEl = document.getElementById('liveToast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastIconContainer = document.getElementById('toastIconContainer');
+            
+            // Apply explicit styling based on type (success = green, warning/danger = red)
+            if (messageType === 'success') {
+                toastEl.classList.add('border-success');
+                toastEl.style.backgroundColor = 'var(--bs-body-bg)';
+                toastIcon.className = 'fas fa-check-circle text-success';
+            } else if (messageType === 'warning' || messageType === 'danger') {
+                toastEl.classList.add('border-danger');
+                toastEl.style.backgroundColor = 'var(--bs-body-bg)';
+                toastIcon.className = 'fas fa-exclamation-circle text-danger';
+            } else {
+                toastEl.classList.add('border-primary');
+                toastEl.style.backgroundColor = 'var(--bs-body-bg)';
+                toastIcon.className = 'fas fa-info-circle text-primary';
+            }
+
+            if (toastEl && window.bootstrap && window.bootstrap.Toast) {
+                const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+                toast.show();
+            }
+        }
     });
 
     function initPagination() {
@@ -535,13 +661,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
         if (totalPages <= 1) return;
 
-        // Previous Button
         const prevLi = document.createElement('li');
         prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
         prevLi.innerHTML = `<a class="page-link fs-7" href="#" onclick="changePage(${currentPage - 1}); return false;">Previous</a>`;
         paginationList.appendChild(prevLi);
 
-        // Page Numbers
         for (let i = 1; i <= totalPages; i++) {
             const pageLi = document.createElement('li');
             pageLi.className = `page-item ${i === currentPage ? 'active' : ''}`;
@@ -549,7 +673,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             paginationList.appendChild(pageLi);
         }
 
-        // Next Button
         const nextLi = document.createElement('li');
         nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
         nextLi.innerHTML = `<a class="page-link fs-7" href="#" onclick="changePage(${currentPage + 1}); return false;">Next</a>`;
@@ -569,6 +692,61 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         if (!window.bootstrap || !bootstrap.Modal) return null;
         const modalEl = document.getElementById(id);
         return modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
+    }
+
+    function escapeHtml(string) {
+        return String(string).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function openActionModal(action, userId, userName) {
+        document.getElementById('confirmUserId').value = userId;
+        document.getElementById('confirmActionInput').value = action;
+
+        const titleEl = document.getElementById('confirmModalHeading');
+        const iconEl = document.getElementById('confirmModalIcon');
+        const msgEl = document.getElementById('confirmModalMessage');
+        const submitBtn = document.getElementById('confirmSubmitBtn');
+
+        if (action === 'approve_account') {
+            titleEl.textContent = 'Approve Account Request';
+            iconEl.className = 'fas fa-user-check text-success';
+            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account, generate a temporary password, and email their login details.`;
+            submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
+            submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Yes, Approve';
+        } else if (action === 'restore_active') {
+            titleEl.textContent = 'Restore Account Request';
+            iconEl.className = 'fas fa-user-check text-success';
+            msgEl.innerHTML = `Are you sure you want to restore the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>?`;
+            submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
+            submitBtn.innerHTML = '<i class="fas fa-user-check me-1"></i> Yes, Restore';
+        } else if (action === 'reject_account') {
+            titleEl.textContent = 'Reject Account Request';
+            iconEl.className = 'fas fa-user-times text-danger';
+            msgEl.innerHTML = `Are you sure you want to reject the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>?`;
+            submitBtn.className = 'btn btn-danger btn-sm rounded-3 fw-bold px-3';
+            submitBtn.innerHTML = '<i class="fas fa-times me-1"></i> Yes, Reject';
+        } else {
+            titleEl.textContent = 'Make Account Inactive';
+            iconEl.className = 'fas fa-user-slash text-danger';
+            msgEl.innerHTML = `Are you sure you want to make this account inactive for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will hide them from the list and prevent them from logging in.`;
+            submitBtn.className = 'btn btn-danger btn-sm rounded-3 fw-bold px-3';
+            submitBtn.innerHTML = '<i class="fas fa-user-slash me-1"></i> Yes, Inactive';
+        }
+
+        // Hide review details modal if open
+        const reviewModalEl = document.getElementById('facultyModal');
+        if (reviewModalEl) {
+            const reviewModal = bootstrap.Modal.getInstance(reviewModalEl);
+            if (reviewModal) {
+                reviewModal.hide();
+            }
+        }
+
+        // Show confirmation dialog modal
+        const confirmModalEl = document.getElementById('actionConfirmModal');
+        if (confirmModalEl && window.bootstrap && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance(confirmModalEl).show();
+        }
     }
 
     const academicRankSelect = document.getElementById('academicRank');
@@ -633,6 +811,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const modal = getModalInstance('facultyModal');
         document.getElementById('viewInitials').textContent = getInitials(button.dataset.fullName || 'NA');
         document.getElementById('viewFullName').textContent = button.dataset.fullName || 'Unknown';
+        document.getElementById('modalUserId').value = button.dataset.userId || '';
         const statusBadge = document.getElementById('viewStatusBadge');
         const currentStatus = button.dataset.profileStatus || button.dataset.status || 'Active';
         statusBadge.textContent = currentStatus;
@@ -656,52 +835,46 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         modal?.show();
     }
 
-// Sets a <select>'s value by matching an option case-insensitively.
-// Falls back to leaving the placeholder selected if nothing matches,
-// instead of silently landing on the wrong option.
-function setSelectValueCI(selectEl, rawValue) {
-    if (!selectEl) return;
-    const value = (rawValue || '').trim();
-    if (value === '') return;
+    function setSelectValueCI(selectEl, rawValue) {
+        if (!selectEl) return;
+        const value = (rawValue || '').trim();
+        if (value === '') return;
 
-    const match = Array.from(selectEl.options).find(
-        opt => opt.value.toLowerCase() === value.toLowerCase()
-    );
+        const match = Array.from(selectEl.options).find(
+            opt => opt.value.toLowerCase() === value.toLowerCase()
+        );
 
-    if (match) {
-        selectEl.value = match.value;
-    } else if (value) {
-        // No matching option exists yet (e.g. legacy/free-form data) -
-        // add it on the fly so the current value is still visible and won't
-        // be silently overwritten with something else on save.
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = value;
-        selectEl.appendChild(opt);
-        selectEl.value = value;
+        if (match) {
+            selectEl.value = match.value;
+        } else if (value) {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = value;
+            selectEl.appendChild(opt);
+            selectEl.value = value;
+        }
     }
-}
 
-function editFaculty(button) {
-    if (!button || !button.dataset) return;
-    document.getElementById('profileId').value = button.dataset.profileId || '';
-    document.getElementById('facultyId').value = button.dataset.facultyId || '';
-    document.getElementById('firstname').value = button.dataset.firstName || '';
-    document.getElementById('middlename').value = button.dataset.middleName || '';
-    document.getElementById('lastname').value = button.dataset.lastName || '';
-    document.getElementById('suffix').value = button.dataset.suffix || '';
-    document.getElementById('birthdate').value = button.dataset.birthdate || '';
-    document.getElementById('email').value = button.dataset.email || '';
-    document.getElementById('phone').value = button.dataset.phone || '';
-    document.getElementById('hiredDate').value = button.dataset.hiredDate || '';
-    document.getElementById('contractualEnd').value = button.dataset.contractualEnd || '';
+    function editFaculty(button) {
+        if (!button || !button.dataset) return;
+        document.getElementById('profileId').value = button.dataset.profileId || '';
+        document.getElementById('facultyId').value = button.dataset.facultyId || '';
+        document.getElementById('firstname').value = button.dataset.firstName || '';
+        document.getElementById('middlename').value = button.dataset.middleName || '';
+        document.getElementById('lastname').value = button.dataset.lastName || '';
+        document.getElementById('suffix').value = button.dataset.suffix || '';
+        document.getElementById('birthdate').value = button.dataset.birthdate || '';
+        document.getElementById('email').value = button.dataset.email || '';
+        document.getElementById('phone').value = button.dataset.phone || '';
+        document.getElementById('hiredDate').value = button.dataset.hiredDate || '';
+        document.getElementById('contractualEnd').value = button.dataset.contractualEnd || '';
 
-    setSelectValueCI(document.getElementById('sex'), button.dataset.sex);
-    setSelectValueCI(document.getElementById('employmentStatus'), button.dataset.status);
-    setSelectValueCI(document.getElementById('profileStatus'), button.dataset.profileStatus);
+        setSelectValueCI(document.getElementById('sex'), button.dataset.sex);
+        setSelectValueCI(document.getElementById('employmentStatus'), button.dataset.status);
+        setSelectValueCI(document.getElementById('profileStatus'), button.dataset.profileStatus);
 
-    getModalInstance('facultyFormModal')?.show();
-}
+        getModalInstance('facultyFormModal')?.show();
+    }
 
     function badgeColorClass(status) {
         const value = (status || '').toLowerCase();

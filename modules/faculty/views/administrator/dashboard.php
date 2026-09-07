@@ -32,6 +32,12 @@ $departmentHeads = (int)$pdo->query("
     WHERE LOWER(position) LIKE '%head%'
 ")->fetchColumn();
 
+$inactiveFaculty = (int)$pdo->query("
+    SELECT COUNT(*) 
+    FROM faculty_db.faculty_profiles 
+    WHERE LOWER(profile_status) = 'inactive'
+")->fetchColumn();
+
 // 2. Query Analytics Data for Charts
 // Chart 1: Department Distribution Top 5
 $deptStmt = $pdo->query("
@@ -147,7 +153,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <!-- Executive Metric Cards -->
     <div class="row g-2 g-md-3 mb-4">
         <!-- Card 1: Total Faculty -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl">
             <section class="card stat-card primary border shadow-sm position-relative h-100 rounded-4">
                 <div class="card-body d-flex align-items-center p-3">
                     <div class="stat-icon me-3 text-primary bg-primary bg-opacity-10 fs-4">
@@ -168,7 +174,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
 
         <!-- Card 2: Pending Approvals -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl">
             <section class="card stat-card warning border shadow-sm position-relative h-100 rounded-4">
                 <div class="card-body d-flex align-items-center p-3">
                     <div class="stat-icon me-3 text-warning bg-warning bg-opacity-10 fs-4">
@@ -189,7 +195,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
 
         <!-- Card 3: Active Faculty -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl">
             <section class="card stat-card success border shadow-sm position-relative h-100 rounded-4">
                 <div class="card-body d-flex align-items-center p-3">
                     <div class="stat-icon me-3 text-success bg-success bg-opacity-10 fs-4">
@@ -210,7 +216,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
 
         <!-- Card 4: Department Heads -->
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl">
             <section class="card stat-card info border shadow-sm position-relative h-100 rounded-4">
                 <div class="card-body d-flex align-items-center p-3">
                     <div class="stat-icon me-3 text-info bg-info bg-opacity-10 fs-4">
@@ -225,6 +231,24 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
                 </div>
                 <a href="<?= BASE_URL ?>/modules/faculty/views/administrator/department-assignments.php" class="position-absolute top-0 end-0 m-3 text-body-secondary border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                </a>
+            </section>
+        </div>
+
+        <!-- Card 5: Inactive Faculty -->
+        <div class="col-12 col-sm-6 col-xl">
+            <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100 bg-white rounded-4">
+                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #dc3545; z-index: 1;"></div>
+                <div class="card-body d-flex align-items-center ps-4 p-3">
+                    <div class="stat-icon me-3 text-danger fs-4"><i class="fas fa-user-slash"></i></div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold" style="font-size: 0.75rem;">Inactive Faculty</h6>
+                        <h4 class="mb-0 fw-bold fs-3"><?= number_format($inactiveFaculty); ?></h4>
+                        <small class="text-danger fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-ban me-1"></i>Blocked from login</small>
+                    </div>
+                </div>
+                <a href="<?= BASE_URL ?>/modules/faculty/views/administrator/faculty-profile.php?view=inactive" class="position-absolute top-0 end-0 m-3 text-body-secondary border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
                     <i class="fas fa-arrow-up-right-from-square"></i>
                 </a>
             </section>

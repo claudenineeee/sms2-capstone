@@ -235,18 +235,17 @@ $facultyTeacherNavGroups = [
 ];
 
 // NEW ROLES ADDDED
-$facultyRegistrarClearance= [
+$facultyRegistrarClearance = [
     'Dashboard' => [
-        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/registrar/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+        ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/registrar/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
     ],
 ];
 
-$facultyHrClearance= [
+$facultyHrClearance = [
     'Dashboard' => [
-        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/hr/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+        ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/hr/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
     ],
 ];
-
 $facultyFinanceClearance= [
     'Dashboard' => [
         ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/finance/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
@@ -344,7 +343,7 @@ $facultyScheduleOfficerNavGroups = [
                 <?php endforeach; ?>
 
                 <!-- DEAN -->
-            <?php elseif (in_array($roleKey, ['dean', 'hr'], true)): ?>
+            <?php elseif (in_array($roleKey, ['dean'], true)): ?>
                 <?php foreach ($facultyDeanNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
                         <span class="nav-link sidebar-group-heading">
@@ -531,96 +530,120 @@ $facultyScheduleOfficerNavGroups = [
                     <?php endforeach; ?>
                             
                         <!-- HR CLEARANCE -->
-                     <?php elseif (in_array($roleKey, ['$facultyHrClearance'], true)): ?>
-                    <?php foreach ($facultyAttendanceMonitoringNavGroups as $groupLabel => $groupItems): ?>
-                        <li class="nav-item sidebar-group-label">
-                            <span class="nav-link sidebar-group-heading">
-                                <?= htmlspecialchars($groupLabel) ?>
-                            </span>
+                     <!-- HR CLEARANCE -->
+            <?php elseif (in_array($roleKey, ['hr_clearance', 'hr'], true)): ?>
+                <?php foreach ($facultyHrClearance as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label">
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
+                    </li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                        <li class="nav-item">
+                            <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
+                            </a>
                         </li>
-                        <?php foreach ($groupItems as $item): ?>
-                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
-                            <li class="nav-item">
-                                <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
-                                    data-title="<?= htmlspecialchars($item['label']) ?>"
-                                    title="<?= htmlspecialchars($item['label']) ?>">
-                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span>
-                                        <?= htmlspecialchars($item['label']) ?>
-                                    </span>
-                                </a>
-                            </li>
-                        <?php endforeach; ?>
                     <?php endforeach; ?>
+                <?php endforeach; ?>
 
-                    <!-- FINANCE CLEARANCE -->
-                        <?php elseif (in_array($roleKey, ['$facultyFinanceClearance'], true)): ?>
-                    <?php foreach ($facultyAttendanceMonitoringNavGroups as $groupLabel => $groupItems): ?>
-                        <li class="nav-item sidebar-group-label">
-                            <span class="nav-link sidebar-group-heading">
-                                <?= htmlspecialchars($groupLabel) ?>
-                            </span>
+            <!-- REGISTRAR CLEARANCE -->
+            <?php elseif (in_array($roleKey, ['registrar'], true)): ?>
+                <?php foreach ($facultyRegistrarClearance as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label">
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
+                    </li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                        <li class="nav-item">
+                            <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
+                            </a>
                         </li>
-                        <?php foreach ($groupItems as $item): ?>
-                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
-                            <li class="nav-item">
-                                <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
-                                    data-title="<?= htmlspecialchars($item['label']) ?>"
-                                    title="<?= htmlspecialchars($item['label']) ?>">
-                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span>
-                                        <?= htmlspecialchars($item['label']) ?>
-                                    </span>
-                                </a>
-                            </li>
-                        <?php endforeach; ?>
                     <?php endforeach; ?>
+                <?php endforeach; ?>
 
-                    <!-- PROPERTY CLEARANCE -->
-                     <?php elseif (in_array($roleKey, ['$facultyPropertyClearance'], true)): ?>
-                    <?php foreach ($facultyAttendanceMonitoringNavGroups as $groupLabel => $groupItems): ?>
-                        <li class="nav-item sidebar-group-label">
-                            <span class="nav-link sidebar-group-heading">
-                                <?= htmlspecialchars($groupLabel) ?>
-                            </span>
+            <!-- FINANCE CLEARANCE -->
+            <?php elseif (in_array($roleKey, ['finance', 'finance_office'], true)): ?>
+                <?php foreach ($facultyFinanceClearance as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label">
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
+                    </li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                        <li class="nav-item">
+                            <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
+                            </a>
                         </li>
-                        <?php foreach ($groupItems as $item): ?>
-                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
-                            <li class="nav-item">
-                                <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
-                                    data-title="<?= htmlspecialchars($item['label']) ?>"
-                                    title="<?= htmlspecialchars($item['label']) ?>">
-                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span>
-                                        <?= htmlspecialchars($item['label']) ?>
-                                    </span>
-                                </a>
-                            </li>
-                        <?php endforeach; ?>
                     <?php endforeach; ?>
-        
-                    <!-- LIBRARY CLEARANCE -->
-                     <?php elseif (in_array($roleKey, ['$facultyLibraryClearance'], true)): ?>
-                    <?php foreach ($facultyAttendanceMonitoringNavGroups as $groupLabel => $groupItems): ?>
-                        <li class="nav-item sidebar-group-label">
-                            <span class="nav-link sidebar-group-heading">
-                                <?= htmlspecialchars($groupLabel) ?>
-                            </span>
+                <?php endforeach; ?>
+
+            <!-- PROPERTY CLEARANCE -->
+            <?php elseif (in_array($roleKey, ['property'], true)): ?>
+                <?php foreach ($facultyPropertyClearance as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label">
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
+                    </li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                        <li class="nav-item">
+                            <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
+                            </a>
                         </li>
-                        <?php foreach ($groupItems as $item): ?>
-                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
-                            <li class="nav-item">
-                                <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
-                                    data-title="<?= htmlspecialchars($item['label']) ?>"
-                                    title="<?= htmlspecialchars($item['label']) ?>">
-                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span>
-                                        <?= htmlspecialchars($item['label']) ?>
-                                    </span>
-                                </a>
-                            </li>
-                        <?php endforeach; ?>
                     <?php endforeach; ?>
+                <?php endforeach; ?>
+
+            <!-- LIBRARY CLEARANCE -->
+            <?php elseif (in_array($roleKey, ['library'], true)): ?>
+                <?php foreach ($facultyLibraryClearance as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label">
+                        <span class="nav-link sidebar-group-heading">
+                            <?= htmlspecialchars($groupLabel) ?>
+                        </span>
+                    </li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                        <li class="nav-item">
+                            <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
+                                data-title="<?= htmlspecialchars($item['label']) ?>"
+                                title="<?= htmlspecialchars($item['label']) ?>">
+                                <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                <span>
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
 
                 <!-- REMOVE WHEN IT IS NEEDED SCHEDULE OFFICER -->
             <?php elseif (in_array($roleKey, ['faculty_schedule_officer'], true)): ?>

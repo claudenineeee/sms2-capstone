@@ -41,7 +41,7 @@ function smsNormalizeRoleKey(string $roleKey): string
     if ($roleKey === 'admissionoffice' || $roleKey === 'admission_office') {
         return 'admission';
     }
-    if ($roleKey === 'hr' || $roleKey === 'hr_office') {
+    if ($roleKey === 'hr_office') {
         return 'hr_clearance';
     }
     // Matches registrar / registrar_office to registrar_clearance
@@ -50,7 +50,7 @@ function smsNormalizeRoleKey(string $roleKey): string
     }
     // Matches finance / finance_office
     if ($roleKey === 'finance_office') {
-        return 'finance_office';
+        return 'finance_office';  
     }
     return $roleKey;
 }
@@ -458,7 +458,7 @@ function smsPostLoginRedirectUrl(): string
     }
 
     // NEW ADDED ROLES FOR ACCEPTING CLEARANCE
-    if (in_array($roleKey, ['hr', 'hr_clearance'], true)) {
+    if ($roleKey === 'hr_clearance') {
         return BASE_URL . '/modules/faculty/views/hr/dashboard.php';
     }
 
