@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($headDepartmentCode === '') {
                 throw new InvalidArgumentException(
-                    'Your account does not have a valid designated department.'
+                    'Your account does not have a valid designated department assigned.'
                 );
             }
 
@@ -158,16 +158,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $employmentStatus === ''
             ) {
                 throw new InvalidArgumentException(
-                    'Please fill in all required fields.'
+                    'Please fill in all required profile fields before submitting.'
                 );
             }
 
             if (!in_array($sex, ['MALE', 'FEMALE'], true)) {
-                throw new InvalidArgumentException('Please select a valid sex.');
+                throw new InvalidArgumentException('Please select a valid biological sex.');
             }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                throw new InvalidArgumentException('Please provide a valid email address.');
+                throw new InvalidArgumentException('Please provide a valid and active email address.');
             }
 
             if (!DateTime::createFromFormat('Y-m-d', $birthdate)) {
@@ -175,18 +175,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if (!DateTime::createFromFormat('Y-m-d', $hiredDate)) {
-                throw new InvalidArgumentException('Please provide a valid hired date.');
+                throw new InvalidArgumentException('Please provide a valid date of hire.');
             }
 
             if ($employmentStatus === 'regular') {
                 $contractualEnd = '';
             } elseif ($contractualEnd === '') {
-                throw new InvalidArgumentException('Please provide the contractual end date.');
+                throw new InvalidArgumentException('Please specify the contractual end date.');
             }
 
             $pdo = db();
             if (!$pdo) {
-                throw new RuntimeException('Database connection failed.');
+                throw new RuntimeException('Database connection failure occurred.');
             }
 
             $pdo->beginTransaction();
@@ -230,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $facultyId = insertFacultyProfile($profile);
 
             if (!$facultyId) {
-                throw new RuntimeException('Could not insert faculty profile.');
+                throw new RuntimeException('Failed to insert the faculty profile record.');
             }
 
             $pdo->commit();
@@ -239,26 +239,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 sendFacultyPendingApprovalEmail($email, $firstName, $lastName, $position);
             }
 
-            $message = 'Account created successfully! It has been submitted to the Admin for final approval.';
+            $message = 'Account created successfully. Please wait for administrator approval.';
             $messageType = 'success';
         } catch (Throwable $e) {
             if ($pdo instanceof PDO && $pdo->inTransaction()) {
                 $pdo->rollBack();
             }
 
-            $message = $e->getMessage();
+            $errorMsg = $e->getMessage();
+            if (strpos($errorMsg, '1062') !== false || stripos($errorMsg, 'duplicate') !== false || stripos($errorMsg, 'email') !== false) {
+                $message = 'The email address is already registered.';
+            } else {
+                $message = $errorMsg;
+            }
             $messageType = 'danger';
         }
     }
 }
 
 // -------------------------------------------------------------------------
-// 2. FETCH PROFILES AFTER SUBMISSION (PRESERVES NEWLY CREATED RECORDS)
+// 2. FETCH PROFILES AFTER SUBMISSION (EXCLUDING INACTIVE/REJECTED/DEANS)
 // -------------------------------------------------------------------------
 $facultyProfiles = [];
+$currentUserId = getCurrentUserId();
+$currentUserEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
+
 if ($headDepartmentCode !== '' && function_exists('loadFacultyProfiles')) {
     foreach (loadFacultyProfiles() as $profile) {
         $profileDept = trim((string) ($profile['designated_dept'] ?? $profile['designated_department'] ?? ''));
+        $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
+        $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
+        $profilePosition = strtolower(trim((string) ($profile['position'] ?? '')));
+        
+        $rawProfileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
+        $rawAccountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
+
+        // Exclude inactive, disabled, or rejected accounts
+        if (
+            strpos($rawAccountStatus, 'inactive') !== false ||
+            strpos($rawAccountStatus, 'disabled') !== false ||
+            strpos($rawAccountStatus, 'rejected') !== false ||
+            strpos($rawProfileStatus, 'inactive') !== false ||
+            strpos($rawProfileStatus, 'rejected') !== false
+        ) {
+            continue;
+        }
+
+        // Exclude the currently logged-in department head / dean from showing in the directory
+        if (
+            ($currentUserId !== null && $profileUserId === (int) $currentUserId) ||
+            ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)
+        ) {
+            continue;
+        }
+
+        // Exclude any Dean profiles from showing up here
+        if (strpos($profilePosition, 'dean') !== false) {
+            continue;
+        }
 
         if (
             strcasecmp($profileDept, $headDepartmentCode) === 0 ||
@@ -350,38 +388,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<?php if ($message !== ''): ?>
-    <div class="alert alert-<?= htmlspecialchars($messageType, ENT_QUOTES, 'UTF-8') ?> rounded-3 mb-4" role="alert">
-        <i class="fas <?= $messageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle' ?> me-2"></i>
-        <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
-
 <div class="card bg-body border-secondary-subtle p-3 mb-4 shadow-sm">
     <div class="row g-2 align-items-center">
-        <div class="col-12 col-md-6 col-lg-8">
+        <div class="col-12 col-md-6">
             <div class="input-group">
                 <span class="input-group-text bg-body-tertiary border-secondary-subtle text-muted">
                     <i class="fas fa-search"></i>
                 </span>
-                <input type="text" id="directorySearch" class="form-control bg-body border-secondary-subtle text-body" placeholder="Search departments, names, position...">
+                <input type="text" id="directorySearch" class="form-control bg-body border-secondary-subtle text-body" placeholder="Search names, position, email...">
             </div>
         </div>
 
-        <div class="col-6 col-md-3 col-lg-2">
-            <select id="deptFilter" class="form-select bg-body border-secondary-subtle text-body" disabled>
-                <?php if ($headDepartmentCode !== ''): ?>
-                    <option value="<?= htmlspecialchars($headDepartment, ENT_QUOTES, 'UTF-8') ?>" selected>
-                        <?= htmlspecialchars($headDepartment, ENT_QUOTES, 'UTF-8') ?>
-                    </option>
-                <?php else: ?>
-                    <option selected>Department Not Assigned</option>
-                <?php endif; ?>
-            </select>
-        </div>
-
-        <div class="col-6 col-md-3 col-lg-2">
-            <select id="statusFilter" class="form-select bg-body border-secondary-subtle text-body">
+        <div class="col-12 col-md-6">
+            <select id="statusFilter" class="form-select bg-body border-secondary-subtle text-body rounded-2 shadow-none">
                 <option value="All" selected>All Statuses</option>
                 <option value="Regular">Regular</option>
                 <option value="Probationary">Probationary</option>
@@ -413,7 +432,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 $rawAccount = strtolower(trim((string) ($profile['account_status'] ?? '')));
 
                 $isPending = ($rawProfile === 'pending approval' || $rawAccount === 'pending_approval' || $rawAccount === 'pending');
-
                 $displayStatusLabel = $isPending ? 'Pending Approval' : (!empty($profile['profile_status']) ? $profile['profile_status'] : 'Active');
                 $birthdate = trim((string) ($profile['birthdate'] ?? ''));
                 $age = $birthdate !== '' ? computeAge($birthdate) : 0;
@@ -695,8 +713,33 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
+<!-- Toast Notification Container with Solid High-Contrast Styling for Dark/Light Modes -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="liveToast" class="toast text-white border-0 shadow-lg" 
+         style="background-color: <?= $messageType === 'success' ? '#198754' : '#dc3545' ?> !important;" 
+         role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex align-items-center">
+            <div class="toast-body py-3 d-flex align-items-start">
+                <i class="fas <?= $messageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle' ?> me-2 mt-1"></i>
+                <span id="toastMessageText"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-3 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // Trigger Toast Notification if message exists
+    const serverMessage = <?= json_encode($message) ?>;
+    if (serverMessage) {
+        const toastEl = document.getElementById('liveToast');
+        if (toastEl) {
+            const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+            toast.show();
+        }
+    }
+
     const cardsPerPage = 6;
     let currentPage = 1;
 

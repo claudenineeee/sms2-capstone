@@ -417,6 +417,38 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </p>
     </div>
 </div>
+
+<!-- Action Confirmation Modal -->
+<div class="modal fade" id="leaveConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-3">
+                <div class="d-flex align-items-center">
+                    <div class="p-2 bg-success-subtle text-success rounded me-2" id="leaveConfirmIconWrapper">
+                        <i class="fas fa-check-circle fs-5" id="leaveConfirmIcon"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-body mb-0" id="leaveConfirmHeading">Approve Leave Request</h5>
+                        <span class="small text-body-secondary">Please confirm your action</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="leaveConfirmId" value="">
+                <input type="hidden" id="leaveConfirmAction" value="">
+                <p class="text-body mb-0" id="leaveConfirmMessage">Are you sure you want to approve this leave request?</p>
+            </div>
+            <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-between flex-wrap gap-2 bg-body-tertiary">
+                <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success btn-sm rounded-3 fw-bold px-3" id="leaveConfirmSubmitBtn" onclick="executeLeaveAction()">
+                    <i class="fas fa-check me-1"></i> Yes, Approve
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Metric Summary Cards -->
 <div class="row g-3 mb-3">
     <!-- Pending Requests Card -->
@@ -1228,6 +1260,40 @@ document.addEventListener('DOMContentLoaded', function () {
     if (statusFilter) statusFilter.addEventListener('change', filterTable);
 });
 
+function approveRequest(id) {
+    if (!id) return;
+    
+    document.getElementById('leaveConfirmId').value = id;
+    document.getElementById('leaveConfirmAction').value = 'approve';
+    
+    document.getElementById('leaveConfirmHeading').textContent = 'Approve Leave Request';
+    document.getElementById('leaveConfirmIcon').className = 'fas fa-check-circle fs-5 text-success';
+    document.getElementById('leaveConfirmIconWrapper').className = 'p-2 bg-success-subtle text-success rounded me-2';
+    document.getElementById('leaveConfirmMessage').innerHTML = 'Are you sure you want to approve this leave request?';
+    
+    const submitBtn = document.getElementById('leaveConfirmSubmitBtn');
+    submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
+    submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Yes, Approve';
+
+    // Hide faculty details modal if it's open underneath
+    const facultyModalEl = document.getElementById('facultyRequestsModal');
+    if (facultyModalEl) {
+        const modalInstance = bootstrap.Modal.getInstance(facultyModalEl);
+        if (modalInstance) modalInstance.hide();
+    }
+
+    // Show the custom dialog modal
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('leaveConfirmModal')).show();
+}
+
+function executeLeaveAction() {
+    const id = document.getElementById('leaveConfirmId').value;
+    const action = document.getElementById('leaveConfirmAction').value;
+    
+    if (id && action === 'approve') {
+        submitAction('approve', id);
+    }
+}
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
