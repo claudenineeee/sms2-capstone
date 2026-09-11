@@ -999,14 +999,14 @@ if ($status === 'Cleared') {
                             <i class="fas fa-file-contract fs-5 text-primary"></i>
                         </div>
                         <div>
-                            <h5 class="fw-bold text-white mb-0 fs-6">Clearance Agreement Form</h5>
+                            <h5 class="fw-bold text-white mb-0 fs-6">Clearance Form</h5>
                             <div class="small text-white-75">Official Faculty Clearance Form</div>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button"
                             class="btn btn-sm btn-light fw-semibold d-flex align-items-center gap-1 shadow-sm px-3"
-                            onclick="printClearanceAgreementForm()" title="Print Clearance Agreement Form">
+                            onclick="printClearanceAgreementForm()" title="Print Clearance Form">
                             <i class="fas fa-print"></i>
                             <span class="d-none d-sm-inline">Print Form</span>
                         </button>
@@ -1023,7 +1023,7 @@ if ($status === 'Cleared') {
                 <div class="p-3 p-md-4">
                     <div class="clr-conduct-doc">
                         <div class="clr-conduct-header">
-                            <div class="clr-conduct-title">Clearance Agreement Form</div>
+                            <div class="clr-conduct-title">Clearance Form</div>
                             <div class="clr-conduct-subheading"><?= facultyClearanceEsc($cfInstitution) ?></div>
                         </div>
 
@@ -1239,7 +1239,7 @@ if ($status === 'Cleared') {
                                     <i class="fas fa-hourglass-half fs-5 text-primary"></i>
                                 </div>
                                 <div>
-                                    <h6 class="fw-bold text-white mb-1 fs-6">Clearance Agreement Form Under Department Head Review
+                                    <h6 class="fw-bold text-white mb-1 fs-6">Clearance Form Under Department Head Review
                                     </h6>
                                     <p class="small text-white-75 mb-0">Your Clearance Form has been submitted and is awaiting
                                         Department Head review and endorsement. Requirement uploads and portal submission will
@@ -1263,9 +1263,9 @@ if ($status === 'Cleared') {
                                     <i class="fas fa-file-signature fs-5 text-primary"></i>
                                 </div>
                                 <div>
-                                    <h6 class="fw-bold text-white mb-1 fs-6">Step 1 Required: Submit Clearance Agreement Form</h6>
+                                    <h6 class="fw-bold text-white mb-1 fs-6">Step 1 Required: Submit Clearance Form</h6>
                                     <p class="small text-white-75 mb-0">You must submit and obtain Department Head endorsement on
-                                        your Clearance Agreement Form before unit requirement uploads can begin.</p>
+                                        your Clearance Form before unit requirement uploads can begin.</p>
                                 </div>
                             </div>
                             <button type="button" class="btn btn-sm btn-light text-primary fw-semibold shadow-sm px-3"
@@ -1427,8 +1427,8 @@ if ($status === 'Cleared') {
                     // Upload is blocked when agreement is not approved by Dept Head OR under verification / cleared
                     $uploadBlocked = (!$cfFormApproved) || in_array($fChip, ['review', 'cleared'], true);
                     $uploadHint = match (true) {
-                        !$cfFormSubmitted => 'Submit the Clearance Agreement Form to begin the review workflow.',
-                        !$cfFormApproved => 'Awaiting Department Head endorsement on your Clearance Agreement Form.',
+                        !$cfFormSubmitted => 'Submit the Clearance Form to begin the review workflow.',
+                        !$cfFormApproved => 'Awaiting Department Head endorsement on your Clearance Form.',
                         $fChip === 'review' => 'Document is under review and cannot be replaced.',
                         $fChip === 'cleared' => 'This section has been cleared by the office.',
                         default => 'Upload supporting documents (PDF, max 10 MB)',
@@ -2601,7 +2601,7 @@ if ($status === 'Cleared') {
         printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
-    <title>Clearance Agreement Form - <?= facultyClearanceEsc($cfFullName) ?></title>
+    <title>Clearance Form - <?= facultyClearanceEsc($cfFullName) ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         @page { size: portrait; margin: 15mm; }

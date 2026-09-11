@@ -1,7 +1,7 @@
 <?php
-    $name = "Dashboard";
+$name = "Dashboard";
 
 
-    echo "this is $name";
+echo "this is $name";
 
 ?>

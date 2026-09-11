@@ -593,21 +593,34 @@ function smsFindUserByLogin(string $input): ?array
         return null;
     }
 
-    // Extract handle if email format was entered
-    $usernameHandle = str_contains($input, '@') ? explode('@', $input)[0] : $input;
+    // When the user types a full email address, only match by email or student_id —
+    // do NOT fall back to the local-part (handle) as a username, because it can
+    // accidentally match a different user whose username happens to equal that handle
+    // (e.g. typing "finance@example.com" must NOT resolve to user with username "finance").
+    $isEmail = str_contains($input, '@');
 
     try {
-        $stmt = $pdo->prepare(
-            'SELECT u.*, r.label AS role_label
-            FROM users u
-            LEFT JOIN roles r ON r.role_key = u.role_key
-            WHERE LOWER(u.email) = ? 
-               OR LOWER(u.username) = ? 
-               OR LOWER(u.username) = ?
-               OR LOWER(u.student_id) = ?
-            LIMIT 1'
-        );
-        $stmt->execute([$input, $input, $usernameHandle, $input]);
+        if ($isEmail) {
+            $stmt = $pdo->prepare(
+                'SELECT u.*, r.label AS role_label
+                FROM users u
+                LEFT JOIN roles r ON r.role_key = u.role_key
+                WHERE LOWER(u.email) = ?
+                   OR LOWER(u.student_id) = ?
+                LIMIT 1'
+            );
+            $stmt->execute([$input, $input]);
+        } else {
+            $stmt = $pdo->prepare(
+                'SELECT u.*, r.label AS role_label
+                FROM users u
+                LEFT JOIN roles r ON r.role_key = u.role_key
+                WHERE LOWER(u.username) = ?
+                   OR LOWER(u.student_id) = ?
+                LIMIT 1'
+            );
+            $stmt->execute([$input, $input]);
+        }
 
         $row = $stmt->fetch();
         return $row ?: null;

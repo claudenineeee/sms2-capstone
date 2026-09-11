@@ -34,26 +34,42 @@ try {
     // Ensure we load faculty profile id for user first
     $userId = (int) ($_SESSION['user_id'] ?? 0);
     $facultyProfileId = 0;
+    $facultyRecordId   = 0; // The actual faculty.faculty_id required by the FK
 
     if ($userId <= 0) {
         $formError = 'Your user account could not be identified. Please log in again.';
     } else {
         $stmt = $pdo->prepare("
-            SELECT id
-            FROM faculty_db.faculty_profiles
-            WHERE user_id = :user_id
+            SELECT fp.id, fp.faculty_id AS faculty_no
+            FROM faculty_db.faculty_profiles fp
+            WHERE fp.user_id = :user_id
             LIMIT 1
         ");
         $stmt->execute([':user_id' => $userId]);
-        $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
+        $profileRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        $facultyProfileId = (int) ($profileRow['id'] ?? 0);
 
         if ($facultyProfileId <= 0) {
             $formError = 'Your account is not linked to a faculty profile.';
+        } else {
+            // Resolve the actual faculty.faculty_id via the faculty_no stored in faculty_profiles
+            $fStmt = $pdo->prepare("
+                SELECT f.faculty_id
+                FROM faculty_db.faculty f
+                WHERE f.faculty_no = :faculty_no
+                LIMIT 1
+            ");
+            $fStmt->execute([':faculty_no' => (string) ($profileRow['faculty_no'] ?? '')]);
+            $facultyRecordId = (int) ($fStmt->fetchColumn() ?: 0);
+
+            if ($facultyRecordId <= 0) {
+                $formError = 'Your faculty record could not be found. Please contact HR to complete your profile setup.';
+            }
         }
     }
 
     // Calculate consumed leave days for the current faculty profile
-    if ($facultyProfileId > 0) {
+    if ($facultyRecordId > 0) {
         $consumedSql = "
             SELECT COALESCE(SUM(total_days), 0) AS consumed
             FROM faculty_db.leave_requests
@@ -62,7 +78,7 @@ try {
         ";
         
         $consumedStmt = $pdo->prepare($consumedSql);
-        $consumedStmt->execute([':faculty_id' => $facultyProfileId]);
+        $consumedStmt->execute([':faculty_id' => $facultyRecordId]);
         $consumedSemesterDays = (int) $consumedStmt->fetchColumn();
         
         $remainingSemesterDays = max(0, $maxSemesterDays - $consumedSemesterDays);
@@ -150,7 +166,7 @@ try {
                 try {
                     $stmt = $pdo->prepare($sql);
                     $stmt->execute([
-                        ':faculty_id' => $facultyProfileId,
+                        ':faculty_id' => $facultyRecordId, // faculty.faculty_id — required by FK fk_leave_faculty
                         ':request_ref' => $requestRef,
                         ':leave_type' => $leaveType,
                         ':start_date' => $startDate,
@@ -190,8 +206,9 @@ try {
                 if ($currentStatus === 'rejected' || $currentStatus === 'approved') {
                     $formError = 'Cannot upload follow-up for this request status.';
                 } else {
-                    $fp = $pdo->prepare('SELECT id FROM faculty_db.faculty_profiles WHERE id = :fp_id AND user_id = :user_id LIMIT 1');
-                    $fp->execute([':fp_id' => (int) $row['faculty_id'], ':user_id' => $userId]);
+                    // Verify the logged-in user owns this leave request via faculty.faculty_id
+                    $fp = $pdo->prepare('SELECT f.faculty_id FROM faculty_db.faculty f JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = f.faculty_no WHERE f.faculty_id = :faculty_id AND fp.user_id = :user_id LIMIT 1');
+                    $fp->execute([':faculty_id' => (int) $row['faculty_id'], ':user_id' => $userId]);
                     $owns = (bool) $fp->fetchColumn();
 
                     if (!$owns) {
@@ -249,7 +266,7 @@ try {
         }
     }
 
-    if ($facultyProfileId > 0) {
+    if ($facultyRecordId > 0) {
         $sql = "
             SELECT
                 lr.*, 
@@ -258,13 +275,14 @@ try {
                 CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name,
                 DATEDIFF(lr.end_date, lr.start_date) + 1 AS days
             FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
-            WHERE lr.faculty_id = :faculty_profile_id
+            JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = f.faculty_no
+            WHERE lr.faculty_id = :faculty_record_id
             ORDER BY lr.created_at DESC
         ";
 
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([':faculty_profile_id' => $facultyProfileId]);
+        $stmt->execute([':faculty_record_id' => $facultyRecordId]);
         $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
