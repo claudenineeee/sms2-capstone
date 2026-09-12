@@ -673,20 +673,13 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 const tone = (c.status === 'Action Required' || c.status === 'With Deficiency') ? 'danger' : (c.status === 'Completed' || c.status === 'Cleared' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : (c.status === 'For Final Approval' || c.status === 'For Department Head Approval' ? 'warning' : 'info')));
 
                 const emp = row.employment_status || 'Probationary';
-                const empBadge = emp === 'Regular'
-                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1 small">Regular</span>'
-                    : (emp === 'Probationary'
-                        ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1 small">Probationary</span>'
-                        : '<span class="badge bg-secondary-subtle text-body-secondary border ms-1 small">Part-Time</span>');
+                const statusIcon = c.status === 'Completed' || c.status === 'Cleared' ? 'fa-check-circle' :
+                    (c.status === 'Action Required' || c.status === 'With Deficiency' ? 'fa-exclamation-circle' :
+                    (c.status === 'Not Submitted' ? 'fa-minus-circle' : 'fa-clock'));
+
+                const statusBadge = `<span class="badge rounded-pill bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-3 py-1.5 fw-semibold" style="font-size: 0.75rem;"><i class="fas ${statusIcon} me-1.5"></i>${escapeHtml(c.status)}</span>`;
 
                 return `<tr>
-                <td class="ps-3">
-                    <div class="d-flex align-items-center gap-1 flex-wrap">
-                        <strong class="text-body-emphasis">${escapeHtml(row.name)}</strong>
-                        ${empBadge}
-                    </div>
-                    <small class="d-block text-body-secondary">${escapeHtml(row.faculty_id || '')}</small>
-                </td>
                 <td>${escapeHtml(row.designated_department || 'N/A')}</td>
                 <td class="${row.days_remaining !== null && row.days_remaining <= 30 ? 'text-danger fw-bold' : ''}">${expiry}<small class="d-block text-body-secondary">${row.days_remaining === null ? '' : (row.days_remaining < 0 ? 'Expired' : row.days_remaining + ' days remaining')}</small></td>
                 <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${tone}" style="width:${c.progress}%"></div></div><small class="text-body-secondary">${c.progress}% (${c.approved_items}/${c.total_items})</small></td>
@@ -768,13 +761,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     : '—';
                 const intentLabel = row.intent_type === 'renewal' ? 'Contract Renewal' : (row.intent_type === 'regularization' ? 'Regularization' : 'Clearance Only');
 
-                const emp = row.employment_status || 'Regular';
-                const empBadge = emp === 'Regular'
-                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1 small">Regular</span>'
-                    : (emp === 'Probationary'
-                        ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1 small">Probationary</span>'
-                        : '<span class="badge bg-secondary-subtle text-body-secondary border ms-1 small">Part-Time</span>');
-
                 const reqTags = (row.items || []).map(it => {
                     if (!it.file_name && it.status !== 'Cleared') {
                         return `<span class="badge bg-secondary-subtle text-body-secondary border me-1 mb-1 small" title="${escapeHtml(it.name)}: Missing"><i class="fas fa-times-circle me-1"></i>${escapeHtml(it.name)}: Missing</span>`;
@@ -786,13 +772,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 }).join('');
 
                 return `<tr>
-                <td class="ps-3">
-                    <div class="d-flex align-items-center gap-1 flex-wrap">
-                        <strong class="text-body-emphasis">${escapeHtml(row.name)}</strong>
-                        ${empBadge}
-                    </div>
-                    <small class="d-block text-body-secondary">${escapeHtml(row.faculty_no || '')} · ${escapeHtml(row.designated_department || '')}</small>
-                </td>
                 <td><span class="badge bg-secondary-subtle text-body-secondary border">${escapeHtml(row.academic_year)} · ${escapeHtml(row.semester)}</span></td>
                 <td><strong class="text-success">${expiry}</strong></td>
                 <td style="max-width: 250px;">${reqTags || '<span class="text-body-secondary small">No requirements</span>'}</td>
@@ -955,7 +934,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             const empEl = document.getElementById('summaryEmpStatus');
             if (empEl) {
                 empEl.textContent = empStatus;
-                empEl.className = `badge ${empStatus === 'Regular' ? 'bg-success-subtle text-success border border-success-subtle' : (empStatus === 'Probationary' ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-secondary-subtle text-body-secondary border')} px-2 py-1`;
+                empEl.className = `badge rounded-pill ${empStatus === 'Regular' ? 'bg-success-subtle text-success border border-success-subtle' : (empStatus === 'Probationary' ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-secondary-subtle text-body-secondary border')} px-3 py-1.5 fw-semibold`;
             }
 
             const progressBar = document.getElementById('summaryProgressBar');
