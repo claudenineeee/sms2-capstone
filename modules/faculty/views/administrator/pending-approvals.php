@@ -146,77 +146,117 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $pdo->commit();
 
-                    // 6. Send notification email using Resend API via cURL
+                    // 6. Send notification email using PHPMailer
                     if (!empty($facultyEmail)) {
-                        $mailSubject = "Your Faculty Account Has Been Approved";
-                        $loginUrl = BASE_URL . "/login.php"; 
-                        
-                        $mailMessage = "
-                        <html>
-                        <head>
-                            <style>
-                                body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
-                                .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9; }
-                                .header { background: #0d6efd; color: #fff; padding: 10px 20px; border-radius: 6px 6px 0 0; text-align: center; }
-                                .content { padding: 20px; background: #fff; border-radius: 0 0 6px 6px; }
-                                .credentials { background: #f1f3f5; padding: 15px; border-left: 4px solid #0d6efd; margin: 15px 0; border-radius: 4px; }
-                                .btn { display: inline-block; padding: 10px 20px; background: #198754; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 15px; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class='container'>
-                                <div class='header'>
-                                    <h2>Account Approved</h2>
-                                </div>
-                                <div class='content'>
-                                    <p>Hello <strong>" . htmlspecialchars($fullName) . "</strong>,</p>
-                                    <p>Your faculty account request has been officially reviewed and <strong>approved</strong> by the administrator.</p>
-                                    <p>You can now log in to the system using your credentials below:</p>
+                        require_once __DIR__ . '/../../../../includes/Exception.php';
+                        require_once __DIR__ . '/../../../../includes/PHPMailer.php';
+                        require_once __DIR__ . '/../../../../includes/SMTP.php';
+
+                        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+                        try {
+                            // Server settings
+                            $mail->isSMTP();
+                            $mail->Host       = 'smtp.gmail.com';
+                            $mail->SMTPAuth   = true;
+                            $mail->Username   = 'jcespejo002@gmail.com';             
+                            $mail->Password   = 'cshwohpgllkqdtga';          
+                            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                            $mail->Port       = 587;
+
+                            // Recipients
+                            $mail->setFrom('jcespejo002@gmail.com', 'Bestlink College No-Reply');
+                            $mail->addAddress($facultyEmail, $fullName);         
+
+                            // Content
+                            $mail->isHTML(true);
+                            $mail->Subject = "Your Faculty Account Has Been Approved";
+                            $loginUrl = BASE_URL . "/login.php"; 
+                            
+                            // Fully Responsive Mobile-Friendly Email HTML Template
+                            $mail->Body = "
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta charset='UTF-8'>
+                                <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                                <title>Account Approved</title>
+                                <style>
+                                    /* Responsive resets */
+                                    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+                                    table { border-collapse: collapse; m5-table-lspace: 0pt; m5-table-rspace: 0pt; }
+                                    img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
                                     
-                                    <div class='credentials'>
-                                        <p style='margin: 5px 0;'><strong>Email / Username:</strong> " . htmlspecialchars($facultyEmail) . "</p>
-                                        <p style='margin: 5px 0;'><strong>Temporary Password:</strong> <span style='font-family: monospace; background: #e9ecef; padding: 2px 6px; border-radius: 3px;'>" . htmlspecialchars($defaultPassword) . "</span></p>
-                                    </div>
-                                    
-                                    <p><em>Note: For security reasons, you will be required to change your password immediately upon your first login.</em></p>
-                                    
-                                    <a href='" . $loginUrl . "' class='btn'>Login to Your Account</a>
-                                </div>
-                            </div>
-                        </body>
-                        </html>
-                        ";
+                                    @media screen and (max-width: 600px) {
+                                        .email-container { width: 100% !important; padding: 10px !important; }
+                                        .fluid { max-width: 100% !important; height: auto !important; }
+                                        .content-padding { padding: 15px !important; }
+                                    }
+                                </style>
+                            </head>
+                            <body style='margin: 0; padding: 0; background-color: #f4f4f4;'>
+                                <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #f4f4f4; padding: 20px 0;'>
+                                    <tr>
+                                        <td align='center'>
+                                            <!-- Email Wrapper Table -->
+                                            <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='600' class='email-container' style='background-color: #121212; border-radius: 8px; overflow: hidden; border: 1px solid #333; width: 100%; max-width: 600px;'>
+                                                <!-- Header -->
+                                                <tr>
+                                                    <td align='left' style='background-color: #007bff; color: #ffffff; padding: 18px 25px; font-weight: bold; font-size: 16px; letter-spacing: 0.5px;'>
+                                                        BESTLINK DEPARTMENT ACCOUNT
+                                                    </td>
+                                                </tr>
+                                                <!-- Content Body -->
+                                                <tr>
+                                                    <td class='content-padding' style='padding: 30px; color: #e0e0e0; font-size: 14px; line-height: 1.6;'>
+                                                        <p style='margin: 0 0 15px 0;'>Hello Mr. " . htmlspecialchars($lastName) . ",</p>
+                                                        <p style='margin: 0 0 20px 0;'>An account has been created for you. Use the secure credentials below to log in and change your password immediately.</p>
+                                                        
+                                                        <!-- Credentials Box Table for responsiveness -->
+                                                        <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #1e1e1e; border-radius: 6px; border: 1px solid #2d2d2d; margin-bottom: 20px;'>
+                                                            <tr>
+                                                                <td style='padding: 18px;'>
+                                                                    <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
+                                                                        <tr>
+                                                                            <td width='95' style='color: #aaaaaa; font-weight: 500; padding-bottom: 10px; vertical-align: top;'>Username:</td>
+                                                                            <td style='color: #ffffff; font-family: monospace; font-size: 14px; font-weight: bold; padding-bottom: 10px; word-break: break-all;'>" . htmlspecialchars($facultyEmail) . "</td>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <td width='95' style='color: #aaaaaa; font-weight: 500; vertical-align: top;'>Password:</td>
+                                                                            <td style='color: #ffffff; font-family: monospace; font-size: 14px; font-weight: bold; word-break: break-all;'>" . htmlspecialchars($defaultPassword) . "</td>
+                                                                        </tr>
+                                                                    </table>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                        
+                                                        <p style='margin: 0 0 20px 0; color: #cccccc; font-size: 13px;'>For security reasons, this is a temporary password and you will be asked to update it upon your first login. Please do not share this email with others.</p>
+                                                        
+                                                        <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
+                                                            <tr>
+                                                                <td style='color: #bbbbbb; padding-top: 10px;'>
+                                                                    <p style='margin: 0;'>Regards,</p>
+                                                                    <p style='margin: 4px 0 0 0; font-weight: bold;'>HR Office</p>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </body>
+                            </html>
+                            ";
 
-                        $apiKey = $_ENV['RESEND_API_KEY'] ?? getenv('RESEND_API_KEY');
-                        $apiUrl = 'https://api.resend.com/emails';
-
-                        $payload = [
-                            'from'    => 'No Reply - Bestlink College <onboarding@resend.dev>',
-                            'to'      => ['jcespejo002@gmail.com'], 
-                            'subject' => $mailSubject,
-                            'html'    => $mailMessage
-                        ];
-
-                        $ch = curl_init($apiUrl);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_POST, true);
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                            'Authorization: Bearer ' . $apiKey,
-                            'Content-Type: application/json'
-                        ]);
-
-                        $response = curl_exec($ch);
-                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        $curlError = curl_error($ch);
-                        curl_close($ch);
-
-                        if ($httpCode >= 200 && $httpCode < 300) {
-                            $message = "Account successfully approved! Notification email sent to " . htmlspecialchars($facultyEmail) . " with temporary password: " . htmlspecialchars($defaultPassword);
+                            $mail->send();
+                            // Professional toast-style alert message hiding the raw password string
+                            $message = "Account successfully approved and login credentials securely emailed to " . htmlspecialchars($facultyEmail) . ".";
                             $messageType = "success";
-                        } else {
-                            error_log("Resend API Error (HTTP $httpCode): " . $response . " | cURL Error: " . $curlError);
-                            $message = "Account approved, but email failed. Resend API response: " . htmlspecialchars($response);
+                        } catch (Exception $e) {
+                            error_log("PHPMailer Error: " . $mail->ErrorInfo);
+                            $message = "Account approved, but email failed to send. Mailer Error: " . htmlspecialchars($mail->ErrorInfo);
                             $messageType = "warning";
                         }
                     }
@@ -229,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt2->execute([':user_id' => $userId]);
 
                     $pdo->commit();
-                    $message = "Account request has been rejected.";
+                    $message = "Account request has been rejected successfully.";
                     $messageType = 'warning';
                 }
             } catch (Throwable $e) {
@@ -299,12 +339,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- Alert Messages -->
+    <!-- Alert Messages (Professional Toast-style Banner) -->
     <?php if ($message !== ''): ?>
-        <div class="alert alert-<?= $messageType ?> alert-dismissible fade show rounded-3 shadow-sm fs-7" role="alert">
-            <i class="fas <?= $messageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle' ?> me-2"></i>
-            <?= htmlspecialchars($message) ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-<?= $messageType ?> alert-dismissible fade show rounded-4 shadow-sm fs-7 border-0 ps-4 py-3 mb-4" role="alert" style="background-color: var(--bs-body-bg); border-left: 4px solid var(--bs-<?= $messageType === 'success' ? 'success' : ($messageType === 'warning' ? 'warning' : 'danger') ?>) !important; box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;">
+            <div class="d-flex align-items-center">
+                <div class="fs-5 me-3 text-<?= $messageType === 'success' ? 'success' : ($messageType === 'warning' ? 'warning' : 'danger') ?>">
+                    <i class="fas <?= $messageType === 'success' ? 'fa-check-circle' : ($messageType === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle') ?>"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="fw-bold mb-1 text-body"><?= $messageType === 'success' ? 'Success' : ($messageType === 'warning' ? 'Notice' : 'Error') ?></h6>
+                    <p class="mb-0 text-body-secondary"><?= htmlspecialchars($message) ?></p>
+                </div>
+                <button type="button" class="btn-close ms-3" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
         </div>
     <?php endif; ?>
 
@@ -619,7 +666,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         if (action === 'approve') {
             titleEl.textContent = 'Approve Account Request';
             iconEl.className = 'fas fa-user-check text-success';
-            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account, generate a temporary password, and email their login details.`;
+            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account, generate a temporary password, and securely email their credentials.`;
             submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
             submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Yes, Approve';
         } else {

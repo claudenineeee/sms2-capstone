@@ -11,7 +11,43 @@ requireAuth();
 require_once __DIR__ . '/../../controllers/FacultyController.php';
 $facultyController = new FacultyController();
 
-$facultyProfiles = $facultyController->getDirectoryList();
+$currentUserId = getCurrentUserId();
+$currentUserEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
+
+$rawProfiles = $facultyController->getDirectoryList();
+
+// Filter out inactive/resigned, rejected accounts, deans, and the logged-in department head themselves
+$facultyProfiles = array_values(array_filter($rawProfiles, function ($profile) use ($currentUserId, $currentUserEmail) {
+    $employmentStatus = strtolower(trim((string) ($profile['employment_status'] ?? '')));
+    $profileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
+    $accountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
+    $position = strtolower(trim((string) ($profile['position'] ?? '')));
+    $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
+    $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
+
+    // Check if inactive, resigned, or rejected
+    $isInactiveOrRejected = (
+        $employmentStatus === 'inactive' || 
+        $profileStatus === 'inactive' || 
+        $accountStatus === 'inactive' ||
+        $employmentStatus === 'resigned' || 
+        $profileStatus === 'resigned' || 
+        strpos($profileStatus, 'rejected') !== false || 
+        strpos($accountStatus, 'rejected') !== false ||
+        strpos($accountStatus, 'disabled') !== false
+    );
+
+    // Check if dean
+    $isDean = (strpos($position, 'dean') !== false);
+
+    // Check if the profile belongs to the currently logged-in user (department head)
+    $isSelf = (
+        ($currentUserId !== null && $profileUserId === (int) $currentUserId) ||
+        ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)
+    );
+
+    return !$isInactiveOrRejected && !$isDean && !$isSelf;
+}));
 
 $headDepartmentCode = '';
 $headDepartmentLabel = '';
@@ -74,7 +110,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     if ($profileId > 0 && function_exists('updateFacultyProfile') && updateFacultyProfile($profileId, $updates)) {
         $updateMessage = 'Faculty profile updated successfully.';
         $updateMessageType = 'success';
-        $facultyProfiles = $facultyController->getDirectoryList(); // refresh after edit
+        
+        $rawProfiles = $facultyController->getDirectoryList(); // refresh after edit
+        $facultyProfiles = array_values(array_filter($rawProfiles, function ($profile) use ($currentUserId, $currentUserEmail) {
+            $employmentStatus = strtolower(trim((string) ($profile['employment_status'] ?? '')));
+            $profileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
+            $accountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
+            $position = strtolower(trim((string) ($profile['position'] ?? '')));
+            $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
+            $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
+
+            $isInactiveOrRejected = (
+                $employmentStatus === 'inactive' || 
+                $profileStatus === 'inactive' || 
+                $accountStatus === 'inactive' ||
+                $employmentStatus === 'resigned' || 
+                $profileStatus === 'resigned' || 
+                strpos($profileStatus, 'rejected') !== false || 
+                strpos($accountStatus, 'rejected') !== false ||
+                strpos($accountStatus, 'disabled') !== false
+            );
+            $isDean = (strpos($position, 'dean') !== false);
+            $isSelf = (
+                ($currentUserId !== null && $profileUserId === (int) $currentUserId) ||
+                ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)
+            );
+
+            return !$isInactiveOrRejected && !$isDean && !$isSelf;
+        }));
     } else {
         $updateMessage = 'Unable to update faculty profile.';
         $updateMessageType = 'danger';

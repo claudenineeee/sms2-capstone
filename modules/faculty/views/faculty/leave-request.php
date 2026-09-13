@@ -103,13 +103,7 @@ try {
             $formError = 'Start date cannot be later than end date.';
         }
 
-        // Compute requested total days
-        $totalDays = (int) ((strtotime($endDate) - strtotime($startDate)) / 86400) + 1;
-
-        // Check if requested days exceed remaining semester balance
-        if ($formError === '' && ($consumedSemesterDays + $totalDays > $maxSemesterDays)) {
-            $formError = "You have consumed {$consumedSemesterDays} of your {$maxSemesterDays}-day semester limit. This request exceeds your remaining balance.";
-        }
+        $totalDays = (int) (($endDate && $startDate) ? ((strtotime($endDate) - strtotime($startDate)) / 86400) + 1 : 0);
 
         if ($formError === '') {
             $uploadedName = null;
@@ -149,7 +143,8 @@ try {
                         total_days,
                         reason,
                         documents,
-                        status
+                        status,
+                        screening_status
                     ) VALUES (
                         :faculty_id,
                         :request_ref,
@@ -159,6 +154,7 @@ try {
                         :total_days,
                         :reason,
                         :documents,
+                        'Pending',
                         'Pending'
                     )
                 ";
@@ -177,9 +173,6 @@ try {
                     ]);
 
                     $formSuccess = 'Leave request submitted successfully.';
-                    
-                    $consumedSemesterDays += $totalDays;
-                    $remainingSemesterDays = max(0, $maxSemesterDays - $consumedSemesterDays);
                 } catch (PDOException $e) {
                     $formError = 'Unable to save the leave request: ' . $e->getMessage();
                     error_log('[leave-request] ' . $e->getMessage());
@@ -286,20 +279,33 @@ try {
         $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // Recalculate consumed and remaining quota accurately based on active requests
+    $consumedSemesterDays = 0;
     foreach ($leaveRequests as $request) {
         $status = strtolower(trim((string) ($request['status'] ?? '')));
-        $status = str_replace(' ', '_', $status);
+        $screeningStatus = strtolower(trim((string) ($request['screening_status'] ?? '')));
 
-        if ($status === 'pending') {
-            $pendingCount++;
-        } elseif ($status === 'approved') {
-            $approvedCount++;
-        } elseif ($status === 'rejected') {
-            $rejectedCount++;
-        } elseif ($status === 'finished') {
-            $finishedCount++;
-        } elseif ($status === 'document_required') {
+        $normalizedStatus = str_replace('_', ' ', strtolower(trim((string) $status)));
+        $normalizedScreening = str_replace('_', ' ', strtolower(trim((string) $screeningStatus)));
+
+        $isReturned = ($normalizedStatus === 'document required' || $normalizedStatus === 'returned' || 
+                       $normalizedScreening === 'document required' || $normalizedScreening === 'returned' ||
+                       $normalizedStatus === 'document_required' || $normalizedScreening === 'document_required');
+
+        if ($isReturned) {
             $documentRequiredCount++;
+            $consumedSemesterDays += (int)($request['days'] ?? 0);
+        } elseif ($normalizedStatus === 'pending') {
+            $pendingCount++;
+            $consumedSemesterDays += (int)($request['days'] ?? 0);
+        } elseif ($normalizedStatus === 'approved') {
+            $approvedCount++;
+            $consumedSemesterDays += (int)($request['days'] ?? 0);
+        } elseif ($normalizedStatus === 'rejected') {
+            $rejectedCount++;
+        } elseif ($normalizedStatus === 'finished') {
+            $finishedCount++;
+            $consumedSemesterDays += (int)($request['days'] ?? 0);
         }
 
         $notificationFlag = (int) ($request['notification'] ?? 0);
@@ -314,6 +320,7 @@ try {
             $alertMessages[] = $requestRef . ' document support has been rejected.';
         }
     }
+    $remainingSemesterDays = max(0, $maxSemesterDays - $consumedSemesterDays);
 
 } catch (Throwable $e) {
     $formError = 'Database error: ' . $e->getMessage();
@@ -328,17 +335,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-<?php if ($formError !== ''): ?>
-    <div class="alert alert-danger" role="alert">
-        <?= htmlspecialchars($formError, ENT_QUOTES, 'UTF-8') ?>
+<!-- Toast Container (Bottom-End or Top-End) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="liveToast" class="toast align-items-center border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2" id="toastMessageBody">
+                <!-- Dynamic text goes here -->
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
     </div>
-<?php endif; ?>
-
-<?php if ($formSuccess !== ''): ?>
-    <div class="alert alert-success" role="alert">
-        <?= htmlspecialchars($formSuccess, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
+</div>
 
 <!-- Page Header -->
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
@@ -421,7 +428,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Approval</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #dc3545;"><?php echo $pendingCount; ?> <small class="text-muted fs-6">requests</small></h4>
+                    <h4 class="mb-0 fw-bold" style="color: #dc3545;"><?php echo $pendingCount + $documentRequiredCount; ?> <small class="text-muted fs-6">requests</small></h4>
                 </div>
             </div>
         </section>
@@ -468,21 +475,39 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </tr>
                     <?php else: ?>
                         <?php foreach ($leaveRequests as $row):
-                            $id = htmlspecialchars($row['request_ref'] ?? ('LR-' . ($row['id'] ?? '')), ENT_QUOTES, 'UTF-8');
+                            $dbId = (int) ($row['id'] ?? 0);
+                            $id = htmlspecialchars($row['request_ref'] ?? ('LR-' . $dbId), ENT_QUOTES, 'UTF-8');
                             $type = htmlspecialchars($row['leave_type'] ?? '', ENT_QUOTES, 'UTF-8');
                             $start = htmlspecialchars($row['start_date'] ?? '', ENT_QUOTES, 'UTF-8');
                             $end = htmlspecialchars($row['end_date'] ?? '', ENT_QUOTES, 'UTF-8');
                             $days = (int) ($row['days'] ?? 0);
+                            
                             $status = $row['status'] ?? '';
-                            $statusText = htmlspecialchars(ucwords(str_replace('_', ' ', strtolower(trim((string) $status)))), ENT_QUOTES, 'UTF-8');
+                            $screeningStatus = $row['screening_status'] ?? '';
+                            
+                            $normalizedStatus = str_replace('_', ' ', strtolower(trim((string) $status)));
+                            $normalizedScreening = str_replace('_', ' ', strtolower(trim((string) $screeningStatus)));
+
+                            $isReturned = ($normalizedStatus === 'document required' || $normalizedStatus === 'returned' || 
+                                           $normalizedScreening === 'document required' || $normalizedScreening === 'returned' ||
+                                           $normalizedStatus === 'document_required' || $normalizedScreening === 'document_required');
+
+                            if ($isReturned) {
+                                $statusText = 'Returned';
+                                $badgeClass = 'bg-warning text-dark';
+                            } else {
+                                $statusText = ucwords(str_replace('_', ' ', strtolower(trim((string) $status))));
+                                $badgeClass = 'bg-secondary';
+                                if ($normalizedStatus === 'pending') $badgeClass = 'bg-warning text-dark';
+                                if ($normalizedStatus === 'approved') $badgeClass = 'bg-success';
+                                if ($normalizedStatus === 'rejected') $badgeClass = 'bg-danger';
+                                if ($normalizedStatus === 'finished') $badgeClass = 'bg-info text-white';
+                            }
+                            
                             $fileDate = isset($row['created_at']) ? htmlspecialchars($row['created_at'], ENT_QUOTES, 'UTF-8') : '';
                             
-                            $badgeClass = 'bg-secondary';
-                            $normalizedStatus = strtolower(trim((string) $status));
-                            if ($normalizedStatus === 'pending') $badgeClass = 'bg-warning text-dark';
-                            if ($normalizedStatus === 'approved') $badgeClass = 'bg-success';
-                            if ($normalizedStatus === 'rejected') $badgeClass = 'bg-danger';
-                            if ($normalizedStatus === 'finished') $badgeClass = 'bg-info text-white';
+                            // Check all potential database column names for secretary remarks/return reason
+                            $remarks = $row['return_reason'] ?? $row['secretary_reason'] ?? $row['remarks'] ?? $row['comment'] ?? $row['feedback'] ?? $row['secretary_remarks'] ?? '';
                         ?>
                         <tr>
                             <td class="ps-4 fw-semibold text-primary"><?= $id ?></td>
@@ -492,14 +517,23 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <i class="fas fa-arrow-right text-muted mx-1 fs-7"></i> <?= $end ?>
                             </td>
                             <td><span class="fw-medium"><?= $days ?></span> <span class="text-muted small">d</span></td>
-                            <td><span class="badge border rounded-pill px-2.5 py-1.5 <?= $badgeClass ?>"><?= $statusText ?></span></td>
+                            <td><span class="badge border rounded-pill px-2.5 py-1.5 <?= $badgeClass ?>"><?= htmlspecialchars($statusText, ENT_QUOTES, 'UTF-8') ?></span></td>
                             <td class="small text-muted"><?= $fileDate ?></td>
                             <td class="pe-4 text-end">
-                                <button class="btn btn-sm btn-light text-primary rounded-circle" title="View Details" onclick='viewDetails(<?= htmlspecialchars(json_encode([
-                                    'id' => $id, 'type' => $type, 'start' => $start, 'end' => $end, 'days' => $days, 'status' => $statusText, 'date' => $fileDate, 'reason' => $row['reason'] ?? ''
-                                ]), ENT_QUOTES, 'UTF-8') ?>)'>
-                                    <i class="fas fa-eye"></i>
-                                </button>
+                                <div class="d-inline-flex gap-1">
+                                    <?php if ($isReturned): ?>
+                                        <button class="btn btn-sm btn-warning rounded-circle" title="Edit & Resubmit Document/Reason" onclick='editDetails(<?= htmlspecialchars(json_encode([
+                                            'db_id' => $dbId, 'id' => $id, 'type' => $type, 'start' => $start, 'end' => $end, 'reason' => $row['reason'] ?? '', 'remarks' => $remarks
+                                        ]), ENT_QUOTES, 'UTF-8') ?>)'>
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    <?php endif; ?>
+                                    <button class="btn btn-sm btn-light text-primary rounded-circle" title="View Details" onclick='viewDetails(<?= htmlspecialchars(json_encode([
+                                        'db_id' => $dbId, 'id' => $id, 'type' => $type, 'start' => $start, 'end' => $end, 'days' => $days, 'status' => $statusText, 'date' => $fileDate, 'reason' => $row['reason'] ?? '', 'status_raw' => $isReturned ? 'returned' : $normalizedStatus, 'remarks' => $remarks, 'documents' => $row['documents'] ?? ''
+                                    ]), ENT_QUOTES, 'UTF-8') ?>)'>
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -567,6 +601,68 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 <?php endif; ?>
 
+<!-- Modal: Edit / Resubmit Leave Request -->
+<div class="modal fade" id="editLeaveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom border-light-subtle px-4 pt-4 pb-3">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2 text-warning">
+                    <i class="fas fa-edit"></i>
+                    Edit & Resubmit Leave Request
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editLeaveRequestForm" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="edit_request_id" id="edit-req-db-id">
+                <div class="modal-body p-4">
+                    <!-- Secretary's Return Reason Box Added Here -->
+                    <div id="edit-remarks-container" class="mb-3 d-none">
+                        <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded-3">
+                            <span class="text-danger small fw-bold d-block mb-1">
+                                <i class="fas fa-exclamation-circle me-1"></i> Secretary's Reason for Returning:
+                            </span>
+                            <p class="mb-0 text-dark small fw-medium" id="edit-remarks-text">-</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Leave Type <span class="text-danger">*</span></label>
+                        <select name="leave_type" id="edit-leave-type" class="form-select bg-light" required>
+                            <option>Vacation Leave</option>
+                            <option>Sick Leave</option>
+                            <option>Emergency Leave</option>
+                            <option>Study Leave</option>
+                        </select>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-medium">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" name="start_date" id="edit-start-date" class="form-control bg-light" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-medium">End Date <span class="text-danger">*</span></label>
+                            <input type="date" name="end_date" id="edit-end-date" class="form-control bg-light" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Reason <span class="text-danger">*</span></label>
+                        <textarea name="reason" id="edit-reason" class="form-control bg-light" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">Replace Supporting Document <span class="text-danger">*</span></label>
+                        <input type="file" name="document" class="form-control bg-light" required>
+                        <small class="text-muted d-block mt-1">Upload your new or corrected supporting document.</small>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 px-4 pb-4 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" name="update_leave" class="btn btn-warning rounded-pill px-4 text-dark fw-bold">Update & Resubmit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: View Details -->
 <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -580,6 +676,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <span class="text-muted small d-block">Reference ID</span>
                     <span class="fw-bold text-dark" id="modal-req-id">-</span>
                 </div>
+                <div id="modal-remarks-container" class="mb-3 d-none">
+                    <span class="text-danger small fw-bold d-block mb-1"><i class="fas fa-exclamation-circle me-1"></i> Secretary Feedback / Remarks</span>
+                    <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded-3 text-dark small fw-medium" id="modal-remarks">-</div>
+                </div>
                 <div class="row g-3 mb-3">
                     <div class="col-6">
                         <span class="text-muted small d-block">Leave Category</span>
@@ -590,9 +690,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <span class="fw-semibold"><span id="modal-days">-</span> Days</span>
                     </div>
                 </div>
-                <div>
+                <div class="mb-3">
                     <span class="text-muted small d-block mb-1">Reason Provided</span>
                     <p class="mb-0 bg-light p-3 rounded-3 text-dark small" id="modal-reason">-</p>
+                </div>
+                <div id="modal-action-wrapper" class="d-none mt-3 text-end">
+                    <button type="button" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark" id="modal-edit-btn">
+                        <i class="fas fa-edit me-1"></i> Edit & Resubmit Request
+                    </button>
                 </div>
             </div>
         </div>
@@ -600,13 +705,102 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <script>
+let currentViewData = null;
+
 function viewDetails(data) {
+    currentViewData = data;
     document.getElementById('modal-req-id').textContent = data.id;
     document.getElementById('modal-leave-type').textContent = data.type;
     document.getElementById('modal-days').textContent = data.days;
     document.getElementById('modal-reason').textContent = data.reason || 'N/A';
+    
+    // Secretary Remarks/Feedback
+    const remarksContainer = document.getElementById('modal-remarks-container');
+    const remarksEl = document.getElementById('modal-remarks');
+    if (data.remarks && data.remarks.trim() !== '') {
+        remarksEl.textContent = data.remarks;
+        remarksContainer.classList.remove('d-none');
+    } else {
+        remarksContainer.classList.add('d-none');
+    }
+
+    const actionWrapper = document.getElementById('modal-action-wrapper');
+    if (data.status_raw === 'document required' || data.status_raw === 'returned' || data.status_raw === 'document_required') {
+        actionWrapper.classList.remove('d-none');
+        document.getElementById('modal-edit-btn').onclick = function() {
+            bootstrap.Modal.getInstance(document.getElementById('detailsModal')).hide();
+            editDetails(data);
+        };
+    } else {
+        actionWrapper.classList.add('d-none');
+    }
+
     new bootstrap.Modal(document.getElementById('detailsModal')).show();
 }
+
+function editDetails(data) {
+    document.getElementById('edit-req-db-id').value = data.db_id;
+    document.getElementById('edit-leave-type').value = data.type;
+    document.getElementById('edit-start-date').value = data.start;
+    document.getElementById('edit-end-date').value = data.end;
+    document.getElementById('edit-reason').value = data.reason;
+    
+    // Populate Secretary Remarks in Edit Modal
+    const editRemarksContainer = document.getElementById('edit-remarks-container');
+    const editRemarksText = document.getElementById('edit-remarks-text');
+    if (data.remarks && data.remarks.trim() !== '') {
+        editRemarksText.textContent = data.remarks;
+        editRemarksContainer.classList.remove('d-none');
+    } else {
+        editRemarksContainer.classList.add('d-none');
+    }
+    
+    new bootstrap.Modal(document.getElementById('editLeaveModal')).show();
+}
+
+// TOAST ALERT
+document.addEventListener('DOMContentLoaded', function () {
+    const phpError = <?= json_encode($formError) ?>;
+    const phpSuccess = <?= json_encode($formSuccess) ?>;
+    
+    let message = '';
+    let isError = false;
+
+    if (phpError) {
+        message = phpError;
+        isError = true;
+    } else if (phpSuccess) {
+        message = phpSuccess;
+        isError = false;
+    }
+
+    if (message) {
+        const toastEl = document.getElementById('liveToast');
+        const toastBody = document.getElementById('toastMessageBody');
+        const closeBtn = toastEl.querySelector('.btn-close');
+        
+        // Use solid, high-contrast dark-mode friendly background colors
+        if (isError) {
+            toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
+            toastEl.style.backgroundColor = '#842029'; // Deep rich red for dark mode
+            closeBtn.classList.remove('btn-close-white');
+            closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+        } else {
+            toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
+            toastEl.style.backgroundColor = '#0f5132'; // Deep rich green for dark mode
+            closeBtn.classList.remove('btn-close-white');
+            closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+        }
+        
+        // Add an icon alongside the message text
+        const iconClass = isError ? 'fas fa-exclamation-circle' : 'fas fa-check-circle';
+        toastBody.innerHTML = `<i class="${iconClass} fs-5 text-white"></i> <span class="text-white">${message}</span>`;
+        
+        // Show the toast using Bootstrap API
+        const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+        toast.show();
+    }
+});
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
