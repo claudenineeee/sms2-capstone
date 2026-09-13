@@ -286,8 +286,15 @@ try {
                     <td class="small text-muted"><?= htmlspecialchars($r['created_at'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                     <td class="text-end pe-3">
                         <?php if ($screeningStatus === 'Pending'): ?>
-                            <button type="button" class="btn btn-sm btn-primary shadow-sm"
-                                    onclick="openReviewModal(<?= (int) $r['id'] ?>, '<?= htmlspecialchars(addslashes($r['faculty_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['leave_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['reason'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', <?= $hasDocument ? 'true' : 'false' ?>, '<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>')">
+                            <button type="button" class="btn btn-sm btn-primary shadow-sm review-btn"
+                                    data-id="<?= (int) $r['id'] ?>"
+                                    data-faculty="<?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-type="<?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-start="<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-end="<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-reason="<?= htmlspecialchars($r['reason'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-has-doc="<?= $hasDocument ? 'true' : 'false' ?>"
+                                    data-doc-url="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>">
                                 <i class="fas fa-eye me-1"></i>Review
                             </button>
                         <?php elseif ($screeningStatus === 'Screened' && !empty($r['screening_signature'])): ?>
@@ -442,16 +449,57 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<?php if ($formError !== ''): ?>
-    <div class="alert alert-danger rounded-3 mb-4" role="alert">
-        <?= htmlspecialchars($formError, ENT_QUOTES, 'UTF-8') ?>
+<!-- Toast Notification Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="liveToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2" id="toastMessageBody">
+                <!-- Message injected via JS -->
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
     </div>
-<?php endif; ?>
+</div>
 
-<?php if ($formSuccess !== ''): ?>
-    <div class="alert alert-success rounded-3 mb-4" role="alert">
-        <?= htmlspecialchars($formSuccess, ENT_QUOTES, 'UTF-8') ?>
-    </div>
+<?php if ($formError !== '' || $formSuccess !== ''): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const phpError = <?= json_encode($formError) ?>;
+    const phpSuccess = <?= json_encode($formSuccess) ?>;
+    
+    let message = '';
+    let isError = false;
+
+    if (phpError) {
+        message = phpError;
+        isError = true;
+    } else if (phpSuccess) {
+        message = phpSuccess;
+        isError = false;
+    }
+
+    if (message) {
+        const toastEl = document.getElementById('liveToast');
+        const toastBody = document.getElementById('toastMessageBody');
+        const closeBtn = toastEl.querySelector('.btn-close');
+        
+        if (isError) {
+            toastEl.style.backgroundColor = '#842029'; // Rich red for dark mode/errors
+            closeBtn.classList.remove('btn-close-white');
+            closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+            toastBody.innerHTML = `<i class="fas fa-exclamation-circle fs-5 text-white"></i> <span class="text-white">${message}</span>`;
+        } else {
+            toastEl.style.backgroundColor = '#0f5132'; // Rich green for success
+            closeBtn.classList.remove('btn-close-white');
+            closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+            toastBody.innerHTML = `<i class="fas fa-check-circle fs-5 text-white"></i> <span class="text-white">${message}</span>`;
+        }
+        
+        const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+        toast.show();
+    }
+});
+</script>
 <?php endif; ?>
 
 <div class="row g-3 mb-4">
@@ -608,8 +656,15 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <td class="small text-muted"><?= htmlspecialchars($r['created_at'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                             <td class="text-end pe-3">
                                 <?php if ($screeningStatus === 'Pending'): ?>
-                                    <button type="button" class="btn btn-sm btn-primary shadow-sm"
-                                            onclick="openReviewModal(<?= (int) $r['id'] ?>, '<?= htmlspecialchars(addslashes($r['faculty_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['leave_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars(addslashes($r['reason'] ?? ''), ENT_QUOTES, 'UTF-8') ?>', <?= $hasDocument ? 'true' : 'false' ?>, '<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>')">
+                                    <button type="button" class="btn btn-sm btn-primary shadow-sm review-btn"
+                                            data-id="<?= (int) $r['id'] ?>"
+                                            data-faculty="<?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-type="<?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-start="<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-end="<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-reason="<?= htmlspecialchars($r['reason'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-has-doc="<?= $hasDocument ? 'true' : 'false' ?>"
+                                            data-doc-url="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-eye me-1"></i>Review
                                     </button>
                                 <?php elseif ($screeningStatus === 'Screened' && !empty($r['screening_signature'])): ?>
@@ -889,6 +944,23 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     attachPaginationListeners();
+});
+
+// Event Delegation for Review Buttons
+document.addEventListener('click', function(event) {
+    const btn = event.target.closest('.review-btn');
+    if (!btn) return;
+
+    openReviewModal(
+        parseInt(btn.dataset.id),
+        btn.dataset.faculty,
+        btn.dataset.type,
+        btn.dataset.start,
+        btn.dataset.end,
+        btn.dataset.reason,
+        btn.dataset.hasDoc === 'true',
+        btn.dataset.docUrl
+    );
 });
 
 let currentReviewId = null;
