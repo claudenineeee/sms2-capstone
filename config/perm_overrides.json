@@ -1,0 +1,12 @@
+{
+    "superadmin": {
+        "student_portal": false
+    },
+    "panel": {
+        "faculty": true
+    },
+    "it_office": {
+        "lms": true,
+        "payment": false
+    }
+}
