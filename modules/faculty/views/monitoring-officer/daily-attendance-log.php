@@ -131,6 +131,31 @@ function renderSparkline($data, $color) {
     .node-card { transition: all 0.2s ease-in-out; opacity: 0.5; }
     .node-card.active { opacity: 1; border-color: var(--bs-primary) !important; box-shadow: var(--bs-box-shadow-sm); }
     .node-card.done { opacity: 0.85; border-color: var(--bs-success) !important; }
+<<<<<<< HEAD
+=======
+    /* CHANGED: bg-body-tertiary is a semi-transparent tint in this theme —
+       fine for a surface sitting normally in the page flow, but this
+       dropdown floats (position:absolute) ABOVE other page content, so a
+       translucent background let that content show straight through.
+       Switched to var(--bs-body-bg), the fully solid canvas color your
+       actual opaque cards use, applied to both the container and each
+       item so there's no gap where anything bleeds through. */
+    #faculty_dropdown_list {
+        background-color: var(--bs-body-bg) !important;
+        border: 1px solid var(--bs-border-color);
+    }
+    #faculty_dropdown_list .faculty-option {
+        background-color: var(--bs-body-bg);
+        color: var(--bs-body-color);
+        border-color: var(--bs-border-color);
+    }
+    #faculty_dropdown_list .faculty-option:hover,
+    #faculty_dropdown_list .faculty-option:focus,
+    #faculty_dropdown_list .faculty-option:active {
+        background-color: var(--bs-primary);
+        color: #fff;
+    }
+>>>>>>> 18c286d (Save local monitoring updates before pull)
 </style>
 
 <div class="container-fluid py-3">
@@ -262,8 +287,35 @@ function renderSparkline($data, $color) {
                     <form id="startRoomCheckForm">
                         <div class="row g-3">
                             <div class="col-md-6">
+<<<<<<< HEAD
                                 <label class="form-label fw-semibold fs-7" for="faculty_select">Faculty / Professor</label>
                                 <select name="faculty_id" id="faculty_select" class="form-select" required>
+=======
+                                <label class="form-label fw-semibold fs-7" for="faculty_search">Faculty / Professor</label>
+                                <!-- CHANGED: replaced the native <select> (which just dumped every
+                                     faculty member into one long native dropdown) with a searchable
+                                     text input + custom filtered list below it. Only ~5 rows show at
+                                     once (capped height on #faculty_dropdown_list), with the rest
+                                     reachable by scrolling. The original <select> is kept below,
+                                     hidden, purely so the existing JS (facultySelect.value /
+                                     .options[selectedIndex].text used at submit time) keeps working
+                                     without any changes there. -->
+                                <div class="position-relative">
+                                    <input type="text" id="faculty_search" class="form-control" placeholder="Search instructor..." autocomplete="off">
+                                    <div id="faculty_dropdown_list" class="list-group shadow-sm" style="display:none; position:absolute; width:100%; z-index:1050; max-height:210px; overflow-y:auto;">
+                                        <?php foreach ($facultyList as $faculty): ?>
+                                            <?php
+                                                $fullName = htmlspecialchars(($faculty['last_name'] ?? '') . ', ' . ($faculty['first_name'] ?? ''));
+                                                $pos = !empty($faculty['position']) ? ' (' . htmlspecialchars($faculty['position']) . ')' : '';
+                                                $facId = htmlspecialchars($faculty['id'] ?? '');
+                                            ?>
+                                            <button type="button" class="list-group-item list-group-item-action faculty-option py-2" data-id="<?= $facId ?>" data-name="<?= $fullName . $pos ?>"><?= $fullName . $pos ?></button>
+                                        <?php endforeach; ?>
+                                        <div id="faculty_no_match" class="list-group-item text-muted small d-none">No matching faculty found.</div>
+                                    </div>
+                                </div>
+                                <select name="faculty_id" id="faculty_select" class="d-none">
+>>>>>>> 18c286d (Save local monitoring updates before pull)
                                     <option value="" disabled selected>Select instructor...</option>
                                     <?php foreach ($facultyList as $faculty): ?>
                                         <?php
@@ -593,6 +645,19 @@ function renderStepper() {
         e.preventDefault();
         
         const facultySelect = document.getElementById('faculty_select');
+<<<<<<< HEAD
+=======
+
+        // CHANGED: the native <select>'s "required" attribute used to catch
+        // an empty selection automatically. Since it's now hidden (search
+        // input replaced it visually), validate manually instead.
+        if (!facultySelect.value) {
+            alert('Please select a faculty member from the list.');
+            document.getElementById('faculty_search').focus();
+            return;
+        }
+
+>>>>>>> 18c286d (Save local monitoring updates before pull)
         const expectedInput = document.getElementById('form_expected');
 
         sessionData = {
@@ -821,6 +886,65 @@ function renderStepper() {
         return div.innerHTML;
     }
 
+<<<<<<< HEAD
+=======
+    // CHANGED: new — powers the searchable Faculty / Professor field.
+    // Filters the visible list live as the officer types, and keeps the
+    // hidden #faculty_select in sync (setting .value also updates its
+    // selectedIndex natively, so the existing submit-handler code that reads
+    // facultySelect.options[facultySelect.selectedIndex].text needs no
+    // changes).
+    (function initFacultySearch() {
+        const searchInput = document.getElementById('faculty_search');
+        const dropdownList = document.getElementById('faculty_dropdown_list');
+        const noMatch = document.getElementById('faculty_no_match');
+        const hiddenSelect = document.getElementById('faculty_select');
+        if (!searchInput || !dropdownList || !hiddenSelect) return;
+
+        const options = Array.from(dropdownList.querySelectorAll('.faculty-option'));
+
+        function openDropdown() { dropdownList.style.display = 'block'; }
+        function closeDropdown() { dropdownList.style.display = 'none'; }
+
+        function filterList() {
+            const term = searchInput.value.trim().toLowerCase();
+            let anyVisible = false;
+            options.forEach(opt => {
+                const match = opt.dataset.name.toLowerCase().includes(term);
+                opt.classList.toggle('d-none', !match);
+                if (match) anyVisible = true;
+            });
+            if (noMatch) noMatch.classList.toggle('d-none', anyVisible);
+        }
+
+        searchInput.addEventListener('focus', function() {
+            filterList();
+            openDropdown();
+        });
+        searchInput.addEventListener('input', function() {
+            // Typing again means the previous confirmed selection no longer
+            // necessarily matches what's shown — clear it until they pick again.
+            hiddenSelect.value = '';
+            filterList();
+            openDropdown();
+        });
+
+        options.forEach(function(opt) {
+            opt.addEventListener('click', function() {
+                hiddenSelect.value = opt.dataset.id;
+                searchInput.value = opt.dataset.name;
+                closeDropdown();
+            });
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#faculty_search') && !e.target.closest('#faculty_dropdown_list')) {
+                closeDropdown();
+            }
+        });
+    })();
+
+>>>>>>> 18c286d (Save local monitoring updates before pull)
     renderStepper();
 })();
 </script>
