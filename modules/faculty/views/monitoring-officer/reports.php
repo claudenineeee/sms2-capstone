@@ -61,9 +61,25 @@ $allReportData = [];
 foreach ($facultyListRaw as $member) {
     $facId = (string) $member['id']; 
     $facName = trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? ''));
+<<<<<<< HEAD
     $facultyList[] = ['id' => $facId, 'name' => $facName];
 
     $sessions = $attendanceModel->getSessionsForFaculty($member['id'], $startDate, $endDate);
+=======
+
+    $sessions = $attendanceModel->getSessionsForFaculty($member['id'], $startDate, $endDate);
+
+    // CHANGED: was always listing every faculty member regardless of the
+    // selected Time Period. Now the Faculty List only shows people who
+    // actually have at least one attendance session within the currently
+    // selected range — e.g. picking "Today" only shows faculty checked in
+    // today, not the entire roster.
+    if (empty($sessions)) {
+        continue;
+    }
+
+    $facultyList[] = ['id' => $facId, 'name' => $facName];
+>>>>>>> 18c286d (Save local monitoring updates before pull)
     $allReportData[$facId] = array_map(function ($row) use ($facName) {
         return [
             'id'       => $row['session_id'],
@@ -103,9 +119,18 @@ foreach ($facultyListRaw as $member) {
 
     <!-- Filter Bar -->
     <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-body-tertiary text-body">
+<<<<<<< HEAD
         <form method="GET" class="row g-2 g-md-3 align-items-end">
             <div class="col-12 col-md-4">
                 <label class="form-label fs-7 fw-semibold text-body-secondary">Time Period</label>
+=======
+        <form method="GET" id="reportFilterForm" class="row g-2 g-md-3 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label fs-7 fw-semibold text-body-secondary">Time Period</label>
+                <!-- CHANGED: onchange now auto-submits the form directly (see
+                     toggleCustomDates() below) instead of requiring a
+                     separate "Apply" click. -->
+>>>>>>> 18c286d (Save local monitoring updates before pull)
                 <select name="period" class="form-select bg-body text-body border-light-subtle rounded-3" onchange="toggleCustomDates(this.value)">
                     <option value="today" <?= $period === 'today' ? 'selected' : '' ?>>Today</option>
                     <option value="past_week" <?= $period === 'past_week' ? 'selected' : '' ?>>Past Week (7 Days)</option>
@@ -117,11 +142,18 @@ foreach ($facultyListRaw as $member) {
 
             <div class="col-12 col-sm-6 col-md-3 custom-date-field <?= $period !== 'custom' ? 'd-none' : '' ?>">
                 <label class="form-label fs-7 fw-semibold text-body-secondary">Start Date</label>
+<<<<<<< HEAD
                 <input type="date" name="start_date" class="form-control bg-body text-body border-light-subtle rounded-3" value="<?= htmlspecialchars($startDate) ?>">
+=======
+                <!-- CHANGED: auto-submits once a start date is picked for
+                     Custom Range, since there's no Apply button anymore. -->
+                <input type="date" name="start_date" class="form-control bg-body text-body border-light-subtle rounded-3" value="<?= htmlspecialchars($startDate) ?>" onchange="document.getElementById('reportFilterForm').submit()">
+>>>>>>> 18c286d (Save local monitoring updates before pull)
             </div>
 
             <div class="col-12 col-sm-6 col-md-3 custom-date-field <?= $period !== 'custom' ? 'd-none' : '' ?>">
                 <label class="form-label fs-7 fw-semibold text-body-secondary">End Date</label>
+<<<<<<< HEAD
                 <input type="date" name="end_date" class="form-control bg-body text-body border-light-subtle rounded-3" value="<?= htmlspecialchars($endDate) ?>">
             </div>
 
@@ -129,6 +161,9 @@ foreach ($facultyListRaw as $member) {
                 <button type="submit" class="btn btn-primary w-100 rounded-3">
                     <i class="fas fa-filter me-1"></i> Apply
                 </button>
+=======
+                <input type="date" name="end_date" class="form-control bg-body text-body border-light-subtle rounded-3" value="<?= htmlspecialchars($endDate) ?>" onchange="document.getElementById('reportFilterForm').submit()">
+>>>>>>> 18c286d (Save local monitoring updates before pull)
             </div>
         </form>
     </div>
@@ -428,6 +463,13 @@ function viewLogDetail(data) {
     modal.show();
 }
 
+<<<<<<< HEAD
+=======
+// CHANGED: toggleCustomDates now auto-submits the form for every period
+// except "custom" (which needs the user to actually pick start/end dates
+// first — those inputs auto-submit themselves via their own onchange).
+// This replaces the removed "Apply" button entirely.
+>>>>>>> 18c286d (Save local monitoring updates before pull)
 function toggleCustomDates(val) {
     document.querySelectorAll('.custom-date-field').forEach(el => {
         if (val === 'custom') {
@@ -436,6 +478,12 @@ function toggleCustomDates(val) {
             el.classList.add('d-none');
         }
     });
+<<<<<<< HEAD
+=======
+    if (val !== 'custom') {
+        document.getElementById('reportFilterForm').submit();
+    }
+>>>>>>> 18c286d (Save local monitoring updates before pull)
 }
 
 function escapeHtml(str) {
