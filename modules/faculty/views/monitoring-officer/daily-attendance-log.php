@@ -131,8 +131,6 @@ function renderSparkline($data, $color) {
     .node-card { transition: all 0.2s ease-in-out; opacity: 0.5; }
     .node-card.active { opacity: 1; border-color: var(--bs-primary) !important; box-shadow: var(--bs-box-shadow-sm); }
     .node-card.done { opacity: 0.85; border-color: var(--bs-success) !important; }
-<<<<<<< HEAD
-=======
     /* CHANGED: bg-body-tertiary is a semi-transparent tint in this theme —
        fine for a surface sitting normally in the page flow, but this
        dropdown floats (position:absolute) ABOVE other page content, so a
@@ -155,7 +153,6 @@ function renderSparkline($data, $color) {
         background-color: var(--bs-primary);
         color: #fff;
     }
->>>>>>> 18c286d (Save local monitoring updates before pull)
 </style>
 
 <div class="container-fluid py-3">
@@ -287,10 +284,6 @@ function renderSparkline($data, $color) {
                     <form id="startRoomCheckForm">
                         <div class="row g-3">
                             <div class="col-md-6">
-<<<<<<< HEAD
-                                <label class="form-label fw-semibold fs-7" for="faculty_select">Faculty / Professor</label>
-                                <select name="faculty_id" id="faculty_select" class="form-select" required>
-=======
                                 <label class="form-label fw-semibold fs-7" for="faculty_search">Faculty / Professor</label>
                                 <!-- CHANGED: replaced the native <select> (which just dumped every
                                      faculty member into one long native dropdown) with a searchable
@@ -315,7 +308,6 @@ function renderSparkline($data, $color) {
                                     </div>
                                 </div>
                                 <select name="faculty_id" id="faculty_select" class="d-none">
->>>>>>> 18c286d (Save local monitoring updates before pull)
                                     <option value="" disabled selected>Select instructor...</option>
                                     <?php foreach ($facultyList as $faculty): ?>
                                         <?php
@@ -645,8 +637,6 @@ function renderStepper() {
         e.preventDefault();
         
         const facultySelect = document.getElementById('faculty_select');
-<<<<<<< HEAD
-=======
 
         // CHANGED: the native <select>'s "required" attribute used to catch
         // an empty selection automatically. Since it's now hidden (search
@@ -657,7 +647,6 @@ function renderStepper() {
             return;
         }
 
->>>>>>> 18c286d (Save local monitoring updates before pull)
         const expectedInput = document.getElementById('form_expected');
 
         sessionData = {
@@ -886,8 +875,6 @@ function renderStepper() {
         return div.innerHTML;
     }
 
-<<<<<<< HEAD
-=======
     // CHANGED: new — powers the searchable Faculty / Professor field.
     // Filters the visible list live as the officer types, and keeps the
     // hidden #faculty_select in sync (setting .value also updates its
@@ -944,7 +931,6 @@ function renderStepper() {
         });
     })();
 
->>>>>>> 18c286d (Save local monitoring updates before pull)
     renderStepper();
 })();
 </script>
