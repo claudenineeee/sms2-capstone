@@ -1,4 +1,6 @@
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
 <?php
 /**
  * ONE-TIME SCRIPT: Backfill missing faculty_db.faculty records
@@ -126,6 +128,7 @@ echo "Errors:                $errors\n";
 echo "----------------------------------------\n";
 echo "\nDone. Delete this file now.\n";
 =======
+>>>>>>> monitoring-update
 <?php
 /**
  * ONE-TIME SCRIPT: Backfill missing faculty_db.faculty records
@@ -252,5 +255,8 @@ echo "Already linked:       $skippedAlreadyLinked\n";
 echo "Errors:                $errors\n";
 echo "----------------------------------------\n";
 echo "\nDone. Delete this file now.\n";
+<<<<<<< HEAD
+=======
 >>>>>>> 18c286d (Save local monitoring updates before pull)
+>>>>>>> monitoring-update
 echo "</pre>";

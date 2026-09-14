@@ -285,13 +285,8 @@ $pctUnverified = max(0, 100 - ($pctPresent + $pctAbsent));
                         <thead>
                             <tr class="text-body-secondary border-light-subtle">
                                 <th>Faculty Member</th>
-<<<<<<< HEAD
-                                <th>Room ID</th>
-                                <th class="d-none d-sm-table-cell">Subject ID</th>
-=======
                                 <th>Room</th>
                                 <th class="d-none d-sm-table-cell">Subject</th>
->>>>>>> 18c286d (Save local monitoring updates before pull)
                                 <th>Status</th>
                                 <th class="d-none d-md-table-cell">Date</th>
                             </tr>
