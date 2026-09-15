@@ -600,7 +600,7 @@ $facultyScheduleOfficerNavGroups = [
                 <?php endforeach; ?>
 
             <!-- PROPERTY CLEARANCE -->
-            <?php elseif (in_array($roleKey, ['property'], true)): ?>
+            <?php elseif (in_array($roleKey, ['property_custodian_office', 'property_custodian', 'property'], true)): ?>
                 <?php foreach ($facultyPropertyClearance as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
                         <span class="nav-link sidebar-group-heading">
@@ -623,7 +623,7 @@ $facultyScheduleOfficerNavGroups = [
                 <?php endforeach; ?>
 
             <!-- LIBRARY CLEARANCE -->
-            <?php elseif (in_array($roleKey, ['library'], true)): ?>
+            <?php elseif (in_array($roleKey, ['library_clearance', 'library'], true)): ?>
                 <?php foreach ($facultyLibraryClearance as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
                         <span class="nav-link sidebar-group-heading">

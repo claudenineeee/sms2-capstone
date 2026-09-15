@@ -680,6 +680,10 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 const statusBadge = `<span class="badge rounded-pill bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-3 py-1.5 fw-semibold" style="font-size: 0.75rem;"><i class="fas ${statusIcon} me-1.5"></i>${escapeHtml(c.status)}</span>`;
 
                 return `<tr>
+                <td class="ps-3">
+                    <div class="fw-semibold text-body-emphasis">${escapeHtml(row.name || 'Unknown')}</div>
+                    <small class="text-body-secondary">${escapeHtml(row.faculty_id || row.faculty_no || '')}</small>
+                </td>
                 <td>${escapeHtml(row.designated_department || 'N/A')}</td>
                 <td class="${row.days_remaining !== null && row.days_remaining <= 30 ? 'text-danger fw-bold' : ''}">${expiry}<small class="d-block text-body-secondary">${row.days_remaining === null ? '' : (row.days_remaining < 0 ? 'Expired' : row.days_remaining + ' days remaining')}</small></td>
                 <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${tone}" style="width:${c.progress}%"></div></div><small class="text-body-secondary">${c.progress}% (${c.approved_items}/${c.total_items})</small></td>
@@ -772,6 +776,11 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 }).join('');
 
                 return `<tr>
+                <td class="ps-3">
+                    <div class="fw-semibold text-body-emphasis">${escapeHtml(row.name || ((row.first_name || '') + ' ' + (row.last_name || '')).trim() || 'Unknown')}</div>
+                    <small class="text-body-secondary d-block">${escapeHtml(row.faculty_no || '')}</small>
+                    <small class="text-body-secondary">${escapeHtml(row.designated_department || '')}</small>
+                </td>
                 <td><span class="badge bg-secondary-subtle text-body-secondary border">${escapeHtml(row.academic_year)} · ${escapeHtml(row.semester)}</span></td>
                 <td><strong class="text-success">${expiry}</strong></td>
                 <td style="max-width: 250px;">${reqTags || '<span class="text-body-secondary small">No requirements</span>'}</td>

@@ -44,14 +44,20 @@ function smsNormalizeRoleKey(string $roleKey): string
     if ($roleKey === 'hr_office') {
         return 'hr_clearance';
     }
-    // Matches registrar / registrar_office to registrar_clearance
-    if ($roleKey === 'registrar' || $roleKey === 'registrar_office' || $roleKey === 'registrar clearance') {
+    // registrar_office / registrar clearance alias → registrar_clearance
+    // NOTE: the plain 'registrar' role key is preserved as-is (it is a real DB role)
+    if ($roleKey === 'registrar_office' || $roleKey === 'registrar clearance') {
         return 'registrar_clearance';
     }
-    // Matches finance / finance_office
-    if ($roleKey === 'finance_office') {
-        return 'finance_office';  
+    // library variants → library_clearance
+    if ($roleKey === 'library' || $roleKey === 'library_office') {
+        return 'library_clearance';
     }
+    // property variants → property_custodian_office
+    if ($roleKey === 'property' || $roleKey === 'property_custodian' || $roleKey === 'property_office') {
+        return 'property_custodian_office';
+    }
+    // finance_office stays as-is
     return $roleKey;
 }
 
@@ -173,27 +179,30 @@ function smsDefaultModulesForRole(string $roleKey): array
 {
     $roleKey = smsNormalizeRoleKey($roleKey);
     $defaults = [
-        'superadmin'          => ['user-management', 'student_portal'],
-        'admin'               => ['user-management'],
-        'admission'           => ['enrollment'],
-        'student'             => ['student_portal'],
-        'registrar'           => ['registrar', 'curriculum', 'scheduling'],
-        'registrar_clearance' => ['registrar', 'faculty'], // Grants access to faculty views
-        'crad_officer'        => ['crad'],
-        'research_coordinator'=> ['crad'],
-        'finance_office'      => ['faculty'],                // Grants access to faculty views
-        'adviser'             => ['faculty'],
-        'panel'               => ['faculty'],
-        'it_office'           => ['lms'],
-        'osa'                 => ['cocurricular'],
-        'qa'                  => ['accreditation'],
+        'superadmin'               => ['user-management', 'student_portal'],
+        'admin'                    => ['user-management'],
+        'admission'                => ['enrollment'],
+        'student'                  => ['student_portal'],
+        'registrar'                => ['registrar', 'curriculum', 'scheduling'],
+        'registrar_clearance'      => ['faculty'],  // Clearance-only: faculty module
+        'crad_officer'             => ['crad'],
+        'research_coordinator'     => ['crad'],
+        'hr_clearance'             => ['faculty'],  // HR clearance: faculty module
+        'finance_office'           => ['faculty'],  // Finance clearance: faculty module
+        'library_clearance'        => ['faculty'],  // Library clearance: faculty module
+        'property_custodian_office'=> ['faculty'],  // Property clearance: faculty module
+        'adviser'                  => ['faculty'],
+        'panel'                    => ['faculty'],
+        'it_office'                => ['lms'],
+        'osa'                      => ['cocurricular'],
+        'qa'                       => ['accreditation'],
         // Faculty module sub-roles
-        'dean'             => ['faculty'],
-        'department_head'  => ['faculty'],
-        'secretary'        => ['faculty'],
+        'dean'               => ['faculty'],
+        'department_head'    => ['faculty'],
+        'secretary'          => ['faculty'],
         'monitoring_officer' => ['faculty'],
-        'faculty'          => ['faculty'],
-        'teacher'          => ['faculty'],
+        'faculty'            => ['faculty'],
+        'teacher'            => ['faculty'],
     ];
 
     return $defaults[$roleKey] ?? [];
@@ -457,24 +466,24 @@ function smsPostLoginRedirectUrl(): string
         return BASE_URL . '/modules/faculty/views/faculty/dashboard.php';
     }
 
-    // NEW ADDED ROLES FOR ACCEPTING CLEARANCE
-    if ($roleKey === 'hr_clearance') {
+    // CLEARANCE OFFICE ROLES
+    if (in_array($roleKey, ['hr_clearance', 'hr'], true)) {
         return BASE_URL . '/modules/faculty/views/hr/dashboard.php';
     }
 
-    if (in_array($roleKey, ['registrar', 'registrar_clearance'], true)) {
+    if ($roleKey === 'registrar_clearance') {
         return BASE_URL . '/modules/faculty/views/registrar/dashboard.php';
     }
 
-    if (in_array($roleKey, ['library_clearance'], true)) {
+    if (in_array($roleKey, ['library_clearance', 'library'], true)) {
         return BASE_URL . '/modules/faculty/views/library-clearance/dashboard.php';
     }
 
-    if (in_array($roleKey, ['finance_office'], true)) {
+    if (in_array($roleKey, ['finance_office', 'finance'], true)) {
         return BASE_URL . '/modules/faculty/views/finance/dashboard.php';
     }
 
-     if (in_array($roleKey, ['property_custodian_office'], true)) {
+    if (in_array($roleKey, ['property_custodian_office', 'property_custodian', 'property'], true)) {
         return BASE_URL . '/modules/faculty/views/property/dashboard.php';
     }
 
