@@ -285,8 +285,8 @@ $pctUnverified = max(0, 100 - ($pctPresent + $pctAbsent));
                         <thead>
                             <tr class="text-body-secondary border-light-subtle">
                                 <th>Faculty Member</th>
-                                <th>Room ID</th>
-                                <th class="d-none d-sm-table-cell">Subject ID</th>
+                                <th>Room</th>
+                                <th class="d-none d-sm-table-cell">Subject</th>
                                 <th>Status</th>
                                 <th class="d-none d-md-table-cell">Date</th>
                             </tr>
