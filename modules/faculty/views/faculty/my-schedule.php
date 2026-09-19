@@ -14,6 +14,20 @@ $breadcrumbs  = [
     ['label' => 'My Schedule', 'url' => null],
 ];
 
+// ==========================================
+// FUTURE REST API INTEGRATION POINT:
+// Fetch summary stats, weekly/daily schedules, 
+// and assigned subjects dynamically via API/database.
+// ==========================================
+$teachingLoadUnits = 0;
+$totalSubjectsCount = 0;
+$totalSectionsCount = 0;
+$classesTodayCount = 0;
+
+$weeklyScheduleData = []; // To be populated via API
+$dailyScheduleData  = []; // To be populated via API
+$assignedSubjects   = []; // To be populated via API
+
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 
@@ -45,7 +59,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Teaching Load</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;">24 <small class="text-muted fs-6">units</small></h4>
+                    <!-- TODO: Output API data for teaching load units -->
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= $teachingLoadUnits ?> <small class="text-muted fs-6">units</small></h4>
                 </div>
             </div>
         </section>
@@ -60,7 +75,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Subjects</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #28a745;">8</h4>
+                    <!-- TODO: Output API data for total subjects -->
+                    <h4 class="mb-0 fw-bold" style="color: #28a745;"><?= $totalSubjectsCount ?></h4>
                 </div>
             </div>
         </section>
@@ -75,7 +91,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Sections</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #0dcaf0;">6</h4>
+                    <!-- TODO: Output API data for total sections -->
+                    <h4 class="mb-0 fw-bold" style="color: #0dcaf0;"><?= $totalSectionsCount ?></h4>
                 </div>
             </div>
         </section>
@@ -90,7 +107,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Classes Today</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #ffc107;">3</h4>
+                    <!-- TODO: Output API data for classes today -->
+                    <h4 class="mb-0 fw-bold" style="color: #ffc107;"><?= $classesTodayCount ?></h4>
                 </div>
             </div>
         </section>
@@ -116,12 +134,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <table class="table table-bordered align-middle mb-0 text-center">
                         <thead class="table-light">
                             <tr>
-                                <th style="width: 100px;" class="text-body-secondary fw-semibold small">Time</th>
+                                <th style="width: 90px;" class="text-body-secondary fw-semibold small">Time</th>
                                 <th class="text-body-secondary fw-semibold small">Mon</th>
                                 <th class="text-body-secondary fw-semibold small">Tue</th>
                                 <th class="text-body-secondary fw-semibold small">Wed</th>
                                 <th class="text-body-secondary fw-semibold small">Thu</th>
                                 <th class="text-body-secondary fw-semibold small">Fri</th>
+                                <th class="text-body-secondary fw-semibold small">Sat</th>
+                                <th class="text-body-secondary fw-semibold small">Sun</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -131,20 +151,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 echo "<tr>";
                                 echo "<td class='table-light fw-medium small text-body-secondary align-middle'>$t</td>";
                                 
-                                for ($d = 0; $d < 5; $d++) {
+                                // Expanded to 7 days ($d from 0 to 6, where 0=Mon, ..., 5=Sat, 6=Sun)
+                                for ($d = 0; $d < 7; $d++) {
                                     $badge = '';
-                                    if ($t === '8:00-9:30' && $d === 0) {
-                                        $badge = '<div class="p-1 bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded text-start"><strong class="d-block text-primary small">CS101</strong><span class="small d-block text-body-secondary" style="font-size: 11px;">Rm 201</span></div>';
-                                    }
-                                    if ($t === '8:00-9:30' && $d === 2) {
-                                        $badge = '<div class="p-1 bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded text-start"><strong class="d-block text-primary small">CS101</strong><span class="small d-block text-body-secondary" style="font-size: 11px;">Rm 201</span></div>';
-                                    }
-                                    if ($t === '9:30-11:00' && $d === 0) {
-                                        $badge = '<div class="p-1 bg-success bg-opacity-10 border border-success border-opacity-25 rounded text-start"><strong class="d-block text-success small">CS401</strong><span class="small d-block text-body-secondary" style="font-size: 11px;">Rm 203</span></div>';
-                                    }
-                                    if ($t === '1:00-3:00' && $d === 4) {
-                                        $badge = '<div class="p-1 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded text-start"><strong class="d-block text-warning-emphasis small">CS301</strong><span class="small d-block text-body-secondary" style="font-size: 11px;">Rm 301</span></div>';
-                                    }
+                                    
+                                    // ==========================================
+                                    // FUTURE REST API INTEGRATION POINT:
+                                    // Check $weeklyScheduleData from API for a class matching time slot ($t) and day index ($d).
+                                    // Example: if (isset($weeklyScheduleData[$t][$d])) { $badge = renderBadge($weeklyScheduleData[$t][$d]); }
+                                    // ==========================================
+
                                     echo "<td class='p-1' style='height: 60px;'>$badge</td>";
                                 }
                                 echo "</tr>";
@@ -169,34 +185,35 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <div class="card-body">
                 <div class="d-flex flex-column gap-3">
                     <?php
-                    $dailySchedule = [
-                        ['time'=>'8:00 - 9:30 AM', 'subject'=>'CS101 - Intro to CS', 'room'=>'201', 'section'=>'A', 'isBreak'=>false],
-                        ['time'=>'9:30 - 11:00 AM', 'subject'=>'CS401 - Software Engineering', 'room'=>'203', 'section'=>'A', 'isBreak'=>false],
-                        ['time'=>'11:00 - 1:00 PM', 'subject'=>'Lunch Break', 'room'=>'-', 'section'=>'-', 'isBreak'=>true],
-                        ['time'=>'1:00 - 3:00 PM', 'subject'=>'CS301 - Algorithms', 'room'=>'301', 'section'=>'A', 'isBreak'=>false],
-                    ];
+                    // ==========================================
+                    // FUTURE REST API INTEGRATION POINT:
+                    // Populate $dailyScheduleData via API call to fetch today's agenda.
+                    // ==========================================
+                    if (empty($dailyScheduleData)) {
+                        echo '<div class="text-center text-muted py-4 small">No classes scheduled for today.</div>';
+                    } else {
+                        foreach ($dailyScheduleData as $s) {
+                            $bgTheme = $s['isBreak'] ? 'bg-secondary bg-opacity-10 border-secondary' : 'bg-primary bg-opacity-10 border-primary';
+                            $badgeTheme = $s['isBreak'] ? 'bg-secondary' : 'bg-primary';
 
-                    foreach ($dailySchedule as $s) {
-                        $bgTheme = $s['isBreak'] ? 'bg-secondary bg-opacity-10 border-secondary' : 'bg-primary bg-opacity-10 border-primary';
-                        $badgeTheme = $s['isBreak'] ? 'bg-secondary' : 'bg-primary';
-
-                        echo <<<HTML
-                        <div class="d-flex align-items-center gap-3 p-3 rounded-3 border border-opacity-25 $bgTheme">
-                            <div class="fw-bold text-body-secondary small text-nowrap">
-                                <i class="far fa-clock me-1"></i>{$s['time']}
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1 fw-bold fs-6">{$s['subject']}</h6>
-                                <div class="d-flex gap-3 text-body-secondary small" style="font-size: 12px;">
-                                    <span><i class="fas fa-door-open me-1"></i>Room {$s['room']}</span>
-                                    <span><i class="fas fa-users me-1"></i>Section {$s['section']}</span>
+                            echo <<<HTML
+                            <div class="d-flex align-items-center gap-3 p-3 rounded-3 border border-opacity-25 $bgTheme">
+                                <div class="fw-bold text-body-secondary small text-nowrap">
+                                    <i class="far fa-clock me-1"></i>{$s['time']}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1 fw-bold fs-6">{$s['subject']}</h6>
+                                    <div class="d-flex gap-3 text-body-secondary small" style="font-size: 12px;">
+                                        <span><i class="fas fa-door-open me-1"></i>Room {$s['room']}</span>
+                                        <span><i class="fas fa-users me-1"></i>Section {$s['section']}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span class="badge $badgeTheme rounded-pill">{$s['section']}</span>
                                 </div>
                             </div>
-                            <div>
-                                <span class="badge $badgeTheme rounded-pill">{$s['section']}</span>
-                            </div>
-                        </div>
-                        HTML;
+                            HTML;
+                        }
                     }
                     ?>
                 </div>
@@ -228,25 +245,25 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </thead>
                         <tbody>
                             <?php
-                            $subjects = [
-                                ['code'=>'CS101','subject'=>'Intro to Computer Science','section'=>'A','units'=>3,'students'=>45,'schedule'=>'MWF 8:00-9:30','room'=>'201'],
-                                ['code'=>'CS101','subject'=>'Intro to Computer Science','section'=>'B','units'=>3,'students'=>42,'schedule'=>'MWF 8:00-9:30','room'=>'201'],
-                                ['code'=>'CS401','subject'=>'Software Engineering','section'=>'A','units'=>3,'students'=>38,'schedule'=>'MWF 9:30-11:00','room'=>'203'],
-                                ['code'=>'CS301','subject'=>'Algorithms','section'=>'A','units'=>3,'students'=>30,'schedule'=>'F 1:00-3:00','room'=>'301'],
-                                ['code'=>'CS501','subject'=>'Research Methods','section'=>'A','units'=>3,'students'=>28,'schedule'=>'TTH 1:00-2:30','room'=>'204'],
-                                ['code'=>'CS201','subject'=>'Data Structures','section'=>'A','units'=>3,'students'=>35,'schedule'=>'TTH 10:00-11:30','room'=>'202'],
-                            ];
-                            foreach ($subjects as $s) {
-                                echo <<<HTML
-                                <tr>
-                                    <td class="ps-3 fw-bold text-primary small">{$s['code']}</td>
-                                    <td class="fw-medium small">{$s['subject']}</td>
-                                    <td><span class="badge bg-light text-dark border">{$s['section']}</span></td>
-                                    <td><span class="badge bg-primary bg-opacity-10 text-primary">{$s['units']}</span></td>
-                                    <td class="small text-body-secondary" style="font-size: 12px;">{$s['schedule']}</td>
-                                    <td class="pe-3"><span class="badge bg-secondary bg-opacity-10 text-secondary">{$s['room']}</span></td>
-                                </tr>
-                                HTML;
+                            // ==========================================
+                            // FUTURE REST API INTEGRATION POINT:
+                            // Fetch assigned subjects payload from remote module API and loop through results.
+                            // ==========================================
+                            if (empty($assignedSubjects)) {
+                                echo '<tr><td colspan="6" class="text-center text-muted py-4 small">No assigned subjects found.</td></tr>';
+                            } else {
+                                foreach ($assignedSubjects as $s) {
+                                    echo <<<HTML
+                                    <tr>
+                                        <td class="ps-3 fw-bold text-primary small">{$s['code']}</td>
+                                        <td class="fw-medium small">{$s['subject']}</td>
+                                        <td><span class="badge bg-light text-dark border">{$s['section']}</span></td>
+                                        <td><span class="badge bg-primary bg-opacity-10 text-primary">{$s['units']}</span></td>
+                                        <td class="small text-body-secondary" style="font-size: 12px;">{$s['schedule']}</td>
+                                        <td class="pe-3"><span class="badge bg-secondary bg-opacity-10 text-secondary">{$s['room']}</span></td>
+                                    </tr>
+                                    HTML;
+                                }
                             }
                             ?>
                         </tbody>

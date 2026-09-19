@@ -236,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                             <tr>
                                                                 <td style='color: #bbbbbb; padding-top: 10px;'>
                                                                     <p style='margin: 0;'>Regards,</p>
-                                                                    <p style='margin: 4px 0 0 0; font-weight: bold;'>HR Office</p>
+                                                                    <p style='margin: 4px 0 0 0; font-weight: bold;'>Admin</p>
                                                                 </td>
                                                             </tr>
                                                         </table>

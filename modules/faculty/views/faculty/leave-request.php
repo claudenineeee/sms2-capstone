@@ -31,24 +31,51 @@ $formSuccess = '';$alertMessages = [];
 try {
     $pdo = facultyDb();
 
-    // Ensure we load faculty profile id for user first
+    // Ensure we load faculty record id for user first based on email linkage
     $userId = (int) ($_SESSION['user_id'] ?? 0);
     $facultyProfileId = 0;
 
     if ($userId <= 0) {
         $formError = 'Your user account could not be identified. Please log in again.';
     } else {
+        $userStmt = $pdo->prepare("SELECT username, email FROM users WHERE id = :id LIMIT 1");
+        $userStmt->execute([':id' => $userId]);
+        $userData = $userStmt->fetch(PDO::FETCH_ASSOC);
+        $userEmail = $userData['email'] ?? '';
+
+        // Query the main `faculty` table using email linkage
         $stmt = $pdo->prepare("
-            SELECT id
-            FROM faculty_db.faculty_profiles
-            WHERE user_id = :user_id
+            SELECT faculty_id
+            FROM faculty_db.faculty
+            WHERE email = :email
             LIMIT 1
         ");
-        $stmt->execute([':user_id' => $userId]);
+        $stmt->execute([':email' => $userEmail]);
         $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
 
+        // Auto-provision a faculty record if it doesn't exist yet
         if ($facultyProfileId <= 0) {
-            $formError = 'Your account is not linked to a faculty profile.';
+            try {
+                $facultyNo = 'FAC-' . date('Y') . '-' . str_pad($userId, 4, '0', STR_PAD_LEFT);
+                $firstName = $userData['username'] ?? 'Faculty';
+                $lastName = 'Member';
+                $email = $userEmail ?: ('user' . $userId . '@domain.com');
+
+                $insertFaculty = $pdo->prepare("
+                    INSERT INTO faculty_db.faculty (faculty_no, first_name, last_name, email, department_id, position)
+                    VALUES (:faculty_no, :first_name, :last_name, :email, 1, 'Faculty')
+                ");
+                $insertFaculty->execute([
+                    ':faculty_no' => $facultyNo,
+                    ':first_name' => $firstName,
+                    ':last_name' => $lastName,
+                    ':email' => $email
+                ]);
+
+                $facultyProfileId = (int) $pdo->lastInsertId();
+            } catch (Exception $ex) {
+                $formError = 'Your account is not linked to a faculty record and auto-creation failed: ' . $ex->getMessage();
+            }
         }
     }
 
@@ -79,7 +106,6 @@ try {
         $totalDays = (int) (($endDate && $startDate) ? ((strtotime($endDate) - strtotime($startDate)) / 86400) + 1 : 0);
 
         if ($formError === '') {
-            // Verify ownership and status (checking both status and screening_status columns)
             $chk = $pdo->prepare('SELECT id, documents, faculty_id, status, screening_status, total_days FROM faculty_db.leave_requests WHERE id = :id LIMIT 1');
             $chk->execute([':id' => $editRequestId]);
             $row = $chk->fetch(PDO::FETCH_ASSOC);
@@ -96,8 +122,8 @@ try {
                 if (!$isEditable) {
                     $formError = 'This request can no longer be edited.';
                 } else {
-                    $fp = $pdo->prepare('SELECT id FROM faculty_db.faculty_profiles WHERE id = :fp_id AND user_id = :user_id LIMIT 1');
-                    $fp->execute([':fp_id' => (int) $row['faculty_id'], ':user_id' => $userId]);
+                    $fp = $pdo->prepare('SELECT faculty_id FROM faculty_db.faculty WHERE faculty_id = :fp_id AND email = :email LIMIT 1');
+                    $fp->execute([':fp_id' => (int) $row['faculty_id'], ':email' => $userEmail]);
                     if (!$fp->fetchColumn()) {
                         $formError = 'You are not authorized to modify this request.';
                     }
@@ -106,7 +132,7 @@ try {
         }
 
         if ($formError === '') {
-            $uploadedName = $row['documents']; // keep existing if not uploaded
+            $uploadedName = $row['documents'];
 
             if (isset($_FILES['document']) && $_FILES['document']['error'] !== UPLOAD_ERR_NO_FILE) {
                 if ($_FILES['document']['error'] !== UPLOAD_ERR_OK) {
@@ -267,12 +293,13 @@ try {
         $sql = "
             SELECT
                 lr.*, 
-                fp.id AS faculty_profile_id,
+                fp.faculty_id AS faculty_profile_id,
                 fp.faculty_id AS faculty_identifier,
                 CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name,
-                DATEDIFF(lr.end_date, lr.start_date) + 1 AS days
+                DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
+                lr.updated_at AS approval_timestamp
             FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+            LEFT JOIN faculty_db.faculty fp ON fp.faculty_id = lr.faculty_id
             WHERE lr.faculty_id = :faculty_profile_id
             ORDER BY lr.created_at DESC
         ";
@@ -338,13 +365,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-<!-- Toast Container (Bottom-End or Top-End) -->
+<!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
     <div id="liveToast" class="toast align-items-center border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
-            <div class="toast-body d-flex align-items-center gap-2" id="toastMessageBody">
-                <!-- Dynamic text goes here -->
-            </div>
+            <div class="toast-body d-flex align-items-center gap-2" id="toastMessageBody"></div>
             <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
@@ -375,15 +400,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <?php endif; ?>
 </div>
 
-<!-- Summary Cards including Semester Quota Tracker -->
+<!-- Summary Cards -->
 <div class="row g-3 mb-4">
     <div class="col-12 col-sm-6 col-xl-3">
         <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
             <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
             <div class="card-body d-flex align-items-center ps-4">
-                <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
-                    <i class="fas fa-calendar-alt"></i>
-                </div>
+                <div class="stat-icon me-3 fs-4" style="color: #0d6efd;"><i class="fas fa-calendar-alt"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Semester Quota</h6>
                     <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?php echo $maxSemesterDays; ?> <small class="text-muted fs-6">days limit</small></h4>
@@ -396,9 +419,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
             <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #fd7e14; z-index: 1;"></div>
             <div class="card-body d-flex align-items-center ps-4">
-                <div class="stat-icon me-3 fs-4" style="color: #fd7e14;">
-                    <i class="fas fa-business-time"></i>
-                </div>
+                <div class="stat-icon me-3 fs-4" style="color: #fd7e14;"><i class="fas fa-business-time"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Consumed</h6>
                     <h4 class="mb-0 fw-bold" style="color: #fd7e14;"><?php echo $consumedSemesterDays; ?> <small class="text-muted fs-6">days used</small></h4>
@@ -411,9 +432,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
             <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #28a745; z-index: 1;"></div>
             <div class="card-body d-flex align-items-center ps-4">
-                <div class="stat-icon me-3 fs-4" style="color: #28a745;">
-                    <i class="fas fa-battery-three-quarters"></i>
-                </div>
+                <div class="stat-icon me-3 fs-4" style="color: #28a745;"><i class="fas fa-battery-three-quarters"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Remaining Balance</h6>
                     <h4 class="mb-0 fw-bold" style="color: #28a745;"><?php echo $remainingSemesterDays; ?> <small class="text-muted fs-6">days left</small></h4>
@@ -426,9 +445,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
             <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #dc3545; z-index: 1;"></div>
             <div class="card-body d-flex align-items-center ps-4">
-                <div class="stat-icon me-3 fs-4" style="color: #dc3545;">
-                    <i class="fas fa-hourglass-half"></i>
-                </div>
+                <div class="stat-icon me-3 fs-4" style="color: #dc3545;"><i class="fas fa-hourglass-half"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Approval</h6>
                     <h4 class="mb-0 fw-bold" style="color: #dc3545;"><?php echo $pendingCount + $documentRequiredCount; ?> <small class="text-muted fs-6">requests</small></h4>
@@ -465,7 +482,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <th class="ps-4 text-uppercase small text-secondary fw-semibold">ID</th>
                         <th class="text-uppercase small text-secondary fw-semibold">Type</th>
                         <th class="text-uppercase small text-secondary fw-semibold">Duration</th>
-                        <th class="text-uppercase small text-secondary fw-semibold">Days</th>
+                        <th class="text-uppercase small text-secondary fw-semibold">Day(s)</th>
                         <th class="text-uppercase small text-secondary fw-semibold">Status</th>
                         <th class="text-uppercase small text-secondary fw-semibold">Filed Date</th>
                         <th class="pe-4 text-end text-uppercase small text-secondary fw-semibold">Actions</th>
@@ -508,8 +525,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             }
                             
                             $fileDate = isset($row['created_at']) ? htmlspecialchars($row['created_at'], ENT_QUOTES, 'UTF-8') : '';
-                            
-                            // Check all potential database column names for secretary remarks/return reason
                             $remarks = $row['return_reason'] ?? $row['secretary_reason'] ?? $row['remarks'] ?? $row['comment'] ?? $row['feedback'] ?? $row['secretary_remarks'] ?? '';
                         ?>
                         <tr>
@@ -532,7 +547,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                         </button>
                                     <?php endif; ?>
                                     <button class="btn btn-sm btn-light text-primary rounded-circle" title="View Details" onclick='viewDetails(<?= htmlspecialchars(json_encode([
-                                        'db_id' => $dbId, 'id' => $id, 'type' => $type, 'start' => $start, 'end' => $end, 'days' => $days, 'status' => $statusText, 'date' => $fileDate, 'reason' => $row['reason'] ?? '', 'status_raw' => $isReturned ? 'returned' : $normalizedStatus, 'remarks' => $remarks, 'documents' => $row['documents'] ?? ''
+                                        'db_id' => $dbId, 
+                                        'id' => $id, 
+                                        'type' => $type, 
+                                        'start' => $start, 
+                                        'end' => $end, 
+                                        'days' => $days, 
+                                        'status' => $statusText, 
+                                        'date' => $fileDate, 
+                                        'reason' => $row['reason'] ?? '', 
+                                        'status_raw' => $isReturned ? 'returned' : $normalizedStatus, 
+                                        'remarks' => $remarks, 
+                                        'documents' => $row['documents'] ?? '',
+                                        'approval_timestamp' => $row['approval_timestamp'] ?? '',
+                                        'approver_signature' => $row['approver_signature'] ?? '', 
+                                        'download_url' => BASE_URL . '/modules/faculty/reports/print-leave-form.php?id=' . $dbId
                                     ]), ENT_QUOTES, 'UTF-8') ?>)'>
                                         <i class="fas fa-eye"></i>
                                     </button>
@@ -586,7 +615,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <textarea name="reason" class="form-control bg-light" rows="3" placeholder="Provide details regarding your request..." required></textarea>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-medium">Supporting Documents</label>
+                        <label class="form-label small fw-medium">Supporting Documents (Optional)</label>
                         <input type="file" name="document" class="form-control bg-light">
                     </div>
                     <div class="p-3 bg-primary bg-opacity-10 rounded-3 d-flex align-items-center gap-2 text-primary small">
@@ -618,7 +647,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <form id="editLeaveRequestForm" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="edit_request_id" id="edit-req-db-id">
                 <div class="modal-body p-4">
-                    <!-- Secretary's Return Reason Box Added Here -->
                     <div id="edit-remarks-container" class="mb-3 d-none">
                         <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded-3">
                             <span class="text-danger small fw-bold d-block mb-1">
@@ -679,10 +707,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <span class="text-muted small d-block">Reference ID</span>
                     <span class="fw-bold text-dark" id="modal-req-id">-</span>
                 </div>
+                
                 <div id="modal-remarks-container" class="mb-3 d-none">
                     <span class="text-danger small fw-bold d-block mb-1"><i class="fas fa-exclamation-circle me-1"></i> Secretary Feedback / Remarks</span>
                     <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded-3 text-dark small fw-medium" id="modal-remarks">-</div>
                 </div>
+
                 <div class="row g-3 mb-3">
                     <div class="col-6">
                         <span class="text-muted small d-block">Leave Category</span>
@@ -690,17 +720,48 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
                     <div class="col-6">
                         <span class="text-muted small d-block">Duration</span>
-                        <span class="fw-semibold"><span id="modal-days">-</span> Days</span>
+                        <span class="fw-semibold"><span id="modal-days">-</span> Day(s)</span>
                     </div>
                 </div>
+
                 <div class="mb-3">
                     <span class="text-muted small d-block mb-1">Reason Provided</span>
                     <p class="mb-0 bg-light p-3 rounded-3 text-dark small" id="modal-reason">-</p>
                 </div>
-                <div id="modal-action-wrapper" class="d-none mt-3 text-end">
-                    <button type="button" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark" id="modal-edit-btn">
-                        <i class="fas fa-edit me-1"></i> Edit & Resubmit Request
-                    </button>
+
+                <!-- Approval Info & Signature Box -->
+                <div id="modal-approval-box" class="p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 mb-3 d-none">
+                    <span class="text-success small fw-bold d-block mb-2">
+                        <i class="fas fa-check-circle me-1"></i> Approved by Department Head
+                    </span>
+                    <div class="row g-2 text-dark small">
+                        <div class="col-12">
+                            <span class="text-muted">Approved Date & Time:</span>
+                            <span class="fw-semibold" id="modal-approval-time">-</span>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <span class="text-muted d-block mb-1">Department Head Signature:</span>
+                            <div class="bg-white p-2 rounded border text-center">
+                                <div id="modal-signature-container">
+                                    <span class="text-muted fst-italic">No signature available</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div id="modal-download-wrapper" class="d-none">
+                        <a href="#" id="modal-download-btn" target="_blank" class="btn btn-success btn-sm rounded-pill px-3 fw-bold text-white shadow-sm">
+                            <i class="fas fa-download me-1"></i> Download / Print Form
+                        </a>
+                    </div>
+                    
+                    <div id="modal-action-wrapper" class="d-none ms-auto">
+                        <button type="button" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark" id="modal-edit-btn">
+                            <i class="fas fa-edit me-1"></i> Edit & Resubmit Request
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -710,6 +771,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <script>
 let currentViewData = null;
 
+const BASE_URL = <?= json_encode(rtrim(BASE_URL, '/')) ?>;
+
 function viewDetails(data) {
     currentViewData = data;
     document.getElementById('modal-req-id').textContent = data.id;
@@ -717,7 +780,6 @@ function viewDetails(data) {
     document.getElementById('modal-days').textContent = data.days;
     document.getElementById('modal-reason').textContent = data.reason || 'N/A';
     
-    // Secretary Remarks/Feedback
     const remarksContainer = document.getElementById('modal-remarks-container');
     const remarksEl = document.getElementById('modal-remarks');
     if (data.remarks && data.remarks.trim() !== '') {
@@ -725,6 +787,28 @@ function viewDetails(data) {
         remarksContainer.classList.remove('d-none');
     } else {
         remarksContainer.classList.add('d-none');
+    }
+
+    const approvalBox = document.getElementById('modal-approval-box');
+    const downloadWrapper = document.getElementById('modal-download-wrapper');
+    const downloadBtn = document.getElementById('modal-download-btn');
+    const signatureContainer = document.getElementById('modal-signature-container');
+    
+    if (data.status_raw === 'approved') {
+        approvalBox.classList.remove('d-none');
+        document.getElementById('modal-approval-time').textContent = data.approval_timestamp || 'N/A';
+        
+        if (data.approver_signature && data.approver_signature.trim() !== '') {
+            signatureContainer.innerHTML = `<img src="${BASE_URL}/${data.approver_signature}" alt="Department Head Signature" style="max-height: 50px;" class="mx-auto d-block">`;
+        } else {
+            signatureContainer.innerHTML = `<span class="text-success fw-semibold small">Digitally Approved</span>`;
+        }
+        
+        downloadBtn.href = data.download_url;
+        downloadWrapper.classList.remove('d-none');
+    } else {
+        approvalBox.classList.add('d-none');
+        downloadWrapper.classList.add('d-none');
     }
 
     const actionWrapper = document.getElementById('modal-action-wrapper');
@@ -748,7 +832,6 @@ function editDetails(data) {
     document.getElementById('edit-end-date').value = data.end;
     document.getElementById('edit-reason').value = data.reason;
     
-    // Populate Secretary Remarks in Edit Modal
     const editRemarksContainer = document.getElementById('edit-remarks-container');
     const editRemarksText = document.getElementById('edit-remarks-text');
     if (data.remarks && data.remarks.trim() !== '') {
@@ -782,24 +865,21 @@ document.addEventListener('DOMContentLoaded', function () {
         const toastBody = document.getElementById('toastMessageBody');
         const closeBtn = toastEl.querySelector('.btn-close');
         
-        // Use solid, high-contrast dark-mode friendly background colors
         if (isError) {
             toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
-            toastEl.style.backgroundColor = '#842029'; // Deep rich red for dark mode
+            toastEl.style.backgroundColor = '#842029';
             closeBtn.classList.remove('btn-close-white');
             closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
         } else {
             toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
-            toastEl.style.backgroundColor = '#0f5132'; // Deep rich green for dark mode
+            toastEl.style.backgroundColor = '#0f5132';
             closeBtn.classList.remove('btn-close-white');
             closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
         }
         
-        // Add an icon alongside the message text
         const iconClass = isError ? 'fas fa-exclamation-circle' : 'fas fa-check-circle';
         toastBody.innerHTML = `<i class="${iconClass} fs-5 text-white"></i> <span class="text-white">${message}</span>`;
         
-        // Show the toast using Bootstrap API
         const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
         toast.show();
     }

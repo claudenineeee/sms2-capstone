@@ -266,9 +266,18 @@ try {
                 };
                 $hasDocument = trim((string) ($r['documents'] ?? '')) !== '';
                 $documentUrl = $hasDocument ? BASE_URL . '/' . ltrim((string) $r['documents'], '/') : '';
+                
+                $facultyName = trim((string) ($r['faculty_name'] ?? ''));
+                $displayFacultyName = ($facultyName !== '') ? $facultyName : 'Missing Profile (ID: ' . (int)($r['faculty_id'] ?? 0) . ')';
                 ?>
                 <tr>
-                    <td class="fw-bold ps-3"><?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                    <td class="fw-bold ps-3">
+                        <?php if ($facultyName !== ''): ?>
+                            <?= htmlspecialchars($facultyName, ENT_QUOTES, 'UTF-8') ?>
+                        <?php else: ?>
+                            <span class="text-danger small fst-italic">Missing Profile (ID: <?= (int)($r['faculty_id'] ?? 0) ?>)</span>
+                        <?php endif; ?>
+                    </td>
                     <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?></span></td>
                     <td class="small text-muted"><?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?> &rarr; <?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                     <td><span class="fw-medium"><?= (int) ($r['days'] ?? 0) ?></span></td>
@@ -288,7 +297,7 @@ try {
                         <?php if ($screeningStatus === 'Pending'): ?>
                             <button type="button" class="btn btn-sm btn-primary shadow-sm review-btn"
                                     data-id="<?= (int) $r['id'] ?>"
-                                    data-faculty="<?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-faculty="<?= htmlspecialchars($displayFacultyName, ENT_QUOTES, 'UTF-8') ?>"
                                     data-type="<?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                     data-start="<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                     data-end="<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
@@ -367,6 +376,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 
 <style>
+    /* Fix Bootstrap modal backdrop and stacking context issues */
+    .modal {
+        z-index: 1055 !important;
+    }
+    .modal-backdrop {
+        z-index: 1050 !important;
+    }
+
     .status-badge {
         display: inline-flex;
         align-items: center;
@@ -484,12 +501,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const closeBtn = toastEl.querySelector('.btn-close');
         
         if (isError) {
-            toastEl.style.backgroundColor = '#842029'; // Rich red for dark mode/errors
+            toastEl.style.backgroundColor = '#842029';
             closeBtn.classList.remove('btn-close-white');
             closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
             toastBody.innerHTML = `<i class="fas fa-exclamation-circle fs-5 text-white"></i> <span class="text-white">${message}</span>`;
         } else {
-            toastEl.style.backgroundColor = '#0f5132'; // Rich green for success
+            toastEl.style.backgroundColor = '#0f5132';
             closeBtn.classList.remove('btn-close-white');
             closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
             toastBody.innerHTML = `<i class="fas fa-check-circle fs-5 text-white"></i> <span class="text-white">${message}</span>`;
@@ -636,9 +653,18 @@ document.addEventListener('DOMContentLoaded', function () {
                             };
                             $hasDocument = trim((string) ($r['documents'] ?? '')) !== '';
                             $documentUrl = $hasDocument ? BASE_URL . '/' . ltrim((string) $r['documents'], '/') : '';
+                            
+                            $facultyName = trim((string) ($r['faculty_name'] ?? ''));
+                            $displayFacultyName = ($facultyName !== '') ? $facultyName : 'Missing Profile (ID: ' . (int)($r['faculty_id'] ?? 0) . ')';
                         ?>
                         <tr>
-                            <td class="fw-bold ps-3"><?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+                            <td class="fw-bold ps-3">
+                                <?php if ($facultyName !== ''): ?>
+                                    <?= htmlspecialchars($facultyName, ENT_QUOTES, 'UTF-8') ?>
+                                <?php else: ?>
+                                    <span class="text-danger small fst-italic">Missing Profile (ID: <?= (int)($r['faculty_id'] ?? 0) ?>)</span>
+                                <?php endif; ?>
+                            </td>
                             <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?></span></td>
                             <td class="small text-muted"><?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?> &rarr; <?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><span class="fw-medium"><?= (int) ($r['days'] ?? 0) ?></span></td>
@@ -658,7 +684,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <?php if ($screeningStatus === 'Pending'): ?>
                                     <button type="button" class="btn btn-sm btn-primary shadow-sm review-btn"
                                             data-id="<?= (int) $r['id'] ?>"
-                                            data-faculty="<?= htmlspecialchars($r['faculty_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-faculty="<?= htmlspecialchars($displayFacultyName, ENT_QUOTES, 'UTF-8') ?>"
                                             data-type="<?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                             data-start="<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                             data-end="<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
@@ -685,24 +711,24 @@ document.addEventListener('DOMContentLoaded', function () {
     
     <!-- Pagination UI Container -->
     <div class="card-footer bg-transparent border-top p-3 d-flex justify-content-between align-items-center flex-wrap gap-2" id="paginationContainer">
-        <?php if ($totalPages > 1): ?>
-            <?php
+        <?php if ($totalPages > 1): 
+            $currentPage = isset($page) ? (int)$page : 1;
             $urlParams = $_GET;
             unset($urlParams['page']);
             $baseUrl = '?' . http_build_query($urlParams) . (empty($urlParams) ? '' : '&') . 'page=';
             ?>
-            <span class="text-muted small fw-medium">Showing page <?= $page ?> of <?= $totalPages ?> (Total: <?= $totalRecords ?> requests)</span>
+            <span class="text-muted small fw-medium">Showing page <?= $currentPage ?> of <?= $totalPages ?> (Total: <?= $totalRecords ?> requests)</span>
             <ul class="pagination pagination-sm mb-0 shadow-sm">
-                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
-                    <a class="page-link px-3 ajax-page-link" href="<?= $page <= 1 ? '#' : $baseUrl . ($page - 1) ?>" data-page="<?= $page - 1 ?>">Previous</a>
+                <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                    <a class="page-link px-3 ajax-page-link" href="<?= $currentPage <= 1 ? '#' : $baseUrl . ($currentPage - 1) ?>" data-page="<?= $currentPage - 1 ?>">Previous</a>
                 </li>
-                <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
-                    <li class="page-item <?= $page === $i ? 'active' : '' ?>">
+                <?php for ($i = max(1, $currentPage - 2); $i <= min($totalPages, $currentPage + 2); $i++): ?>
+                    <li class="page-item <?= $currentPage === $i ? 'active' : '' ?>">
                         <a class="page-link ajax-page-link" href="<?= $baseUrl . $i ?>" data-page="<?= $i ?>"><?= $i ?></a>
                     </li>
                 <?php endfor; ?>
-                <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
-                    <a class="page-link px-3 ajax-page-link" href="<?= $page >= $totalPages ? '#' : $baseUrl . ($page + 1) ?>" data-page="<?= $page + 1 ?>">Next</a>
+                <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                    <a class="page-link px-3 ajax-page-link" href="<?= $currentPage >= $totalPages ? '#' : $baseUrl . ($currentPage + 1) ?>" data-page="<?= $currentPage + 1 ?>">Next</a>
                 </li>
             </ul>
         <?php endif; ?>
@@ -876,7 +902,6 @@ document.addEventListener('DOMContentLoaded', function() {
             ajax: 1
         });
 
-        // Update browser URL without reloading page
         const newUrl = '?' + new URLSearchParams({
             q: query,
             leave_type: leaveType,
@@ -915,7 +940,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Input Debounce for Search
     if (searchInput) {
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
@@ -925,7 +949,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Dropdown change events
     if (leaveTypeSelect) {
         leaveTypeSelect.addEventListener('change', () => fetchFilteredData(1));
     }
@@ -933,7 +956,6 @@ document.addEventListener('DOMContentLoaded', function() {
         screeningStatusSelect.addEventListener('change', () => fetchFilteredData(1));
     }
 
-    // Status filter cards
     document.querySelectorAll('.status-filter-card').forEach(card => {
         card.addEventListener('click', function(e) {
             e.preventDefault();
@@ -967,7 +989,10 @@ let currentReviewId = null;
 
 function openReviewModal(id, faculty, type, startDate, endDate, reason, hasDocument, documentUrl) {
     currentReviewId = id;
-    document.getElementById('rm-faculty').textContent = faculty;
+    
+    const facultyContainer = document.getElementById('rm-faculty');
+    facultyContainer.innerHTML = faculty;
+
     document.getElementById('rm-type').textContent = type;
     document.getElementById('rm-duration').textContent = startDate + ' to ' + endDate;
     document.getElementById('rm-reason').textContent = reason || '(none provided)';
@@ -1197,6 +1222,7 @@ function confirmReturn() {
     document.getElementById('saf-action').value = 'screen_return';
     document.getElementById('saf-request-id').value = currentReviewId;
     document.getElementById('saf-comment').value = reason;
+    document.getElementById('saf-signature').value = '';
     document.getElementById('screeningActionForm').submit();
 }
 </script>
