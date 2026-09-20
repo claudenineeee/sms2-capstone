@@ -5,10 +5,10 @@
  */
 require_once __DIR__ . '/../../../../config/config.php';
 
-$pageTitle    = 'Reports';
+$pageTitle = 'Reports';
 $activeModule = 'faculty';
-$activePage   = 'reports';
-$breadcrumbs  = [
+$activePage = 'reports';
+$breadcrumbs = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
     ['label' => 'Faculty Profile', 'url' => null],
 ];
@@ -28,7 +28,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <p class="text-muted mb-0">Generate and view department, faculty, and schedule reports</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-sms-primary" data-bs-toggle="modal" data-bs-target="#customReportModal"><i class="fas fa-plus me-1"></i>Custom Report</button>
+        <button class="btn btn-sms-primary" data-bs-toggle="modal" data-bs-target="#customReportModal"><i
+                class="fas fa-plus me-1"></i>Custom Report</button>
     </div>
 </div>
 
@@ -50,7 +51,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Attendance Report</li>
                     <li class="mb-0"><i class="fas fa-check text-success me-2"></i>Schedule Overview</li>
                 </ul>
-                <button class="btn btn-outline-primary w-100" onclick="generateReport('department')"><i class="fas fa-cog me-1"></i>Generate</button>
+                <button class="btn btn-outline-primary w-100" onclick="generateReport('department')"><i
+                        class="fas fa-cog me-1"></i>Generate</button>
             </div>
         </div>
     </div>
@@ -70,7 +72,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Leave History</li>
                     <li class="mb-0"><i class="fas fa-check text-success me-2"></i>Attendance Record</li>
                 </ul>
-                <button class="btn btn-outline-success w-100" onclick="generateReport('faculty')"><i class="fas fa-cog me-1"></i>Generate</button>
+                <button class="btn btn-outline-success w-100" onclick="generateReport('faculty')"><i
+                        class="fas fa-cog me-1"></i>Generate</button>
             </div>
         </div>
     </div>
@@ -90,7 +93,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Room Utilization</li>
                     <li class="mb-0"><i class="fas fa-check text-success me-2"></i>Faculty Schedule Matrix</li>
                 </ul>
-                <button class="btn btn-outline-warning w-100" onclick="generateReport('schedule')"><i class="fas fa-cog me-1"></i>Generate</button>
+                <button class="btn btn-outline-warning w-100" onclick="generateReport('schedule')"><i
+                        class="fas fa-cog me-1"></i>Generate</button>
             </div>
         </div>
     </div>
@@ -101,7 +105,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h6 class="mb-0"><i class="fas fa-history text-purple me-2"></i>Generated Reports History</h6>
         <div class="d-flex gap-2">
-            <input type="text" class="form-control form-control-sm" placeholder="Search reports..." style="width: 200px;">
+            <input type="text" class="form-control form-control-sm" placeholder="Search reports..."
+                style="width: 200px;">
             <select class="form-select form-select-sm w-auto">
                 <option value="">All Types</option>
                 <option>Department</option>
@@ -126,12 +131,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <tbody>
                     <?php
                     $reports = [
-                        ['name'=>'Department Performance Summary - 2nd Sem 2025','type'=>'Department','by'=>'Dept. Head','date'=>'Today, 10:30 AM','format'=>'PDF'],
-                        ['name'=>'Faculty Load Distribution - 1st Sem 2025','type'=>'Department','by'=>'Dept. Head','date'=>'Yesterday','format'=>'Excel'],
-                        ['name'=>'Dr. Maria Santos Performance Report','type'=>'Faculty','by'=>'Dept. Head','date'=>'2 days ago','format'=>'PDF'],
-                        ['name'=>'Master Schedule - 2nd Sem 2025','type'=>'Schedule','by'=>'Schedule Officer','date'=>'3 days ago','format'=>'PDF'],
-                        ['name'=>'Conflict Report - Week 32','type'=>'Schedule','by'=>'Schedule Officer','date'=>'4 days ago','format'=>'Excel'],
-                        ['name'=>'Faculty Attendance Report - July 2025','type'=>'Department','by'=>'Secretary','date'=>'5 days ago','format'=>'PDF'],
+                        ['name' => 'Department Performance Summary - 2nd Sem 2025', 'type' => 'Department', 'by' => 'Dept. Head', 'date' => 'Today, 10:30 AM', 'format' => 'PDF'],
+                        ['name' => 'Faculty Load Distribution - 1st Sem 2025', 'type' => 'Department', 'by' => 'Dept. Head', 'date' => 'Yesterday', 'format' => 'Excel'],
+                        ['name' => 'Dr. Maria Santos Performance Report', 'type' => 'Faculty', 'by' => 'Dept. Head', 'date' => '2 days ago', 'format' => 'PDF'],
+                        ['name' => 'Master Schedule - 2nd Sem 2025', 'type' => 'Schedule', 'by' => 'Schedule Officer', 'date' => '3 days ago', 'format' => 'PDF'],
+                        ['name' => 'Conflict Report - Week 32', 'type' => 'Schedule', 'by' => 'Schedule Officer', 'date' => '4 days ago', 'format' => 'Excel'],
+                        ['name' => 'Faculty Attendance Report - July 2025', 'type' => 'Department', 'by' => 'Secretary', 'date' => '5 days ago', 'format' => 'PDF'],
                     ];
                     foreach ($reports as $r) {
                         $typeBadge = $r['type'] === 'Department' ? 'bg-primary' : ($r['type'] === 'Faculty' ? 'bg-success' : 'bg-warning');
@@ -227,7 +232,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-sms-primary" onclick="confirmGenerate()"><i class="fas fa-cog me-1"></i>Generate Report</button>
+                <button type="button" class="btn btn-sms-primary" onclick="confirmGenerate()"><i
+                        class="fas fa-cog me-1"></i>Generate Report</button>
             </div>
         </div>
     </div>
@@ -326,33 +332,34 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-sms-primary"><i class="fas fa-magic me-1"></i>Generate Custom Report</button>
+                <button type="button" class="btn btn-sms-primary"><i class="fas fa-magic me-1"></i>Generate Custom
+                    Report</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-function generateReport(type) {
-    const modal = new bootstrap.Modal(document.getElementById('generateModal'));
-    document.getElementById('reportType').value = type;
-    modal.show();
-}
-function confirmGenerate() {
-    alert('Report generation started. You will be notified when complete.');
-    bootstrap.Modal.getInstance(document.getElementById('generateModal')).hide();
-}
-function viewReport(name) {
-    alert('Viewing report: ' + name);
-}
-function downloadReport(name) {
-    alert('Downloading report: ' + name);
-}
-function deleteReport(name) {
-    if(confirm('Delete report: ' + name + '?')) {
-        alert('Report deleted.');
+    function generateReport(type) {
+        const modal = new bootstrap.Modal(document.getElementById('generateModal'));
+        document.getElementById('reportType').value = type;
+        modal.show();
     }
-}
+    function confirmGenerate() {
+        alert('Report generation started. You will be notified when complete.');
+        bootstrap.Modal.getInstance(document.getElementById('generateModal')).hide();
+    }
+    function viewReport(name) {
+        alert('Viewing report: ' + name);
+    }
+    function downloadReport(name) {
+        alert('Downloading report: ' + name);
+    }
+    function deleteReport(name) {
+        if (confirm('Delete report: ' + name + '?')) {
+            alert('Report deleted.');
+        }
+    }
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

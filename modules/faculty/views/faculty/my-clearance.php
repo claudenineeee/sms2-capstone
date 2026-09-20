@@ -64,12 +64,12 @@ $cfHired = !empty($profile['hired_date']) && $profile['hired_date'] !== '0000-00
 $cfContractEnd = ($contractEnd && $contractEnd !== '0000-00-00')
     ? date('F d, Y', strtotime($contractEnd)) : 'Not set';
 $cfTerm = $term ? (string) ($term['term_label'] ?? ($term['name'] ?? ($term['semester'] . ' ' . $term['academic_year']))) : 'Current Term';
-$cfSY = $term ? (string) ($term['school_year'] ?? ($term['academic_year'] ?? (date('Y') . '–' . (date('Y') + 1)))) : (date('Y') . '–' . (date('Y') + 1));
+$cfSY = $term ? (string) ($term['school_year'] ?? ($term['academic_year'] ?? (date('Y') . 'â€“' . (date('Y') + 1)))) : (date('Y') . 'â€“' . (date('Y') + 1));
 $cfFormNo = 'CF-' . date('Y') . '-' . str_pad((string) (int) ($profile['id'] ?? 0), 4, '0', STR_PAD_LEFT);
 $cfDateSubmitted = $clearance && !empty($clearance['submitted_at'])
-    ? date('F d, Y', strtotime($clearance['submitted_at'])) : '—';
+    ? date('F d, Y', strtotime($clearance['submitted_at'])) : 'â€”';
 $cfFormSubmittedAt = $cfFormSubmitted && !empty($clearance['form_submitted_at'])
-    ? date('F d, Y', strtotime($clearance['form_submitted_at'])) : ($cfDateSubmitted !== '—' ? $cfDateSubmitted : date('F d, Y'));
+    ? date('F d, Y', strtotime($clearance['form_submitted_at'])) : ($cfDateSubmitted !== 'â€”' ? $cfDateSubmitted : date('F d, Y'));
 $cfSignatureData = $clearance['signature_data'] ?? null;
 $cfDeclarationText = $clearance['faculty_declaration'] ?? 'I hereby certify that I have completed and submitted the required documents and have returned any school propery, records, or other accountable items assigned to me.';
 $cfIntentType = (string) ($clearance['intent_type'] ?? 'renewal');
@@ -91,9 +91,9 @@ if ($status === 'Cleared') {
 }
 ?>
 <style>
-    /* ═══════════════════════════════════════════════════════════════
-       FACULTY CLEARANCE PORTAL — Modern Clean Styles
-       ═══════════════════════════════════════════════════════════════ */
+    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+       FACULTY CLEARANCE PORTAL â€” Modern Clean Styles
+       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
     .clr-page {
         padding: 1.5rem 1.75rem;
         width: 100%;
@@ -101,7 +101,7 @@ if ($status === 'Cleared') {
         margin: 0;
     }
 
-    /* ── Workflow Lifecycle Stepper ───────────────────────────────── */
+    /* â”€â”€ Workflow Lifecycle Stepper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .clr-flow-stepper {
         display: flex;
         align-items: center;
@@ -195,7 +195,7 @@ if ($status === 'Cleared') {
         background: #198754;
     }
 
-    /* ── Sections & Cards (Dean Faculty Directory style) ───────────── */
+    /* â”€â”€ Sections & Cards (Dean Faculty Directory style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .clr-card {
         background: var(--bs-card-bg, var(--bs-body-bg));
         border: 0 !important;
@@ -277,7 +277,7 @@ if ($status === 'Cleared') {
         color: var(--bs-body-color);
     }
 
-    /* ── Progress Bar ─────────────────────────────────────────────── */
+    /* â”€â”€ Progress Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .clr-progress-bar-wrap {
         height: 10px;
         border-radius: 50px;
@@ -296,7 +296,7 @@ if ($status === 'Cleared') {
         background: linear-gradient(90deg, #198754, #20c997);
     }
 
-    /* ── Office Section Grid & Cards (Dean Faculty Directory style) ── */
+    /* â”€â”€ Office Section Grid & Cards (Dean Faculty Directory style) â”€â”€ */
     .office-card {
         background: var(--bs-card-bg, var(--bs-body-bg));
         border: 0 !important;
@@ -334,7 +334,7 @@ if ($status === 'Cleared') {
         color: rgba(255, 255, 255, 0.78) !important;
     }
 
-    /* Status chip on primary office header — white pill badges */
+    /* Status chip on primary office header â€” white pill badges */
     .office-card-header .clr-chip,
     .card-header .clr-chip {
         background: #ffffff !important;
@@ -362,7 +362,7 @@ if ($status === 'Cleared') {
         color: #6c757d !important;
     }
 
-    /* ── Dark Mode Consistency (Matches the User's Dark Theme Banner) ── */
+    /* â”€â”€ Dark Mode Consistency (Matches the User's Dark Theme Banner) â”€â”€ */
     [data-theme="dark"] .clr-card,
     [data-theme="dark"] .office-card {
         background: var(--sms-surface, rgba(18, 28, 52, 0.72)) !important;
@@ -516,7 +516,17 @@ if ($status === 'Cleared') {
         opacity: .7;
     }
 
-    /* ── Status Badges & Chips ────────────────────────────────────── */
+    .office-checklist li i.text-danger {
+        color: #dc3545 !important;
+        opacity: 1 !important;
+    }
+
+    .office-checklist li i.text-success {
+        color: #198754 !important;
+        opacity: 1 !important;
+    }
+
+    /* â”€â”€ Status Badges & Chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .clr-chip {
         display: inline-flex;
         align-items: center;
@@ -559,7 +569,7 @@ if ($status === 'Cleared') {
         border: 1px solid rgba(108, 117, 125, .25);
     }
 
-    /* ── Remarks & Deficiency Alerts ──────────────────────────────── */
+    /* â”€â”€ Remarks & Deficiency Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .office-deficiency-box {
         padding: .75rem .9rem;
         border-radius: .5rem;
@@ -578,7 +588,7 @@ if ($status === 'Cleared') {
         font-size: .78rem;
     }
 
-    /* ── Declaration & Action Footer ──────────────────────────────── */
+    /* â”€â”€ Declaration & Action Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .clr-declaration {
         padding: 1.25rem 1.4rem;
         background: rgba(var(--bs-primary-rgb), .02);
@@ -634,7 +644,7 @@ if ($status === 'Cleared') {
         }
     }
 
-    /* ── Upload Zone ────────────────────────────────────────────── */
+    /* â”€â”€ Upload Zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .office-upload-zone {
         border: 2px dashed var(--bs-border-color);
         border-radius: .65rem;
@@ -763,7 +773,7 @@ if ($status === 'Cleared') {
         }
     }
 
-    /* ── Digital Signature & Declaration Box ─────────────────────── */
+    /* â”€â”€ Digital Signature & Declaration Box â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .signature-pad-container {
         border: 2px dashed var(--bs-border-color);
         border-radius: .75rem;
@@ -807,7 +817,7 @@ if ($status === 'Cleared') {
         display: block;
     }
 
-    /* ── Clearance Agreement Form ───────────────────────── */
+    /* â”€â”€ Clearance Agreement Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .clr-conduct-doc {
         background: var(--bs-body-bg);
         border: 1px solid var(--bs-border-color);
@@ -908,7 +918,7 @@ if ($status === 'Cleared') {
     }
 
     .clr-conduct-list li::before {
-        content: "•";
+        content: "â€¢";
         position: absolute;
         left: 0.5rem;
         top: -0.1rem;
@@ -935,13 +945,12 @@ if ($status === 'Cleared') {
         <button type="button" class="btn-close" onclick="dismissFacultyAlert()" aria-label="Close"></button>
     </div>
 
-    <!-- ── Page Title Row ──────────────────────────────────────────── -->
+    <!-- â”€â”€ Page Title Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <div>
             <h4 class="fw-bold mb-0"><i class="fas fa-clipboard-check text-primary me-2"></i>Faculty Clearance Portal
             </h4>
-            <p class="text-body-secondary small mb-0">Track verification status across all 6 administrative and academic
-                units for
+            <p class="text-body-secondary small mb-0">Track verification status across all 6 administrative for
                 <?= facultyClearanceEsc($cfTerm) ?>, S.Y. <?= facultyClearanceEsc($cfSY) ?>
             </p>
         </div>
@@ -950,22 +959,26 @@ if ($status === 'Cleared') {
             $statusBadgeClass = match ($status) {
                 'Cleared' => 'bg-success text-white',
                 'With Deficiency' => 'bg-danger text-white',
-                'For Final Approval', 'For Department Head Approval' => 'bg-warning text-dark',
+                'For Final Approval' => 'bg-warning text-dark',
                 'Under Verification' => 'bg-info text-dark',
                 default => 'bg-secondary text-white',
             };
             $statusIcon = match ($status) {
                 'Cleared' => 'fa-check-double',
                 'With Deficiency' => 'fa-exclamation-triangle',
-                'For Final Approval', 'For Department Head Approval' => 'fa-user-check',
+                'For Final Approval' => 'fa-user-check',
                 'Under Verification' => 'fa-clock',
                 default => 'fa-circle-dot',
             };
             ?>
-            <span class="badge <?= $statusBadgeClass ?> fs-6 px-3 py-2 shadow-sm" id="pageStatusBadge">
-                <i class="fas <?= $statusIcon ?> me-1"></i>
-                <?= facultyClearanceEsc($status) ?>
-            </span>
+            <?php if ($status !== 'For Department Head Approval' && !empty($status) && $status !== 'Not Submitted'): ?>
+                <span class="badge <?= $statusBadgeClass ?> fs-6 px-3 py-2 shadow-sm" id="pageStatusBadge">
+                    <i class="fas <?= $statusIcon ?> me-1"></i>
+                    <?= facultyClearanceEsc($status) ?>
+                </span>
+            <?php else: ?>
+                <span class="badge fs-6 px-3 py-2 shadow-sm d-none" id="pageStatusBadge"></span>
+            <?php endif; ?>
             <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                 onclick="refreshClearanceStatus()" title="Refresh Live Status">
 
@@ -988,7 +1001,7 @@ if ($status === 'Cleared') {
         </div>
     <?php else: ?>
 
-        <!-- ════════════════ VIEW 1: CLEARANCE OF CONDUCT AGREEMENT ════════════════ -->
+        <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• VIEW 1: CLEARANCE OF CONDUCT AGREEMENT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
         <div id="viewAgreementSection" class="d-none mb-4">
             <div class="card border-0 shadow-sm overflow-hidden mb-3" id="facultyClearanceFormCard">
                 <div
@@ -999,14 +1012,14 @@ if ($status === 'Cleared') {
                             <i class="fas fa-file-contract fs-5 text-primary"></i>
                         </div>
                         <div>
-                            <h5 class="fw-bold text-white mb-0 fs-6">Clearance Agreement Form</h5>
+                            <h5 class="fw-bold text-white mb-0 fs-6">Clearance Form</h5>
                             <div class="small text-white-75">Official Faculty Clearance Form</div>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <button type="button"
                             class="btn btn-sm btn-light fw-semibold d-flex align-items-center gap-1 shadow-sm px-3"
-                            onclick="printClearanceAgreementForm()" title="Print Clearance Agreement Form">
+                            onclick="printClearanceAgreementForm()" title="Print Clearance Form">
                             <i class="fas fa-print"></i>
                             <span class="d-none d-sm-inline">Print Form</span>
                         </button>
@@ -1023,7 +1036,7 @@ if ($status === 'Cleared') {
                 <div class="p-3 p-md-4">
                     <div class="clr-conduct-doc">
                         <div class="clr-conduct-header">
-                            <div class="clr-conduct-title">Clearance Agreement Form</div>
+                            <div class="clr-conduct-title">Clearance Form</div>
                             <div class="clr-conduct-subheading"><?= facultyClearanceEsc($cfInstitution) ?></div>
                         </div>
 
@@ -1111,7 +1124,7 @@ if ($status === 'Cleared') {
                                 </div>
                                 <button type="button" class="btn btn-primary fw-semibold px-4 py-2 shadow-sm text-nowrap"
                                     id="btnSubmitClearanceFormOnly" onclick="submitClearanceFormOnly()" disabled>
-                                    <i class="fas fa-paper-plane me-1"></i> Submit Request Form
+                                    <i class="fas fa-paper-plane me-1"></i> Submit Clearance Form
                                 </button>
                             </div>
                         <?php elseif ($cfFormStatus === 'Pending Review'): ?>
@@ -1123,10 +1136,10 @@ if ($status === 'Cleared') {
                                         <i class="fas fa-hourglass-half fs-5"></i>
                                     </div>
                                     <div>
-                                        <div class="fw-bold text-warning-emphasis">Clearance Form Submitted — Awaiting
+                                        <div class="fw-bold text-warning-emphasis">Clearance Form Submitted â€” Awaiting
                                             Department Head Approval</div>
                                         <div class="small text-body-secondary">
-                                            Submitted on <strong><?= facultyClearanceEsc($cfFormSubmittedAt) ?></strong> ·
+                                            Submitted on <strong><?= facultyClearanceEsc($cfFormSubmittedAt) ?></strong> Â·
                                             Form No: <strong><?= facultyClearanceEsc($cfFormNo) ?></strong>
                                         </div>
                                     </div>
@@ -1148,7 +1161,7 @@ if ($status === 'Cleared') {
                                         <div class="small text-body-secondary">
                                             Endorsed on
                                             <strong><?= facultyClearanceEsc($cfFormApprovedAt ?: $cfFormSubmittedAt) ?></strong>
-                                            ·
+                                            Â·
                                             Form No: <strong><?= facultyClearanceEsc($cfFormNo) ?></strong>
                                         </div>
                                     </div>
@@ -1174,10 +1187,10 @@ if ($status === 'Cleared') {
             </div>
         </div><!-- /viewAgreementSection -->
 
-        <!-- ════════════════ VIEW 2: FACULTY CLEARANCE PORTAL ════════════════ -->
+        <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• VIEW 2: FACULTY CLEARANCE PORTAL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
         <div id="viewPortalSection">
 
-            <!-- ── Workflow Lifecycle Stepper ───────────────────────────────── -->
+            <!-- â”€â”€ Workflow Lifecycle Stepper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
             <div class="clr-flow-stepper mb-4">
                 <!-- 1. Faculty Submission -->
                 <div
@@ -1227,7 +1240,7 @@ if ($status === 'Cleared') {
                 </div>
             </div>
 
-            <!-- ── Clearance Agreement Form Gate Banner ─────────────────────── -->
+            <!-- â”€â”€ Clearance Agreement Form Gate Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
             <?php if (!$cfFormApproved): ?>
                 <?php if ($cfFormSubmitted && $cfFormStatus === 'Pending Review'): ?>
                     <div class="card border-0 shadow-sm overflow-hidden mb-4">
@@ -1239,7 +1252,7 @@ if ($status === 'Cleared') {
                                     <i class="fas fa-hourglass-half fs-5 text-primary"></i>
                                 </div>
                                 <div>
-                                    <h6 class="fw-bold text-white mb-1 fs-6">Clearance Agreement Form Under Department Head Review
+                                    <h6 class="fw-bold text-white mb-1 fs-6">Clearance Form Under Department Head Review
                                     </h6>
                                     <p class="small text-white-75 mb-0">Your Clearance Form has been submitted and is awaiting
                                         Department Head review and endorsement. Requirement uploads and portal submission will
@@ -1263,21 +1276,21 @@ if ($status === 'Cleared') {
                                     <i class="fas fa-file-signature fs-5 text-primary"></i>
                                 </div>
                                 <div>
-                                    <h6 class="fw-bold text-white mb-1 fs-6">Step 1 Required: Submit Clearance Agreement Form</h6>
+                                    <h6 class="fw-bold text-white mb-1 fs-6">Step 1 Required: Submit Clearance Form</h6>
                                     <p class="small text-white-75 mb-0">You must submit and obtain Department Head endorsement on
-                                        your Clearance Agreement Form before unit requirement uploads can begin.</p>
+                                        your Clearance Form before unit requirement uploads can begin.</p>
                                 </div>
                             </div>
                             <button type="button" class="btn btn-sm btn-light text-primary fw-semibold shadow-sm px-3"
                                 onclick="switchClearanceView('agreement')">
-                                <i class="fas fa-file-contract me-1"></i>Open Request Form
+                                <i class="fas fa-file-contract me-1"></i>Open Clearance Form
                             </button>
                         </div>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
 
-            <!-- ── Faculty Information Card ───────────────────────────────── -->
+            <!-- â”€â”€ Faculty Information Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
             <div class="card border-0 shadow-sm overflow-hidden mb-4">
                 <div
                     class="card-header bg-primary text-white py-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -1371,7 +1384,7 @@ if ($status === 'Cleared') {
                 </div>
             </div>
 
-            <!-- ── The 6 Main Clearance Sections ────────────────────────── -->
+            <!-- â”€â”€ The 6 Main Clearance Sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <h5 class="fw-bold mb-0"><i class="fas fa-building-circle-check text-primary me-2"></i>Clearance
@@ -1422,13 +1435,25 @@ if ($status === 'Cleared') {
                     $fDate = $fItem ? (string) ($fItem['cleared_at'] ?? ($fItem['updated_at'] ?? '')) : '';
                     $fRemarks = $fItem ? (string) ($fItem['remarks'] ?? '') : '';
                     $fCleanRmk = preg_replace('/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i', '', $fRemarks);
+                    $fCleanRmk = trim(preg_replace('/<!--SCOPE_STATE:.*?-->/s', '', $fCleanRmk));
+                    $fCleanRmk = trim(preg_replace('/Deficiencies Flagged:[\s\S]*?(?=Instructions:|$)/i', '', $fCleanRmk));
+                    $fCleanRmk = trim(preg_replace('/Complied:[\s\S]*?(?=Instructions:|$)/i', '', $fCleanRmk));
+                    $fCleanRmk = trim(preg_replace('/^Instructions:\s*/i', '', $fCleanRmk));
+
+                    $fScopeState = null;
+                    if (preg_match('/<!--SCOPE_STATE:(.*?)-->/s', $fRemarks, $mScope)) {
+                        $fScopeState = json_decode($mScope[1], true);
+                    }
+                    $fScopeFailed = (is_array($fScopeState) && isset($fScopeState['failed']) && is_array($fScopeState['failed'])) ? $fScopeFailed = $fScopeState['failed'] : [];
+                    $fScopePassed = (is_array($fScopeState) && isset($fScopeState['passed']) && is_array($fScopeState['passed'])) ? $fScopePassed = $fScopeState['passed'] : [];
+
                     $fFileName = $fItem ? (string) ($fItem['original_name'] ?? basename((string) ($fItem['file_path'] ?? ''))) : '';
 
                     // Upload is blocked when agreement is not approved by Dept Head OR under verification / cleared
                     $uploadBlocked = (!$cfFormApproved) || in_array($fChip, ['review', 'cleared'], true);
                     $uploadHint = match (true) {
-                        !$cfFormSubmitted => 'Submit the Clearance Agreement Form to begin the review workflow.',
-                        !$cfFormApproved => 'Awaiting Department Head endorsement on your Clearance Agreement Form.',
+                        !$cfFormSubmitted => 'Submit the Clearance Form to begin the review workflow.',
+                        !$cfFormApproved => 'Awaiting Department Head endorsement on your Clearance Form.',
                         $fChip === 'review' => 'Document is under review and cannot be replaced.',
                         $fChip === 'cleared' => 'This section has been cleared by the office.',
                         default => 'Upload supporting documents (PDF, max 10 MB)',
@@ -1464,28 +1489,55 @@ if ($status === 'Cleared') {
                                         Scope of Verification
                                     </div>
                                     <ul class="office-checklist">
-                                        <?php foreach ($meta['items'] as $chk): ?>
-                                            <li>
-                                                <i
-                                                    class="fas fa-check-circle <?= $fChip === 'cleared' ? 'text-success' : '' ?>"></i>
-                                                <span><?= facultyClearanceEsc($chk) ?></span>
+                                        <?php foreach ($meta['items'] as $chk):
+                                            $chkNorm = trim(mb_strtolower($chk));
+                                            $isFailed = false;
+                                            $isPassed = false;
+                                            if (!empty($fScopeFailed)) {
+                                                foreach ($fScopeFailed as $ff) {
+                                                    if (trim(mb_strtolower($ff)) === $chkNorm) {
+                                                        $isFailed = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            if (!empty($fScopePassed)) {
+                                                foreach ($fScopePassed as $fp) {
+                                                    if (trim(mb_strtolower($fp)) === $chkNorm) {
+                                                        $isPassed = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            if ($fChip === 'cleared') {
+                                                $isPassed = true;
+                                            }
+                                            ?>
+                                            <li
+                                                class="<?= $isFailed ? 'text-danger fw-semibold' : ($isPassed ? 'text-success' : '') ?>">
+                                                <?php if ($isFailed): ?>
+                                                    <i class="fas fa-times-circle text-danger flex-shrink-0"
+                                                        title="Flagged as Deficient"></i>
+                                                    <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                <?php elseif ($isPassed): ?>
+                                                    <i class="fas fa-check-circle text-success flex-shrink-0" title="Complied"></i>
+                                                    <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                <?php else: ?>
+                                                    <i
+                                                        class="fas fa-check-circle flex-shrink-0"></i>
+                                                    <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                <?php endif; ?>
                                             </li>
                                         <?php endforeach; ?>
                                     </ul>
                                 </div>
 
-                                <!-- Remarks / Deficiency Note box -->
+                                <!-- Remarks / Office Note box -->
                                 <div class="office-remarks-container">
-                                    <?php if ($fChip === 'deficiency' && $fCleanRmk !== ''): ?>
-                                        <div class="office-deficiency-box">
-                                            <div class="fw-bold mb-1"><i class="fas fa-exclamation-circle me-1"></i>Deficiency Note:
-                                            </div>
-                                            <div class="office-remarks-text"><?= facultyClearanceEsc($fCleanRmk) ?></div>
-                                        </div>
-                                    <?php elseif ($fChip === 'onhold' && $fCleanRmk !== ''): ?>
+                                    <?php if ($fChip === 'onhold' && $fCleanRmk !== ''): ?>
                                         <div class="office-onhold-box">
                                             <div class="fw-bold mb-1"><i class="fas fa-pause-circle me-1"></i>Office Note:</div>
-                                            <div class="office-remarks-text"><?= facultyClearanceEsc($fCleanRmk) ?></div>
+                                            <div class="office-remarks-text"><?= nl2br(facultyClearanceEsc($fCleanRmk)) ?></div>
                                         </div>
                                     <?php elseif ($fChip === 'cleared' && $fDate !== ''): ?>
                                         <div class="small text-success d-flex align-items-center gap-1">
@@ -1500,7 +1552,7 @@ if ($status === 'Cleared') {
                                     <?php endif; ?>
                                 </div>
 
-                                <!-- ── Upload Zone ─────────────────────────────────────── -->
+                                <!-- â”€â”€ Upload Zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
                                 <div class="office-upload-zone <?= $uploadBlocked ? 'upload-blocked' : '' ?>"
                                     id="uploadZone<?= $fOid ?>" data-office-id="<?= $fOid ?>"
                                     data-office-name="<?= facultyClearanceEsc($fName) ?>"
@@ -1525,7 +1577,7 @@ if ($status === 'Cleared') {
                                                 <div class="text-start overflow-hidden">
                                                     <span class="d-block small fw-bold text-primary-emphasis text-truncate"
                                                         id="stagedFileName<?= $fOid ?>">file.pdf</span>
-                                                    <small class="text-body-secondary" style="font-size:0.72rem;">Attached ·
+                                                    <small class="text-body-secondary" style="font-size:0.72rem;">Attached Â·
                                                         Ready to submit</small>
                                                 </div>
                                             </div>
@@ -1560,7 +1612,7 @@ if ($status === 'Cleared') {
                 <?php endforeach; ?>
             </div>
 
-            <!-- ── Faculty Declaration & Digital Signature (Placed at the bottom) ──────────────────────── -->
+            <!-- â”€â”€ Faculty Declaration & Digital Signature (Placed at the bottom) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
             <div class="card border-0 shadow-sm overflow-hidden mb-4" id="facultyDeclarationCard">
                 <div
                     class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-3">
@@ -1579,7 +1631,7 @@ if ($status === 'Cleared') {
                         id="declarationBadge">
                         <i
                             class="fas <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'fa-check-circle' : 'fa-hourglass-half') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'fa-pen-clip' : 'fa-lock') ?> me-1"></i>
-                        <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'Signed' : 'Pending Department Head Review') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'Ready to Sign' : 'Locked — Pending Document Approvals') ?>
+                        <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'Signed' : 'Pending Department Head Review') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'Ready to Sign' : 'Locked â€” Pending Document Approvals') ?>
                     </span>
                 </div>
 
@@ -1620,7 +1672,7 @@ if ($status === 'Cleared') {
                             </div>
                         </div>
                     <?php elseif ($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0): ?>
-                        <!-- All documents approved — signature pad unlocked -->
+                        <!-- All documents approved â€” signature pad unlocked -->
                         <div
                             class="alert alert-success border border-success-subtle mb-3 py-2 px-3 small d-flex align-items-center gap-2">
                             <i class="fas fa-check-circle text-success"></i>
@@ -1679,7 +1731,7 @@ if ($status === 'Cleared') {
                             </div>
                         </div>
                     <?php else: ?>
-                        <!-- Locked — not all documents approved yet -->
+                        <!-- Locked â€” not all documents approved yet -->
                         <div class="p-4 bg-body-tertiary rounded-3 border text-center">
                             <div class="mb-3">
                                 <i class="fas fa-lock text-secondary" style="font-size:2rem;opacity:.4;"></i>
@@ -1704,7 +1756,7 @@ if ($status === 'Cleared') {
             </div>
 
             <?php if ($cfFormSubmitted): ?>
-                <!-- ── Clearance Requirements Unified Submission Bar ──────────── -->
+                <!-- â”€â”€ Clearance Requirements Unified Submission Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
                 <div class="clr-card">
                     <!-- Resubmit / Upload Bar when files are attached -->
                     <div class="p-3 bg-primary-subtle border-bottom border-primary-subtle d-none" id="resubmitBar">
@@ -1750,7 +1802,7 @@ if ($status === 'Cleared') {
     <?php endif; ?>
 </div><!-- /clr-page -->
 
-<!-- ══════════════ MODALS ══════════════ -->
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• MODALS â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 
 <!-- Confirm Submit Clearance Form Modal -->
 <div class="modal fade" id="confirmClearanceFormModal" tabindex="-1" aria-hidden="true">
@@ -1865,11 +1917,11 @@ if ($status === 'Cleared') {
     </div>
 </div>
 
-<!-- ══════════════ SCRIPTS ══════════════ -->
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• SCRIPTS â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <script>
     const clearanceApi = '<?= BASE_URL ?>/modules/faculty/controllers/ClearanceController.php';
 
-    // ── Dropdown Section View Switcher ──────────────────────────────────────────
+    // â”€â”€ Dropdown Section View Switcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function switchClearanceView(view) {
         const agreementSection = document.getElementById('viewAgreementSection');
         const portalSection = document.getElementById('viewPortalSection');
@@ -1938,7 +1990,7 @@ if ($status === 'Cleared') {
         }
     });
 
-    // ── Live Refresh & Reset Controls ───────────────────────────────────────────
+    // â”€â”€ Live Refresh & Reset Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     async function refreshClearanceStatus() {
         const ico = document.getElementById('refreshIcon');
         if (ico) ico.classList.add('fa-spin');
@@ -1963,7 +2015,7 @@ if ($status === 'Cleared') {
         const modal = bootstrap.Modal.getInstance(document.getElementById('confirmResetModal'));
         modal?.hide();
         const btn = document.getElementById('confirmResetBtn');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resetting…'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resettingâ€¦'; }
 
         try {
             const formData = new FormData();
@@ -1979,7 +2031,7 @@ if ($status === 'Cleared') {
         }
     }
 
-    // ── Alerts ──────────────────────────────────────────────────────────────────
+    // â”€â”€ Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function showFacultyAlert(message, tone = 'success') {
         const box = document.getElementById('facultyAlert');
         if (!box) return;
@@ -1991,7 +2043,7 @@ if ($status === 'Cleared') {
         document.getElementById('facultyAlert')?.classList.add('d-none');
     }
 
-    // ── Helper Utilities ────────────────────────────────────────────────────────
+    // â”€â”€ Helper Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function escapeHtml(value) {
         return String(value || '').replace(/[&<>'"]/g, character => ({
             '&': '&amp;',
@@ -2002,7 +2054,7 @@ if ($status === 'Cleared') {
         }[character]));
     }
 
-    // ── Digital Signature Canvas Handler ────────────────────────────────────────
+    // â”€â”€ Digital Signature Canvas Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let isDrawing = false;
     let hasDrawnSignature = false;
     const canvas = document.getElementById('signatureCanvas');
@@ -2110,7 +2162,7 @@ if ($status === 'Cleared') {
         const btn = document.getElementById('btnSubmitClearanceFormOnly');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting Agreement…';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting Agreementâ€¦';
         }
 
         try {
@@ -2133,7 +2185,7 @@ if ($status === 'Cleared') {
         }
     }
 
-    // ── Clearance Requirements File Staging & Declaration Check ─────────────────
+    // â”€â”€ Clearance Requirements File Staging & Declaration Check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const pendingFiles = {}; // { [officeId]: File }
 
     document.getElementById('cfDeclareCheck')?.addEventListener('change', function () {
@@ -2162,7 +2214,7 @@ if ($status === 'Cleared') {
         const btn = document.getElementById('btnSubmitFacultyDeclaration');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting Declaration…';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting Declarationâ€¦';
         }
 
         try {
@@ -2273,7 +2325,7 @@ if ($status === 'Cleared') {
         const modal = bootstrap.Modal.getInstance(document.getElementById('confirmClearanceFormModal'));
         modal?.hide();
         this.disabled = true;
-        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Uploading &amp; Submitting…';
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Uploading &amp; Submittingâ€¦';
 
         try {
             const formData = new FormData();
@@ -2302,7 +2354,7 @@ if ($status === 'Cleared') {
         }
     });
 
-    // ── Workflow Stepper Dynamic Updater (4 steps — HR Final Approval removed) ────
+    // â”€â”€ Workflow Stepper Dynamic Updater (4 steps â€” HR Final Approval removed) â”€â”€â”€â”€
     function updateLifecycleStepper(status, approvedItems = 0, totalItems = 6) {
         let step = 1;
         if (status === 'Cleared') {
@@ -2356,7 +2408,7 @@ if ($status === 'Cleared') {
         }
     }
 
-    // ── Live Status Poller ───────────────────────────────────────────────────────
+    // â”€â”€ Live Status Poller â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     async function pollFacultyClearanceStatus() {
         try {
             const res = await fetch(`${clearanceApi}?action=summary`);
@@ -2400,19 +2452,12 @@ if ($status === 'Cleared') {
                         if (chipLabel) chipLabel.textContent = labelText;
 
                         if (remarksBox) {
-                            if (chipClass === 'deficiency' && item.remarks) {
-                                const cleanRmk = item.remarks.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '');
-                                remarksBox.innerHTML = `
-                                    <div class="office-deficiency-box">
-                                        <div class="fw-bold mb-1"><i class="fas fa-exclamation-circle me-1"></i>Deficiency Note:</div>
-                                        <div class="office-remarks-text">${cleanRmk}</div>
-                                    </div>`;
-                            } else if (chipClass === 'onhold' && item.remarks) {
-                                const cleanRmk = item.remarks.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '');
+                            if (chipClass === 'onhold' && item.remarks) {
+                                const cleanRmk = item.remarks.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '').replace(/<!--SCOPE_STATE:.*?-->/g, '').trim();
                                 remarksBox.innerHTML = `
                                     <div class="office-onhold-box">
                                         <div class="fw-bold mb-1"><i class="fas fa-pause-circle me-1"></i>Office Note:</div>
-                                        <div class="office-remarks-text">${cleanRmk}</div>
+                                        <div class="office-remarks-text">${escapeHtml(cleanRmk).replace(/\n/g, '<br>')}</div>
                                     </div>`;
                             } else if (chipClass === 'cleared' && item.cleared_at) {
                                 const d = new Date(item.cleared_at.replace(' ', 'T'));
@@ -2422,8 +2467,48 @@ if ($status === 'Cleared') {
                                         <i class="fas fa-badge-check"></i>
                                         <span>Cleared on ${dateStr}</span>
                                     </div>`;
+                            } else {
+                                remarksBox.innerHTML = `
+                                    <div class="small text-body-secondary d-flex align-items-center gap-1">
+                                        <i class="fas fa-shield-halved text-secondary opacity-50"></i>
+                                        <span>Verified directly by administrative office</span>
+                                    </div>`;
                             }
                         }
+
+                        // Update checklist items in the card (green check and red x circle, NO badges)
+                        const listItems = card.querySelectorAll('.office-checklist li');
+                        let scopeState = null;
+                        if (item.remarks) {
+                            const scopeMatch = item.remarks.match(/<!--SCOPE_STATE:(.*?)-->/);
+                            if (scopeMatch) {
+                                try {
+                                    scopeState = JSON.parse(scopeMatch[1]);
+                                } catch (e) { }
+                            }
+                        }
+                        const failedSet = new Set(((scopeState && scopeState.failed) || []).map(s => String(s).trim().toLowerCase()));
+                        const passedSet = new Set(((scopeState && scopeState.passed) || []).map(s => String(s).trim().toLowerCase()));
+
+                        listItems.forEach(li => {
+                            const oldBadge = li.querySelector('.badge');
+                            if (oldBadge) oldBadge.remove();
+
+                            const textSpan = li.querySelector('span');
+                            const text = textSpan ? textSpan.textContent.trim().toLowerCase() : '';
+                            let icon = li.querySelector('i');
+
+                            if (failedSet.has(text)) {
+                                li.className = 'text-danger fw-semibold';
+                                if (icon) icon.className = 'fas fa-times-circle text-danger flex-shrink-0';
+                            } else if (passedSet.has(text) || chipClass === 'cleared') {
+                                li.className = 'text-success';
+                                if (icon) icon.className = 'fas fa-check-circle text-success flex-shrink-0';
+                            } else {
+                                li.className = '';
+                                if (icon) icon.className = 'fas fa-check-circle flex-shrink-0';
+                            }
+                        });
                     }
                 });
 
@@ -2441,23 +2526,28 @@ if ($status === 'Cleared') {
                 const pageBadge = document.getElementById('pageStatusBadge');
                 if (pageBadge && data.clearance.status) {
                     const st = data.clearance.status;
-                    let badgeClass = 'bg-secondary text-white';
-                    let iconClass = 'fa-circle-dot';
-                    if (st === 'Cleared') {
-                        badgeClass = 'bg-success text-white';
-                        iconClass = 'fa-check-double';
-                    } else if (st === 'With Deficiency') {
-                        badgeClass = 'bg-danger text-white';
-                        iconClass = 'fa-exclamation-triangle';
-                    } else if (st === 'For Final Approval' || st === 'For Department Head Approval') {
-                        badgeClass = 'bg-warning text-dark';
-                        iconClass = 'fa-user-check';
-                    } else if (st === 'Under Verification') {
-                        badgeClass = 'bg-info text-dark';
-                        iconClass = 'fa-clock';
+                    if (!st || st === 'For Department Head Approval' || st === 'Not Submitted') {
+                        pageBadge.classList.add('d-none');
+                    } else {
+                        pageBadge.classList.remove('d-none');
+                        let badgeClass = 'bg-secondary text-white';
+                        let iconClass = 'fa-circle-dot';
+                        if (st === 'Cleared') {
+                            badgeClass = 'bg-success text-white';
+                            iconClass = 'fa-check-double';
+                        } else if (st === 'With Deficiency') {
+                            badgeClass = 'bg-danger text-white';
+                            iconClass = 'fa-exclamation-triangle';
+                        } else if (st === 'For Final Approval') {
+                            badgeClass = 'bg-warning text-dark';
+                            iconClass = 'fa-user-check';
+                        } else if (st === 'Under Verification') {
+                            badgeClass = 'bg-info text-dark';
+                            iconClass = 'fa-clock';
+                        }
+                        pageBadge.innerHTML = `<i class="fas ${iconClass} me-1"></i>${escapeHtml(st)}`;
+                        pageBadge.className = `badge ${badgeClass} fs-6 px-3 py-2 shadow-sm`;
                     }
-                    pageBadge.innerHTML = `<i class="fas ${iconClass} me-1"></i>${st}`;
-                    pageBadge.className = `badge ${badgeClass} fs-6 px-3 py-2 shadow-sm`;
                 }
 
                 // Update the Workflow Lifecycle Stepper dynamically
@@ -2521,9 +2611,9 @@ if ($status === 'Cleared') {
     setInterval(pollFacultyClearanceStatus, 5000);
     pollFacultyClearanceStatus();
 
-    /* ══════════════════════════════════════════════════════════════
+    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
        Per-Office File Selection & Staging
-     ══════════════════════════════════════════════════════════════ */
+     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
     function handleDragOver(e, zone) {
         e.preventDefault();
         zone.classList.add('dragover');
@@ -2601,7 +2691,7 @@ if ($status === 'Cleared') {
         printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
-    <title>Clearance Agreement Form - <?= facultyClearanceEsc($cfFullName) ?></title>
+    <title>Clearance Form - <?= facultyClearanceEsc($cfFullName) ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         @page { size: portrait; margin: 15mm; }
@@ -2618,7 +2708,7 @@ if ($status === 'Cleared') {
         .clr-conduct-para { font-size: 0.95rem; line-height: 1.8; margin-bottom: 1.15rem; color: #111; }
         .clr-conduct-list { list-style: none; padding-left: 0; margin-bottom: 1.5rem; }
         .clr-conduct-list li { position: relative; padding-left: 1.6rem; margin-bottom: 0.65rem; font-size: 0.92rem; line-height: 1.55; color: #111; }
-        .clr-conduct-list li::before { content: "•"; position: absolute; left: 0.5rem; top: -0.1rem; color: #0d6efd; font-size: 1.25rem; font-weight: bold; }
+        .clr-conduct-list li::before { content: "â€¢"; position: absolute; left: 0.5rem; top: -0.1rem; color: #0d6efd; font-size: 1.25rem; font-weight: bold; }
         .clr-conduct-ack-box { background: rgba(13, 110, 253, 0.04); border: 1px solid rgba(13, 110, 253, 0.25); border-radius: 0.65rem; padding: 1rem 1.25rem; margin-top: 1.5rem; }
         .btn, .form-check-input, input[type="checkbox"], #cfAgreementSubmitBar, #cfAgreementPendingBanner, #cfAgreementStatusBanner, #btnSubmitFacultyDeclaration { display: none !important; }
     </style>

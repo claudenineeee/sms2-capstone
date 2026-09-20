@@ -158,6 +158,12 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                             <input id="trackingSearch" class="form-control" placeholder="Search faculty or ID"
                                 oninput="filterTracking()">
                         </div>
+                        <button type="button"
+                            class="btn btn-outline-secondary btn-sm text-nowrap d-flex align-items-center gap-1"
+                            onclick="resetTrackingFilters()" title="Reset Filters & Search">
+                            <i class="fas fa-rotate-left"></i>
+                            <span class="d-none d-sm-inline">Reset</span>
+                        </button>
                     </div>
                 </div>
                 <div class="p-3 bg-body-tertiary border-bottom" id="statusControlsContainer">
@@ -222,7 +228,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                     oninput="filterArchives()">
                             </div>
                         </div>
-                        <div class="col-12 col-sm-6 col-md-4">
+                        <div class="col-12 col-sm-6 col-md-3">
                             <select id="archiveTermFilter" class="form-select form-select-sm"
                                 onchange="filterArchives()">
                                 <option value="all">All Academic Terms</option>
@@ -236,6 +242,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 <option value="Regular">Regular</option>
                                 <option value="Part-Time">Part-Time</option>
                             </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-md-2">
+                            <button type="button"
+                                class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-1"
+                                onclick="resetArchiveFilters()" title="Reset Filters & Search">
+                                <i class="fas fa-rotate-left"></i>
+                                <span>Reset</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -312,6 +326,99 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     </div>
 </div>
 
+<!-- DENY REASON / SCOPE OF VERIFICATION MODAL -->
+<style>
+    #denyScopeModal { z-index: 1075 !important; }
+    #denyScopeModal+.modal-backdrop { z-index: 1070 !important; }
+    .deny-scope-item {
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+        background-color: var(--bs-body-bg);
+    }
+    .deny-scope-item:hover {
+        background-color: var(--bs-tertiary-bg);
+        border-color: var(--bs-border-color-translucent);
+    }
+    .deny-scope-item.state-checked {
+        border-color: #198754;
+        background-color: rgba(25, 135, 84, 0.06);
+    }
+    .deny-scope-item.state-failed {
+        border-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.08);
+    }
+    .deny-scope-icon-wrap {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+</style>
+<div class="modal fade" id="denyScopeModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index:1075">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width:620px">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-danger text-white py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-white text-danger d-flex align-items-center justify-content-center flex-shrink-0" style="width:38px;height:38px;font-size:1.1rem;">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0" id="denyScopeModalTitle">Deny Clearance: <span id="denyScopeReqName">Requirement</span></h6>
+                        <small class="text-white-75">Flag deficiencies in the Scope of Verification</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" id="denyScopeModalCloseBtn" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <div class="alert alert-danger-subtle border-danger-subtle d-flex align-items-start gap-2 py-2 px-3 rounded-3 mb-3 small">
+                    <i class="fas fa-info-circle text-danger mt-1 fs-6"></i>
+                    <div>
+                        <strong>Instructions:</strong>
+                        <ul class="mb-0 ps-3">
+                            <li><strong>One click</strong> = Mark Complied (<i class="fas fa-check-circle text-success"></i>)</li>
+                            <li><strong>Double click</strong> = Mark Deficient / Reason for Deny (<i class="fas fa-times-circle text-danger"></i>)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mb-2 d-flex justify-content-between align-items-center">
+                    <span class="small fw-bold text-uppercase text-body-secondary" style="font-size:0.7rem;letter-spacing:.05em;">
+                        Scope of Verification Checklist
+                    </span>
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" id="denyDeficientCountBadge">
+                        0 Deficiencies Flagged
+                    </span>
+                </div>
+
+                <div id="denyScopeItemsList" class="mb-3" style="max-height: 320px; overflow-y: auto;">
+                    <!-- Scope items injected dynamically -->
+                </div>
+
+                <div class="mb-2">
+                    <label for="denyScopeAdditionalRemarks" class="form-label small fw-semibold text-body-emphasis mb-1">
+                        Additional Instructions / Denial Explanation (Optional):
+                    </label>
+                    <textarea id="denyScopeAdditionalRemarks" class="form-control form-control-sm" rows="2" placeholder="e.g., Please correct the flagged documents and resubmit to the department head."></textarea>
+                </div>
+                <div id="denyScopeAlert" class="alert alert-danger d-none py-2 small mb-0"></div>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top gap-2 flex-nowrap">
+                <button type="button" class="btn btn-outline-secondary flex-fill" id="denyScopeCancelBtn">Cancel</button>
+                <button type="button" class="btn btn-danger flex-fill fw-semibold" id="denyScopeConfirmBtn">
+                    <i class="fas fa-times-circle me-1"></i>Confirm Denial
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- REVIEW MODAL FOR ACTIVE CLEARANCE -->
 <div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
@@ -333,14 +440,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                         <div class="row g-3 text-body">
                             <div class="col-12 col-md-4 border-end-md border-body-subtle">
                                 <small class="text-body-secondary d-block">Current Contract Expiry</small>
-                                <span class="fw-bold fs-6 text-body-emphasis" id="summaryContractExpiry">—</span>
+                                <span class="fw-bold fs-6 text-body-emphasis" id="summaryContractExpiry">â€”</span>
                                 <small class="d-block" id="summaryDaysRemaining"></small>
                             </div>
                             <div class="col-12 col-md-4 border-end-md border-body-subtle">
                                 <small class="text-body-secondary d-block mb-1">Employment Status</small>
                                 <span
                                     class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"
-                                    id="summaryEmpStatus">—</span>
+                                    id="summaryEmpStatus">â€”</span>
                             </div>
                             <div class="col-12 col-md-4">
                                 <small class="text-body-secondary d-block">Clearance Progress</small>
@@ -356,11 +463,13 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                         </div>
                     </div>
                 </div>
-                <!-- Clearance Agreement Form Status & Review Card -->
+                <!-- Clearance Form Status & Review Card -->
                 <div class="card border mb-4 shadow-sm" id="agreementFormReviewCard">
                     <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2">
-                        <span class="fw-bold small text-uppercase"><i class="fas fa-file-contract text-primary me-2"></i>Clearance Agreement Form</span>
-                        <span id="agreementFormStatusBadge" class="badge bg-secondary-subtle text-body-secondary border">Not Submitted</span>
+                        <span class="fw-bold small text-uppercase"><i
+                                class="fas fa-file-contract text-primary me-2"></i>Clearance Form</span>
+                        <span id="agreementFormStatusBadge"
+                            class="badge bg-secondary-subtle text-body-secondary border">Not Submitted</span>
                     </div>
                     <div class="card-body p-3" id="agreementFormReviewBody">
                         <!-- Loaded dynamically in openReview() -->
@@ -368,7 +477,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 </div>
 
                 <h6 class="fw-bold text-uppercase small text-body-secondary mb-3"><i
-                        class="fas fa-list-check me-1 text-primary"></i> Submitted Clearance Requirements</h6>
+                        class="fas fa-list-check me-1 text-primary"></i> Submitted Department Clearance Requirement</h6>
                 <div class="table-responsive mb-4">
                     <table class="table table-hover align-middle border mb-0">
                         <thead class="table-light small text-uppercase text-body-secondary">
@@ -387,8 +496,11 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <!-- Faculty Declaration & Final Digital Signature Card -->
                 <div class="card border mb-4 shadow-sm" id="facultyDeclarationReviewCard">
                     <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2">
-                        <span class="fw-bold small text-uppercase"><i class="fas fa-file-signature text-primary me-2"></i>Faculty Declaration &amp; Digital Signature</span>
-                        <span id="declarationReviewBadge" class="badge bg-secondary-subtle text-body-secondary border px-2 py-1">
+                        <span class="fw-bold small text-uppercase"><i
+                                class="fas fa-file-signature text-primary me-2"></i>Faculty Declaration &amp; Digital
+                            Signature</span>
+                        <span id="declarationReviewBadge"
+                            class="badge bg-secondary-subtle text-body-secondary border px-2 py-1">
                             <i class="fas fa-lock me-1"></i>Pending Document Approvals
                         </span>
                     </div>
@@ -398,7 +510,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 </div>
 
             </div>
-            <div class="modal-footer bg-body-tertiary border-top d-flex justify-content-between align-items-center gap-2">
+            <div
+                class="modal-footer bg-body-tertiary border-top d-flex justify-content-between align-items-center gap-2">
                 <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-success fw-semibold px-4 d-none" id="btnConfirmDeclarationArchive"
                     onclick="confirmDeclarationAndArchive()">
@@ -426,10 +539,11 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 </div>
                 <h6 class="fw-bold text-body-emphasis mb-2">Are you sure you want to archive this clearance record?</h6>
                 <p class="text-body-secondary small mb-3">
-                    Faculty: <strong class="text-body-emphasis" id="archiveTargetFacultyName">—</strong>
+                    Faculty: <strong class="text-body-emphasis" id="archiveTargetFacultyName">â€”</strong>
                 </p>
                 <div class="alert alert-info border border-info-subtle py-2 px-3 small text-start mb-0">
-                    <i class="fas fa-info-circle me-1"></i> Archiving saves a permanent record snapshot in the <strong>Archived Completed Records</strong> tab.
+                    <i class="fas fa-info-circle me-1"></i> Archiving saves a permanent record snapshot in the
+                    <strong>Archived Completed Records</strong> tab.
                 </div>
             </div>
             <div class="modal-footer bg-body-tertiary border-top py-2">
@@ -462,11 +576,11 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                             class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-bold mb-1">
                             <i class="fas fa-check-circle me-1"></i> Status: Clearance Completed &amp; Cleared
                         </span>
-                        <div class="small text-body-secondary mt-1" id="archiveModalTerm">Academic Term: —</div>
+                        <div class="small text-body-secondary mt-1" id="archiveModalTerm">Academic Term: â€”</div>
                     </div>
                     <div class="text-md-end">
                         <small class="text-body-secondary d-block">Completion Timestamp</small>
-                        <strong class="text-body-emphasis" id="archiveModalCompletedAt">—</strong>
+                        <strong class="text-body-emphasis" id="archiveModalCompletedAt">â€”</strong>
                     </div>
                 </div>
 
@@ -480,31 +594,31 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                         <div class="row g-3 text-body">
                             <div class="col-12 col-sm-6 col-md-3">
                                 <small class="text-body-secondary d-block">Faculty Member</small>
-                                <strong class="text-body-emphasis" id="archiveFacultyName">—</strong>
+                                <strong class="text-body-emphasis" id="archiveFacultyName">â€”</strong>
                             </div>
                             <div class="col-12 col-sm-6 col-md-3">
                                 <small class="text-body-secondary d-block">Faculty ID No.</small>
-                                <span id="archiveFacultyNo">—</span>
+                                <span id="archiveFacultyNo">â€”</span>
                             </div>
                             <div class="col-12 col-sm-6 col-md-3">
                                 <small class="text-body-secondary d-block">Department</small>
-                                <span id="archiveDepartment">—</span>
+                                <span id="archiveDepartment">â€”</span>
                             </div>
                             <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Academic Rank</small>
-                                <span id="archiveRank">—</span>
+                                <span id="archiveRank">â€”</span>
                             </div>
                             <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Contract Expiration Date</small>
-                                <strong class="text-success" id="archiveContractEnd">—</strong>
+                                <strong class="text-success" id="archiveContractEnd">â€”</strong>
                             </div>
                             <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Employment Status</small>
-                                <span id="archiveEmpStatus">—</span>
+                                <span id="archiveEmpStatus">â€”</span>
                             </div>
                             <div class="col-12 col-sm-6 col-md-3">
                                 <small class="text-body-secondary d-block">Contact Email</small>
-                                <span id="archiveEmail" class="small">—</span>
+                                <span id="archiveEmail" class="small">â€”</span>
                             </div>
                         </div>
                     </div>
@@ -557,20 +671,44 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     const archivePageSize = 8;
 
     async function loadTracking() {
+        const body = document.getElementById('trackingBody');
         try {
             const response = await fetch(`${clearanceApi}?action=summary`);
+            if (!response.ok) {
+                const errText = await response.text();
+                let errMsg = `Server returned status ${response.status}`;
+                try {
+                    const parsed = JSON.parse(errText);
+                    if (parsed.error) errMsg = parsed.error;
+                } catch (_) {}
+                throw new Error(errMsg);
+            }
             const data = await response.json();
-            if (!data.ok) throw new Error(data.error);
-            trackingRows = data.rows || [];
-            document.getElementById('metricPending').textContent = data.metrics.pending;
-            document.getElementById('metricAction').textContent = data.metrics.action_required;
-            document.getElementById('metricArchived').textContent = data.metrics.archived;
-            document.getElementById('activeBadgeCount').textContent = trackingRows.length;
+            if (!data.ok) throw new Error(data.error || 'Failed to retrieve clearance data.');
+            trackingRows = Array.isArray(data.rows) ? data.rows : [];
+            if (data.metrics) {
+                const elPending = document.getElementById('metricPending');
+                if (elPending) elPending.textContent = data.metrics.pending ?? 0;
+                const elAction = document.getElementById('metricAction');
+                if (elAction) elAction.textContent = data.metrics.action_required ?? 0;
+                const elArchived = document.getElementById('metricArchived');
+                if (elArchived) elArchived.textContent = data.metrics.archived ?? 0;
+            }
+            const elBadge = document.getElementById('activeBadgeCount');
+            if (elBadge) elBadge.textContent = trackingRows.length;
             currentPage = 1;
             renderStatusControls();
             renderTracking();
         } catch (error) {
+            console.error('Clearance tracking error:', error);
             showTrackingAlert(error.message, 'danger');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    ${escapeHtml(error.message || 'Unable to load clearance records.')}
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="loadTracking()"><i class="fas fa-rotate-left me-1"></i>Retry</button>
+                </td></tr>`;
+            }
         }
     }
 
@@ -580,18 +718,37 @@ require_once ROOT_PATH . '/includes/layout-start.php';
 
         try {
             const response = await fetch(`${clearanceApi}?action=archives`);
+            if (!response.ok) {
+                const errText = await response.text();
+                let errMsg = `Server returned status ${response.status}`;
+                try {
+                    const parsed = JSON.parse(errText);
+                    if (parsed.error) errMsg = parsed.error;
+                } catch (_) {}
+                throw new Error(errMsg);
+            }
             const data = await response.json();
-            if (!data.ok) throw new Error(data.error);
-            archiveRows = data.archives || [];
-            document.getElementById('archiveBadgeCount').textContent = archiveRows.length;
-            document.getElementById('metricArchived').textContent = archiveRows.length;
+            if (!data.ok) throw new Error(data.error || 'Failed to retrieve archive records.');
+            archiveRows = Array.isArray(data.archives) ? data.archives : [];
+            const elBadge = document.getElementById('archiveBadgeCount');
+            if (elBadge) elBadge.textContent = archiveRows.length;
+            const elMetric = document.getElementById('metricArchived');
+            if (elMetric) elMetric.textContent = archiveRows.length;
 
             // Populate term filter
             populateArchiveTermFilter();
             archiveCurrentPage = 1;
             renderArchives();
         } catch (error) {
+            console.error('Clearance archives error:', error);
             showTrackingAlert(error.message, 'danger');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    ${escapeHtml(error.message || 'Unable to load archived records.')}
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="loadArchives()"><i class="fas fa-rotate-left me-1"></i>Retry</button>
+                </td></tr>`;
+            }
         }
     }
 
@@ -666,36 +823,54 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             body.innerHTML = '<tr><td colspan="7" class="text-center text-body-secondary py-5">No faculty clearance records matching your filters.</td></tr>';
         } else {
             body.innerHTML = visibleRows.map(row => {
-                const c = row.clearance;
-                const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
-                    ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                    : 'Not set';
-                const tone = (c.status === 'Action Required' || c.status === 'With Deficiency') ? 'danger' : (c.status === 'Completed' || c.status === 'Cleared' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : (c.status === 'For Final Approval' || c.status === 'For Department Head Approval' ? 'warning' : 'info')));
+                try {
+                    const c = row.clearance || { status: 'Not Submitted', progress: 0, approved_items: 0, total_items: 0 };
+                    const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
+                        ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Not set';
+                    const tone = (c.status === 'Action Required' || c.status === 'With Deficiency') ? 'danger' : (c.status === 'Completed' || c.status === 'Cleared' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : (c.status === 'For Final Approval' || c.status === 'For Department Head Approval' ? 'warning' : 'info')));
 
-                const emp = row.employment_status || 'Probationary';
-                const statusIcon = c.status === 'Completed' || c.status === 'Cleared' ? 'fa-check-circle' :
-                    (c.status === 'Action Required' || c.status === 'With Deficiency' ? 'fa-exclamation-circle' :
-                    (c.status === 'Not Submitted' ? 'fa-minus-circle' : 'fa-clock'));
+                    const deptItem = (c.items || []).find(it => it.name === 'Department Clearance');
+                    const isDeptCleared = deptItem && (deptItem.status === 'Cleared' || deptItem.status === 'Approved');
+                    const deptProgress = isDeptCleared ? 100 : 0;
+                    const deptApprovedCount = isDeptCleared ? 1 : 0;
+                    const deptTone = isDeptCleared ? 'success' : (deptItem && (deptItem.status === 'Denied' || deptItem.status === 'Hold' || deptItem.status === 'With Deficiency') ? 'danger' : (deptItem && deptItem.status === 'On Hold' ? 'warning' : (deptItem && deptItem.file_name ? 'info' : 'secondary')));
 
-                const statusBadge = `<span class="badge rounded-pill bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-3 py-1.5 fw-semibold" style="font-size: 0.75rem;"><i class="fas ${statusIcon} me-1.5"></i>${escapeHtml(c.status)}</span>`;
+                    const emp = row.employment_status || 'Probationary';
+                    const statusIcon = c.status === 'Completed' || c.status === 'Cleared' ? 'fa-check-circle' :
+                        (c.status === 'Action Required' || c.status === 'With Deficiency' ? 'fa-exclamation-circle' :
+                            (c.status === 'Not Submitted' ? 'fa-minus-circle' : 'fa-clock'));
 
-                return `<tr>
-                <td>${escapeHtml(row.designated_department || 'N/A')}</td>
-                <td class="${row.days_remaining !== null && row.days_remaining <= 30 ? 'text-danger fw-bold' : ''}">${expiry}<small class="d-block text-body-secondary">${row.days_remaining === null ? '' : (row.days_remaining < 0 ? 'Expired' : row.days_remaining + ' days remaining')}</small></td>
-                <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${tone}" style="width:${c.progress}%"></div></div><small class="text-body-secondary">${c.progress}% (${c.approved_items}/${c.total_items})</small></td>
-                <td><span class="badge bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-2 py-1">${escapeHtml(c.status)}</span></td>
-                <td>${row.submitted_at ? new Date(row.submitted_at.replace(' ', 'T')).toLocaleDateString() : '—'}</td>
-                <td class="text-end pe-3">
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="openReview(${row.id})" title="Review Clearance Details">
-                            <i class="fas fa-search me-1"></i>Review
-                        </button>
-                        ${c.signature_data ? `<button class="btn btn-success" onclick="confirmDeclarationAndArchiveFromRow(${row.id}, '${escapeHtml(row.name)}', ${row.clearance?.clearance_id || 0})" title="Confirm Faculty Declaration and archive">
-                            <i class="fas fa-check me-1"></i>Confirm
-                        </button>` : ''}
-                    </div>
-                </td>
-            </tr>`;
+                    const statusBadge = `<span class="badge rounded-pill bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-3 py-1.5 fw-semibold" style="font-size: 0.75rem;"><i class="fas ${statusIcon} me-1.5"></i>${escapeHtml(c.status || 'Not Submitted')}</span>`;
+
+                    const rowNameEsc = escapeHtml(row.name || 'Unknown');
+                    const rowNameAttr = JSON.stringify(row.name || '').replace(/"/g, '&quot;');
+
+                    return `<tr>
+                    <td class="ps-3">
+                        <div class="fw-semibold text-body-emphasis">${rowNameEsc}</div>
+                        <small class="text-body-secondary">${escapeHtml(row.faculty_id || row.faculty_no || '')}</small>
+                    </td>
+                    <td>${escapeHtml(row.designated_department || 'N/A')}</td>
+                    <td class="${row.days_remaining !== null && row.days_remaining <= 30 ? 'text-danger fw-bold' : ''}">${expiry}<small class="d-block text-body-secondary">${row.days_remaining === null ? '' : (row.days_remaining < 0 ? 'Expired' : row.days_remaining + ' days remaining')}</small></td>
+                    <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${deptTone}" style="width:${deptProgress}%"></div></div><small class="text-body-secondary">${deptProgress}% (${deptApprovedCount}/1)</small></td>
+                    <td><span class="badge bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-2 py-1">${escapeHtml(c.status || 'Not Submitted')}</span></td>
+                    <td>${row.submitted_at ? new Date(row.submitted_at.replace(' ', 'T')).toLocaleDateString() : 'â€”'}</td>
+                    <td class="text-end pe-3">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="openReview(${row.id})" title="Review Clearance Details">
+                                <i class="fas fa-search me-1"></i>Review
+                            </button>
+                            ${c.signature_data ? `<button class="btn btn-success" onclick="confirmDeclarationAndArchiveFromRow(${row.id}, ${rowNameAttr}, ${row.clearance?.clearance_id || 0})" title="Confirm Faculty Declaration and archive">
+                                <i class="fas fa-check me-1"></i>Confirm
+                            </button>` : ''}
+                        </div>
+                    </td>
+                </tr>`;
+                } catch (rowErr) {
+                    console.error('Error rendering clearance row:', rowErr, row);
+                    return `<tr><td colspan="7" class="text-center text-muted small py-2">Error displaying faculty record (ID: ${row.id})</td></tr>`;
+                }
             }).join('');
         }
         renderPagination(totalPages, filtered.length);
@@ -705,11 +880,33 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         renderTracking();
     }
 
+    function resetTrackingFilters() {
+        const searchInput = document.getElementById('trackingSearch');
+        const empFilter = document.getElementById('trackingEmpStatusFilter');
+        if (searchInput) searchInput.value = '';
+        if (empFilter) empFilter.value = 'all';
+        activeStatusGroup = 'all';
+        currentPage = 1;
+        renderStatusControls();
+        renderTracking();
+    }
+
+    function resetArchiveFilters() {
+        const searchInput = document.getElementById('archiveSearch');
+        const termFilter = document.getElementById('archiveTermFilter');
+        const empFilter = document.getElementById('archiveEmpFilter');
+        if (searchInput) searchInput.value = '';
+        if (termFilter) termFilter.value = 'all';
+        if (empFilter) empFilter.value = 'all';
+        archiveCurrentPage = 1;
+        renderArchives();
+    }
+
     function renderPagination(totalPages, totalRows) {
         let pager = document.getElementById('trackingPagination');
         if (!pager) return;
         pager.className = 'd-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top';
-        pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${currentPage} of ${totalPages} · ${totalRows} active records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${currentPage <= 1 ? 'disabled' : ''} onclick="changeTrackingPage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''} onclick="changeTrackingPage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
+        pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${currentPage} of ${totalPages} Â· ${totalRows} active records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${currentPage <= 1 ? 'disabled' : ''} onclick="changeTrackingPage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''} onclick="changeTrackingPage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
     }
 
     function changeTrackingPage(direction) {
@@ -722,7 +919,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         const select = document.getElementById('archiveTermFilter');
         if (!select) return;
         const currentVal = select.value;
-        const terms = Array.from(new Set(archiveRows.map(r => `${r.academic_year} · ${r.semester}`)));
+        const terms = Array.from(new Set(archiveRows.map(r => `${r.academic_year} Â· ${r.semester}`)));
         select.innerHTML = '<option value="all">All Academic Terms</option>' + terms.map(t => `<option value="${escapeHtml(t)}" ${currentVal === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('');
     }
 
@@ -734,7 +931,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         return archiveRows.filter(row => {
             const text = `${row.name} ${row.faculty_no} ${row.designated_department}`.toLowerCase();
             const matchesQuery = !query || text.includes(query);
-            const termLabel = `${row.academic_year} · ${row.semester}`;
+            const termLabel = `${row.academic_year} Â· ${row.semester}`;
             const matchesTerm = termFilter === 'all' || termLabel === termFilter;
             const rowEmp = row.employment_status || '';
             const matchesEmp = empFilter === 'all' || rowEmp.toLowerCase() === empFilter.toLowerCase();
@@ -758,7 +955,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     : 'Not set';
                 const clearedAt = row.updated_at
                     ? new Date(row.updated_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                    : '—';
+                    : 'â€”';
                 const intentLabel = row.intent_type === 'renewal' ? 'Contract Renewal' : (row.intent_type === 'regularization' ? 'Regularization' : 'Clearance Only');
 
                 const reqTags = (row.items || []).map(it => {
@@ -772,7 +969,12 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 }).join('');
 
                 return `<tr>
-                <td><span class="badge bg-secondary-subtle text-body-secondary border">${escapeHtml(row.academic_year)} · ${escapeHtml(row.semester)}</span></td>
+                <td class="ps-3">
+                    <div class="fw-semibold text-body-emphasis">${escapeHtml(row.name || ((row.first_name || '') + ' ' + (row.last_name || '')).trim() || 'Unknown')}</div>
+                    <small class="text-body-secondary d-block">${escapeHtml(row.faculty_no || '')}</small>
+                    <small class="text-body-secondary">${escapeHtml(row.designated_department || '')}</small>
+                </td>
+                <td><span class="badge bg-secondary-subtle text-body-secondary border">${escapeHtml(row.academic_year)} Â· ${escapeHtml(row.semester)}</span></td>
                 <td><strong class="text-success">${expiry}</strong></td>
                 <td style="max-width: 250px;">${reqTags || '<span class="text-body-secondary small">No requirements</span>'}</td>
                 <td><small class="text-body-secondary">${clearedAt}</small></td>
@@ -796,7 +998,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         let pager = document.getElementById('archivePagination');
         if (!pager) return;
         pager.className = 'd-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top';
-        pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${archiveCurrentPage} of ${totalPages} · ${totalRows} completed records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${archiveCurrentPage <= 1 ? 'disabled' : ''} onclick="changeArchivePage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${archiveCurrentPage >= totalPages ? 'disabled' : ''} onclick="changeArchivePage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
+        pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${archiveCurrentPage} of ${totalPages} Â· ${totalRows} completed records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${archiveCurrentPage <= 1 ? 'disabled' : ''} onclick="changeArchivePage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${archiveCurrentPage >= totalPages ? 'disabled' : ''} onclick="changeArchivePage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
     }
 
     function changeArchivePage(direction) {
@@ -813,17 +1015,17 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             const r = data.record;
 
             document.getElementById('archiveModalTitle').innerHTML = `<i class="fas fa-archive me-2"></i>Archived Record - ${escapeHtml(r.name)}`;
-            document.getElementById('archiveModalMeta').textContent = `${r.faculty_no || ''} · ${r.designated_department || 'Department'}`;
-            document.getElementById('archiveModalTerm').textContent = `Academic Term: ${r.academic_year} · ${r.semester}`;
-            document.getElementById('archiveModalCompletedAt').textContent = r.completed_at || r.updated_at ? new Date((r.completed_at || r.updated_at).replace(' ', 'T')).toLocaleString() : '—';
+            document.getElementById('archiveModalMeta').textContent = `${r.faculty_no || ''} Â· ${r.designated_department || 'Department'}`;
+            document.getElementById('archiveModalTerm').textContent = `Academic Term: ${r.academic_year} Â· ${r.semester}`;
+            document.getElementById('archiveModalCompletedAt').textContent = r.completed_at || r.updated_at ? new Date((r.completed_at || r.updated_at).replace(' ', 'T')).toLocaleString() : 'â€”';
 
             document.getElementById('archiveFacultyName').textContent = r.name;
-            document.getElementById('archiveFacultyNo').textContent = r.faculty_no || '—';
-            document.getElementById('archiveDepartment').textContent = r.designated_department || '—';
-            document.getElementById('archiveRank').textContent = r.academic_rank || r.position || '—';
+            document.getElementById('archiveFacultyNo').textContent = r.faculty_no || 'â€”';
+            document.getElementById('archiveDepartment').textContent = r.designated_department || 'â€”';
+            document.getElementById('archiveRank').textContent = r.academic_rank || r.position || 'â€”';
             document.getElementById('archiveContractEnd').textContent = r.contractual_end && r.contractual_end !== '0000-00-00' ? new Date(`${r.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set';
             document.getElementById('archiveEmpStatus').textContent = r.employment_status || 'Regular';
-            document.getElementById('archiveEmail').textContent = r.email || '—';
+            document.getElementById('archiveEmail').textContent = r.email || 'â€”';
 
             const body = document.getElementById('archiveRequirementsBody');
             body.innerHTML = (r.items || []).map((it, idx) => {
@@ -839,8 +1041,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <td><strong class="text-body-emphasis">${escapeHtml(it.name)}</strong></td>
                 <td>${it.file_name ? `<a class="btn btn-sm btn-outline-success" href="${fileUrl}" download="${escapeHtml(it.file_name)}" title="Download file"><i class="fas fa-download me-1"></i>Download (${escapeHtml(it.file_name)})</a>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-circle-xmark me-1"></i>No file (Missing)</span>'}</td>
                 <td><span class="badge ${badgeClass}"><i class="${isMissing ? 'fas fa-question-circle' : (it.status === 'Cleared' ? 'fas fa-check-circle' : 'fas fa-times-circle')} me-1"></i>${escapeHtml(statusLabel)}</span></td>
-                <td><small class="text-body-secondary">${escapeHtml(it.remarks || (isMissing ? 'Requirement not submitted.' : 'Approved without remarks.'))}</small></td>
-                <td><small class="text-body-secondary">${it.cleared_at ? new Date(it.cleared_at.replace(' ', 'T')).toLocaleDateString() : '—'}</small></td>
+                <td>${formatClearanceRemark(it.remarks, isMissing)}</td>
+                <td><small class="text-body-secondary">${it.cleared_at ? new Date(it.cleared_at.replace(' ', 'T')).toLocaleDateString() : 'â€”'}</small></td>
             </tr>`;
             }).join('');
 
@@ -864,7 +1066,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             `"${(r.faculty_no || '').replace(/"/g, '""')}"`,
             `"${(r.designated_department || '').replace(/"/g, '""')}"`,
             `"${r.employment_status || 'Probationary'}"`,
-            `"${r.academic_year} · ${r.semester}"`,
+            `"${r.academic_year} Â· ${r.semester}"`,
             `"${r.intent_type}"`,
             `"${r.contractual_end || ''}"`,
             `"${r.updated_at || ''}"`
@@ -913,7 +1115,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             toggleConfirmArchiveAction(!!c.signature_data);
 
             document.getElementById('reviewTitle').innerHTML = `<i class="fas fa-clipboard-check me-2"></i>Review Clearance - ${escapeHtml(profile.first_name)} ${escapeHtml(profile.last_name)}`;
-            document.getElementById('reviewMeta').textContent = `${profile.faculty_id || ''} · ${profile.designated_department || 'Department'}`;
+            document.getElementById('reviewMeta').textContent = `${profile.faculty_id || ''} Â· ${profile.designated_department || 'Department'}`;
 
             const expiry = profile.contractual_end && profile.contractual_end !== '0000-00-00'
                 ? new Date(`${profile.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -937,10 +1139,15 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 empEl.className = `badge rounded-pill ${empStatus === 'Regular' ? 'bg-success-subtle text-success border border-success-subtle' : (empStatus === 'Probationary' ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-secondary-subtle text-body-secondary border')} px-3 py-1.5 fw-semibold`;
             }
 
+            const deptItem = (c.items || []).find(it => it.name === 'Department Clearance');
+            const isDeptCleared = deptItem && (deptItem.status === 'Cleared' || deptItem.status === 'Approved');
+            const deptProgress = isDeptCleared ? 100 : 0;
+            const deptApprovedCount = isDeptCleared ? 1 : 0;
+
             const progressBar = document.getElementById('summaryProgressBar');
-            if (progressBar) progressBar.style.width = `${c.progress}%`;
+            if (progressBar) progressBar.style.width = `${deptProgress}%`;
             const progressText = document.getElementById('summaryProgressText');
-            if (progressText) progressText.textContent = `${c.progress}% (${c.approved_items}/${c.total_items})`;
+            if (progressText) progressText.textContent = `${deptProgress}% (${deptApprovedCount}/1)`;
 
 
 
@@ -950,8 +1157,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             if (formBadge && formBody) {
                 const isFormSub = !!c.form_submitted;
                 const formSt = c.form_status || (isFormSub ? 'Pending Review' : 'Not Submitted');
-                const formDate = c.form_submitted_at ? new Date(c.form_submitted_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-                const appDate = c.form_approved_at ? new Date(c.form_approved_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+                const formDate = c.form_submitted_at ? new Date(c.form_submitted_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'â€”';
+                const appDate = c.form_approved_at ? new Date(c.form_approved_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'â€”';
 
                 if (formSt === 'Approved') {
                     formBadge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1';
@@ -960,8 +1167,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                         <div class="p-3 bg-success-subtle bg-opacity-25 rounded border border-success-subtle">
                             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                                 <div>
-                                    <strong class="text-success-emphasis d-block mb-1"><i class="fas fa-file-signature me-1"></i>Clearance Agreement Form Endorsed</strong>
-                                    <small class="text-body-secondary">Submitted on <strong>${formDate}</strong> · Approved on <strong>${appDate}</strong></small>
+                                    <strong class="text-success-emphasis d-block mb-1"><i class="fas fa-file-signature me-1"></i>Clearance Form Endorsed</strong>
+                                    <small class="text-body-secondary">Submitted on <strong>${formDate}</strong> Â· Approved on <strong>${appDate}</strong></small>
                                 </div>
                                 <span class="badge bg-success text-white px-3 py-2"><i class="fas fa-check me-1"></i>Endorsed by Dept Head</span>
                             </div>
@@ -1002,15 +1209,17 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     formBadge.innerHTML = '<i class="fas fa-circle-xmark me-1"></i>Not Submitted';
                     formBody.innerHTML = `
                         <div class="small text-body-secondary">
-                            <i class="fas fa-info-circle me-1"></i>The faculty member has not submitted their Clearance Agreement Form for this term yet.
+                            <i class="fas fa-info-circle me-1"></i>The faculty member has not submitted their Clearance Form for this term yet.
                         </div>
                     `;
                 }
             }
 
-            // Table rows
+            // Table rows â€“ only show Department Clearance requirement
             const body = document.getElementById('reviewBody');
-            body.innerHTML = c.items.length ? c.items.map(item => {
+            let visibleItems = c.items || [];
+            visibleItems = visibleItems.filter(item => item.name === 'Department Clearance');
+            body.innerHTML = visibleItems.length ? visibleItems.map(item => {
                 const isMissing = !item.file_name && item.status !== 'Cleared';
                 const statusLabel = isMissing ? 'Missing' : (item.display_status || item.status);
                 const badgeClass = isMissing
@@ -1026,14 +1235,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <td><strong class="text-body-emphasis">${escapeHtml(item.name)}</strong></td>
                 <td>${item.file_name ? `<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${clearanceApi}?action=file&item_id=${item.id}"><i class="fas fa-eye me-1"></i>View file</a><small class="d-block text-body-secondary mt-1">${escapeHtml(item.file_name)}</small>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-excel me-1"></i>No file uploaded (Missing)</span>'}</td>
                 <td><span class="badge ${badgeClass} px-2 py-1">${escapeHtml(statusLabel)}</span></td>
-                <td><small class="text-body-secondary">${escapeHtml(item.remarks || (isMissing ? 'No file submitted' : 'No remark'))}</small></td>
+                <td>${formatClearanceRemark(item.remarks, isMissing)}</td>
                 <td class="text-end"><div class="btn-group btn-group-sm">
                     <button class="btn btn-success" onclick="reviewItem(${item.id}, 'approve')" ${item.file_name ? '' : 'disabled'} title="Approve"><i class="fas fa-check"></i></button>
-                    <button class="btn btn-danger" onclick="reviewItem(${item.id}, 'deny')" ${item.file_name ? '' : 'disabled'} title="Deny (Red)"><i class="fas fa-times"></i></button>
+                    <button class="btn btn-danger" onclick="reviewItem(${item.id}, 'deny', '${escapeHtml(item.name)}')" ${item.file_name ? '' : 'disabled'} title="Deny (Red)"><i class="fas fa-times"></i></button>
                     <button class="btn btn-warning text-dark" onclick="reviewItem(${item.id}, 'hold')" ${item.file_name ? '' : 'disabled'} title="Put On Hold (Yellow)"><i class="fas fa-pause"></i></button>
                 </div></td>
             </tr>`;
-            }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No clearance submitted.</td></tr>';
+            }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No Department Clearance submitted.</td></tr>';
 
             // Faculty Declaration & Final Digital Signature Section
             const declBadge = document.getElementById('declarationReviewBadge');
@@ -1057,7 +1266,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 <div class="flex-grow-1">
                                     <div class="fw-bold ${awaitingDeptHead ? 'text-warning-emphasis' : 'text-success-emphasis'} mb-2">
                                         <i class="fas ${awaitingDeptHead ? 'fa-user-check' : 'fa-check-circle'} me-2"></i>
-                                        ${awaitingDeptHead ? 'Faculty Declaration received — pending your review' : 'Faculty Declaration Completed'}
+                                        ${awaitingDeptHead ? 'Faculty Declaration received â€” pending your review' : 'Faculty Declaration Completed'}
                                     </div>
                                     <p class="text-body-secondary small fst-italic mb-3 ps-2 border-start border-success-subtle border-3">
                                         &ldquo;I hereby certify that I have completed and submitted the required documents and have returned any school property, records, or other accountable items assigned to me.&rdquo;
@@ -1100,7 +1309,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 <i class="fas fa-pen-clip"></i>
                             </div>
                             <div>
-                                <div class="fw-bold text-warning-emphasis">All documents approved — awaiting faculty signature</div>
+                                <div class="fw-bold text-warning-emphasis">All documents approved â€” awaiting faculty signature</div>
                                 <div class="small text-body-secondary">
                                     All ${c.total_items} required documents have been cleared. The faculty member can now draw their digital signature to finalize their declaration. This section will update once they sign.
                                 </div>
@@ -1138,7 +1347,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         }
     }
 
-    // ── Archive Confirmation Pop-up Handlers ────────────────────────────────────
+    // â”€â”€ Archive Confirmation Pop-up Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let pendingArchiveTarget = { facultyId: 0, facultyName: '', clearanceId: 0 };
     let confirmArchiveModalInstance = null;
 
@@ -1193,7 +1402,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         const originalModalHtml = modalBtn ? modalBtn.innerHTML : '';
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Confirming…';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Confirmingâ€¦';
         }
         if (modalBtn) {
             modalBtn.disabled = true;
@@ -1235,10 +1444,10 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         let remark = '';
         if (decision === 'reject') {
             const res = await openRemarkModal({
-                title: 'Return Clearance Agreement Form',
+                title: 'Return Clearance Form',
                 sub: 'Provide a reason or instructions for the faculty member',
                 label: 'Reason for Return *',
-                hint: 'Explain what needs correction before the agreement form can be endorsed.',
+                hint: 'Explain what needs correction before the form can be endorsed.',
                 confirmText: 'Return Form',
                 confirmClass: 'btn-danger',
                 iconClass: 'bg-danger text-white',
@@ -1268,7 +1477,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         }
     }
 
-    // ── Remark Modal state ──────────────────────────────────────────────────────
+    // â”€â”€ Remark Modal state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let _remarkResolve = null;
     let _remarkModal = null;
 
@@ -1336,7 +1545,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         });
     }
 
-    async function reviewItem(itemId, decision) {
+    async function reviewItem(itemId, decision, reqName = '') {
         const isApprove = decision === 'approve';
         const isDeny = decision === 'deny';
 
@@ -1359,10 +1568,10 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         } else if (isDeny) {
             remark = await openRemarkModal({
                 title: 'Deny Requirement',
-                sub: 'The faculty member will be notified to resubmit.',
+                sub: 'Provide a reason for denying this requirement submission.',
                 label: 'Denial Reason (Required)',
-                hint: 'Explain clearly why this submission was denied.',
-                placeholder: 'e.g., Document is incomplete or incorrect.',
+                hint: 'Explain what needs to be addressed before this requirement can be approved.',
+                placeholder: 'e.g., Incomplete documentation or missing official stamp.',
                 defaultValue: '',
                 required: true,
                 headerClass: 'bg-danger-subtle',
@@ -1443,12 +1652,19 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             const body = document.getElementById('reviewBody');
             if (!body) return;
 
-            const progressBar = document.getElementById('summaryProgressBar');
-            if (progressBar) progressBar.style.width = `${c.progress}%`;
-            const progressText = document.getElementById('summaryProgressText');
-            if (progressText) progressText.textContent = `${c.progress}% (${c.approved_items}/${c.total_items})`;
+            const deptItem = (c.items || []).find(it => it.name === 'Department Clearance');
+            const isDeptCleared = deptItem && (deptItem.status === 'Cleared' || deptItem.status === 'Approved');
+            const deptProgress = isDeptCleared ? 100 : 0;
+            const deptApprovedCount = isDeptCleared ? 1 : 0;
 
-            body.innerHTML = c.items.length ? c.items.map(item => {
+            const progressBar = document.getElementById('summaryProgressBar');
+            if (progressBar) progressBar.style.width = `${deptProgress}%`;
+            const progressText = document.getElementById('summaryProgressText');
+            if (progressText) progressText.textContent = `${deptProgress}% (${deptApprovedCount}/1)`;
+
+            let refreshItems = c.items || [];
+            refreshItems = refreshItems.filter(item => item.name === 'Department Clearance');
+            body.innerHTML = refreshItems.length ? refreshItems.map(item => {
                 const isMissing = !item.file_name && item.status !== 'Cleared';
                 const statusLabel = isMissing ? 'Missing' : (item.display_status || item.status);
                 const badgeClass = isMissing
@@ -1463,17 +1679,38 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <td><strong class="text-body-emphasis">${escapeHtml(item.name)}</strong></td>
                 <td>${item.file_name ? `<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${clearanceApi}?action=file&item_id=${item.id}"><i class="fas fa-eye me-1"></i>View file</a><small class="d-block text-body-secondary mt-1">${escapeHtml(item.file_name)}</small>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-excel me-1"></i>No file uploaded (Missing)</span>'}</td>
                 <td><span class="badge ${badgeClass} px-2 py-1">${escapeHtml(statusLabel)}</span></td>
-                <td><small class="text-body-secondary">${escapeHtml(item.remarks || (isMissing ? 'No file submitted' : 'No remark'))}</small></td>
+                <td>${formatClearanceRemark(item.remarks, isMissing)}</td>
                 <td class="text-end"><div class="btn-group btn-group-sm">
                     <button class="btn btn-success" onclick="reviewItem(${item.id}, 'approve')" ${item.file_name ? '' : 'disabled'} title="Approve"><i class="fas fa-check"></i></button>
-                    <button class="btn btn-danger" onclick="reviewItem(${item.id}, 'deny')" ${item.file_name ? '' : 'disabled'} title="Deny"><i class="fas fa-times"></i></button>
+                    <button class="btn btn-danger" onclick="reviewItem(${item.id}, 'deny', '${escapeHtml(item.name)}')" ${item.file_name ? '' : 'disabled'} title="Deny"><i class="fas fa-times"></i></button>
                     <button class="btn btn-warning text-dark" onclick="reviewItem(${item.id}, 'hold')" ${item.file_name ? '' : 'disabled'} title="Put On Hold"><i class="fas fa-pause"></i></button>
                 </div></td>
             </tr>`;
-            }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No clearance submitted.</td></tr>';
+            }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No Department Clearance submitted.</td></tr>';
         } catch (e) {
             // silent
         }
+    }
+
+    function formatClearanceRemark(remarks, isMissing = false) {
+        if (!remarks || !String(remarks).trim()) {
+            return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : 'No remark'}</small>`;
+        }
+
+        let raw = String(remarks).trim();
+        // Clean out comment tag, bracketed status, and any legacy scope markers
+        raw = raw.replace(/<!--SCOPE_STATE:.*?-->/g, '').trim();
+        raw = raw.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '').trim();
+        raw = raw.replace(/Deficiencies Flagged:[\s\S]*?(?=Instructions:|$)/i, '')
+                 .replace(/Complied:[\s\S]*?(?=Instructions:|$)/i, '')
+                 .replace(/^Instructions:\s*/i, '')
+                 .trim();
+
+        if (!raw) {
+            return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : 'No remark'}</small>`;
+        }
+
+        return `<div class="text-body-secondary small text-start" style="white-space: pre-line; font-size:0.8rem;">${escapeHtml(raw)}</div>`;
     }
 
     function escapeHtml(value) {
@@ -1494,7 +1731,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     }
 
     // Initial load
-    loadTracking();
-    loadArchives();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTracking();
+            loadArchives();
+        });
+    } else {
+        loadTracking();
+        loadArchives();
+    }
 </script>
 <?php require_once ROOT_PATH . '/includes/layout-end.php'; ?>

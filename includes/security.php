@@ -14,6 +14,7 @@ function smsSendSecurityHeaders(): void
         return;
     }
 
+    header('Content-Type: text/html; charset=UTF-8');
     header('X-Frame-Options: SAMEORIGIN');
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: strict-origin-when-cross-origin');
@@ -94,8 +95,10 @@ function requireCsrf(?string $token = null): void
 {
     if (!csrfVerify($token)) {
         http_response_code(403);
-        if (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
-            || str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')) {
+        if (
+            str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
+            || str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')
+        ) {
             header('Content-Type: application/json');
             echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
         } else {

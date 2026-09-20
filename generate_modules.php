@@ -34,7 +34,6 @@ require_once __DIR__ . '/../../includes/layout-start.php';
 </div>
 
 <?php require_once __DIR__ . '/../../includes/layout-end.php'; ?>
-
 PHP;
 
 $pageTemplate = <<<'PHP'
@@ -85,7 +84,6 @@ require_once __DIR__ . '/../../../includes/layout-start.php';
 </div>
 
 <?php require_once __DIR__ . '/../../../includes/layout-end.php'; ?>
-
 PHP;
 
 $created = 0;

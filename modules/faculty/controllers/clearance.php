@@ -37,12 +37,11 @@ function facultyClearanceSections(): array
             'name' => 'Department Clearance',
             'office' => 'Department Head / Dean',
             'icon' => 'fa-building-columns',
-            'description' => 'Department reports, assigned duties, committee responsibilities, Department Head verification.',
+            'description' => 'Department reports, assigned duties, committee responsibilities.',
             'items' => [
                 'Departmental reports submitted',
                 'Assigned department duties completed',
                 'Committee responsibilities fulfilled',
-                'Department Head / Dean verification & endorsement',
             ],
         ],
         'Library Clearance' => [
@@ -108,14 +107,34 @@ function facultyClearanceOffices(PDO $db): array
         }
         $db->exec("ALTER TABLE clearance_requests MODIFY COLUMN overall_status VARCHAR(50) NOT NULL DEFAULT 'In Progress'");
         $db->exec("ALTER TABLE clearance_items MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Missing'");
+        $db->exec("ALTER TABLE clearance_items MODIFY COLUMN remarks TEXT NULL");
 
-        $formStatusCols = $db->query("SHOW COLUMNS FROM clearance_requests LIKE 'form_status'")->fetchAll();
-        if (empty($formStatusCols)) {
-            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_status VARCHAR(50) NOT NULL DEFAULT 'Not Submitted' AFTER form_submitted_at");
-            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_approved_at DATETIME NULL AFTER form_status");
-            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_approved_by INT UNSIGNED NULL AFTER form_approved_at");
-            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_remarks TEXT NULL AFTER form_approved_by");
+        $reqCols = $db->query("SHOW COLUMNS FROM clearance_requests")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('form_submitted', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_submitted TINYINT(1) NOT NULL DEFAULT 0");
         }
+        if (!in_array('form_submitted_at', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_submitted_at DATETIME NULL");
+        }
+        if (!in_array('form_status', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_status VARCHAR(50) NOT NULL DEFAULT 'Not Submitted'");
+        }
+        if (!in_array('form_approved_at', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_approved_at DATETIME NULL");
+        }
+        if (!in_array('form_approved_by', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_approved_by INT UNSIGNED NULL");
+        }
+        if (!in_array('form_remarks', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN form_remarks TEXT NULL");
+        }
+        if (!in_array('faculty_declaration', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN faculty_declaration TEXT NULL");
+        }
+        if (!in_array('signature_data', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN signature_data LONGTEXT NULL");
+        }
+        $db->exec("ALTER TABLE clearance_requests MODIFY COLUMN submitted_at DATETIME NULL DEFAULT NULL");
     } catch (Throwable $e) {
         // Table or column already adjusted
     }
@@ -337,19 +356,30 @@ function facultyClearanceStatus(?array $request): string
         return 'With Deficiency';
     }
 
-    // 3. HR Final Approval stage when clearance verification is completed by offices
-    if ($clearedCount >= 5) {
-        return 'For Final Approval';
+    $formStatus = (string) ($request['form_status'] ?? '');
+    $overallStatus = (string) ($request['overall_status'] ?? '');
+
+    // 3. If Department Head has rejected/returned the agreement form
+    if ($formStatus === 'Rejected') {
+        return 'Action Required';
     }
 
-    // 4. Offices / Units Verification stage
-    if ($clearedCount > 0) {
+    // 4. If agreement form is approved by Department Head, clearance is under verification by offices
+    if ($formStatus === 'Approved') {
+        if ($clearedCount >= 5) {
+            return 'For Final Approval';
+        }
         return 'Under Verification';
     }
 
     // 5. Initial submission is reviewed first by Department Head before proceeding
-    if (!empty($request['submitted_at']) || $formSubmitted || $hasUploads) {
+    if ($formSubmitted || $overallStatus === 'For Department Head Approval' || $formStatus === 'Pending Review') {
         return 'For Department Head Approval';
+    }
+
+    // 6. If any uploads exist
+    if ($hasUploads) {
+        return 'Under Verification';
     }
 
     return 'Not Submitted';
@@ -429,7 +459,7 @@ function facultyClearanceRecalculate(PDO $db, int $clearanceId): void
     $offices = facultyClearanceOffices($db);
     $allowedNames = facultyClearanceRequirementNames();
 
-    // Ensure all 6 active clearance offices have rows in clearance_items
+    // Ensure all active clearance offices have rows in clearance_items
     $insertItem = $db->prepare('INSERT IGNORE INTO clearance_items (clearance_id, clearance_office_id, status) VALUES (?, ?, \'Missing\')');
     foreach ($offices as $office) {
         $insertItem->execute([$clearanceId, (int) $office['clearance_office_id']]);
@@ -440,17 +470,25 @@ function facultyClearanceRecalculate(PDO $db, int $clearanceId): void
     $stmt->execute(array_merge([$clearanceId], $allowedNames));
     $statuses = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    $hasDeficiency = in_array('Hold', $statuses, true) || in_array('Denied', $statuses, true) || in_array('With Deficiency', $statuses, true) || in_array('On Hold', $statuses, true);
-    $clearedCount = count(array_filter($statuses, static fn($s) => in_array($s, ['Cleared', 'Approved'], true)));
-    $totalCount = count($allowedNames);
+    $hasDeficiency = in_array('Hold', $statuses, true)
+        || in_array('Denied', $statuses, true)
+        || in_array('With Deficiency', $statuses, true)
+        || in_array('On Hold', $statuses, true);
 
-    if ($clearedCount >= $totalCount && $totalCount >= 6) {
+    $clearedCount  = count(array_filter($statuses, static fn($s) => in_array($s, ['Cleared', 'Approved'], true)));
+    $totalCount    = count($statuses); // actual rows in DB for this clearance (may be 1–6)
+    $maxOffices    = count($allowedNames); // 6 defined clearance offices
+
+    // All items that exist are cleared → promote to Cleared
+    if ($totalCount > 0 && $clearedCount >= $totalCount) {
         $overall = 'Cleared';
     } elseif ($hasDeficiency) {
         $overall = 'With Deficiency';
-    } elseif ($clearedCount >= 5) {
+    } elseif ($maxOffices > 0 && $clearedCount >= (int) round($maxOffices * 5 / 6)) {
+        // 5 of 6 offices cleared → For Final Approval
         $overall = 'For Final Approval';
-    } elseif ($clearedCount >= 4) {
+    } elseif ($maxOffices > 0 && $clearedCount >= (int) round($maxOffices * 4 / 6)) {
+        // 4 of 6 offices cleared → For Department Head Approval
         $overall = 'For Department Head Approval';
     } else {
         $overall = 'Under Verification';
@@ -463,6 +501,7 @@ function facultyClearanceRecalculate(PDO $db, int $clearanceId): void
         facultyClearanceArchiveRecord($db, $clearanceId);
     }
 }
+
 
 function facultyClearanceArchiveRecord(PDO $db, int $clearanceId): void
 {
