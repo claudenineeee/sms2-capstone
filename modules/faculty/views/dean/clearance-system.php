@@ -269,7 +269,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     </table>
                 </div>
                 <div id="archivePagination"></div>
-    </section>
+            </section>
         </div>
     </div>
 </div>
@@ -327,18 +327,24 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <!-- Faculty Declaration & Digital Signature -->
                 <div class="card bg-body-tertiary border mb-4" id="reviewDeclarationCard">
                     <div class="card-header bg-body-secondary py-2 d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0 fw-bold small text-uppercase"><i class="fas fa-file-signature me-2 text-primary"></i>Faculty Declaration &amp; Digital Signature</h6>
-                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" id="reviewDeclSignedBadge">
+                        <h6 class="mb-0 fw-bold small text-uppercase"><i
+                                class="fas fa-file-signature me-2 text-primary"></i>Faculty Declaration &amp; Digital
+                            Signature</h6>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"
+                            id="reviewDeclSignedBadge">
                             <i class="fas fa-check-circle me-1"></i>Signed
                         </span>
                     </div>
                     <div class="card-body p-3">
                         <p class="text-body-secondary small mb-3 fst-italic" id="reviewDeclText">
-                            "I hereby certify that I have completed and submitted the required documents and have returned any school property, records, or other accountable items assigned to me."
+                            "I hereby certify that I have completed and submitted the required documents and have
+                            returned any school property, records, or other accountable items assigned to me."
                         </p>
                         <div class="d-flex align-items-center gap-3" id="reviewDeclSigWrap">
                             <div id="reviewDeclSigImgWrap">
-                                <img src="" id="reviewDeclSigImg" alt="Digital Signature" class="bg-white p-2 rounded border" style="max-height: 60px; max-width: 220px; display: none;">
+                                <img src="" id="reviewDeclSigImg" alt="Digital Signature"
+                                    class="bg-white p-2 rounded border"
+                                    style="max-height: 60px; max-width: 220px; display: none;">
                                 <span id="reviewDeclSigPlaceholder" class="text-muted small">No signature data</span>
                             </div>
                             <div>
@@ -490,29 +496,50 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     let archiveCurrentPage = 1;
     const archivePageSize = 8;
 
-    // Load tracking on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        loadTracking();
-    });
+
 
     async function loadTracking() {
-        if (!document.getElementById('trackingBody')) {
+        const body = document.getElementById('trackingBody');
+        if (!body) {
             return;
         }
         try {
             const response = await fetch(`${clearanceApi}?action=summary`);
+            if (!response.ok) {
+                const errText = await response.text();
+                let errMsg = `Server returned status ${response.status}`;
+                try {
+                    const parsed = JSON.parse(errText);
+                    if (parsed.error) errMsg = parsed.error;
+                } catch (_) { }
+                throw new Error(errMsg);
+            }
             const data = await response.json();
-            if (!data.ok) throw new Error(data.error);
-            trackingRows = data.rows || [];
-            document.getElementById('metricPending').textContent = data.metrics.pending;
-            document.getElementById('metricAction').textContent = data.metrics.action_required;
-            document.getElementById('metricArchived').textContent = data.metrics.archived;
-            document.getElementById('activeBadgeCount').textContent = trackingRows.length;
+            if (!data.ok) throw new Error(data.error || 'Failed to retrieve clearance data.');
+            trackingRows = Array.isArray(data.rows) ? data.rows : [];
+            if (data.metrics) {
+                const elPending = document.getElementById('metricPending');
+                if (elPending) elPending.textContent = data.metrics.pending ?? 0;
+                const elAction = document.getElementById('metricAction');
+                if (elAction) elAction.textContent = data.metrics.action_required ?? 0;
+                const elArchived = document.getElementById('metricArchived');
+                if (elArchived) elArchived.textContent = data.metrics.archived ?? 0;
+            }
+            const elBadge = document.getElementById('activeBadgeCount');
+            if (elBadge) elBadge.textContent = trackingRows.length;
             currentPage = 1;
             renderStatusControls();
             renderTracking();
         } catch (error) {
+            console.error('Clearance tracking error:', error);
             showTrackingAlert(error.message, 'danger');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    ${escapeHtml(error.message || 'Unable to load clearance records.')}
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="loadTracking()"><i class="fas fa-rotate-left me-1"></i>Retry</button>
+                </td></tr>`;
+            }
         }
     }
 
@@ -522,9 +549,18 @@ require_once ROOT_PATH . '/includes/layout-start.php';
 
         try {
             const response = await fetch(`${clearanceApi}?action=archives`);
+            if (!response.ok) {
+                const errText = await response.text();
+                let errMsg = `Server returned status ${response.status}`;
+                try {
+                    const parsed = JSON.parse(errText);
+                    if (parsed.error) errMsg = parsed.error;
+                } catch (_) { }
+                throw new Error(errMsg);
+            }
             const data = await response.json();
-            if (!data.ok) throw new Error(data.error);
-            archiveRows = data.archives || [];
+            if (!data.ok) throw new Error(data.error || 'Failed to retrieve archive records.');
+            archiveRows = Array.isArray(data.archives) ? data.archives : [];
             const archiveBadge = document.getElementById('archiveBadgeCount');
             if (archiveBadge) archiveBadge.textContent = archiveRows.length;
             const metricArchived = document.getElementById('metricArchived');
@@ -535,7 +571,15 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             archiveCurrentPage = 1;
             renderArchives();
         } catch (error) {
+            console.error('Clearance archives error:', error);
             showTrackingAlert(error.message, 'danger');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    ${escapeHtml(error.message || 'Unable to load archived records.')}
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="loadArchives()"><i class="fas fa-rotate-left me-1"></i>Retry</button>
+                </td></tr>`;
+            }
         }
     }
 
@@ -621,34 +665,39 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             body.innerHTML = '<tr><td colspan="7" class="text-center text-body-secondary py-5">No faculty clearance records matching your filters.</td></tr>';
         } else {
             body.innerHTML = visibleRows.map(row => {
-                const c = row.clearance;
-                const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
-                    ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                    : 'Not set';
-                const tone = (c.status === 'Action Required' || c.status === 'With Deficiency') ? 'danger' : (c.status === 'Completed' || c.status === 'Cleared' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : (c.status === 'For Final Approval' || c.status === 'For Department Head Approval' ? 'warning' : 'info')));
+                try {
+                    const c = row.clearance || { status: 'Not Submitted', progress: 0, approved_items: 0, total_items: 0 };
+                    const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
+                        ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Not set';
+                    const tone = (c.status === 'Action Required' || c.status === 'With Deficiency') ? 'danger' : (c.status === 'Completed' || c.status === 'Cleared' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : (c.status === 'For Final Approval' || c.status === 'For Department Head Approval' ? 'warning' : 'info')));
 
-                const emp = row.employment_status || 'Probationary';
-                const empBadge = emp === 'Regular'
-                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1 small">Regular</span>'
-                    : (emp === 'Probationary'
-                        ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1 small">Probationary</span>'
-                        : '<span class="badge bg-secondary-subtle text-body-secondary border ms-1 small">Part-Time</span>');
+                    const emp = row.employment_status || 'Probationary';
+                    const empBadge = emp === 'Regular'
+                        ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1 small">Regular</span>'
+                        : (emp === 'Probationary'
+                            ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1 small">Probationary</span>'
+                            : '<span class="badge bg-secondary-subtle text-body-secondary border ms-1 small">Part-Time</span>');
 
-                return `<tr>
-                <td class="ps-3">
-                    <div class="d-flex align-items-center gap-1 flex-wrap">
-                        <strong>${escapeHtml(row.name)}</strong>
-                        ${empBadge}
-                    </div>
-                    <small class="d-block text-body-secondary">${escapeHtml(row.faculty_id || '')}</small>
-                </td>
-                <td>${escapeHtml(row.designated_department || 'N/A')}</td>
-                <td class="${row.days_remaining !== null && row.days_remaining <= 30 ? 'text-danger fw-bold' : ''}">${expiry}<small class="d-block text-body-secondary">${row.days_remaining === null ? '' : (row.days_remaining < 0 ? 'Expired' : row.days_remaining + ' days remaining')}</small></td>
-                <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${tone}" style="width:${c.progress}%"></div></div><small>${c.progress}% (${c.approved_items}/${c.total_items})</small></td>
-                <td><span class="badge bg-${tone}${tone === 'info' || tone === 'warning' ? ' text-dark' : ''}">${escapeHtml(c.status)}</span></td>
-                <td>${row.submitted_at ? new Date(row.submitted_at.replace(' ', 'T')).toLocaleDateString() : '—'}</td>
-                <td class="text-end pe-3"><button class="btn btn-sm btn-outline-primary" onclick="openReview(${row.id})"><i class="fas fa-eye me-1"></i>View</button></td>
-            </tr>`;
+                    return `<tr>
+                    <td class="ps-3">
+                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <strong>${escapeHtml(row.name || 'Unknown')}</strong>
+                            ${empBadge}
+                        </div>
+                        <small class="d-block text-body-secondary">${escapeHtml(row.faculty_id || '')}</small>
+                    </td>
+                    <td>${escapeHtml(row.designated_department || 'N/A')}</td>
+                    <td class="${row.days_remaining !== null && row.days_remaining <= 30 ? 'text-danger fw-bold' : ''}">${expiry}<small class="d-block text-body-secondary">${row.days_remaining === null ? '' : (row.days_remaining < 0 ? 'Expired' : row.days_remaining + ' days remaining')}</small></td>
+                    <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${tone}" style="width:${c.progress || 0}%"></div></div><small>${c.progress || 0}% (${c.approved_items || 0}/${c.total_items || 0})</small></td>
+                    <td><span class="badge bg-${tone}${tone === 'info' || tone === 'warning' ? ' text-dark' : ''}">${escapeHtml(c.status || 'Not Submitted')}</span></td>
+                    <td>${row.submitted_at ? new Date(row.submitted_at.replace(' ', 'T')).toLocaleDateString() : '—'}</td>
+                    <td class="text-end pe-3"><button class="btn btn-sm btn-outline-primary" onclick="openReview(${row.id})"><i class="fas fa-eye me-1"></i>View</button></td>
+                </tr>`;
+                } catch (rowErr) {
+                    console.error('Error rendering clearance row:', rowErr, row);
+                    return `<tr><td colspan="7" class="text-center text-muted small py-2">Error displaying faculty record (ID: ${row.id})</td></tr>`;
+                }
             }).join('');
         }
         renderPagination(totalPages, filtered.length);
@@ -810,7 +859,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <td><strong>${escapeHtml(it.name)}</strong></td>
                 <td>${it.file_name ? `<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${fileUrl}"><i class="fas fa-download me-1"></i>${escapeHtml(it.file_name)}</a>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-circle-xmark me-1"></i>No file (Missing)</span>'}</td>
                 <td><span class="badge ${badgeClass}"><i class="${isMissing ? 'fas fa-question-circle' : (it.status === 'Cleared' ? 'fas fa-check-circle' : 'fas fa-times-circle')} me-1"></i>${escapeHtml(statusLabel)}</span></td>
-                <td><small class="text-body-secondary">${escapeHtml(it.remarks || (isMissing ? 'Requirement not submitted.' : 'Approved without remarks.'))}</small></td>
+                <td>${formatClearanceRemark(it.remarks, isMissing)}</td>
                 <td><small class="text-body-secondary">${it.cleared_at ? new Date(it.cleared_at.replace(' ', 'T')).toLocaleDateString() : '—'}</small></td>
             </tr>`;
             }).join('');
@@ -962,7 +1011,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <td><strong>${escapeHtml(item.name)}</strong></td>
                 <td>${item.file_name ? `<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${clearanceApi}?action=file&item_id=${item.id}"><i class="fas fa-eye me-1"></i>View file</a><small class="d-block text-body-secondary mt-1">${escapeHtml(item.file_name)}</small>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-excel me-1"></i>No file uploaded (Missing)</span>'}</td>
                 <td><span class="badge ${badgeClass} px-2 py-1">${escapeHtml(statusLabel)}</span></td>
-                <td><small class="text-body-secondary">${escapeHtml(item.remarks || (isMissing ? 'No file submitted' : 'No remark'))}</small></td>
+                <td>${formatClearanceRemark(item.remarks, isMissing)}</td>
             </tr>`;
             }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No clearance submitted.</td></tr>';
 
@@ -1068,6 +1117,27 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         }
     }
 
+    function formatClearanceRemark(remarks, isMissing = false) {
+        if (!remarks || !String(remarks).trim()) {
+            return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : 'No remark'}</small>`;
+        }
+
+        let raw = String(remarks).trim();
+        // Clean out comment tag, bracketed status, and any legacy scope markers
+        raw = raw.replace(/<!--SCOPE_STATE:.*?-->/g, '').trim();
+            raw = raw.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '').trim();
+        raw = raw.replace(/Deficiencies Flagged:[\s\S]*?(?=Instructions:|$)/i, '')
+            .replace(/Complied:[\s\S]*?(?=Instructions:|$)/i, '')
+            .replace(/^Instructions:\s*/i, '')
+            .trim();
+
+        if (!raw) {
+            return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : 'No remark'}</small>`;
+        }
+
+        return `<div class="text-body-secondary small text-start" style="white-space: pre-line; font-size:0.8rem;">${escapeHtml(raw)}</div>`;
+    }
+
     function escapeHtml(value) {
         return String(value).replace(/[&<>'"]/g, character => ({
             '&': '&amp;',
@@ -1086,6 +1156,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     }
 
     // Initial load
-    loadArchives();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+            loadTracking();
+            loadArchives();
+        });
+    } else {
+        loadTracking();
+        loadArchives();
+    }
 </script>
 <?php require_once ROOT_PATH . '/includes/layout-end.php'; ?>

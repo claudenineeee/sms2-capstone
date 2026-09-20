@@ -26,7 +26,7 @@ $consumedSemesterDays = 0;
 $remainingSemesterDays = 7;
 
 $formError = '';
-$formSuccess = '';
+$formSuccess = '';$alertMessages = [];
 
 try {
     $pdo = facultyDb();
@@ -336,6 +336,18 @@ try {
         } elseif ($normalizedStatus === 'finished') {
             $finishedCount++;
             $consumedSemesterDays += (int)($request['days'] ?? 0);
+        }
+
+        $notificationFlag = (int) ($request['notification'] ?? 0);
+        $documentsValue = trim((string) ($request['documents'] ?? ''));
+
+        if ($notificationFlag === 1 && $documentsValue === '') {
+            $requestRef = trim((string) ($request['request_ref'] ?? ''));
+            if ($requestRef === '') {
+                $requestRef = 'LR-' . (int) ($request['id'] ?? 0);
+            }
+
+            $alertMessages[] = $requestRef . ' document support has been rejected.';
         }
     }
     $remainingSemesterDays = max(0, $maxSemesterDays - $consumedSemesterDays);
