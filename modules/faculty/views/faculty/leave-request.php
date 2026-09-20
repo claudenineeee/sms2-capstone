@@ -49,6 +49,9 @@ try {
         // Query the main `faculty` table using email linkage
         $stmt = $pdo->prepare("
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
             SELECT fp.id, fp.faculty_id AS faculty_no
             FROM faculty_db.faculty_profiles fp
             WHERE fp.user_id = :user_id
@@ -57,7 +60,10 @@ try {
         $stmt->execute([':user_id' => $userId]);
         $profileRow = $stmt->fetch(PDO::FETCH_ASSOC);
         $facultyProfileId = (int) ($profileRow['id'] ?? 0);
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
             SELECT faculty_id
             FROM faculty_db.faculty
             WHERE email = :email
@@ -65,11 +71,17 @@ try {
         ");
         $stmt->execute([':email' => $userEmail]);
         $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
+<<<<<<< HEAD
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
 
         // Auto-provision a faculty record if it doesn't exist yet
         if ($facultyProfileId <= 0) {
 <<<<<<< HEAD
+=======
+
+        // Auto-provision a faculty record if it doesn't exist yet
+        if ($facultyProfileId <= 0) {
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
             $formError = 'Your account is not linked to a faculty profile.';
         } else {
             // Resolve the actual faculty.faculty_id via the faculty_no stored in faculty_profiles
@@ -84,7 +96,10 @@ try {
 
             if ($facultyRecordId <= 0) {
                 $formError = 'Your faculty record could not be found. Please contact HR to complete your profile setup.';
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
             try {
                 $facultyNo = 'FAC-' . date('Y') . '-' . str_pad($userId, 4, '0', STR_PAD_LEFT);
                 $firstName = $userData['username'] ?? 'Faculty';
@@ -105,27 +120,32 @@ try {
                 $facultyProfileId = (int) $pdo->lastInsertId();
             } catch (Exception $ex) {
                 $formError = 'Your account is not linked to a faculty record and auto-creation failed: ' . $ex->getMessage();
+<<<<<<< HEAD
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
             }
         }
     }
 
-    // Calculate consumed leave days for the current faculty profile
-    if ($facultyProfileId > 0) {
-        $consumedSql = "
-            SELECT COALESCE(SUM(total_days), 0) AS consumed
-            FROM faculty_db.leave_requests
-            WHERE faculty_id = :faculty_id
-              AND status IN ('Pending', 'Approved', 'Finished')
-        ";
+    // Handle Edit / Resubmit Leave Request when status is Document Required or Returned
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave'])) {
+        $editRequestId = (int) ($_POST['edit_request_id'] ?? 0);
+        $leaveType = trim((string) ($_POST['leave_type'] ?? ''));
+        $startDate = trim((string) ($_POST['start_date'] ?? ''));
+        $endDate = trim((string) ($_POST['end_date'] ?? ''));
+        $reason = trim((string) ($_POST['reason'] ?? ''));
 
-        $consumedStmt = $pdo->prepare($consumedSql);
-        $consumedStmt->execute([':faculty_id' => $facultyProfileId]);
-        $consumedSemesterDays = (int) $consumedStmt->fetchColumn();
+        if ($editRequestId <= 0) {
+            $formError = 'Invalid request identifier.';
+        }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
         $remainingSemesterDays = max(0, $maxSemesterDays - $consumedSemesterDays);
 =======
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
         if ($formError === '' && $leaveType === '') {
             $formError = 'Please select a leave type.';
         }
@@ -165,7 +185,16 @@ try {
                 }
             }
         }
+    }
 
+    // Calculate consumed leave days for the current faculty profile
+    if ($facultyProfileId > 0) {
+        $consumedSql = "
+            SELECT COALESCE(SUM(total_days), 0) AS consumed
+            FROM faculty_db.leave_requests
+            WHERE faculty_id = :faculty_id
+              AND status IN ('Pending', 'Approved', 'Finished')
+        ";
         if ($formError === '') {
             $uploadedName = $row['documents'];
 
@@ -191,33 +220,11 @@ try {
                 }
             }
 
-            if ($formError === '') {
-                try {
-                    $upSql = "
-                        UPDATE faculty_db.leave_requests 
-                        SET leave_type = :leave_type,
-                            start_date = :start_date,
-                            end_date = :end_date,
-                            total_days = :total_days,
-                            reason = :reason,
-                            documents = :documents,
-                            status = 'Pending',
-                            screening_status = 'Pending',
-                            notification = 0,
-                            updated_at = NOW()
-                        WHERE id = :id
-                    ";
-                    $stmtUp = $pdo->prepare($upSql);
-                    $stmtUp->execute([
-                        ':leave_type' => $leaveType,
-                        ':start_date' => $startDate,
-                        ':end_date' => $endDate,
-                        ':total_days' => $totalDays,
-                        ':reason' => $reason,
-                        ':documents' => $uploadedName,
-                        ':id' => $editRequestId
-                    ]);
+        $consumedStmt = $pdo->prepare($consumedSql);
+        $consumedStmt->execute([':faculty_id' => $facultyProfileId]);
+        $consumedSemesterDays = (int) $consumedStmt->fetchColumn();
 
+<<<<<<< HEAD
                     $formSuccess = 'Leave request updated and resubmitted successfully.';
                 } catch (PDOException $e) {
                     $formError = 'Unable to update leave request: ' . $e->getMessage();
@@ -226,6 +233,9 @@ try {
             }
         }
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
+=======
+        $remainingSemesterDays = max(0, $maxSemesterDays - $consumedSemesterDays);
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_leave'])) {
@@ -414,6 +424,7 @@ try {
                 lr.updated_at AS approval_timestamp
             FROM faculty_db.leave_requests lr
 <<<<<<< HEAD
+<<<<<<< HEAD
             JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
             LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = f.faculty_no
             WHERE lr.faculty_id = :faculty_record_id
@@ -421,6 +432,13 @@ try {
             LEFT JOIN faculty_db.faculty fp ON fp.faculty_id = lr.faculty_id
             WHERE lr.faculty_id = :faculty_profile_id
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
+=======
+            JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = f.faculty_no
+            WHERE lr.faculty_id = :faculty_record_id
+            LEFT JOIN faculty_db.faculty fp ON fp.faculty_id = lr.faculty_id
+            WHERE lr.faculty_id = :faculty_profile_id
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
             ORDER BY lr.created_at DESC
         ";
 
@@ -666,10 +684,15 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                             $fileDate = isset($row['created_at']) ? htmlspecialchars($row['created_at'], ENT_QUOTES, 'UTF-8') : '';
 <<<<<<< HEAD
+<<<<<<< HEAD
 
                             // Check all potential database column names for secretary remarks/return reason
 =======
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
+=======
+
+                            // Check all potential database column names for secretary remarks/return reason
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
                             $remarks = $row['return_reason'] ?? $row['secretary_reason'] ?? $row['remarks'] ?? $row['comment'] ?? $row['feedback'] ?? $row['secretary_remarks'] ?? '';
                             ?>
                             <tr>
@@ -718,10 +741,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                             <i class="fas fa-eye"></i>
                                         </button>
 <<<<<<< HEAD
+<<<<<<< HEAD
                                     </div>
                                 </td>
                             </tr>
 =======
+=======
+                                    </div>
+                                </td>
+                            </tr>
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
                                     <?php endif; ?>
                                     <button class="btn btn-sm btn-light text-primary rounded-circle" title="View Details" onclick='viewDetails(<?= htmlspecialchars(json_encode([
                                         'db_id' => $dbId, 
@@ -745,7 +774,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 </div>
                             </td>
                         </tr>
+<<<<<<< HEAD
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
@@ -807,12 +839,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </div>
                     </div>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
                     <div class="modal-footer border-top-0 px-4 pb-4 pt-0">
                         <button type="button" class="btn btn-light rounded-pill px-3"
                             data-bs-dismiss="modal">Discard</button>
                         <button type="submit" name="submit_leave" class="btn btn-primary rounded-pill px-4">Submit
                             Application</button>
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
                     <div class="mb-3">
                         <label class="form-label small fw-medium">Reason <span class="text-danger">*</span></label>
                         <textarea name="reason" class="form-control bg-light" rows="3" placeholder="Provide details regarding your request..." required></textarea>
@@ -824,7 +862,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <div class="p-3 bg-primary bg-opacity-10 rounded-3 d-flex align-items-center gap-2 text-primary small">
                         <i class="fas fa-info-circle fs-6"></i>
                         <span>You have <strong><?php echo $remainingSemesterDays; ?> available days</strong> left out of your 7-day semester quota.</span>
+<<<<<<< HEAD
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
                     </div>
                 </form>
             </div>
@@ -938,12 +979,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <p class="mb-0 bg-light p-3 rounded-3 text-dark small" id="modal-reason">-</p>
                 </div>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
                 <div id="modal-action-wrapper" class="d-none mt-3 text-end">
                     <button type="button" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark"
                         id="modal-edit-btn">
                         <i class="fas fa-edit me-1"></i> Edit & Resubmit Request
                     </button>
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
 
                 <!-- Approval Info & Signature Box -->
                 <div id="modal-approval-box" class="p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 mb-3 d-none">
@@ -978,7 +1025,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <i class="fas fa-edit me-1"></i> Edit & Resubmit Request
                         </button>
                     </div>
+<<<<<<< HEAD
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
                 </div>
             </div>
         </div>
@@ -989,6 +1039,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     let currentViewData = null;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
     function viewDetails(data) {
         currentViewData = data;
         document.getElementById('modal-req-id').textContent = data.id;
@@ -1018,7 +1071,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         }
 
         new bootstrap.Modal(document.getElementById('detailsModal')).show();
+<<<<<<< HEAD
 =======
+=======
+let currentViewData = null;
+
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
 const BASE_URL = <?= json_encode(rtrim(BASE_URL, '/')) ?>;
 
 function viewDetails(data) {
@@ -1070,6 +1128,7 @@ function viewDetails(data) {
         actionWrapper.classList.add('d-none');
     }
 
+<<<<<<< HEAD
     new bootstrap.Modal(document.getElementById('detailsModal')).show();
 }
 
@@ -1133,6 +1192,8 @@ document.addEventListener('DOMContentLoaded', function () {
 >>>>>>> 6d593aefb9f5e3e555239ae0a111d009e1fae8d7
     }
 
+=======
+>>>>>>> 972d3ea56a6cf4f34d1fe0e3b4accad60e0ea1ad
     function editDetails(data) {
         document.getElementById('edit-req-db-id').value = data.db_id;
         document.getElementById('edit-leave-type').value = data.type;
@@ -1151,6 +1212,20 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         new bootstrap.Modal(document.getElementById('editLeaveModal')).show();
+function editDetails(data) {
+    document.getElementById('edit-req-db-id').value = data.db_id;
+    document.getElementById('edit-leave-type').value = data.type;
+    document.getElementById('edit-start-date').value = data.start;
+    document.getElementById('edit-end-date').value = data.end;
+    document.getElementById('edit-reason').value = data.reason;
+    
+    const editRemarksContainer = document.getElementById('edit-remarks-container');
+    const editRemarksText = document.getElementById('edit-remarks-text');
+    if (data.remarks && data.remarks.trim() !== '') {
+        editRemarksText.textContent = data.remarks;
+        editRemarksContainer.classList.remove('d-none');
+    } else {
+        editRemarksContainer.classList.add('d-none');
     }
 
     // TOAST ALERT
@@ -1196,6 +1271,30 @@ document.addEventListener('DOMContentLoaded', function () {
             toast.show();
         }
     });
+    if (message) {
+        const toastEl = document.getElementById('liveToast');
+        const toastBody = document.getElementById('toastMessageBody');
+        const closeBtn = toastEl.querySelector('.btn-close');
+        
+        if (isError) {
+            toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
+            toastEl.style.backgroundColor = '#842029';
+            closeBtn.classList.remove('btn-close-white');
+            closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+        } else {
+            toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
+            toastEl.style.backgroundColor = '#0f5132';
+            closeBtn.classList.remove('btn-close-white');
+            closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+        }
+        
+        const iconClass = isError ? 'fas fa-exclamation-circle' : 'fas fa-check-circle';
+        toastBody.innerHTML = `<i class="${iconClass} fs-5 text-white"></i> <span class="text-white">${message}</span>`;
+        
+        const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+        toast.show();
+    }
+});
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
