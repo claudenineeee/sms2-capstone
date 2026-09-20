@@ -26,7 +26,7 @@ $consumedSemesterDays = 0;
 $remainingSemesterDays = 7;
 
 $formError = '';
-$formSuccess = '';$alertMessages = [];
+$formSuccess = '';
 
 try {
     $pdo = facultyDb();
@@ -337,18 +337,6 @@ try {
             $finishedCount++;
             $consumedSemesterDays += (int)($request['days'] ?? 0);
         }
-
-        $notificationFlag = (int) ($request['notification'] ?? 0);
-        $documentsValue = trim((string) ($request['documents'] ?? ''));
-
-        if ($notificationFlag === 1 && $documentsValue === '') {
-            $requestRef = trim((string) ($request['request_ref'] ?? ''));
-            if ($requestRef === '') {
-                $requestRef = 'LR-' . (int) ($request['id'] ?? 0);
-            }
-
-            $alertMessages[] = $requestRef . ' document support has been rejected.';
-        }
     }
     $remainingSemesterDays = max(0, $maxSemesterDays - $consumedSemesterDays);
 
@@ -454,17 +442,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </section>
     </div>
 </div>
-
-<?php if (!empty($alertMessages)): ?>
-    <div class="mb-4">
-        <?php foreach ($alertMessages as $message): ?>
-            <div class="alert alert-warning border-0 shadow-sm auto-dismiss-alert" role="alert" data-auto-dismiss-seconds="3">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
-            </div>
-        <?php endforeach; ?>
-    </div>
-<?php endif; ?>
 
 <!-- Requests Data Table -->
 <div class="card border-0 shadow-sm rounded-4 mb-4">

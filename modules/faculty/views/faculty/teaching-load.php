@@ -44,7 +44,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Current Load</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;">24 <small class="text-muted fs-6 fw-normal">units</small></h4>
+                    <!-- TODO: Fetch total units dynamically via REST API -->
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;">0 <small class="text-muted fs-6 fw-normal">units</small></h4>
                 </div>
             </div>
         </section>
@@ -58,7 +59,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Subjects</h6>
-                    <h4 class="mb-0 fw-bold" style="color: #28a745;">8 <small class="text-muted fs-6 fw-normal">subjects</small></h4>
+                    <!-- TODO: Fetch total subjects count dynamically via REST API -->
+                    <h4 class="mb-0 fw-bold" style="color: #28a745;">0 <small class="text-muted fs-6 fw-normal">subjects</small></h4>
                 </div>
             </div>
         </section>
@@ -75,7 +77,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <i class="fas fa-list me-2 fs-5"></i>Current Teaching Load
                 </h6>
                 <span class="badge bg-primary bg-opacity-10 text-primary px-2.5 py-1.5 rounded-pill fw-medium border border-primary border-opacity-25 small">
-                    1st Semester 2025-2026
+                    <!-- TODO: Dynamically display current active term/semester -->
+                    Active Semester
                 </span>
             </div>
             <div class="card-body p-0">
@@ -94,27 +97,42 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </thead>
                         <tbody>
                             <?php
-                            $subjects = [
-                                ['code'=>'CS101','subject'=>'Intro to Computer Science','section'=>'A','units'=>3,'schedule'=>'MWF 8:00-9:30','room'=>'201'],
-                                ['code'=>'CS101','subject'=>'Intro to Computer Science','section'=>'B','units'=>3,'schedule'=>'MWF 8:00-9:30','room'=>'201'],
-                                ['code'=>'CS401','subject'=>'Software Engineering','section'=>'A','units'=>3,'schedule'=>'MWF 9:30-11:00','room'=>'203'],
-                                ['code'=>'CS301','subject'=>'Algorithms','section'=>'A','units'=>3,'schedule'=>'F 1:00-3:00','room'=>'301'],
-                                ['code'=>'CS501','subject'=>'Research Methods','section'=>'A','units'=>3,'schedule'=>'TTH 1:00-2:30','room'=>'204'],
-                                ['code'=>'CS201','subject'=>'Data Structures','section'=>'A','units'=>3,'schedule'=>'TTH 10:00-11:30','room'=>'202'],
-                                ['code'=>'CS401','subject'=>'Software Engineering','section'=>'B','units'=>3,'schedule'=>'TTH 2:00-3:30','room'=>'203'],
-                                ['code'=>'CS101','subject'=>'Intro to Computer Science','section'=>'C','units'=>3,'schedule'=>'TTH 8:00-9:30','room'=>'201'],
-                            ];
-                            foreach ($subjects as $s) {
-                                echo <<<HTML
-                                <tr>
-                                    <td class="fw-bold text-primary ps-4">{$s['code']}</td>
-                                    <td class="fw-medium text-dark">{$s['subject']}</td>
-                                    <td><span class="badge bg-light text-dark border">{$s['section']}</span></td>
-                                    <td class="text-center"><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{$s['units']} units</span></td>
-                                    <td class="small text-body-secondary"><i class="far fa-clock me-1 text-muted"></i>{$s['schedule']}</td>
-                                    <td class="pe-4"><span class="badge bg-secondary bg-opacity-10 text-secondary">{$s['room']}</span></td>
-                                </tr>
-                                HTML;
+                            /**
+                             * TODO: REST API Integration Point for Current Teaching Load
+                             * 
+                             * Future data should be fetched via REST API (e.g., calling an internal endpoint 
+                             * or fetching JSON data) and populated into this $subjects array.
+                             * 
+                             * Expected array structure:
+                             * $subjects = [
+                             *     [
+                             *         'code'     => string, // e.g., 'CS101'
+                             *         'subject'  => string, // e.g., 'Intro to Computer Science'
+                             *         'section'  => string, // e.g., 'A'
+                             *         'units'    => int,    // e.g., 3
+                             *         'schedule' => string, // e.g., 'MWF 8:00-9:30'
+                             *         'room'     => string  // e.g., '201'
+                             *     ],
+                             *     ...
+                             * ];
+                             */
+                            $subjects = []; // Hardcoded array removed; ready for REST API dataset
+
+                            if (empty($subjects)) {
+                                echo '<tr><td colspan="6" class="text-center text-muted py-4">No current teaching load found.</td></tr>';
+                            } else {
+                                foreach ($subjects as $s) {
+                                    echo <<<HTML
+                                    <tr>
+                                        <td class="fw-bold text-primary ps-4">{$s['code']}</td>
+                                        <td class="fw-medium text-dark">{$s['subject']}</td>
+                                        <td><span class="badge bg-light text-dark border">{$s['section']}</span></td>
+                                        <td class="text-center"><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{$s['units']} units</span></td>
+                                        <td class="small text-body-secondary"><i class="far fa-clock me-1 text-muted"></i>{$s['schedule']}</td>
+                                        <td class="pe-4"><span class="badge bg-secondary bg-opacity-10 text-secondary">{$s['room']}</span></td>
+                                    </tr>
+                                    HTML;
+                                }
                             }
                             ?>
                         </tbody>
@@ -138,7 +156,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light sticky-top" style="z-index: 1;">
                             <tr>
-                                <th class="text-uppercase small text-body-secondary fw-semibold ps-4" style="font-size: 0.725rem;">Semester</th>
+                                <th class="text-uppercase small text-body-secondary fw-semibold ps-4" style="font-size: 0.725rem;">Semester & Ends On</th>
                                 <th class="text-uppercase small text-body-secondary fw-semibold" style="font-size: 0.725rem;">Academic Year</th>
                                 <th class="text-uppercase small text-body-secondary fw-semibold" style="font-size: 0.725rem;">Subjects</th>
                                 <th class="text-uppercase small text-body-secondary fw-semibold" style="font-size: 0.725rem;">Total Units</th>
@@ -147,28 +165,49 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </thead>
                         <tbody>
                             <?php
-                            $history = [
-                                ['sem'=>'2nd Semester','year'=>'2025-2026','subjects'=>8,'units'=>24,'students'=>218,'status'=>'Current'],
-                                ['sem'=>'1st Semester','year'=>'2025-2026','subjects'=>7,'units'=>21,'students'=>195,'status'=>'Completed'],
-                                ['sem'=>'2nd Semester','year'=>'2024-2025','subjects'=>8,'units'=>24,'students'=>210,'status'=>'Completed'],
-                                ['sem'=>'1st Semester','year'=>'2024-2025','subjects'=>7,'units'=>21,'students'=>188,'status'=>'Completed'],
-                                ['sem'=>'2nd Semester','year'=>'2023-2024','subjects'=>8,'units'=>24,'students'=>205,'status'=>'Completed'],
-                            ];
-                            foreach ($history as $h) {
-                                $isCurrent = $h['status'] === 'Current';
-                                $statusBadge = $isCurrent 
-                                    ? 'bg-primary bg-opacity-10 text-primary border-primary' 
-                                    : 'bg-success bg-opacity-10 text-success border-success';
-                                
-                                echo <<<HTML
-                                <tr>
-                                    <td class="fw-semibold text-dark ps-4">{$h['sem']}</td>
-                                    <td class="text-body-secondary">{$h['year']}</td>
-                                    <td>{$h['subjects']} subjects</td>
-                                    <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{$h['units']} units</span></td>
-                                    <td class="pe-4"><span class="badge border border-opacity-25 {$statusBadge} rounded-pill px-3">{$h['status']}</span></td>
-                                </tr>
-                                HTML;
+                            /**
+                             * TODO: REST API Integration Point for Teaching Load History
+                             * 
+                             * Future data should be fetched via REST API and populated into this $history array.
+                             * The 'semester_end' property indicates the date/time when the semester concludes.
+                             * 
+                             * Expected array structure:
+                             * $history = [
+                             *     [
+                             *         'sem'          => string, // e.g., '2nd Semester'
+                             *         'semester_end' => string, // e.g., 'May 31, 2026' (Shows when the semester ends)[cite: 19]
+                             *         'year'         => string, // e.g., '2025-2026'
+                             *         'subjects'     => int,    // e.g., 8
+                             *         'units'        => int,    // e.g., 24
+                             *         'status'       => string  // e.g., 'Current' or 'Completed'
+                             *     ],
+                             *     ...
+                             * ];
+                             */
+                            $history = []; // Hardcoded array removed; ready for REST API dataset
+
+                            if (empty($history)) {
+                                echo '<tr><td colspan="5" class="text-center text-muted py-4">No teaching load history found.</td></tr>';
+                            } else {
+                                foreach ($history as $h) {
+                                    $isCurrent = $h['status'] === 'Current';
+                                    $statusBadge = $isCurrent 
+                                        ? 'bg-primary bg-opacity-10 text-primary border-primary' 
+                                        : 'bg-success bg-opacity-10 text-success border-success';
+                                    
+                                    echo <<<HTML
+                                    <tr>
+                                        <td class="ps-4">
+                                            <span class="fw-semibold text-dark d-block">{$h['sem']}</span>
+                                            <small class="text-muted" style="font-size: 0.75rem;"><i class="far fa-calendar-alt me-1"></i>Ends: {$h['semester_end']}</small>
+                                        </td>
+                                        <td class="text-body-secondary">{$h['year']}</td>
+                                        <td>{$h['subjects']} subjects</td>
+                                        <td><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{$h['units']} units</span></td>
+                                        <td class="pe-4"><span class="badge border border-opacity-25 {$statusBadge} rounded-pill px-3">{$h['status']}</span></td>
+                                    </tr>
+                                    HTML;
+                                }
                             }
                             ?>
                         </tbody>
