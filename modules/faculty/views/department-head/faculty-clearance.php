@@ -328,8 +328,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
 
 <!-- DENY REASON / SCOPE OF VERIFICATION MODAL -->
 <style>
-    #denyScopeModal { z-index: 1075 !important; }
-    #denyScopeModal+.modal-backdrop { z-index: 1070 !important; }
+    #denyScopeModal {
+        z-index: 1075 !important;
+    }
+
+    #denyScopeModal+.modal-backdrop {
+        z-index: 1070 !important;
+    }
+
     .deny-scope-item {
         cursor: pointer;
         transition: all 0.15s ease-in-out;
@@ -339,18 +345,22 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         margin-bottom: 8px;
         background-color: var(--bs-body-bg);
     }
+
     .deny-scope-item:hover {
         background-color: var(--bs-tertiary-bg);
         border-color: var(--bs-border-color-translucent);
     }
+
     .deny-scope-item.state-checked {
         border-color: #198754;
         background-color: rgba(25, 135, 84, 0.06);
     }
+
     .deny-scope-item.state-failed {
         border-color: #dc3545;
         background-color: rgba(220, 53, 69, 0.08);
     }
+
     .deny-scope-icon-wrap {
         width: 32px;
         height: 32px;
@@ -361,38 +371,47 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         flex-shrink: 0;
     }
 </style>
-<div class="modal fade" id="denyScopeModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index:1075">
+<div class="modal fade" id="denyScopeModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+    data-bs-keyboard="false" style="z-index:1075">
     <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width:620px">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-danger text-white py-3">
                 <div class="d-flex align-items-center gap-2">
-                    <div class="rounded-circle bg-white text-danger d-flex align-items-center justify-content-center flex-shrink-0" style="width:38px;height:38px;font-size:1.1rem;">
+                    <div class="rounded-circle bg-white text-danger d-flex align-items-center justify-content-center flex-shrink-0"
+                        style="width:38px;height:38px;font-size:1.1rem;">
                         <i class="fas fa-times-circle"></i>
                     </div>
                     <div>
-                        <h6 class="modal-title fw-bold mb-0" id="denyScopeModalTitle">Deny Clearance: <span id="denyScopeReqName">Requirement</span></h6>
+                        <h6 class="modal-title fw-bold mb-0" id="denyScopeModalTitle">Deny Clearance: <span
+                                id="denyScopeReqName">Requirement</span></h6>
                         <small class="text-white-75">Flag deficiencies in the Scope of Verification</small>
                     </div>
                 </div>
-                <button type="button" class="btn-close btn-close-white" id="denyScopeModalCloseBtn" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" id="denyScopeModalCloseBtn"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body px-4 py-3">
-                <div class="alert alert-danger-subtle border-danger-subtle d-flex align-items-start gap-2 py-2 px-3 rounded-3 mb-3 small">
+                <div
+                    class="alert alert-danger-subtle border-danger-subtle d-flex align-items-start gap-2 py-2 px-3 rounded-3 mb-3 small">
                     <i class="fas fa-info-circle text-danger mt-1 fs-6"></i>
                     <div>
                         <strong>Instructions:</strong>
                         <ul class="mb-0 ps-3">
-                            <li><strong>One click</strong> = Mark Complied (<i class="fas fa-check-circle text-success"></i>)</li>
-                            <li><strong>Double click</strong> = Mark Deficient / Reason for Deny (<i class="fas fa-times-circle text-danger"></i>)</li>
+                            <li><strong>One click</strong> = Mark Complied (<i
+                                    class="fas fa-check-circle text-success"></i>)</li>
+                            <li><strong>Double click</strong> = Mark Deficient / Reason for Deny (<i
+                                    class="fas fa-times-circle text-danger"></i>)</li>
                         </ul>
                     </div>
                 </div>
 
                 <div class="mb-2 d-flex justify-content-between align-items-center">
-                    <span class="small fw-bold text-uppercase text-body-secondary" style="font-size:0.7rem;letter-spacing:.05em;">
+                    <span class="small fw-bold text-uppercase text-body-secondary"
+                        style="font-size:0.7rem;letter-spacing:.05em;">
                         Scope of Verification Checklist
                     </span>
-                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" id="denyDeficientCountBadge">
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle"
+                        id="denyDeficientCountBadge">
                         0 Deficiencies Flagged
                     </span>
                 </div>
@@ -402,15 +421,18 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 </div>
 
                 <div class="mb-2">
-                    <label for="denyScopeAdditionalRemarks" class="form-label small fw-semibold text-body-emphasis mb-1">
+                    <label for="denyScopeAdditionalRemarks"
+                        class="form-label small fw-semibold text-body-emphasis mb-1">
                         Additional Instructions / Denial Explanation (Optional):
                     </label>
-                    <textarea id="denyScopeAdditionalRemarks" class="form-control form-control-sm" rows="2" placeholder="e.g., Please correct the flagged documents and resubmit to the department head."></textarea>
+                    <textarea id="denyScopeAdditionalRemarks" class="form-control form-control-sm" rows="2"
+                        placeholder="e.g., Please correct the flagged documents and resubmit to the department head."></textarea>
                 </div>
                 <div id="denyScopeAlert" class="alert alert-danger d-none py-2 small mb-0"></div>
             </div>
             <div class="modal-footer bg-body-tertiary border-top gap-2 flex-nowrap">
-                <button type="button" class="btn btn-outline-secondary flex-fill" id="denyScopeCancelBtn">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary flex-fill"
+                    id="denyScopeCancelBtn">Cancel</button>
                 <button type="button" class="btn btn-danger flex-fill fw-semibold" id="denyScopeConfirmBtn">
                     <i class="fas fa-times-circle me-1"></i>Confirm Denial
                 </button>
@@ -680,7 +702,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 try {
                     const parsed = JSON.parse(errText);
                     if (parsed.error) errMsg = parsed.error;
-                } catch (_) {}
+                } catch (_) { }
                 throw new Error(errMsg);
             }
             const data = await response.json();
@@ -724,7 +746,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 try {
                     const parsed = JSON.parse(errText);
                     if (parsed.error) errMsg = parsed.error;
-                } catch (_) {}
+                } catch (_) { }
                 throw new Error(errMsg);
             }
             const data = await response.json();
@@ -1702,9 +1724,9 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         raw = raw.replace(/<!--SCOPE_STATE:.*?-->/g, '').trim();
         raw = raw.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '').trim();
         raw = raw.replace(/Deficiencies Flagged:[\s\S]*?(?=Instructions:|$)/i, '')
-                 .replace(/Complied:[\s\S]*?(?=Instructions:|$)/i, '')
-                 .replace(/^Instructions:\s*/i, '')
-                 .trim();
+            .replace(/Complied:[\s\S]*?(?=Instructions:|$)/i, '')
+            .replace(/^Instructions:\s*/i, '')
+            .trim();
 
         if (!raw) {
             return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : 'No remark'}</small>`;
