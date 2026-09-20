@@ -236,31 +236,31 @@ $facultyTeacherNavGroups = [
 
 // NEW ROLES ADDDED
 $facultyRegistrarClearance = [
-    'Dashboard' => [
-        ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/registrar/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+    'Clearance' => [
+        ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/registrar/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance Portal'],
     ],
 ];
 
 $facultyHrClearance = [
-    'Dashboard' => [
-        ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/hr/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+    'Clearance' => [
+        ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/hr/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance Portal'],
     ],
 ];
-$facultyFinanceClearance= [
-    'Dashboard' => [
-        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/finance/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
-    ],
-];
-
-$facultyPropertyClearance= [
-    'Dashboard' => [
-        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/property/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+$facultyFinanceClearance = [
+    'Clearance' => [
+        ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/finance/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance Portal'],
     ],
 ];
 
-$facultyLibraryClearance= [
-    'Dashboard' => [
-        ['slug' => '', 'href' => BASE_URL . '/modules/faculty/views/library/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+$facultyPropertyClearance = [
+    'Clearance' => [
+        ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/property/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance Portal'],
+    ],
+];
+
+$facultyLibraryClearance = [
+    'Clearance' => [
+        ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/library-clearance/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance Portal'],
     ],
 ];
 
@@ -506,31 +506,7 @@ $facultyScheduleOfficerNavGroups = [
                 <?php endforeach; ?>
 
                 <!-- NEW ROLES FOR CLEARANCE APPROVAL -->
-                 <!-- REGISTRAR CLEARANCE -->
-                   <?php elseif (in_array($roleKey, ['$facultyRegistrarClearance'], true)): ?>
-                    <?php foreach ($facultyAttendanceMonitoringNavGroups as $groupLabel => $groupItems): ?>
-                        <li class="nav-item sidebar-group-label">
-                            <span class="nav-link sidebar-group-heading">
-                                <?= htmlspecialchars($groupLabel) ?>
-                            </span>
-                        </li>
-                        <?php foreach ($groupItems as $item): ?>
-                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
-                            <li class="nav-item">
-                                <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
-                                    data-title="<?= htmlspecialchars($item['label']) ?>"
-                                    title="<?= htmlspecialchars($item['label']) ?>">
-                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                    <span>
-                                        <?= htmlspecialchars($item['label']) ?>
-                                    </span>
-                                </a>
-                            </li>
-                        <?php endforeach; ?>
-                    <?php endforeach; ?>
-                            
-                        <!-- HR CLEARANCE -->
-                     <!-- HR CLEARANCE -->
+                <!-- HR CLEARANCE -->
             <?php elseif (in_array($roleKey, ['hr_clearance', 'hr'], true)): ?>
                 <?php foreach ($facultyHrClearance as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
@@ -554,7 +530,7 @@ $facultyScheduleOfficerNavGroups = [
                 <?php endforeach; ?>
 
             <!-- REGISTRAR CLEARANCE -->
-            <?php elseif (in_array($roleKey, ['registrar'], true)): ?>
+            <?php elseif (in_array($roleKey, ['registrar_clearance', 'registrar'], true)): ?>
                 <?php foreach ($facultyRegistrarClearance as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
                         <span class="nav-link sidebar-group-heading">

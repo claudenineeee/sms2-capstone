@@ -153,7 +153,7 @@ function getCurrentUserRole(): string
 
 function getCurrentUserRoleKey(): string
 {
-    return $_SESSION['user_role_key'] ?? '';
+    return $_SESSION['user_role_key'] ?? $_SESSION['role'] ?? $_SESSION['user_role'] ?? '';
 }
 
 function getCurrentUserId(): ?int

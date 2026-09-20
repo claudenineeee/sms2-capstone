@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../config/config.php';
 require_once ROOT_PATH . '/includes/authentication.php';
 requireAuth();
 require_once __DIR__ . '/clearance.php';
+require_once __DIR__ . '/clearance_archives.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -29,10 +30,15 @@ try {
     $userId = (int) getCurrentUserId();
     $profile = facultyClearanceProfile($db, $userId);
     $role = getCurrentUserRoleKey();
+    if (empty($role)) {
+        $role = strtolower((string) ($_SESSION['user_role_key'] ?? $_SESSION['role'] ?? $_SESSION['user_role'] ?? ''));
+    }
     $action = (string) ($_GET['action'] ?? $_POST['action'] ?? 'summary');
 
     // Helper flag & assigned departments check
     $isDeptHead = in_array($role, ['department_head', 'dept_head'], true);
+    // All clearance-office roles that can review clearance records
+    $isClearanceOffice = in_array($role, ['department_head', 'dept_head', 'hr', 'hr_clearance', 'faculty_admin', 'dean', 'registrar_clearance', 'registrar', 'finance_office', 'finance', 'library_clearance', 'library', 'property_custodian_office', 'property', 'admin', 'super_admin'], true);
     $assignedDepartments = facultyClearanceAssignedDepartments($profile ?: [], $db);
 
     if ($action === 'file') {
@@ -67,7 +73,7 @@ try {
         }
         $profileFacultyId = $profile ? facultyClearanceFacultyId($db, (int) $profile['id']) : null;
         $isOwner = ($profileFacultyId !== null && $item && (int) ($item['faculty_id'] ?? 0) === $profileFacultyId);
-        $allowed = in_array($role, ['department_head', 'dept_head', 'hr', 'faculty_admin', 'dean'], true) || $isOwner || ($profileFacultyId !== null);
+        $allowed = $isClearanceOffice || $isOwner || ($profileFacultyId !== null);
         if (!$allowed) {
             http_response_code(403);
             exit('Access denied.');
@@ -100,7 +106,7 @@ try {
         exit;
     }
 
-    if (!$profile && !in_array($role, ['department_head', 'dept_head', 'hr', 'faculty_admin'], true)) {
+    if (!$profile && !$isClearanceOffice) {
         clearanceApiResponse(['ok' => false, 'error' => 'No faculty profile is linked to this account.'], 422);
     }
 
@@ -108,16 +114,17 @@ try {
     $term = facultyClearanceTerm($db);
 
     if ($action === 'summary') {
-        if ($role === 'faculty' || $role === 'faculty_professor' || $role === '') {
-            $request = facultyClearanceRequest($db, (int) $profile['id'], (int) $term['term_id']);
+        $wantsFacultySelf = (isset($_GET['for']) && $_GET['for'] === 'faculty');
+        if (($role === 'faculty' || $role === 'faculty_professor' || $wantsFacultySelf) && !$isClearanceOffice) {
+            $request = facultyClearanceRequest($db, (int) ($profile['id'] ?? 0), (int) $term['term_id']);
             clearanceApiResponse(['ok' => true, 'profile' => $profile, 'term' => $term, 'offices' => $offices, 'clearance' => facultyClearanceJson($request)]);
         }
 
         $sql = 'SELECT fp.*, cr.clearance_id, cr.overall_status, cr.submitted_at, cr.updated_at FROM faculty_profiles fp LEFT JOIN faculty f ON f.faculty_no = fp.faculty_id LEFT JOIN clearance_requests cr ON cr.faculty_id = f.faculty_id AND cr.term_id = ? WHERE (fp.position NOT IN ("Department Head", "Dean") OR fp.position IS NULL) AND (fp.profile_status = ? OR fp.profile_status IS NULL)';
         $params = [(int) $term['term_id'], 'Active'];
 
-        // Filter by assigned departments if restricted (HR and Faculty Admin see all)
-        if (!empty($assignedDepartments) && !in_array($role, ['hr', 'faculty_admin'], true)) {
+        // Filter by assigned departments if restricted (HR, Registrar, Finance, Library, Property and Faculty Admin see all)
+        if (!empty($assignedDepartments) && !in_array($role, ['hr', 'hr_clearance', 'faculty_admin', 'registrar_clearance', 'registrar', 'finance_office', 'finance', 'library_clearance', 'library', 'property_custodian_office', 'property', 'admin', 'super_admin'], true)) {
             $placeholders = implode(',', array_fill(0, count($assignedDepartments), '?'));
             $sql .= " AND fp.designated_department IN ($placeholders)";
             $params = array_merge($params, $assignedDepartments);
@@ -145,7 +152,7 @@ try {
     }
 
     if ($action === 'review') {
-        if (!in_array($role, ['department_head', 'dept_head', 'hr', 'faculty_admin', 'dean'], true)) {
+        if (!$isClearanceOffice) {
             clearanceApiResponse(['ok' => false, 'error' => 'Review access is restricted.'], 403);
         }
         $facultyId = (int) ($_GET['faculty_id'] ?? 0);
@@ -167,18 +174,87 @@ try {
     }
 
     if ($action === 'archives') {
-        if (!in_array($role, ['department_head', 'dept_head', 'hr', 'faculty_admin', 'dean'], true)) {
+        if (!$isClearanceOffice) {
             clearanceApiResponse(['ok' => false, 'error' => 'Archive access is restricted.'], 403);
         }
 
-        // Query persistent archives table
+        // Map each clearance-office role to its dedicated archive table key.
+        // Admin, Dean, Faculty Admin see the shared full-clearance archive (all offices).
+        $roleOfficeMap = [
+            'hr'                        => 'hr',
+            'hr_clearance'              => 'hr',
+            'registrar_clearance'       => 'academic',
+            'registrar'                 => 'academic',
+            'finance_office'            => 'financial',
+            'finance'                   => 'financial',
+            'library_clearance'         => 'library',
+            'library'                   => 'library',
+            'property_custodian_office' => 'property',
+            'property'                  => 'property',
+            'department_head'           => 'department',
+            'dept_head'                 => 'department',
+        ];
+        $officeKey = $roleOfficeMap[$role] ?? null;
+
+        // ── Office-specific archive (each office only sees its own cleared requirements) ──
+        if ($officeKey !== null) {
+            // Department Head is restricted to assigned departments; all other offices see all.
+            $canSeeAll = !in_array($role, ['department_head', 'dept_head'], true);
+            $officeArchives = facultyClearanceGetOfficeArchives($db, $officeKey, $assignedDepartments, $canSeeAll);
+
+            // Group per-item rows into per-faculty records matching the JS expected format.
+            $grouped = [];
+            foreach ($officeArchives as $a) {
+                $cid = (int) $a['clearance_id'];
+                if (!isset($grouped[$cid])) {
+                    $d = $a['contractual_end'] ?? null;
+                    $grouped[$cid] = [
+                        'archive_id'            => (int) $a['archive_id'],
+                        'clearance_id'          => $cid,
+                        'faculty_record_id'     => (int) $a['faculty_id'],
+                        'term_id'               => (int) $a['term_id'],
+                        'profile_id'            => !empty($a['profile_id']) ? (int) $a['profile_id'] : null,
+                        'faculty_no'            => $a['faculty_no'],
+                        'name'                  => facultyClearanceDisplayName($a),
+                        'first_name'            => $a['first_name'],
+                        'middle_name'           => $a['middle_name'],
+                        'last_name'             => $a['last_name'],
+                        'suffix'                => $a['suffix'],
+                        'designated_department' => $a['designated_department'],
+                        'position'              => $a['position'],
+                        'academic_rank'         => $a['academic_rank'],
+                        'tier'                  => $a['tier'],
+                        'employment_status'     => $a['employment_status'] ?: 'Probationary',
+                        'contractual_end'       => $a['contractual_end'],
+                        'days_remaining'        => $d && $d !== '0000-00-00' ? (int) floor((strtotime($d) - strtotime(date('Y-m-d'))) / 86400) : null,
+                        'academic_year'         => $a['academic_year'],
+                        'semester'              => $a['semester'],
+                        'intent_type'           => $a['intent_type'],
+                        'overall_status'        => 'Cleared',
+                        'submitted_at'          => $a['submitted_at'],
+                        'updated_at'            => $a['reviewed_at'],
+                        'completed_at'          => $a['reviewed_at'],
+                        'items'                 => [],
+                    ];
+                }
+                $grouped[$cid]['items'][] = [
+                    'id'            => (int) $a['clearance_item_id'],
+                    'name'          => $a['requirement_name'],
+                    'status'        => $a['requirement_status'],
+                    'file_name'     => $a['file_name'],
+                    'original_name' => $a['original_name'],
+                    'file_path'     => $a['file_path'],
+                    'remarks'       => $a['remarks'],
+                    'cleared_at'    => $a['cleared_at'],
+                ];
+            }
+            $records = array_values($grouped);
+            clearanceApiResponse(['ok' => true, 'archives' => $records, 'count' => count($records)]);
+        }
+
+        // ── Shared archive: Admin / Dean / Faculty Admin see all cleared clearances ──
         $archSql = 'SELECT * FROM faculty_clearance_archives WHERE 1=1';
         $archParams = [];
-        if (!empty($assignedDepartments) && !in_array($role, ['hr', 'faculty_admin'], true)) {
-            $placeholders = implode(',', array_fill(0, count($assignedDepartments), '?'));
-            $archSql .= " AND designated_department IN ($placeholders)";
-            $archParams = array_merge($archParams, $assignedDepartments);
-        }
         $archSql .= ' ORDER BY completed_at DESC, archive_id DESC';
         $archStmt = $db->prepare($archSql);
         $archStmt->execute($archParams);
@@ -197,36 +273,36 @@ try {
 
             $seenClearanceIds[(int) $a['clearance_id']] = true;
             $records[] = [
-                'archive_id' => (int) $a['archive_id'],
-                'clearance_id' => (int) $a['clearance_id'],
-                'faculty_record_id' => (int) $a['faculty_id'],
-                'term_id' => (int) $a['term_id'],
-                'profile_id' => !empty($a['profile_id']) ? (int) $a['profile_id'] : null,
-                'faculty_no' => $a['faculty_no'],
-                'name' => facultyClearanceDisplayName($a),
-                'first_name' => $a['first_name'],
-                'middle_name' => $a['middle_name'],
-                'last_name' => $a['last_name'],
-                'suffix' => $a['suffix'],
+                'archive_id'            => (int) $a['archive_id'],
+                'clearance_id'          => (int) $a['clearance_id'],
+                'faculty_record_id'     => (int) $a['faculty_id'],
+                'term_id'               => (int) $a['term_id'],
+                'profile_id'            => !empty($a['profile_id']) ? (int) $a['profile_id'] : null,
+                'faculty_no'            => $a['faculty_no'],
+                'name'                  => facultyClearanceDisplayName($a),
+                'first_name'            => $a['first_name'],
+                'middle_name'           => $a['middle_name'],
+                'last_name'             => $a['last_name'],
+                'suffix'                => $a['suffix'],
                 'designated_department' => $a['designated_department'],
-                'position' => $a['position'],
-                'academic_rank' => $a['academic_rank'],
-                'tier' => $a['tier'],
-                'employment_status' => $a['employment_status'] ?: 'Probationary',
-                'contractual_end' => $a['contractual_end'],
-                'days_remaining' => $daysRemaining,
-                'academic_year' => $a['academic_year'],
-                'semester' => $a['semester'],
-                'intent_type' => $a['intent_type'],
-                'overall_status' => $a['overall_status'] ?: 'Cleared',
-                'items' => $items,
-                'submitted_at' => $a['submitted_at'],
-                'updated_at' => $a['completed_at'],
-                'completed_at' => $a['completed_at'],
+                'position'              => $a['position'],
+                'academic_rank'         => $a['academic_rank'],
+                'tier'                  => $a['tier'],
+                'employment_status'     => $a['employment_status'] ?: 'Probationary',
+                'contractual_end'       => $a['contractual_end'],
+                'days_remaining'        => $daysRemaining,
+                'academic_year'         => $a['academic_year'],
+                'semester'              => $a['semester'],
+                'intent_type'           => $a['intent_type'],
+                'overall_status'        => $a['overall_status'] ?: 'Cleared',
+                'items'                 => $items,
+                'submitted_at'          => $a['submitted_at'],
+                'updated_at'            => $a['completed_at'],
+                'completed_at'          => $a['completed_at'],
             ];
         }
 
-        // Also check any live clearance_requests that are Cleared and not yet in archives
+        // Also check live clearance_requests that are Cleared but not yet persisted to archives
         $sql = 'SELECT cr.clearance_id, cr.faculty_id AS faculty_record_id, cr.term_id, cr.intent_type, cr.overall_status, cr.submitted_at, cr.updated_at,
                        at.academic_year, at.semester,
                        fp.id AS profile_id, fp.faculty_id AS faculty_no, fp.first_name, fp.middle_name, fp.last_name, fp.suffix,
@@ -235,16 +311,10 @@ try {
                 JOIN academic_terms at ON at.term_id = cr.term_id
                 JOIN faculty f ON f.faculty_id = cr.faculty_id
                 JOIN faculty_profiles fp ON fp.faculty_id = f.faculty_no
-                WHERE cr.overall_status = "Cleared"';
-        $params = [];
-        if (!empty($assignedDepartments) && !in_array($role, ['hr', 'faculty_admin'], true)) {
-            $placeholders = implode(',', array_fill(0, count($assignedDepartments), '?'));
-            $sql .= " AND fp.designated_department IN ($placeholders)";
-            $params = array_merge($params, $assignedDepartments);
-        }
-        $sql .= ' ORDER BY cr.updated_at DESC, cr.clearance_id DESC';
+                WHERE cr.overall_status = "Cleared"
+                ORDER BY cr.updated_at DESC, cr.clearance_id DESC';
         $stmt = $db->prepare($sql);
-        $stmt->execute($params);
+        $stmt->execute([]);
         $liveRows = $stmt->fetchAll();
 
         $allowedNames = facultyClearanceRequirementNames();
@@ -255,28 +325,27 @@ try {
             if (isset($seenClearanceIds[$cid])) {
                 continue;
             }
-            // Auto archive this cleared record
             facultyClearanceArchiveRecord($db, $cid);
 
             $rec['name'] = facultyClearanceDisplayName($rec);
-            $itemsStmt = $db->prepare('SELECT ci.*, co.name AS requirement_name, co.sequence_order 
-                                      FROM clearance_items ci 
-                                      JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id 
-                                      WHERE ci.clearance_id = ? AND co.name IN (' . $placeholders . ') 
+            $itemsStmt = $db->prepare('SELECT ci.*, co.name AS requirement_name, co.sequence_order
+                                      FROM clearance_items ci
+                                      JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
+                                      WHERE ci.clearance_id = ? AND co.name IN (' . $placeholders . ')
                                       ORDER BY co.sequence_order, co.clearance_office_id');
             $itemsStmt->execute(array_merge([$cid], $allowedNames));
             $items = $itemsStmt->fetchAll();
 
             $rec['items'] = array_map(static function (array $it): array {
                 return [
-                    'id' => (int) $it['clearance_item_id'],
-                    'name' => $it['requirement_name'],
-                    'status' => $it['status'],
-                    'file_name' => !empty($it['original_name']) ? $it['original_name'] : ($it['file_path'] ? basename($it['file_path']) : null),
+                    'id'            => (int) $it['clearance_item_id'],
+                    'name'          => $it['requirement_name'],
+                    'status'        => $it['status'],
+                    'file_name'     => !empty($it['original_name']) ? $it['original_name'] : ($it['file_path'] ? basename($it['file_path']) : null),
                     'original_name' => $it['original_name'] ?? null,
-                    'file_path' => $it['file_path'],
-                    'remarks' => $it['remarks'],
-                    'cleared_at' => $it['cleared_at'],
+                    'file_path'     => $it['file_path'],
+                    'remarks'       => $it['remarks'],
+                    'cleared_at'    => $it['cleared_at'],
                 ];
             }, $items);
 
@@ -289,7 +358,7 @@ try {
     }
 
     if ($action === 'archive-detail') {
-        if (!in_array($role, ['department_head', 'dept_head', 'hr', 'faculty_admin', 'dean'], true)) {
+        if (!$isClearanceOffice) {
             clearanceApiResponse(['ok' => false, 'error' => 'Archive access is restricted.'], 403);
         }
 
@@ -460,7 +529,7 @@ try {
     }
 
     if ($action === 'endorse-clearance-form' || $action === 'review-clearance-form') {
-        if (!in_array($role, ['department_head', 'dept_head', 'hr', 'faculty_admin', 'dean'], true)) {
+        if (!$isClearanceOffice) {
             clearanceApiResponse(['ok' => false, 'error' => 'Permission denied to review clearance agreement forms.'], 403);
         }
         $facultyId = (int) ($_POST['faculty_id'] ?? 0);
@@ -526,7 +595,7 @@ try {
     }
 
     if ($action === 'archive-clearance') {
-        if (!$isDeptHead && !$isAdmin) {
+        if (!$isClearanceOffice) {
             clearanceApiResponse(['ok' => false, 'error' => 'Permission denied. Only Department Heads and Administrators can archive clearance records.'], 403);
         }
         $targetFacultyId = (int) ($_POST['faculty_id'] ?? 0);
@@ -731,7 +800,7 @@ try {
     }
 
     if ($action === 'review-item') {
-        if (!in_array($role, ['department_head', 'dept_head', 'hr', 'faculty_admin'], true)) {
+        if (!$isClearanceOffice) {
             clearanceApiResponse(['ok' => false, 'error' => 'Review access is restricted.'], 403);
         }
         $itemId = (int) ($_POST['item_id'] ?? 0);
@@ -770,14 +839,38 @@ try {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Cannot review items for other departments.'], 403);
         }
 
-        $remarkText = ($decision === 'approve' || $decision === 'cleared')
-            ? ($remark !== '' ? $remark : 'Requirement verified and cleared.')
-            : (in_array($decision, ['deny', 'deficiency', 'with_deficiency'], true) ? '[With Deficiency] ' . $remark : '[On Hold] ' . $remark);
+        $cleanDecisionRemark = trim($remark);
+        if ($decision === 'approve' || $decision === 'cleared') {
+            $remarkText = $cleanDecisionRemark !== '' ? $cleanDecisionRemark : 'Requirement verified and cleared.';
+        } elseif (in_array($decision, ['deny', 'deficiency', 'with_deficiency'], true)) {
+            $remarkText = (!preg_match('/^\[(With Deficiency|Denied)\]/i', $cleanDecisionRemark))
+                ? '[With Deficiency] ' . $cleanDecisionRemark
+                : $cleanDecisionRemark;
+        } else {
+            $remarkText = (!preg_match('/^\[(On Hold|Hold)\]/i', $cleanDecisionRemark))
+                ? '[On Hold] ' . $cleanDecisionRemark
+                : $cleanDecisionRemark;
+        }
+
         $update = $db->prepare('UPDATE clearance_items SET status = ?, remarks = ?, cleared_by_external_id = ?, cleared_at = NOW() WHERE clearance_item_id = ?');
         $update->execute([$statusMap[$decision], $remarkText, (string) $userId, $itemId]);
         facultyClearanceRecalculate($db, (int) $itemRow['clearance_id']);
+
+        // When an item is cleared, persist it to the office-specific archive table so that
+        // each clearance office only sees the records they personally processed.
+        if ($decision === 'approve' || $decision === 'cleared') {
+            $officeNameStmt = $db->prepare('SELECT co.name FROM clearance_items ci JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id WHERE ci.clearance_item_id = ? LIMIT 1');
+            $officeNameStmt->execute([$itemId]);
+            $clearedOfficeName = (string) ($officeNameStmt->fetchColumn() ?: '');
+            if ($clearedOfficeName !== '') {
+                facultyClearanceArchiveOfficeItem($db, $itemId, facultyClearanceGetOfficeKey($clearedOfficeName));
+            }
+        }
+
         $label = ($decision === 'approve' || $decision === 'cleared') ? 'cleared' : (in_array($decision, ['deny', 'deficiency', 'with_deficiency'], true) ? 'flagged with deficiency' : 'placed on hold');
-        facultyClearanceNotify($db, (int) $itemRow['faculty_id'], 'Clearance requirement reviewed', 'A clearance requirement was ' . $label . '. Remark: ' . $remarkText, ($decision === 'approve' || $decision === 'cleared') ? 'Low' : 'High Priority');
+        $notifRemark = preg_replace('/<!--SCOPE_STATE:.*?-->/s', '', $remarkText);
+        $notifRemark = trim(preg_replace('/\s+/', ' ', $notifRemark));
+        facultyClearanceNotify($db, (int) $itemRow['faculty_id'], 'Clearance requirement reviewed', 'A clearance requirement was ' . $label . '. Remark: ' . $notifRemark, ($decision === 'approve' || $decision === 'cleared') ? 'Low' : 'High Priority');
         logActivity('update', 'Reviewed clearance item #' . $itemId . ': ' . $label, 'faculty');
         clearanceApiResponse(['ok' => true, 'message' => 'Review result sent to the faculty member.']);
     }
@@ -937,6 +1030,22 @@ try {
             facultyClearanceArchiveRecord($db, $clearanceId);
         }
 
+        // Delete uploaded physical files on disk for this clearance if any
+        try {
+            $filesStmt = $db->prepare("SELECT file_path FROM clearance_items WHERE clearance_id = ? AND file_path IS NOT NULL");
+            $filesStmt->execute([$clearanceId]);
+            while ($filePath = $filesStmt->fetchColumn()) {
+                if ($filePath) {
+                    $fullPath = ROOT_PATH . '/' . ltrim((string) $filePath, '/');
+                    if (file_exists($fullPath) && is_file($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            // Ignore file deletion errors
+        }
+
         // Reset all clearance items to clean initial state
         $db->prepare(
             "UPDATE clearance_items
@@ -944,9 +1053,22 @@ try {
              WHERE clearance_id = ?"
         )->execute([$clearanceId]);
 
-        // Reset clearance request submission timestamp, form submission state, signature, and overall status
-        $db->prepare("UPDATE clearance_requests SET overall_status = 'In Progress', form_submitted = 0, form_submitted_at = NULL, faculty_declaration = NULL, signature_data = NULL, submitted_at = NULL, updated_at = NOW() WHERE clearance_id = ?")
-            ->execute([$clearanceId]);
+        // Reset clearance request submission timestamp, form submission state, form status, signature, and overall status
+        $db->prepare(
+            "UPDATE clearance_requests 
+             SET overall_status = 'In Progress', 
+                 form_submitted = 0, 
+                 form_submitted_at = NULL, 
+                 form_status = 'Not Submitted',
+                 form_approved_at = NULL,
+                 form_approved_by = NULL,
+                 form_remarks = NULL,
+                 faculty_declaration = NULL, 
+                 signature_data = NULL, 
+                 submitted_at = NULL, 
+                 updated_at = NOW() 
+             WHERE clearance_id = ?"
+        )->execute([$clearanceId]);
 
         logActivity('update', 'Faculty reset clearance form, signature & requirement files #' . $clearanceId, 'faculty');
         clearanceApiResponse([

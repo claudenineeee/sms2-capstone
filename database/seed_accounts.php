@@ -202,46 +202,49 @@ $accounts = [
     ],
     // --- Clearance Office Accounts ---
     [
-        'username' => 'hrclearance',
-        'email' => 'hrclearance@bestlink.edu.ph',
-        'password' => '@hrclearance123',
+        'username' => 'hr',
+        'email' => 'hr@example.com',
+        'password' => '12345678',
         'full_name' => 'HR Clearance Officer',
         'role_key' => 'hr_clearance',
         'student_id' => null,
     ],
     [
         'username' => 'registrarclearance',
-        'email' => 'registrarclearance@bestlink.edu.ph',
-        'password' => '@registrarclearance123',
+        'email' => 'registrar@example.com',
+        'password' => '12345678',
         'full_name' => 'Registrar Clearance Officer',
         'role_key' => 'registrar_clearance',
         'student_id' => null,
     ],
     [
         'username' => 'financeoffice',
-        'email' => 'financeoffice@bestlink.edu.ph',
-        'password' => '@financeoffice123',
+        'email' => 'finance@example.com',
+        'password' => '12345678',
         'full_name' => 'Finance Office Officer',
         'role_key' => 'finance_office',
         'student_id' => null,
     ],
     [
-        'username' => 'libraryclearance',
-        'email' => 'libraryclearance@bestlink.edu.ph',
-        'password' => '@libraryclearance123',
+        'username' => 'library',
+        'email' => 'library@example.com',
+        'password' => '12345678',
         'full_name' => 'Library Clearance Officer',
         'role_key' => 'library_clearance',
         'student_id' => null,
     ],
     [
-        'username' => 'propertycustodian',
-        'email' => 'propertycustodian@bestlink.edu.ph',
-        'password' => '@propertycustodian123',
+        'username' => 'property',
+        'email' => 'property@example.com',
+        'password' => '12345678',
         'full_name' => 'Property Custodian Officer',
         'role_key' => 'property_custodian_office',
         'student_id' => null,
     ],
 ];
+
+// Clean up legacy username aliases if present
+$pdo->exec("DELETE FROM users WHERE username IN ('hrclearance', 'libraryclearance', 'propertycustodian')");
 
 $upsert = $pdo->prepare(
     'INSERT INTO users

@@ -1,4 +1,4 @@
-﻿-- phpMyAdmin SQL Dump
+-- phpMyAdmin SQL Dump
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
@@ -251,7 +251,15 @@ CREATE TABLE `clearance_requests` (
   `term_id` int(10) UNSIGNED NOT NULL,
   `intent_type` enum('renewal','resignation','regularization') NOT NULL,
   `overall_status` varchar(50) NOT NULL DEFAULT 'In Progress',
-  `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `form_submitted` tinyint(1) NOT NULL DEFAULT 0,
+  `form_submitted_at` datetime DEFAULT NULL,
+  `form_status` varchar(50) NOT NULL DEFAULT 'Not Submitted',
+  `form_approved_at` datetime DEFAULT NULL,
+  `form_approved_by` int(10) UNSIGNED DEFAULT NULL,
+  `form_remarks` text DEFAULT NULL,
+  `faculty_declaration` text DEFAULT NULL,
+  `signature_data` longtext DEFAULT NULL,
+  `submitted_at` datetime DEFAULT NULL,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
