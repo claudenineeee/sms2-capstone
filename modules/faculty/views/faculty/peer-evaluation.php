@@ -333,8 +333,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </h6>
                 <small class="text-body-secondary">Rate your peers for current academic term</small>
             </div>
-            <div class="col-12 col-md-6 d-flex gap-2 justify-content-md-end">
-                <div class="input-group input-group-sm" style="max-width: 240px;">
+            <!-- Filter Dropdown & Search Bar placed cleanly side-by-side -->
+            <div class="col-12 col-md-6 d-flex gap-2 justify-content-md-end align-items-center flex-wrap">
+                <select id="peerStatusFilter" class="form-select form-select-sm bg-body text-body border-secondary-subtle" style="max-width: 150px;" onchange="filterPeers()">
+                    <option value="">All Status</option>
+                    <option value="COMPLETED">Done</option>
+                    <option value="PENDING">Pending</option>
+                </select>
+                <div class="input-group input-group-sm" style="max-width: 220px;">
                     <input type="text" id="peerSearchInput" class="form-control bg-body text-body border-secondary-subtle" placeholder="Search..." onkeyup="filterPeers()">
                     <button class="btn btn-outline-secondary border-secondary-subtle" type="button"><i class="fas fa-search"></i></button>
                 </div>
@@ -602,6 +608,7 @@ const peersPerPage = 5;
 
 function renderPeerTable() {
     const searchInput = document.getElementById('peerSearchInput').value.toLowerCase().trim();
+    const statusFilter = document.getElementById('peerStatusFilter').value;
     const rows = Array.from(document.querySelectorAll('#peerTable .peer-row'));
     const noResultsMsg = document.getElementById('noPeersMessage');
     const paginationNav = document.getElementById('peerPagination');
@@ -609,7 +616,12 @@ function renderPeerTable() {
 
     const filteredRows = rows.filter(row => {
         const searchData = row.getAttribute('data-search') || '';
-        return searchData.includes(searchInput);
+        const rowStatus = row.getAttribute('data-status') || '';
+
+        const matchesSearch = searchData.includes(searchInput);
+        const matchesStatus = (statusFilter === '' || rowStatus === statusFilter);
+
+        return matchesSearch && matchesStatus;
     });
 
     const totalItems = filteredRows.length;
