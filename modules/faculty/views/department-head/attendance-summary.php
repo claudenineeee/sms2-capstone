@@ -34,29 +34,50 @@ if (empty($deptHeadDept)) {
     $deptHeadDept = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? '');
 }
 
-// 2. Find the numeric Department ID (since attendance saves with INT department_id)
-$deptId = 1; // Default fallback
-if (!empty($deptHeadDept)) {
-    try {
-        $stmt = db()->prepare("SELECT department_id FROM faculty_db.departments WHERE code = :code OR name = :name LIMIT 1");
-        $stmt->execute(['code' => $deptHeadDept, 'name' => $deptHeadDept]);
-        $fetchedDeptId = $stmt->fetchColumn();
-        if ($fetchedDeptId) {
-            $deptId = (int) $fetchedDeptId;
-        }
-    } catch (Throwable $e) {
-        $deptId = 1;
-    }
-}
+// CHANGED: removed the dead $deptId lookup that used to sit here. It
+// queried faculty_db.departments to resolve a numeric department_id, but
+// that variable was never actually used anywhere on this page — every
+// query below works off faculty IDs, not department_id.
 
 // Filter parameters
 $selectedPeriod = $_GET['period'] ?? '7days';
 $selectedMonth  = $_GET['month'] ?? date('Y-m');
 
-// 3. Fetch Faculty in this department (Passing the NAME for the query, since that's what it uses)
-$facultyInDept = $attendanceModel->getFacultyByDepartment($deptHeadDept ?? '1') ?? [];
+// 3. Fetch Faculty in this department
+// CHANGED: was getFacultyByDepartment($deptHeadDept ?? '1'). The ?? operator
+// only catches NULL, not an empty string — so if the department lookup above
+// came back blank, this passed '' and silently matched zero faculty, making
+// the whole page render as zeros. Now falls back properly on empty too.
+$facultyInDept = $attendanceModel->getFacultyByDepartment(
+    $deptHeadDept !== '' ? $deptHeadDept : '1'
+) ?? [];
 
-// 4. Build Summary Metrics based on period
+// Date boundaries
+$today      = date('Y-m-d');
+$weekStart  = date('Y-m-d', strtotime('-7 days'));
+$monthStart = date('Y-m-01');
+
+// CHANGED: this whole section used to call getSessionsForFaculty() four
+// separate times per faculty member (today / week / month / selected
+// period). With ~29 faculty that was 116 database round trips on every
+// page load. Now it pulls the widest range needed ONCE via the new
+// batched getSessionsForFacultyIds(), then buckets the rows in PHP.
+$facultyIds = array_column($facultyInDept, 'id');
+
+// Widest window we need: earliest of month-start / week-start, through
+// the end of the current month (the 'monthly' filter looks ahead to Y-m-t).
+$fetchStart = min($monthStart, $weekStart);
+$fetchEnd   = max($today, date('Y-m-t'));
+
+$allSessions = $attendanceModel->getSessionsForFacultyIds($facultyIds, $fetchStart, $fetchEnd) ?? [];
+
+// Group sessions by faculty id for quick lookup below.
+$sessionsByFaculty = [];
+foreach ($allSessions as $s) {
+    $sessionsByFaculty[(string) $s['faculty_id']][] = $s;
+}
+
+// 4. Build Summary Metrics
 $summaryMetrics = [
     'today_present'   => 0,
     'today_total'     => 0,
@@ -69,33 +90,27 @@ $summaryMetrics = [
     'monthly_percentage'=> 0
 ];
 
-// Fetch logs based on periods
-$today = date('Y-m-d');
-$weekStart = date('Y-m-d', strtotime('-7 days'));
-$monthStart = date('Y-m-01');
+// CHANGED: 'Late' now counts toward the present tallies. A late professor
+// still showed up and still taught, so counting them as not-present made
+// the department look worse than it was, and was inconsistent with the
+// monitoring officer's own dashboard, which already counts Late as present.
+$presentStatuses = ['Present', 'Late'];
 
-foreach ($facultyInDept as $fac) {
-    $facId = $fac['id'];
-    
-    // Today's Logs
-    $todayLogs = $attendanceModel->getSessionsForFaculty($facId, $today, $today) ?? [];
-    foreach ($todayLogs as $log) {
+foreach ($allSessions as $log) {
+    $d = $log['session_date'];
+    $isPresent = in_array($log['status'], $presentStatuses, true);
+
+    if ($d === $today) {
         $summaryMetrics['today_total']++;
-        if ($log['status'] === 'Present') $summaryMetrics['today_present']++;
+        if ($isPresent) $summaryMetrics['today_present']++;
     }
-    
-    // Weekly Logs
-    $weekLogs = $attendanceModel->getSessionsForFaculty($facId, $weekStart, $today) ?? [];
-    foreach ($weekLogs as $log) {
+    if ($d >= $weekStart && $d <= $today) {
         $summaryMetrics['weekly_total']++;
-        if ($log['status'] === 'Present') $summaryMetrics['weekly_present']++;
+        if ($isPresent) $summaryMetrics['weekly_present']++;
     }
-    
-    // Monthly Logs
-    $monthLogs = $attendanceModel->getSessionsForFaculty($facId, $monthStart, $today) ?? [];
-    foreach ($monthLogs as $log) {
+    if ($d >= $monthStart && $d <= $today) {
         $summaryMetrics['monthly_total']++;
-        if ($log['status'] === 'Present') $summaryMetrics['monthly_present']++;
+        if ($isPresent) $summaryMetrics['monthly_present']++;
     }
 }
 
@@ -109,25 +124,31 @@ $facultySummaries = [];
 
 // Determine Date Range based on selected period
 $dateRangeStart = $today;
-$dateRangeEnd = $today;
+$dateRangeEnd   = $today;
 
 if ($selectedPeriod === '7days') {
     $dateRangeStart = $weekStart;
 } elseif ($selectedPeriod === 'monthly') {
     $dateRangeStart = $monthStart;
-    $dateRangeEnd = date('Y-m-t');
+    $dateRangeEnd   = date('Y-m-t');
 }
 
 foreach ($facultyInDept as $fac) {
     $fullName = htmlspecialchars($fac['first_name'] . ' ' . $fac['last_name']);
-    
-    // Use the model to fetch actual saved records
-    $logs = $attendanceModel->getSessionsForFaculty($fac['id'], $dateRangeStart, $dateRangeEnd) ?? [];
-    
+
+    // CHANGED: reads from the pre-fetched $sessionsByFaculty bucket and
+    // filters by date in PHP, instead of issuing another query per faculty.
+    $logs = array_filter(
+        $sessionsByFaculty[(string) $fac['id']] ?? [],
+        function ($s) use ($dateRangeStart, $dateRangeEnd) {
+            return $s['session_date'] >= $dateRangeStart && $s['session_date'] <= $dateRangeEnd;
+        }
+    );
+
     $present = 0;
-    $absent = 0;
-    $late = 0;
-    
+    $absent  = 0;
+    $late    = 0;
+
     foreach ($logs as $log) {
         if ($log['status'] === 'Present') {
             $present++;
@@ -137,10 +158,11 @@ foreach ($facultyInDept as $fac) {
             $late++;
         }
     }
-    
+
     $total = count($logs);
-    $rate = $total > 0 ? ($present / $total) * 100 : 0;
-    
+    // CHANGED: Late counts toward the attendance rate here too (see above).
+    $rate = $total > 0 ? (($present + $late) / $total) * 100 : 0;
+
     $facultySummaries[] = [
         'name' => $fullName,
         'total_classes' => $total,
