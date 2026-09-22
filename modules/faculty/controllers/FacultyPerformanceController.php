@@ -80,8 +80,11 @@ class FacultyPerformanceController {
             <td><?= isset($row['student_score']) && !is_null($row['student_score']) ? number_format((float)$row['student_score'], 1) : '—' ?></td>
             <td class="text-end">
                 <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-secondary" onclick="viewPerformanceDetails('<?= htmlspecialchars($row['full_name'], ENT_QUOTES) ?>', <?= (int)$row['id'] ?>)"><i class="fas fa-eye text-primary"></i></button>
-                    <button class="btn btn-outline-secondary" onclick="openAiRecommendations('<?= htmlspecialchars($row['full_name'], ENT_QUOTES) ?>')"><i class="fas fa-robot text-info"></i></button>
+                    <button class="btn btn-outline-secondary"
+                            title="View Details"
+                            onclick="viewPerformanceDetails('<?= htmlspecialchars($row['full_name'], ENT_QUOTES) ?>', <?= (int)$row['id'] ?>)">
+                        <i class="fas fa-eye text-primary"></i>
+                    </button>
                 </div>
             </td>
         </tr>
