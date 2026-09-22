@@ -12,7 +12,10 @@ $activeModule = 'faculty';
 $activePage   = 'attendance-summary';
 $breadcrumbs  = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
-    ['label' => 'Department Head',   'url' => BASE_URL . '/modules/faculty/users/department_head/dashboard.php'],
+    // CHANGED: was pointing to the department-head dashboard, copy-pasted
+    // from that page — this is the Dean's page (views/dean/), so it should
+    // point at the Dean's own dashboard instead.
+    ['label' => 'Dean',              'url' => BASE_URL . '/modules/faculty/views/dean/index.php'],
     ['label' => 'Attendance Reports', 'url' => null],
 ];
 
@@ -22,6 +25,161 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 // Filter parameters
 $selectedPeriod = $_GET['period'] ?? '7days';
 $selectedMonth  = $_GET['month'] ?? date('Y-m');
+
+// CHANGED: this whole block is new. $summaryMetrics and $facultySummaries
+// were referenced everywhere below via `?? 0` / `?? []` fallbacks but never
+// actually defined anywhere in this file — the page was silently rendering
+// all zeros. Unlike the Department Head's attendance-summary.php (scoped to
+// one department), the Dean sees EVERY department, so faculty come from
+// FacultyController::getDirectoryList() (the same college-wide source used
+// by daily-attendance-log.php and the Dean's own Faculty Directory) rather
+// than a department-filtered query.
+require_once __DIR__ . '/../../../../config/database.php';   // defines db()
+require_once __DIR__ . '/../../controllers/faculty-data.php'; // defines facultyDb()
+require_once __DIR__ . '/../../controllers/FacultyController.php';
+require_once __DIR__ . '/../../models/AttendanceModel.php';
+
+$facultyController = new FacultyController();
+$facultyListRaw = $facultyController->getDirectoryList();
+// Same position filter used everywhere else this directory is consumed
+// (daily-attendance-log.php, reports.php), so this page shows the same
+// people who actually appear in the attendance workflow.
+$facultyListRaw = array_filter($facultyListRaw, function ($member) {
+    $position = strtolower(trim((string) ($member['position'] ?? '')));
+    return $position === 'faculty professor' || $position === 'teacher' || $position === '';
+});
+
+$attendanceModel = new AttendanceModel(db());
+
+$today          = date('Y-m-d');
+$weekStart      = date('Y-m-d', strtotime('-7 days'));
+// CHANGED: monthly figures now follow the actual $selectedMonth from the
+// filter (the input already existed in the form below — it just was never
+// wired to anything), instead of always meaning "this calendar month"
+// regardless of what was picked.
+$monthStart     = $selectedMonth . '-01';
+$monthEnd       = date('Y-m-t', strtotime($monthStart));
+
+$facultyIds = array_column($facultyListRaw, 'id');
+
+// One batched query covering the widest range any of the three cards or
+// the table could need, instead of querying per faculty member per range.
+$fetchStart  = min($monthStart, $weekStart, $today);
+$fetchEnd    = max($monthEnd, $today);
+$allSessions = $attendanceModel->getSessionsForFacultyIds($facultyIds, $fetchStart, $fetchEnd) ?? [];
+
+$sessionsByFaculty = [];
+foreach ($allSessions as $s) {
+    $sessionsByFaculty[(string) $s['faculty_id']][] = $s;
+}
+
+// A Late professor still showed up and taught — counts as present here,
+// consistent with the monitoring officer's dashboard and the department
+// head's attendance-summary.php.
+$presentStatuses = ['Present', 'Late'];
+
+$summaryMetrics = [
+    'today_present'      => 0, 'today_total'      => 0, 'today_percentage'      => 0,
+    'weekly_present'      => 0, 'weekly_total'      => 0, 'weekly_percentage'      => 0,
+    'monthly_present'    => 0, 'monthly_total'    => 0, 'monthly_percentage'    => 0,
+];
+
+foreach ($allSessions as $log) {
+    $d = $log['session_date'];
+    $isPresent = in_array($log['status'], $presentStatuses, true);
+
+    if ($d === $today) {
+        $summaryMetrics['today_total']++;
+        if ($isPresent) $summaryMetrics['today_present']++;
+    }
+    if ($d >= $weekStart && $d <= $today) {
+        $summaryMetrics['weekly_total']++;
+        if ($isPresent) $summaryMetrics['weekly_present']++;
+    }
+    if ($d >= $monthStart && $d <= $monthEnd) {
+        $summaryMetrics['monthly_total']++;
+        if ($isPresent) $summaryMetrics['monthly_present']++;
+    }
+}
+
+$summaryMetrics['today_percentage']   = $summaryMetrics['today_total']   > 0 ? ($summaryMetrics['today_present']   / $summaryMetrics['today_total'])   * 100 : 0;
+$summaryMetrics['weekly_percentage']  = $summaryMetrics['weekly_total']  > 0 ? ($summaryMetrics['weekly_present']  / $summaryMetrics['weekly_total'])  * 100 : 0;
+$summaryMetrics['monthly_percentage'] = $summaryMetrics['monthly_total'] > 0 ? ($summaryMetrics['monthly_present'] / $summaryMetrics['monthly_total']) * 100 : 0;
+
+// Table rows follow the selected Time Period filter (Today / 7 Days / Monthly).
+$dateRangeStart = $today;
+$dateRangeEnd   = $today;
+if ($selectedPeriod === '7days') {
+    $dateRangeStart = $weekStart;
+} elseif ($selectedPeriod === 'monthly') {
+    $dateRangeStart = $monthStart;
+    $dateRangeEnd   = $monthEnd;
+}
+
+$facultySummaries = [];
+foreach ($facultyListRaw as $fac) {
+    $fullName = trim(($fac['first_name'] ?? '') . ' ' . ($fac['last_name'] ?? ''));
+
+    $logs = array_filter(
+        $sessionsByFaculty[(string) $fac['id']] ?? [],
+        function ($s) use ($dateRangeStart, $dateRangeEnd) {
+            return $s['session_date'] >= $dateRangeStart && $s['session_date'] <= $dateRangeEnd;
+        }
+    );
+
+    $present = 0; $late = 0; $absent = 0;
+    foreach ($logs as $log) {
+        if ($log['status'] === 'Present') $present++;
+        elseif ($log['status'] === 'Late') $late++;
+        elseif ($log['status'] === 'Absent') $absent++;
+    }
+
+    $total = count($logs);
+    $rate  = $total > 0 ? (($present + $late) / $total) * 100 : 0;
+
+    $facultySummaries[] = [
+        'name'          => $fullName,
+        'total_classes' => $total,
+        'present_count' => $present,
+        'late_count'    => $late,
+        'absent_count'  => $absent,
+        'rate'          => $rate,
+    ];
+}
+
+// CHANGED: new — powers the "View Details" links on the three stat cards
+// (previously href="javascript:void(0)", i.e. dead). Builds the actual list
+// of sessions behind each card's number, with the faculty member's real
+// name attached (the raw session rows only carry faculty_id).
+$facultyNameById = [];
+foreach ($facultyListRaw as $fac) {
+    $facultyNameById[(string) $fac['id']] = trim(($fac['first_name'] ?? '') . ' ' . ($fac['last_name'] ?? ''));
+}
+
+if (!function_exists('buildAttendanceDetailRows')) {
+    function buildAttendanceDetailRows(array $sessions, $rangeStart, $rangeEnd, array $facultyNameById) {
+        $rows = [];
+        foreach ($sessions as $s) {
+            if ($s['session_date'] < $rangeStart || $s['session_date'] > $rangeEnd) {
+                continue;
+            }
+            $rows[] = [
+                'date'    => $s['session_date'],
+                'faculty' => $facultyNameById[(string) $s['faculty_id']] ?? 'Unknown',
+                'subject' => $s['subject_code'] ?? 'N/A',
+                'room'    => $s['room_code'] ?? 'N/A',
+                'status'  => $s['status'],
+            ];
+        }
+        // Most recent first
+        usort($rows, fn($a, $b) => strcmp($b['date'], $a['date']));
+        return $rows;
+    }
+}
+
+$todayDetailRows   = buildAttendanceDetailRows($allSessions, $today, $today, $facultyNameById);
+$weeklyDetailRows  = buildAttendanceDetailRows($allSessions, $weekStart, $today, $facultyNameById);
+$monthlyDetailRows = buildAttendanceDetailRows($allSessions, $monthStart, $monthEnd, $facultyNameById);
 ?>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
@@ -63,7 +221,9 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
                     </small>
                 </div>
             </div>
-            <a href="javascript:void(0)" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+            <!-- CHANGED: was href="javascript:void(0)" — a dead link. Now opens
+                 a modal listing the actual sessions behind today's numbers. -->
+            <a href="#" data-bs-toggle="modal" data-bs-target="#todayDetailsModal" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -84,7 +244,7 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
                     </small>
                 </div>
             </div>
-            <a href="javascript:void(0)" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+            <a href="#" data-bs-toggle="modal" data-bs-target="#weeklyDetailsModal" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -105,12 +265,78 @@ $selectedMonth  = $_GET['month'] ?? date('Y-m');
                     </small>
                 </div>
             </div>
-            <a href="javascript:void(0)" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+            <a href="#" data-bs-toggle="modal" data-bs-target="#monthlyDetailsModal" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
     </div>
 </div>
+
+<?php
+// CHANGED: new — the three "View Details" modals. Reused across the file
+// via a tiny local render function so the three modals (Today / 7-Day /
+// Monthly) don't repeat the same ~25 lines of markup three times.
+if (!function_exists('renderAttendanceDetailModal')) {
+    function renderAttendanceDetailModal($id, $title, array $rows) {
+        ?>
+        <div class="modal fade" id="<?= $id ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold"><?= htmlspecialchars($title) ?></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">Date</th>
+                                        <th>Faculty</th>
+                                        <th>Subject</th>
+                                        <th>Room</th>
+                                        <th class="pe-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (empty($rows)): ?>
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">
+                                                <i class="fas fa-inbox d-block mb-2"></i>
+                                                No sessions recorded for this period.
+                                            </td>
+                                        </tr>
+                                    <?php else: ?>
+                                        <?php foreach ($rows as $r): ?>
+                                            <?php
+                                                $badge = $r['status'] === 'Present' ? 'bg-success-subtle text-success'
+                                                       : ($r['status'] === 'Late' ? 'bg-warning-subtle text-warning'
+                                                       : 'bg-danger-subtle text-danger');
+                                            ?>
+                                            <tr>
+                                                <td class="ps-3"><?= htmlspecialchars($r['date']) ?></td>
+                                                <td class="fw-semibold"><?= htmlspecialchars($r['faculty']) ?></td>
+                                                <td><?= htmlspecialchars($r['subject']) ?></td>
+                                                <td><?= htmlspecialchars($r['room']) ?></td>
+                                                <td class="pe-3"><span class="badge <?= $badge ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+}
+
+renderAttendanceDetailModal('todayDetailsModal', "Today's Attendance — " . date('M j, Y'), $todayDetailRows);
+renderAttendanceDetailModal('weeklyDetailsModal', '7-Day Attendance (' . date('M j', strtotime($weekStart)) . ' – ' . date('M j, Y', strtotime($today)) . ')', $weeklyDetailRows);
+renderAttendanceDetailModal('monthlyDetailsModal', 'Monthly Attendance — ' . date('M Y', strtotime($selectedMonth)), $monthlyDetailRows);
+?>
 
 <!-- Filter Bar -->
 <div class="card border-0 shadow-sm mb-4">

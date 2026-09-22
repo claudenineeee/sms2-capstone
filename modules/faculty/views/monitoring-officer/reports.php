@@ -366,7 +366,11 @@ function renderLogsTable() {
 
     let rowsHtml = '';
     paginatedRows.forEach(log => {
-        const badgeClass = log.status === 'Present' ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle';
+        // CHANGED: was a two-way Present/else ternary, so a 'Late' status
+        // rendered red like an absence. Late now gets its own amber badge.
+        const badgeClass = log.status === 'Present' ? 'bg-success-subtle text-success border border-success-subtle'
+                         : log.status === 'Late'    ? 'bg-warning-subtle text-warning border border-warning-subtle'
+                         : 'bg-danger-subtle text-danger border border-danger-subtle';
         rowsHtml += `
             <tr>
                 <td class="font-monospace text-body-secondary">#${log.id}</td>

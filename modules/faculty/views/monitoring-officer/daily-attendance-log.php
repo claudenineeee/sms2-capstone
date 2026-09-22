@@ -38,6 +38,9 @@ $recentLogs = [];
 $stats = [
     'total_sessions'  => 0,
     'present_faculty' => 0,
+    // CHANGED: added late_faculty default, matching the new SUM() in
+    // AttendanceModel::getDepartmentStats().
+    'late_faculty'    => 0,
     'absent_faculty'  => 0,
     'total_students'  => 0,
 ];
@@ -60,11 +63,16 @@ if ($userDeptId !== '' && $userDeptId !== null) {
 
 $totalRecords      = $stats['total_sessions'] ?? 0;
 $presentFaculty    = $stats['present_faculty'] ?? 0;
+// CHANGED: new — feeds the Late Faculty stat card.
+$lateFaculty       = $stats['late_faculty'] ?? 0;
 $absentFaculty     = $stats['absent_faculty'] ?? 0;
 $totalStudents     = $stats['total_students'] ?? 0;
 $totalExpected     = $stats['expected_students'] ?? 0;
 $overallAttendance = $totalExpected > 0 ? round(($totalStudents / $totalExpected) * 100) : 0;
-$presentRate       = $totalRecords > 0 ? round(($presentFaculty / $totalRecords) * 100) : 0;
+// CHANGED: a late professor still showed up, so they count toward the
+// presence rate. Without this, marking someone Late would drag the rate
+// down exactly as if they'd been absent.
+$presentRate       = $totalRecords > 0 ? round((($presentFaculty + $lateFaculty) / $totalRecords) * 100) : 0;
 
 $currentUserName = $_SESSION['user_name'] ?? $_SESSION['user']['full_name'] ?? 'Monitoring Officer';
 
@@ -194,7 +202,7 @@ function renderSparkline($data, $color) {
     <!-- Stat Cards -->
     <!-- Stat Cards -->
     <div class="row g-3 mb-4">
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl">
             <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100 bg-white">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
                 <div class="card-body d-flex align-items-center ps-4">
@@ -208,7 +216,7 @@ function renderSparkline($data, $color) {
             </section>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl">
             <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100 bg-white">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #198754; z-index: 1;"></div>
                 <div class="card-body d-flex align-items-center ps-4">
@@ -222,7 +230,24 @@ function renderSparkline($data, $color) {
             </section>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
+        <!-- CHANGED: new stat card for Late. All five cards in this row were
+             switched from col-xl-3 to col-xl so they share the width evenly
+             now that there are five instead of four. -->
+        <div class="col-12 col-sm-6 col-xl">
+            <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100 bg-white">
+                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ffc107; z-index: 1;"></div>
+                <div class="card-body d-flex align-items-center ps-4">
+                    <div class="stat-icon me-3 text-warning fs-4"><i class="fas fa-user-clock"></i></div>
+                    <div>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Late Faculty</h6>
+                        <h4 class="mb-0 fw-bold" id="statLate"><?= htmlspecialchars($lateFaculty); ?></h4>
+                        <small class="text-warning fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-clock me-1"></i>Late arrivals</small>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl">
             <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100 bg-white">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #dc3545; z-index: 1;"></div>
                 <div class="card-body d-flex align-items-center ps-4">
@@ -236,7 +261,7 @@ function renderSparkline($data, $color) {
             </section>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-12 col-sm-6 col-xl">
             <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100 bg-white">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0dcaf0; z-index: 1;"></div>
                 <div class="card-body d-flex align-items-center ps-4">
@@ -356,13 +381,24 @@ function renderSparkline($data, $color) {
                     </div>
                     <p class="text-muted">Is <strong id="pc_faculty_name">Professor</strong> present for <strong id="pc_subject"></strong> in <strong id="pc_room"></strong>?</p>
                     <div class="row g-3 my-3">
-                        <div class="col-md-6">
+                        <!-- CHANGED: was two columns (Present / Absent). Added a third
+                             "Professor Late" branch. Late routes to the SAME professor
+                             signature step as Present — the professor IS physically
+                             there to sign, and the class still has a headcount; only
+                             the recorded status differs. -->
+                        <div class="col-md-4">
                             <button type="button" class="btn btn-outline-success w-100 p-3 text-start btn-branch" data-branch="PRESENT">
                                 <div class="fw-bold fs-6 mb-1"><i class="fas fa-user-check me-2"></i>Professor Present</div>
                                 <small class="text-muted d-block">Proceed to Professor Digital Signature.</small>
                             </button>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-outline-warning w-100 p-3 text-start btn-branch" data-branch="LATE">
+                                <div class="fw-bold fs-6 mb-1"><i class="fas fa-user-clock me-2"></i>Professor Late</div>
+                                <small class="text-muted d-block">Arrived late — still proceeds to Professor Signature.</small>
+                            </button>
+                        </div>
+                        <div class="col-md-4">
                             <button type="button" class="btn btn-outline-danger w-100 p-3 text-start btn-branch" data-branch="ABSENT">
                                 <div class="fw-bold fs-6 mb-1"><i class="fas fa-user-times me-2"></i>Professor Absent</div>
                                 <small class="text-muted d-block">Flag absent & request Class Mayor Signature.</small>
@@ -501,7 +537,17 @@ function renderSparkline($data, $color) {
                             <?php else: ?>
                                 <?php foreach ($recentLogs as $log): ?>
                                     <?php
-                                        $badgeClass = ($log['status'] ?? '') === 'Present' ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger';
+                                        // CHANGED: was a two-way Present/else ternary, so a
+                                        // 'Late' status would have wrongly rendered red.
+                                        // Late now gets its own amber badge.
+                                        $logStatus = $log['status'] ?? '';
+                                        if ($logStatus === 'Present') {
+                                            $badgeClass = 'bg-success-subtle text-success';
+                                        } elseif ($logStatus === 'Late') {
+                                            $badgeClass = 'bg-warning-subtle text-warning';
+                                        } else {
+                                            $badgeClass = 'bg-danger-subtle text-danger';
+                                        }
                                         $rate = !empty($log['attending_students']) && !empty($log['expected_students'])
                                             ? round(($log['attending_students'] / $log['expected_students']) * 100)
                                             : '—';
@@ -675,9 +721,15 @@ function renderStepper() {
     document.querySelectorAll('.btn-branch').forEach(btn => {
         btn.addEventListener('click', function() {
             const branch = this.dataset.branch;
-            sessionData.status = (branch === 'PRESENT') ? 'Present' : 'Absent';
+            // CHANGED: was a two-way Present/Absent ternary. Now maps three
+            // branches to their status values.
+            sessionData.status = (branch === 'PRESENT') ? 'Present'
+                               : (branch === 'LATE')    ? 'Late'
+                               : 'Absent';
 
-            if (branch === 'PRESENT') {
+            // CHANGED: LATE follows the same path as PRESENT (professor is
+            // there and signs); only ABSENT diverts to the Class Mayor.
+            if (branch === 'PRESENT' || branch === 'LATE') {
                 document.getElementById('ps_prof').textContent = sessionData.faculty;
                 document.getElementById('ps_subj').textContent = sessionData.subject;
                 switchPanel('PROF_SIGNATURE');
@@ -843,8 +895,14 @@ function renderStepper() {
         }
 
         const facultyName = (data.faculty || '').replace(/\s*\([^)]*\)\s*$/, ''); // strip " (Position)" suffix
+        // CHANGED: was a binary isPresent check, so 'Late' fell into the
+        // Absent bucket — wrong badge colour AND it incremented the Absent
+        // stat. Now tracked as its own status.
         const isPresent = data.status === 'Present';
-        const badgeClass = isPresent ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger';
+        const isLate    = data.status === 'Late';
+        const badgeClass = isPresent ? 'bg-success-subtle text-success'
+                         : isLate    ? 'bg-warning-subtle text-warning'
+                         : 'bg-danger-subtle text-danger';
         const rate = (data.expected > 0)
             ? Math.round((data.presentCount / data.expected) * 100) + '%'
             : '—';
@@ -860,12 +918,15 @@ function renderStepper() {
 
         const statTotal = document.getElementById('statTotal');
         const statPresent = document.getElementById('statPresent');
+        const statLate = document.getElementById('statLate');
         const statAbsent = document.getElementById('statAbsent');
         const logCount = document.getElementById('logCount');
 
         if (statTotal) statTotal.textContent = (parseInt(statTotal.textContent) || 0) + 1;
         if (isPresent && statPresent) statPresent.textContent = (parseInt(statPresent.textContent) || 0) + 1;
-        if (!isPresent && statAbsent) statAbsent.textContent = (parseInt(statAbsent.textContent) || 0) + 1;
+        // CHANGED: Late increments its own counter; only a true Absent bumps Absent.
+        if (isLate && statLate) statLate.textContent = (parseInt(statLate.textContent) || 0) + 1;
+        if (!isPresent && !isLate && statAbsent) statAbsent.textContent = (parseInt(statAbsent.textContent) || 0) + 1;
         if (logCount) logCount.textContent = (parseInt(logCount.textContent) || 0) + 1;
     }
 
