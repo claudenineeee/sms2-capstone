@@ -294,9 +294,10 @@ function viewPerformanceDetails(name, id) {
 let aiModal = null;
 let aiCurrentReq = null;
 
-function openAiModal(scope) {
+function openAiModal(scope, facultyId) {
     if (!aiModal) aiModal = new bootstrap.Modal(document.getElementById('aiModal'));
     aiCurrentReq = { scope };
+    if (scope === 'faculty' && facultyId) aiCurrentReq.faculty_id = facultyId;
 
     document.getElementById('aiModalTitleText').innerText =
         scope === 'faculty'

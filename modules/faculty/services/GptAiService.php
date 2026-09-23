@@ -1,10 +1,8 @@
 <?php
 /**
  * GptAiService
- * Wraps the GPT 4.1 text-generation API.
- *
- * Uses the URL `?key=` auth method for maximum compatibility
- * with the current key format issued by the provider.
+ * Wraps the Gemini text-generation API.
+ * Uses the URL `?key=` auth method for maximum compatibility.
  */
 require_once __DIR__ . '/../config/ai.php';
 
@@ -22,8 +20,8 @@ class GptAiService
 
     public function __construct()
     {
-        $this->apiKey = (string) (ai_config('GEMINI_API_KEY') ?? '');
-        $this->model  = (string) (ai_config('GEMINI_MODEL', 'gemini-2.5-flash'));
+        $this->apiKey = (string)(ai_config('GEMINI_API_KEY') ?? '');
+        $this->model  = (string)(ai_config('GEMINI_MODEL', 'gemini-2.5-flash'));
 
         $this->endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/'
                         . $this->model . ':generateContent?key=' . urlencode($this->apiKey);
@@ -37,7 +35,7 @@ class GptAiService
     /**
      * @return array{ok:bool, text?:string, error?:string}
      */
-    public function generate(string $prompt, int $maxOutputTokens = 500): array
+    public function generate(string $prompt, int $maxOutputTokens = 2048): array
     {
         if (!$this->isConfigured()) {
             $this->log('missing_api_key');
@@ -49,9 +47,12 @@ class GptAiService
                 'parts' => [['text' => $prompt]],
             ]],
             'generationConfig' => [
-                'temperature'     => 0.4,
-                'maxOutputTokens' => $maxOutputTokens,
-                'topP'            => 0.9,
+                'temperature'      => 0.8,
+                'maxOutputTokens'  => max($maxOutputTokens, 2048),
+                'topP'             => 0.95,
+                'thinkingConfig'   => [
+                    'thinkingBudget' => 0, // disable internal reasoning so all tokens go to output
+                ],
             ],
         ];
 
@@ -60,15 +61,13 @@ class GptAiService
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode($payload),
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-            ],
-            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_TIMEOUT        => 45,
             CURLOPT_CONNECTTIMEOUT => 10,
         ]);
 
         $response = curl_exec($ch);
-        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr  = curl_error($ch);
         curl_close($ch);
 
@@ -78,27 +77,34 @@ class GptAiService
         }
 
         if ($httpCode === 429) {
-            $this->log('rate_limit: ' . $response);
+            $this->log('rate_limit: ' . substr($response, 0, 300));
             return ['ok' => false, 'error' => self::ERR_LIMIT];
         }
         if ($httpCode === 401 || $httpCode === 403) {
-            $this->log('auth_error: ' . $response);
+            $this->log('auth_error_' . $httpCode . ': ' . substr($response, 0, 300));
             return ['ok' => false, 'error' => self::ERR_UNAVAILABLE];
         }
         if ($httpCode >= 500) {
-            $this->log('server_error_' . $httpCode . ': ' . $response);
+            $this->log('server_error_' . $httpCode . ': ' . substr($response, 0, 300));
             return ['ok' => false, 'error' => self::ERR_UNAVAILABLE];
         }
         if ($httpCode !== 200) {
-            $this->log('unexpected_http_' . $httpCode . ': ' . $response);
+            $this->log('unexpected_' . $httpCode . ': ' . substr($response, 0, 300));
             return ['ok' => false, 'error' => self::ERR_UNAVAILABLE];
         }
 
         $decoded = json_decode($response, true);
-        $text = $decoded['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+        // Skip past any thinking parts to find the actual text
+        $text = '';
+        foreach (($decoded['candidates'][0]['content']['parts'] ?? []) as $part) {
+            if (!empty($part['text'])) {
+                $text .= $part['text'];
+            }
+        }
 
         if (trim($text) === '') {
-            $this->log('empty_response: ' . $response);
+            $this->log('empty_response: ' . substr($response, 0, 300));
             return ['ok' => false, 'error' => self::ERR_EMPTY];
         }
 

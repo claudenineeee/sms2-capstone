@@ -1,23 +1,21 @@
 <?php
 /**
  * AI Insight Endpoint
- * POST JSON { scope: 'faculty'|'department', faculty_id?: int }
- * Returns   { ok, insight?, message?, cached? }
- *
- * Column names are matched to FacultyPerformanceController:
- *   - faculty.id, faculty.full_name
- *   - teaching_score  (labeled "Department Head" in the UI)
- *   - peer_score
- *   - student_score   (external service; may be NULL)
- *   - department_id   (scoping column)
+ * POST JSON { scope: 'faculty'|'department', faculty_id?: int, force?: bool }
+ * Returns   { ok, insight?, message? }
  */
 declare(strict_types=1);
 
-require_once __DIR__ . '/../../../../config/config.php';
-require_once __DIR__ . '/../../../../includes/authentication.php';
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../services/GeminiService.php';
+// ── Bootstrap ────────────────────────────────────────────────────────────────
+$rootPath = dirname(__DIR__, 3);
 
+require_once $rootPath . '/config/config.php';
+require_once dirname(__DIR__) . '/config/ai.php';
+require_once $rootPath . '/includes/authentication.php';
+require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/services/GptAiService.php';
+
+// ── Auth gate ─────────────────────────────────────────────────────────────────
 requireAuth();
 header('Content-Type: application/json');
 
@@ -27,256 +25,248 @@ function respond(array $payload, int $code = 200): void {
     exit;
 }
 
+// ── Parse request ─────────────────────────────────────────────────────────────
 $raw   = file_get_contents('php://input');
 $req   = json_decode($raw ?: '[]', true) ?: [];
 $scope = $req['scope'] ?? '';
 
 if (!in_array($scope, ['faculty', 'department'], true)) {
-    respond(['ok' => false, 'message' => GeminiService::ERR_UNAVAILABLE], 400);
+    respond(['ok' => false, 'message' => GptAiService::ERR_UNAVAILABLE], 400);
 }
 
 try {
-    $pdo = function_exists('facultyDb') ? facultyDb() : null;
+    // ── Database ──────────────────────────────────────────────────────────────
+    $pdo = facultyDb();
     if (!$pdo) {
-        respond(['ok' => false, 'message' => GeminiService::ERR_UNAVAILABLE], 500);
+        respond(['ok' => false, 'message' => 'Database connection failed. Please try again.'], 500);
     }
 
-    // ---- Resolve head's department from session (same keys as controller) ----
-    $deptId = (int) (
-        $_SESSION['designated_department']
-        ?? $_SESSION['department_id']
-        ?? $_SESSION['user_department_id']
-        ?? 1
-    );
-    $deptName = (string) (
-        $_SESSION['department_name']
-        ?? $_SESSION['user_department']
-        ?? 'Your Department'
-    );
+    // ── Resolve department from session ───────────────────────────────────────
+    $deptId   = (string)($_SESSION['designated_department'] ?? $_SESSION['department_name'] ?? $_SESSION['user_department'] ?? '');
+    $deptName = $deptId ?: 'Your Department';
 
-    // ---- Helper: compute overall from available sources ----------------------
-    // Your UI header shows the formula: 50% Student + 30% Peer + 20% Dept Head.
-    // If a source is NULL, we renormalize the weights so we don't invent numbers.
-    $computeOverall = function (?float $student, ?float $peer, ?float $deptHead): ?float {
-        $w = 0.0; $sum = 0.0;
-        if ($student  !== null) { $sum += $student  * 0.50; $w += 0.50; }
-        if ($peer     !== null) { $sum += $peer     * 0.30; $w += 0.30; }
-        if ($deptHead !== null) { $sum += $deptHead * 0.20; $w += 0.20; }
-        if ($w <= 0) return null;
-        return round($sum / $w, 2);
+    // ── Shared SQL mirroring FacultyModel::fetchPerformanceRows() ─────────────
+    $baseSql = "
+        SELECT
+            fp.id,
+            CONCAT(fp.first_name, ' ', fp.last_name) AS full_name,
+            AVG(CASE WHEN e.source_type = 'Student'  THEN e.composite_score END) AS student_score,
+            AVG(CASE WHEN e.source_type = 'Peer'     THEN e.composite_score END) AS peer_score,
+            AVG(CASE WHEN e.source_type = 'DeptHead' THEN e.composite_score END) AS teaching_score
+        FROM faculty_db.faculty_profiles fp
+        LEFT JOIN faculty_db.faculty f ON f.faculty_id = (
+            SELECT f2.faculty_id
+            FROM faculty_db.faculty f2
+            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+               OR f2.faculty_no = fp.faculty_id
+            ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+            LIMIT 1
+        )
+        LEFT JOIN faculty_db.evaluations e ON e.faculty_id = f.faculty_id
+    ";
+
+    // ── Dept WHERE clause (string match, same as FacultyModel) ───────────────
+    $buildDeptWhere = function (string $dept, array &$params): string {
+        if ($dept === '') return '';
+        $params[':dept']  = $dept;
+        $params[':dept2'] = $dept;
+        return " AND (LOWER(TRIM(fp.designated_department)) = LOWER(TRIM(:dept)) OR fp.designated_department = :dept2) ";
     };
+
+    // ── Weighted overall calculator ───────────────────────────────────────────
+    $computeOverall = function (?float $s, ?float $p, ?float $d): ?float {
+        $w = 0.0; $sum = 0.0;
+        if ($s !== null) { $sum += $s * 0.50; $w += 0.50; }
+        if ($p !== null) { $sum += $p * 0.30; $w += 0.30; }
+        if ($d !== null) { $sum += $d * 0.20; $w += 0.20; }
+        return $w > 0 ? round($sum / $w, 2) : null;
+    };
+
+    $fmt = fn($v) => $v === null ? 'not available' : number_format((float)$v, 2);
 
     /* =========================================================
        SCOPE: FACULTY — one faculty member
        ========================================================= */
     if ($scope === 'faculty') {
-        $facultyId = (int) ($req['faculty_id'] ?? 0);
+        $facultyId = (int)($req['faculty_id'] ?? 0);
         if ($facultyId <= 0) {
-            respond(['ok' => false, 'message' => GeminiService::ERR_UNAVAILABLE], 400);
+            respond(['ok' => false, 'message' => 'Invalid faculty ID.'], 400);
         }
 
-        $stmt = $pdo->prepare("
-            SELECT id, full_name, teaching_score, peer_score, student_score
-            FROM faculty
-            WHERE id = :id AND department_id = :dept
-            LIMIT 1
-        ");
-        $stmt->execute([':id' => $facultyId, ':dept' => $deptId]);
+        $params = [':id' => $facultyId];
+        $deptWhere = $buildDeptWhere($deptId, $params);
+
+        $stmt = $pdo->prepare($baseSql . " WHERE fp.id = :id $deptWhere GROUP BY fp.id, fp.first_name, fp.last_name LIMIT 1");
+        $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$row) {
-            respond(['ok' => false, 'message' => GeminiService::ERR_UNAVAILABLE], 404);
+            respond(['ok' => false, 'message' => 'Faculty member not found.'], 404);
         }
 
-        $deptHead = $row['teaching_score'] !== null ? (float) $row['teaching_score'] : null;
-        $peer     = $row['peer_score']     !== null ? (float) $row['peer_score']     : null;
-        $student  = $row['student_score']  !== null ? (float) $row['student_score']  : null;
-        $overall  = $computeOverall($student, $peer, $deptHead);
+        $d       = $row['teaching_score'] !== null ? (float)$row['teaching_score'] : null;
+        $p       = $row['peer_score']     !== null ? (float)$row['peer_score']     : null;
+        $s       = $row['student_score']  !== null ? (float)$row['student_score']  : null;
+        $overall = $computeOverall($s, $p, $d);
 
-        // Dept average (using same renormalization rule)
-        $allStmt = $pdo->prepare("
-            SELECT teaching_score, peer_score, student_score
-            FROM faculty WHERE department_id = :dept
-        ");
-        $allStmt->execute([':dept' => $deptId]);
+        // Dept average
+        $deptParams = [];
+        $deptWhere2 = $buildDeptWhere($deptId, $deptParams);
+        $allStmt = $pdo->prepare($baseSql . ($deptWhere2 ? "WHERE 1=1 $deptWhere2" : '') . " GROUP BY fp.id");
+        $allStmt->execute($deptParams);
         $vals = [];
         foreach ($allStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $o = $computeOverall(
-                $r['student_score']  !== null ? (float) $r['student_score']  : null,
-                $r['peer_score']     !== null ? (float) $r['peer_score']     : null,
-                $r['teaching_score'] !== null ? (float) $r['teaching_score'] : null
+                $r['student_score']  !== null ? (float)$r['student_score']  : null,
+                $r['peer_score']     !== null ? (float)$r['peer_score']     : null,
+                $r['teaching_score'] !== null ? (float)$r['teaching_score'] : null
             );
             if ($o !== null) $vals[] = $o;
         }
         $deptAvg = $vals ? round(array_sum($vals) / count($vals), 2) : null;
 
-        $dataHash = sha1(json_encode([
-            $row['id'], $deptHead, $peer, $student, $deptAvg, $deptId,
-        ]));
+        // Missing sources list
+        $missing = [];
+        if ($d === null) $missing[] = 'Department Head';
+        if ($p === null) $missing[] = 'Peer-to-Peer';
+        if ($s === null) $missing[] = 'Student';
+        $missingStr = $missing ? implode(', ', $missing) : 'none';
 
-        if (empty($req['force'])) {
-            $c = $pdo->prepare("
-                SELECT insight_text FROM ai_insights_cache
-                WHERE scope='faculty' AND faculty_id=:id AND data_hash=:h
-                  AND created_at > (NOW() - INTERVAL 24 HOUR)
-                LIMIT 1
-            ");
-            $c->execute([':id' => $facultyId, ':h' => $dataHash]);
-            if ($cached = $c->fetchColumn()) {
-                respond(['ok' => true, 'insight' => $cached, 'cached' => true]);
-            }
-        }
-
-        $fmt = fn($v) => $v === null ? 'not available' : number_format((float)$v, 2);
+        $name         = $row['full_name'];
+        $overall_fmt  = $fmt($overall);
+        $deptHead_fmt = $fmt($d);
+        $peer_fmt     = $fmt($p);
+        $student_fmt  = $fmt($s);
+        $deptAvg_fmt  = $fmt($deptAvg);
 
         $prompt = <<<PROMPT
-You are writing a performance insight for a Philippine college department head.
-Write three short sections. Put the section name on its own line ending with a colon.
-Blank line between sections. Do NOT use markdown symbols (no **, no #, no bullets).
-Do not invent numbers. Do not mention AI, models, or GPT.
+You are an academic performance analyst writing a formal report for a department head.
 
-Sections in this exact order: Strengths, Areas to Improve, Recommended Action.
+STRICT RULES:
+- Do NOT mention any school, college, university, or institution name.
+- Do NOT mention AI, models, or tools.
+- Do NOT invent numbers. Only use the values provided.
+- Do NOT use markdown symbols, bullets, or emojis.
+- Write in complete sentences. No fragments.
+
+Write exactly three sections. Each section must be 2 to 3 full sentences (roughly 40 to 60 words per section).
+Put the section name on its own line, ending with a colon. Leave one blank line between sections.
+
+Section 1 — Strengths:
+Discuss what this faculty member does well, citing their strongest scores and comparing them to the department average. Be specific and analytical.
+
+Section 2 — Areas to Improve:
+Discuss weaker scores, incomplete evaluation sources, and anything that needs attention. Explain why the missing data matters for a fair evaluation.
+
+Section 3 — Recommended Action:
+Give 3 concrete, actionable steps the department head should take (for example: schedule peer observation, request student evaluations, nominate for mentoring, recognize strength, reassign duties). Each step must be specific.
 
 Data:
-Faculty: {$row['full_name']}
-Department Head rating (20% weight): {$fmt($deptHead)}
-Peer-to-Peer rating (30% weight): {$fmt($peer)}
-Student rating (50% weight, from external service): {$fmt($student)}
-Computed overall (renormalized over available sources): {$fmt($overall)}
-Department average: {$fmt($deptAvg)}
+Faculty: {$name}
+Overall (weighted): {$overall_fmt}
+Department Head rating (20% weight): {$deptHead_fmt}
+Peer-to-Peer rating (30% weight): {$peer_fmt}
+Student rating (50% weight): {$student_fmt}
+Department average: {$deptAvg_fmt}
+Missing evaluation sources: {$missingStr}
 PROMPT;
 
-        $ai = (new GeminiService())->generate($prompt, 500);
+        $ai = (new GptAiService())->generate($prompt, 2048);
         if (!$ai['ok']) {
             respond(['ok' => false, 'message' => $ai['error']], 200);
         }
-        $insight = $ai['text'];
-
-        $ins = $pdo->prepare("
-            INSERT INTO ai_insights_cache (scope, faculty_id, department, data_hash, insight_text, model)
-            VALUES ('faculty', :id, :d, :h, :t, :m)
-            ON DUPLICATE KEY UPDATE insight_text=VALUES(insight_text), created_at=NOW()
-        ");
-        $ins->execute([
-            ':id' => $facultyId,
-            ':d'  => (string) $deptId,
-            ':h'  => $dataHash,
-            ':t'  => $insight,
-            ':m'  => ai_config('GEMINI_MODEL', 'gemini-2.5-flash'),
-        ]);
-
-        respond(['ok' => true, 'insight' => $insight, 'cached' => false]);
+        respond(['ok' => true, 'insight' => $ai['text']]);
     }
 
     /* =========================================================
        SCOPE: DEPARTMENT — whole department summary
        ========================================================= */
-    $stmt = $pdo->prepare("
-        SELECT id, full_name, teaching_score, peer_score, student_score
-        FROM faculty WHERE department_id = :dept
-    ");
-    $stmt->execute([':dept' => $deptId]);
+    $deptParams = [];
+    $deptWhere  = $buildDeptWhere($deptId, $deptParams);
+
+    $stmt = $pdo->prepare($baseSql . ($deptWhere ? "WHERE 1=1 $deptWhere" : '') . " GROUP BY fp.id, fp.first_name, fp.last_name ORDER BY fp.last_name ASC, fp.first_name ASC");
+    $stmt->execute($deptParams);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (!$rows) {
-        respond(['ok' => false, 'message' => GeminiService::ERR_UNAVAILABLE], 404);
+        respond(['ok' => false, 'message' => 'No faculty data found for your department.'], 404);
     }
 
     $scores = [];
     $missingPeer = 0; $missingStudent = 0;
     foreach ($rows as $r) {
-        $d = $r['teaching_score'] !== null ? (float) $r['teaching_score'] : null;
-        $p = $r['peer_score']     !== null ? (float) $r['peer_score']     : null;
-        $s = $r['student_score']  !== null ? (float) $r['student_score']  : null;
+        $d = $r['teaching_score'] !== null ? (float)$r['teaching_score'] : null;
+        $p = $r['peer_score']     !== null ? (float)$r['peer_score']     : null;
+        $s = $r['student_score']  !== null ? (float)$r['student_score']  : null;
         if ($p === null) $missingPeer++;
         if ($s === null) $missingStudent++;
-        $scores[] = [
-            'name'    => $r['full_name'],
-            'overall' => $computeOverall($s, $p, $d),
-        ];
+        $scores[] = ['name' => $r['full_name'], 'overall' => $computeOverall($s, $p, $d)];
     }
 
-    // Sort by overall desc, N/A last
-    usort($scores, function($a, $b) {
+    usort($scores, function ($a, $b) {
         if ($a['overall'] === null && $b['overall'] === null) return 0;
         if ($a['overall'] === null) return 1;
         if ($b['overall'] === null) return -1;
         return $b['overall'] <=> $a['overall'];
     });
 
-    $rated = array_values(array_filter($scores, fn($x) => $x['overall'] !== null));
-    $avg   = $rated ? round(array_sum(array_column($rated, 'overall')) / count($rated), 2) : null;
-    $top   = array_slice($rated, 0, 3);
-    $low   = array_slice(array_reverse($rated), 0, 3);
-    $below = count(array_filter($rated, fn($s) => $s['overall'] < 3.8));
+    $rated   = array_values(array_filter($scores, fn($x) => $x['overall'] !== null));
+    $avg     = $rated ? round(array_sum(array_column($rated, 'overall')) / count($rated), 2) : null;
+    $top3    = array_slice($rated, 0, 3);
+    $bottom3 = array_slice(array_reverse($rated), 0, 3);
+    $below   = count(array_filter($rated, fn($x) => $x['overall'] < 3.8));
 
-    $dataHash = sha1(json_encode([$deptId, $scores]));
+    $fmtList = fn(array $arr) => $arr
+        ? implode(', ', array_map(fn($x) => $x['name'] . ' (' . $x['overall'] . ')', $arr))
+        : 'none';
 
-    if (empty($req['force'])) {
-        $c = $pdo->prepare("
-            SELECT insight_text FROM ai_insights_cache
-            WHERE scope='department' AND department=:d AND data_hash=:h
-              AND created_at > (NOW() - INTERVAL 24 HOUR)
-            LIMIT 1
-        ");
-        $c->execute([':d' => (string) $deptId, ':h' => $dataHash]);
-        if ($cached = $c->fetchColumn()) {
-            respond(['ok' => true, 'insight' => $cached, 'cached' => true]);
-        }
-    }
-
-    $fmtList = function(array $arr): string {
-        if (!$arr) return 'none';
-        return implode(', ', array_map(fn($x) => "{$x['name']} ({$x['overall']})", $arr));
-    };
-
-    $total   = count($scores);
-    $topStr  = $fmtList($top);
-    $lowStr  = $fmtList($low);
-    $avgStr  = $avg === null ? 'not available' : $avg;
+    $total    = count($scores);
+    $ratedCt  = count($rated);
+    $avgStr   = $avg === null ? 'not available' : (string)$avg;
+    $top3Str  = $ratedCt < 6 ? "fewer than 6 rated faculty ({$ratedCt} total)" : $fmtList($top3);
+    $bot3Str  = $ratedCt < 6 ? 'not enough rated faculty for a bottom list' : $fmtList($bottom3);
 
     $prompt = <<<PROMPT
-You are summarizing department performance for a Philippine college department head.
-Write three short sections. Put the section name on its own line ending with a colon.
-Blank line between sections. Do NOT use markdown symbols (no **, no #, no bullets).
-Do not invent numbers. Do not mention AI, models, or GPT.
+You are an academic performance analyst writing a formal department-wide report for a department head.
 
-Sections in this exact order: Overall State, Top and Bottom Performers, Key Concern and Recommendation.
+STRICT RULES:
+- Do NOT mention any school, college, university, or institution name.
+- Do NOT mention AI, models, or tools.
+- Do NOT invent numbers. Only use the values provided.
+- Do NOT use markdown symbols, bullets, or emojis.
+- Write in complete sentences. No fragments.
+
+Write exactly three sections. Each section must be 4 to 6 full sentences (roughly 90 to 140 words per section). Be analytical, not just descriptive.
+
+Section 1 — Overall State:
+Describe the department's overall performance. Discuss the average score, how many faculty are rated above the 4.5 threshold, how many fall below 3.8, and what the distribution suggests. Also comment on the completeness of the evaluation data.
+
+Section 2 — Top and Bottom Performers:
+Name the top 3 faculty by name and score, and explain what distinguishes them. Then name the bottom 3 and clearly separate those who genuinely scored low from those whose scores are missing or incomplete. Do not treat missing data as poor performance.
+
+Section 3 — Key Concern and Recommendation:
+Identify the single most important issue this period (missing evaluations, low scores, data quality, etc.). Then give 4 concrete recommendations with clear next steps for the department head.
 
 Data:
 Department: {$deptName}
-Faculty count: {$total}
-Rated faculty (have at least one score): {count($rated)}
+Total faculty: {$total}
+Rated faculty (at least one score): {$ratedCt}
 Department average: {$avgStr}
-Top performers: {$topStr}
-Lowest performers: {$lowStr}
+Top 3: {$top3Str}
+Bottom 3: {$bot3Str}
 Faculty below 3.8: {$below}
 Faculty missing peer evaluation: {$missingPeer}
 Faculty missing student evaluation: {$missingStudent}
-Note: student scores come from an external service and may be entirely absent.
+Note: student scores come from an external source and may be entirely absent.
 PROMPT;
 
-    $ai = (new GeminiService())->generate($prompt, 600);
+    $ai = (new GptAiService())->generate($prompt, 4096);
     if (!$ai['ok']) {
         respond(['ok' => false, 'message' => $ai['error']], 200);
     }
-    $insight = $ai['text'];
-
-    $ins = $pdo->prepare("
-        INSERT INTO ai_insights_cache (scope, faculty_id, department, data_hash, insight_text, model)
-        VALUES ('department', NULL, :d, :h, :t, :m)
-        ON DUPLICATE KEY UPDATE insight_text=VALUES(insight_text), created_at=NOW()
-    ");
-    $ins->execute([
-        ':d' => (string) $deptId,
-        ':h' => $dataHash,
-        ':t' => $insight,
-        ':m' => ai_config('GEMINI_MODEL', 'gemini-2.5-flash'),
-    ]);
-
-    respond(['ok' => true, 'insight' => $insight, 'cached' => false]);
+    respond(['ok' => true, 'insight' => $ai['text']]);
 
 } catch (Throwable $e) {
-    error_log('ai-insight error: ' . $e->getMessage());
-    respond(['ok' => false, 'message' => GeminiService::ERR_UNAVAILABLE], 500);
+    error_log('ai-insight error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    respond(['ok' => false, 'message' => GptAiService::ERR_UNAVAILABLE], 500);
 }

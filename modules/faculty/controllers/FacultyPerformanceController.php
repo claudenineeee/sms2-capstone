@@ -85,6 +85,11 @@ class FacultyPerformanceController {
                             onclick="viewPerformanceDetails('<?= htmlspecialchars($row['full_name'], ENT_QUOTES) ?>', <?= (int)$row['id'] ?>)">
                         <i class="fas fa-eye text-primary"></i>
                     </button>
+                    <button class="btn btn-outline-secondary"
+                            title="AI Insight"
+                            onclick="openAiModal('faculty', <?= (int)$row['id'] ?>)">
+                        <i class="fas fa-wand-magic-sparkles text-warning"></i>
+                    </button>
                 </div>
             </td>
         </tr>

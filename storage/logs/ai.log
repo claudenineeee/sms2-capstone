@@ -1,0 +1,107 @@
+[2026-09-23 15:33:52] unexpected_400: {
+  "error": {
+    "code": 400,
+    "message": "Invalid JSON payload received. Unknown name \"thinkingConfig\": Cannot find field.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.BadRequest",
+        "fieldViolations": [
+          {
+     
+[2026-09-23 15:33:56] unexpected_400: {
+  "error": {
+    "code": 400,
+    "message": "Invalid JSON payload received. Unknown name \"thinkingConfig\": Cannot find field.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.BadRequest",
+        "fieldViolations": [
+          {
+     
+[2026-09-23 15:33:59] unexpected_400: {
+  "error": {
+    "code": 400,
+    "message": "Invalid JSON payload received. Unknown name \"thinkingConfig\": Cannot find field.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.BadRequest",
+        "fieldViolations": [
+          {
+     
+[2026-09-23 15:35:04] unexpected_400: {
+  "error": {
+    "code": 400,
+    "message": "Invalid JSON payload received. Unknown name \"thinkingConfig\": Cannot find field.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.BadRequest",
+        "fieldViolations": [
+          {
+     
+[2026-09-23 15:35:08] unexpected_400: {
+  "error": {
+    "code": 400,
+    "message": "Invalid JSON payload received. Unknown name \"thinkingConfig\": Cannot find field.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.BadRequest",
+        "fieldViolations": [
+          {
+     
+[2026-09-23 09:41:02] empty_response: {
+  "candidates": [
+    {
+      "content": {},
+      "finishReason": "MAX_TOKENS",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 4,
+    "totalTokenCount": 20,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 4
+      }
+    ],
+    "thoug
+[2026-09-23 15:43:26] server_error_503: {
+  "error": {
+    "code": 503,
+    "message": "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+[2026-09-23 15:43:55] server_error_503: {
+  "error": {
+    "code": 503,
+    "message": "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
+    "status": "UNAVAILABLE"
+  }
+}
+
+[2026-09-23 15:44:56] empty_response: {
+  "candidates": [
+    {
+      "content": {},
+      "finishReason": "MAX_TOKENS",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 205,
+    "totalTokenCount": 1234,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 205
+      }
+    ],
+    

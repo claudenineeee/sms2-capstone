@@ -172,6 +172,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $mail->isHTML(true);
                             $mail->Subject = "Your Faculty Account Has Been Approved";
                             $loginUrl = BASE_URL . "/login.php"; 
+                            // Logo is referenced by its live URL on your site, not attached/embedded.
+                            // Locally (e.g. XAMPP on localhost) mail clients can't reach it, so it
+                            // won't render in dev — once deployed to a real domain, it will load
+                            // normally like any other image, with nothing sent as a file attachment.
+                            $logoUrl  = rtrim(BASE_URL, '/') . '/images/bestlink.png';
+                            $logoHtml = "<img src='" . htmlspecialchars($logoUrl) . "' width='40' height='40' alt='Bestlink College of the Philippines' style='display:block; width:40px; height:40px; border-radius:6px;'>";
                             
                             // Fully Responsive Mobile-Friendly Email HTML Template
                             $mail->Body = "
@@ -183,46 +189,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <title>Account Approved</title>
                                 <style>
                                     /* Responsive resets */
-                                    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-                                    table { border-collapse: collapse; m5-table-lspace: 0pt; m5-table-rspace: 0pt; }
+                                    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+                                    table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
                                     img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
                                     
                                     @media screen and (max-width: 600px) {
-                                        .email-container { width: 100% !important; padding: 10px !important; }
-                                        .fluid { max-width: 100% !important; height: auto !important; }
-                                        .content-padding { padding: 15px !important; }
+                                        .email-container { width: 100% !important; }
+                                        .content-padding { padding: 22px !important; }
                                     }
                                 </style>
                             </head>
                             <body style='margin: 0; padding: 0; background-color: #f4f4f4;'>
-                                <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #f4f4f4; padding: 20px 0;'>
+                                <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #f4f4f4; padding: 24px 0;'>
                                     <tr>
                                         <td align='center'>
                                             <!-- Email Wrapper Table -->
-                                            <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='600' class='email-container' style='background-color: #121212; border-radius: 8px; overflow: hidden; border: 1px solid #333; width: 100%; max-width: 600px;'>
-                                                <!-- Header -->
+                                            <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='600' class='email-container' style='background-color: #121212; border-radius: 10px; overflow: hidden; border: 1px solid #333; width: 100%; max-width: 600px;'>
+
+                                                <!-- Brand accent strip -->
                                                 <tr>
-                                                    <td align='left' style='background-color: #007bff; color: #ffffff; padding: 18px 25px; font-weight: bold; font-size: 16px; letter-spacing: 0.5px;'>
-                                                        BESTLINK DEPARTMENT ACCOUNT
+                                                    <td style='background-color: #0077b3; height: 4px; line-height: 4px; font-size: 0;'>&nbsp;</td>
+                                                </tr>
+
+                                                <!-- Header: logo + college name + status label -->
+                                                <tr>
+                                                    <td style='background-color: #0093dd; padding: 22px 25px;'>
+                                                        <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
+                                                            <tr>
+                                                                <td width='46' valign='middle' style='padding-right: 14px;'>{$logoHtml}</td>
+                                                                <td valign='middle'>
+                                                                    <div style='color: #ffffff; font-size: 15px; font-weight: 700; letter-spacing: 0.3px;'>BESTLINK COLLEGE OF THE PHILIPPINES</div>
+                                                                    <div style='color: rgba(255,255,255,0.75); font-size: 11px; font-weight: 600; letter-spacing: 1px; margin-top: 4px; text-transform: uppercase;'>Account Approved</div>
+                                                                </td>
+                                                            </tr>
+                                                        </table>
                                                     </td>
                                                 </tr>
+
                                                 <!-- Content Body -->
                                                 <tr>
-                                                    <td class='content-padding' style='padding: 30px; color: #e0e0e0; font-size: 14px; line-height: 1.6;'>
-                                                        <p style='margin: 0 0 15px 0;'>Hello Mr. " . htmlspecialchars($lastName) . ",</p>
-                                                        <p style='margin: 0 0 20px 0;'>An account has been created for you. Use the secure credentials below to log in and change your password immediately.</p>
+                                                    <td class='content-padding' style='padding: 32px; color: #e0e0e0; font-size: 14px; line-height: 1.65;'>
+                                                        <p style='margin: 0 0 16px 0;'>Hello Mr. " . htmlspecialchars($lastName) . ",</p>
+                                                        <p style='margin: 0 0 22px 0;'>An account has been created for you. Use the secure credentials below to log in and change your password immediately.</p>
                                                         
                                                         <!-- Credentials Box Table for responsiveness -->
-                                                        <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #1e1e1e; border-radius: 6px; border: 1px solid #2d2d2d; margin-bottom: 20px;'>
+                                                        <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #1e1e1e; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 22px;'>
                                                             <tr>
-                                                                <td style='padding: 18px;'>
+                                                                <td style='padding: 18px 20px;'>
                                                                     <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
                                                                         <tr>
-                                                                            <td width='95' style='color: #aaaaaa; font-weight: 500; padding-bottom: 10px; vertical-align: top;'>Username:</td>
+                                                                            <td width='95' style='color: #9a9a9a; font-weight: 600; font-size: 12.5px; letter-spacing: 0.2px; padding-bottom: 10px; vertical-align: top;'>Username</td>
                                                                             <td style='color: #ffffff; font-family: monospace; font-size: 14px; font-weight: bold; padding-bottom: 10px; word-break: break-all;'>" . htmlspecialchars($facultyEmail) . "</td>
                                                                         </tr>
                                                                         <tr>
-                                                                            <td width='95' style='color: #aaaaaa; font-weight: 500; vertical-align: top;'>Password:</td>
+                                                                            <td width='95' style='color: #9a9a9a; font-weight: 600; font-size: 12.5px; letter-spacing: 0.2px; vertical-align: top;'>Password</td>
                                                                             <td style='color: #ffffff; font-family: monospace; font-size: 14px; font-weight: bold; word-break: break-all;'>" . htmlspecialchars($defaultPassword) . "</td>
                                                                         </tr>
                                                                     </table>
@@ -230,16 +250,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                             </tr>
                                                         </table>
                                                         
-                                                        <p style='margin: 0 0 20px 0; color: #cccccc; font-size: 13px;'>For security reasons, this is a temporary password and you will be asked to update it upon your first login. Please do not share this email with others.</p>
+                                                        <p style='margin: 0 0 22px 0; color: #9a9a9a; font-size: 12.5px;'>For security reasons, this is a temporary password and you will be asked to update it upon your first login. Please do not share this email with others.</p>
                                                         
                                                         <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
                                                             <tr>
-                                                                <td style='color: #bbbbbb; padding-top: 10px;'>
-                                                                    <p style='margin: 0;'>Regards,</p>
-                                                                    <p style='margin: 4px 0 0 0; font-weight: bold;'>Admin</p>
+                                                                <td style='color: #bbbbbb; padding-top: 6px; border-top: 1px solid #2a2a2a;'>
+                                                                    <p style='margin: 14px 0 0 0;'>Regards,</p>
+                                                                    <p style='margin: 4px 0 0 0; font-weight: bold; color: #ffffff;'>Admin</p>
                                                                 </td>
                                                             </tr>
                                                         </table>
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Footer -->
+                                                <tr>
+                                                    <td style='background-color: #0a0a0a; padding: 14px 25px; text-align: center;'>
+                                                        <span style='color: #6b6b6b; font-size: 11px; letter-spacing: 0.3px;'>&copy; " . date('Y') . " Bestlink College of the Philippines &middot; Faculty Management System</span>
                                                     </td>
                                                 </tr>
                                             </table>
