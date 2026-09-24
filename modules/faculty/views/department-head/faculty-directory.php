@@ -622,25 +622,74 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </div>
                     </div>
 
-                    <div class="row g-3 mb-3">
-                        <div class="col-6 col-sm-4">
-                            <label for="birthdate" class="form-label text-muted small fw-bold">Birthdate</label>
-                            <input type="date" id="birthdate" name="birthdate" class="form-control bg-body border-secondary-subtle text-body" required>
-                        </div>
+<!-- MODERN BIRTHDATE & SEX SECTION — matches existing field style -->
+<div class="row g-3 mb-3 align-items-end">
 
-                        <div class="col-6 col-sm-4">
-                            <label for="addAge" class="form-label text-muted small fw-bold">Age</label>
-                            <input type="text" id="addAge" class="form-control bg-body border-secondary-subtle text-body" placeholder="Age" readonly>
-                        </div>
+    <!-- Date of Birth: col-md-6 — matches Last Name / Phone width -->
+    <div class="col-12 col-md-6">
+        <label class="form-label text-muted small fw-bold mb-1">
+            <i class="fas fa-calendar-day text-primary me-1"></i> Date of Birth
+        </label>
 
-                        <div class="col-6 col-sm-4">
-                            <label for="sex" class="form-label text-muted small fw-bold">Sex</label>
-                            <select id="sex" name="sex" class="form-select bg-body border-secondary-subtle text-body" required>
-                                <option value="MALE">Male</option>
-                                <option value="FEMALE">Female</option>
-                            </select>
-                        </div>
-                    </div>
+        <div class="input-group shadow-sm">
+            <select id="birthMonthSelect"
+                    class="form-select bg-body border-secondary-subtle text-body fw-medium"
+                    style="max-width: 42%;"
+                    required>
+                <option value="" disabled selected hidden>Month</option>
+                <option value="01">January</option>
+                <option value="02">February</option>
+                <option value="03">March</option>
+                <option value="04">April</option>
+                <option value="05">May</option>
+                <option value="06">June</option>
+                <option value="07">July</option>
+                <option value="08">August</option>
+                <option value="09">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+            </select>
+
+            <input type="number"
+                   id="birthDayInput"
+                   class="form-control bg-body border-secondary-subtle text-body text-center fw-medium"
+                   placeholder="Day"
+                   min="1" max="31"
+                   required>
+
+            <input type="number"
+                   id="birthYearInput"
+                   class="form-control bg-body border-secondary-subtle text-body text-center fw-medium"
+                   placeholder="Year"
+                   min="1900" max="2026"
+                   required>
+        </div>
+
+        <input type="hidden" id="birthdate" name="birthdate" required>
+    </div>
+
+    <!-- Age -->
+    <div class="col-4 col-md-2">
+        <label for="addAge" class="form-label text-muted small fw-bold mb-1">Age</label>
+        <input type="text"
+               id="addAge"
+               class="form-control bg-body-tertiary border-secondary-subtle text-body text-center fw-bold shadow-sm"
+               placeholder="--"
+               readonly>
+    </div>
+
+    <!-- Sex -->
+    <div class="col-8 col-md-4">
+        <label for="sex" class="form-label text-muted small fw-bold mb-1">Sex</label>
+        <select id="sex" name="sex"
+                class="form-select bg-body border-secondary-subtle text-body shadow-sm"
+                required>
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+        </select>
+    </div>
+</div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-6">
@@ -747,28 +796,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('directorySearch');
     const statusFilter = document.getElementById('statusFilter');
     const pagination = document.getElementById('directoryPagination');
-    const birthdateInput = document.getElementById('birthdate');
+    
+    // Modern Birthdate Segment Inputs
+    const birthMonthSel = document.getElementById('birthMonthSelect');
+    const birthDayInp = document.getElementById('birthDayInput');
+    const birthYearInp = document.getElementById('birthYearInput');
+    const hiddenBirthdateInput = document.getElementById('birthdate');
     const ageInput = document.getElementById('addAge');
+
     const employmentStatus = document.getElementById('employmentStatus');
     const contractualEndCol = document.getElementById('contractualEndCol');
     const contractualEnd = document.getElementById('contractual_end');
 
-    function calculateAge(value) {
-        if (!value) return '';
-        const birthDate = new Date(value);
-        const today = new Date();
-        if (Number.isNaN(birthDate.getTime()) || birthDate > today) return '';
+    // Real-Time Birthdate Syncing and Age Calculation
+    function syncBirthdateAndAge() {
+        const m = birthMonthSel.value;
+        let d = parseInt(birthDayInp.value, 10);
+        let y = parseInt(birthYearInp.value, 10);
 
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const month = today.getMonth() - birthDate.getMonth();
-        if (month < 0 || (month === 0 && today.getDate() < birthDate.getDate())) {
+        if (!m || isNaN(d) || isNaN(y) || y < 1900 || y > 2026) {
+            hiddenBirthdateInput.value = '';
+            ageInput.value = '';
+            return;
+        }
+
+        const formattedDay = String(d).padStart(2, '0');
+        const formattedDateStr = `${y}-${m}-${formattedDay}`;
+
+        // Validate date sanity (prevents edge cases like Feb 31)
+        const dateObj = new Date(formattedDateStr);
+        if (isNaN(dateObj.getTime())) {
+            hiddenBirthdateInput.value = '';
+            ageInput.value = '';
+            return;
+        }
+
+        hiddenBirthdateInput.value = formattedDateStr;
+
+        // Auto-Calculate Age
+        const today = new Date();
+        let age = today.getFullYear() - dateObj.getFullYear();
+        const monthDiff = today.getMonth() - dateObj.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateObj.getDate())) {
             age--;
         }
-        return age >= 0 ? age : '';
-    }
-
-    function updateAge() {
-        ageInput.value = calculateAge(birthdateInput.value);
+        ageInput.value = age >= 0 ? age : '';
     }
 
     function updateContractualEnd() {
@@ -874,7 +946,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    birthdateInput.addEventListener('change', updateAge);
+    // Attach event listeners for Segmented Birthdate Input
+    birthMonthSel.addEventListener('change', syncBirthdateAndAge);
+    birthDayInp.addEventListener('input', syncBirthdateAndAge);
+    birthYearInp.addEventListener('input', syncBirthdateAndAge);
+
     employmentStatus.addEventListener('change', updateContractualEnd);
 
     searchInput.addEventListener('input', () => {
@@ -887,7 +963,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDirectory();
     });
 
-    updateAge();
     updateContractualEnd();
     renderDirectory();
     setupCardModalHandlers();
