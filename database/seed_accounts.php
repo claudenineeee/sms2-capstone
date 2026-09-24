@@ -203,7 +203,7 @@ $accounts = [
     // --- Clearance Office Accounts ---
     [
         'username' => 'hr',
-        'email' => 'hr@example.com',
+        'email' => 'hr@gmail.com',
         'password' => '12345678',
         'full_name' => 'HR Clearance Officer',
         'role_key' => 'hr_clearance',
@@ -211,7 +211,7 @@ $accounts = [
     ],
     [
         'username' => 'registrarclearance',
-        'email' => 'registrar@example.com',
+        'email' => 'registrar@gmail.com',
         'password' => '12345678',
         'full_name' => 'Registrar Clearance Officer',
         'role_key' => 'registrar_clearance',
@@ -219,7 +219,7 @@ $accounts = [
     ],
     [
         'username' => 'financeoffice',
-        'email' => 'finance@example.com',
+        'email' => 'finance@gmail.com',
         'password' => '12345678',
         'full_name' => 'Finance Office Officer',
         'role_key' => 'finance_office',
@@ -227,7 +227,7 @@ $accounts = [
     ],
     [
         'username' => 'library',
-        'email' => 'library@example.com',
+        'email' => 'library@gmail.com',
         'password' => '12345678',
         'full_name' => 'Library Clearance Officer',
         'role_key' => 'library_clearance',
@@ -235,7 +235,7 @@ $accounts = [
     ],
     [
         'username' => 'property',
-        'email' => 'property@example.com',
+        'email' => 'property@gmail.com',
         'password' => '12345678',
         'full_name' => 'Property Custodian Officer',
         'role_key' => 'property_custodian_office',
