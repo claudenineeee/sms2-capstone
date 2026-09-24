@@ -320,16 +320,37 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <input type="text" name="suffix" class="form-control bg-body border-secondary-subtle text-body" placeholder="Suffix">
                         </div>
                     </div>
-                    <div class="row g-3 mb-3">
-                        <div class="col-4">
-                            <label for="birthdate" class="form-label text-muted small fw-bold mb-1">Birthdate</label>
-                            <input type="date" id="birthdate" name="birthdate" class="form-control bg-body border-secondary-subtle text-body" required>
+                               <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-12 col-md-6">
+                            <label for="birthMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-day text-primary me-1"></i> Birthdate
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="birthMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <input type="number" id="birthDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31" required>
+                                <input type="number" id="birthYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2026" required>
+                            </div>
+                            <input type="hidden" id="birthdate" name="birthdate" required>
                         </div>
-                        <div class="col-4">
+                        <div class="col-6 col-md-2">
                             <label class="form-label text-muted small fw-bold mb-1">Age</label>
-                            <input type="text" id="addAge" class="form-control bg-body border-secondary-subtle text-body" placeholder="Age" disabled>
+                            <input type="text" id="addAge" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Age" disabled>
                         </div>
-                        <div class="col-4">
+                        <div class="col-6 col-md-4">
                             <label class="form-label text-muted small fw-bold mb-1">Sex</label>
                             <select name="sex" class="form-select bg-body border-secondary-subtle text-body" required>
                                 <option value="male">Male</option>
@@ -337,6 +358,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </select>
                         </div>
                     </div>
+
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label class="form-label text-muted small fw-bold mb-1">Phone</label>
@@ -370,16 +392,61 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <div id="deanDeptError" class="text-danger small mt-1 d-none">Select at least one department.</div>
                         </div>
                     </div>
-                    <div class="row g-3 mb-3">
-                        <div class="col-6">
-                            <label for="hired_date" class="form-label text-muted small fw-bold mb-1">Hired Date</label>
-                            <input type="date" id="hired_date" name="hired_date" class="form-control bg-body border-secondary-subtle text-body" required>
+
+                                        <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label for="hiredMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-check text-primary me-1"></i> Hired Date
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="hiredMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <input type="number" id="hiredDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31" required>
+                                <input type="number" id="hiredYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2030" required>
+                            </div>
+                            <input type="hidden" id="hired_date" name="hired_date" required>
                         </div>
-                        <div class="col-6" id="contractualEndCol">
-                            <label for="contractual_end" class="form-label text-muted small fw-bold mb-1">Contractual End Date</label>
-                            <input type="date" id="contractual_end" name="contractual_end" class="form-control bg-body border-secondary-subtle text-body" required>
+
+                        <div class="col-12 col-md-6" id="contractualEndCol">
+                            <label for="contractMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-xmark text-primary me-1"></i> Contractual End Date
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="contractMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <input type="number" id="contractDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31" required>
+                                <input type="number" id="contractYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2030" required>
+                            </div>
+                            <input type="hidden" id="contractual_end" name="contractual_end" required>
                         </div>
                     </div>
+
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label class="form-label text-muted small fw-bold mb-1">Employment Status</label>
@@ -439,16 +506,37 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <input type="text" name="suffix" class="form-control bg-body border-secondary-subtle text-body" placeholder="Suffix">
                         </div>
                     </div>
-                    <div class="row g-3 mb-3">
-                        <div class="col-4">
-                            <label for="deptHeadBirthdate" class="form-label text-muted small fw-bold mb-1">Birthdate</label>
-                            <input type="date" id="deptHeadBirthdate" name="birthdate" class="form-control bg-body border-secondary-subtle text-body" required>
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-12 col-md-6">
+                            <label for="deptHeadBirthMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-day text-primary me-1"></i> Birthdate
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="deptHeadBirthMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <input type="number" id="deptHeadBirthDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31" required>
+                                <input type="number" id="deptHeadBirthYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2026" required>
+                            </div>
+                            <input type="hidden" id="deptHeadBirthdate" name="birthdate" required>
                         </div>
-                        <div class="col-4">
+                        <div class="col-6 col-md-2">
                             <label class="form-label text-muted small fw-bold mb-1">Age</label>
-                            <input type="text" id="deptHeadAge" class="form-control bg-body border-secondary-subtle text-body" placeholder="Age" disabled>
+                            <input type="text" id="deptHeadAge" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Age" disabled>
                         </div>
-                        <div class="col-4">
+                        <div class="col-6 col-md-4">
                             <label class="form-label text-muted small fw-bold mb-1">Sex</label>
                             <select name="sex" class="form-select bg-body border-secondary-subtle text-body" required>
                                 <option value="male">Male</option>
@@ -479,13 +567,56 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </div>
                     </div>
                     <div class="row g-3 mb-3">
-                        <div class="col-6">
-                            <label for="deptHeadHiredDate" class="form-label text-muted small fw-bold mb-1">Hired Date</label>
-                            <input type="date" id="deptHeadHiredDate" name="hired_date" class="form-control bg-body border-secondary-subtle text-body" required>
+                        <div class="col-12 col-md-6">
+                            <label for="deptHeadHiredMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-check text-primary me-1"></i> Hired Date
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="deptHeadHiredMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <input type="number" id="deptHeadHiredDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31" required>
+                                <input type="number" id="deptHeadHiredYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2030" required>
+                            </div>
+                            <input type="hidden" id="deptHeadHiredDate" name="hired_date" required>
                         </div>
-                        <div class="col-6" id="deptHeadContractualEndCol">
-                            <label for="deptHeadContractualEnd" class="form-label text-muted small fw-bold mb-1">Contractual End Date</label>
-                            <input type="date" id="deptHeadContractualEnd" name="contractual_end" class="form-control bg-body border-secondary-subtle text-body" required>
+
+                        <div class="col-12 col-md-6" id="deptHeadContractualEndCol">
+                            <label for="deptHeadContractMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-xmark text-primary me-1"></i> Contractual End Date
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="deptHeadContractMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <input type="number" id="deptHeadContractDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31" required>
+                                <input type="number" id="deptHeadContractYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2030" required>
+                            </div>
+                            <input type="hidden" id="deptHeadContractualEnd" name="contractual_end" required>
                         </div>
                     </div>
                     <div class="row g-3 mb-3">
@@ -525,8 +656,42 @@ document.addEventListener("DOMContentLoaded", function () {
     const deptFilter = document.getElementById("deptFilter");
     const statusFilter = document.getElementById("statusFilter");
     const paginationUl = document.getElementById("directoryPagination");
+    // Dean modal — Birthdate
     const birthdateInput = document.getElementById("birthdate");
-    const ageInput = document.getElementById("addAge");
+    const birthMonthSel  = document.getElementById("birthMonthSelect");
+    const birthDayInp    = document.getElementById("birthDayInput");
+    const birthYearInp   = document.getElementById("birthYearInput");
+    const ageInput       = document.getElementById("addAge");
+
+    // Dean modal — Hired Date
+    const hiredMonthSel  = document.getElementById("hiredMonthSelect");
+    const hiredDayInp    = document.getElementById("hiredDayInput");
+    const hiredYearInp   = document.getElementById("hiredYearInput");
+    const hiredDateInput = document.getElementById("hired_date");
+
+    // Dept Head modal — Birthdate
+    const deptHeadBirthdateInput = document.getElementById("deptHeadBirthdate");
+    const deptHeadBirthMonthSel  = document.getElementById("deptHeadBirthMonthSelect");
+    const deptHeadBirthDayInp    = document.getElementById("deptHeadBirthDayInput");
+    const deptHeadBirthYearInp   = document.getElementById("deptHeadBirthYearInput");
+
+    // Dept Head modal — Hired Date
+    const deptHeadHiredMonthSel  = document.getElementById("deptHeadHiredMonthSelect");
+    const deptHeadHiredDayInp    = document.getElementById("deptHeadHiredDayInput");
+    const deptHeadHiredYearInp   = document.getElementById("deptHeadHiredYearInput");
+    const deptHeadHiredDateInput = document.getElementById("deptHeadHiredDate");
+
+    // Dean modal — Contractual End Date
+    const contractMonthSel  = document.getElementById("contractMonthSelect");
+    const contractDayInp    = document.getElementById("contractDayInput");
+    const contractYearInp   = document.getElementById("contractYearInput");
+    const contractDateInput = document.getElementById("contractual_end");
+
+    // Dept Head modal — Contractual End Date
+    const deptHeadContractMonthSel  = document.getElementById("deptHeadContractMonthSelect");
+    const deptHeadContractDayInp    = document.getElementById("deptHeadContractDayInput");
+    const deptHeadContractYearInp   = document.getElementById("deptHeadContractYearInput");
+    const deptHeadContractDateInput = document.getElementById("deptHeadContractualEnd");
     const employmentStatusSelect = document.getElementById("employmentStatus");
     const contractualEndCol = document.getElementById("contractualEndCol");
 
@@ -544,18 +709,74 @@ document.addEventListener("DOMContentLoaded", function () {
         return years >= 0 ? years : '';
     }
 
-    if (birthdateInput) {
-        birthdateInput.addEventListener("change", function () {
-            ageInput.value = computeAge(this.value);
-        });
+    // Generic helper: syncs a Month/Day/Year group into a hidden YYYY-MM-DD input.
+    // Optionally updates an "age" field when a function is provided.
+    function bindSegmentGroup(monthSel, dayInp, yearInp, hiddenInput, ageField, minYear, maxYear) {
+        if (!monthSel || !dayInp || !yearInp || !hiddenInput) return;
+
+        const sync = () => {
+            const m = monthSel.value;
+            const d = parseInt(dayInp.value, 10);
+            const y = parseInt(yearInp.value, 10);
+
+            if (!m || isNaN(d) || isNaN(y) || y < minYear || y > maxYear) {
+                hiddenInput.value = '';
+                if (ageField) ageField.value = '';
+                return;
+            }
+
+            const formatted = `${y}-${m}-${String(d).padStart(2, '0')}`;
+            const parsed = new Date(formatted);
+            if (Number.isNaN(parsed.getTime())) {
+                hiddenInput.value = '';
+                if (ageField) ageField.value = '';
+                return;
+            }
+
+            hiddenInput.value = formatted;
+            if (ageField) ageField.value = computeAge(formatted);
+        };
+
+        monthSel.addEventListener('change', sync);
+        dayInp.addEventListener('input', sync);
+        yearInp.addEventListener('input', sync);
     }
+
+    // Dean modal — Birthdate
+    bindSegmentGroup(birthMonthSel, birthDayInp, birthYearInp, birthdateInput, ageInput, 1900, 2026);
+
+    // Dean modal — Hired Date (no age field)
+    bindSegmentGroup(hiredMonthSel, hiredDayInp, hiredYearInp, hiredDateInput, null, 1900, 2030);
+
+    // Dean modal — Contractual End Date (no age field)
+    bindSegmentGroup(contractMonthSel, contractDayInp, contractYearInp, contractDateInput, null, 1900, 2030);
+
+    // Dept Head modal — Birthdate
+    bindSegmentGroup(deptHeadBirthMonthSel, deptHeadBirthDayInp, deptHeadBirthYearInp, deptHeadBirthdateInput, deptHeadAgeInput, 1900, 2026);
+
+    // Dept Head modal — Hired Date
+    bindSegmentGroup(deptHeadHiredMonthSel, deptHeadHiredDayInp, deptHeadHiredYearInp, deptHeadHiredDateInput, null, 1900, 2030);
+
+    // Dept Head modal — Contractual End Date (no age field)
+    bindSegmentGroup(deptHeadContractMonthSel, deptHeadContractDayInp, deptHeadContractYearInp, deptHeadContractDateInput, null, 1900, 2030);
 
     function updateContractualEndVisibility() {
         if (!employmentStatusSelect || !contractualEndCol) return;
         const isRegular = employmentStatusSelect.value === 'regular';
         contractualEndCol.style.display = isRegular ? 'none' : 'block';
-        const contractualInput = contractualEndCol.querySelector('input');
-        if (contractualInput) contractualInput.required = !isRegular;
+
+        // Toggle required on all inputs inside the group (Month/Day/Year)
+        contractualEndCol.querySelectorAll('input, select').forEach(el => {
+            el.required = !isRegular;
+        });
+
+        // Clear the hidden value + segments when switching back to regular
+        if (isRegular) {
+            if (contractDateInput) contractDateInput.value = '';
+            if (contractMonthSel) contractMonthSel.value = '';
+            if (contractDayInp) contractDayInp.value = '';
+            if (contractYearInp) contractYearInp.value = '';
+        }
     }
 
     if (employmentStatusSelect) {
@@ -565,23 +786,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // NEW: same age-calc + contractual-end toggle, wired to the
     // Add Department Head form's separately-namespaced fields.
-    const deptHeadBirthdateInput = document.getElementById("deptHeadBirthdate");
     const deptHeadAgeInput = document.getElementById("deptHeadAge");
     const deptHeadEmploymentStatusSelect = document.getElementById("deptHeadEmploymentStatus");
     const deptHeadContractualEndCol = document.getElementById("deptHeadContractualEndCol");
-
-    if (deptHeadBirthdateInput) {
-        deptHeadBirthdateInput.addEventListener("change", function () {
-            deptHeadAgeInput.value = computeAge(this.value);
-        });
-    }
 
     function updateDeptHeadContractualEndVisibility() {
         if (!deptHeadEmploymentStatusSelect || !deptHeadContractualEndCol) return;
         const isRegular = deptHeadEmploymentStatusSelect.value === 'regular';
         deptHeadContractualEndCol.style.display = isRegular ? 'none' : 'block';
-        const contractualInput = deptHeadContractualEndCol.querySelector('input');
-        if (contractualInput) contractualInput.required = !isRegular;
+
+        deptHeadContractualEndCol.querySelectorAll('input, select').forEach(el => {
+            el.required = !isRegular;
+        });
+
+        if (isRegular) {
+            if (deptHeadContractDateInput) deptHeadContractDateInput.value = '';
+            if (deptHeadContractMonthSel) deptHeadContractMonthSel.value = '';
+            if (deptHeadContractDayInp) deptHeadContractDayInp.value = '';
+            if (deptHeadContractYearInp) deptHeadContractYearInp.value = '';
+        }
     }
 
     if (deptHeadEmploymentStatusSelect) {
