@@ -137,6 +137,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone = trim((string) ($_POST['phone'] ?? ''));
             $email = strtolower(trim((string) ($_POST['email'] ?? '')));
             $position = trim((string) ($_POST['position'] ?? 'Faculty Professor'));
+            $academicRank = trim((string) ($_POST['academic_rank'] ?? ''));
+            $tier = trim((string) ($_POST['tier'] ?? ''));
             $hiredDate = trim((string) ($_POST['hired_date'] ?? ''));
             $contractualEnd = trim((string) ($_POST['contractual_end'] ?? ''));
             $employmentStatus = strtolower(
@@ -164,6 +166,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!in_array($sex, ['MALE', 'FEMALE'], true)) {
                 throw new InvalidArgumentException('Please select a valid biological sex.');
+            }
+
+            if ($academicRank === '') {
+                throw new InvalidArgumentException('Please select the Academic Rank.');
+            }
+
+            if ($tier === '') {
+                throw new InvalidArgumentException('Please select the Tier.');
+            }
+
+            if (function_exists('isValidAcademicRankTier') && !isValidAcademicRankTier($academicRank, $tier)) {
+                throw new InvalidArgumentException('The selected Tier does not match the selected Academic Rank.');
             }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -207,10 +221,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'designated_dept' => $headDepartmentCode,
                 'designated_department' => $headDepartmentCode,
                 'position' => $position,
-                'academic_rank' => '',
+                'academic_rank' => $academicRank,
                 'specialization_assignment' => '',
                 'coordinator_type' => '',
-                'tier' => '',
+                'tier' => $tier,
                 'hired_date' => $hiredDate,
                 'contractual_end' => $contractualEnd,
                 'employment_status' => $employmentStatus,
@@ -721,6 +735,26 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                     <div class="row g-3 mb-3">
                         <div class="col-6">
+                            <label for="academicRankSelect" class="form-label text-muted small fw-bold">Academic Rank</label>
+                            <select id="academicRankSelect" name="academic_rank" class="form-select bg-body border-secondary-subtle text-body" required>
+                                <option value="" selected disabled>Select Academic Rank</option>
+                                <option value="Instructor">Instructor</option>
+                                <option value="Assistant Professor">Assistant Professor</option>
+                                <option value="Associate Professor">Associate Professor</option>
+                                <option value="Professor">Professor</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6">
+                            <label for="academicTierSelect" class="form-label text-muted small fw-bold">Tier</label>
+                            <select id="academicTierSelect" name="tier" class="form-select bg-body border-secondary-subtle text-body" required disabled>
+                                <option value="" selected>Select Academic Rank first</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
                             <label for="hired_date" class="form-label text-muted small fw-bold">Hired Date</label>
                             <input type="date" id="hired_date" name="hired_date" class="form-control bg-body border-secondary-subtle text-body" required>
                         </div>
@@ -791,6 +825,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const cardsPerPage = 6;
     let currentPage = 1;
+
+    // Academic Rank -> Tier cascading dropdown (single source of truth
+    // comes from getAcademicRankTiers() in faculty-data.php, so the
+    // frontend options can never drift out of sync with server validation).
+    const RANK_TIERS = <?= json_encode(function_exists('getAcademicRankTiers') ? getAcademicRankTiers() : []) ?>;
+    const academicRankSelect = document.getElementById('academicRankSelect');
+    const academicTierSelect = document.getElementById('academicTierSelect');
+
+    function populateAcademicTiers() {
+        if (!academicRankSelect || !academicTierSelect) return;
+        const tiers = RANK_TIERS[academicRankSelect.value] || [];
+        if (tiers.length === 0) {
+            academicTierSelect.disabled = true;
+            academicTierSelect.innerHTML = '<option value="" selected>Select Academic Rank first</option>';
+            return;
+        }
+        academicTierSelect.disabled = false;
+        academicTierSelect.innerHTML = '<option value="" selected disabled>Select Tier</option>' +
+            tiers.map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+
+    if (academicRankSelect) {
+        academicRankSelect.addEventListener('change', populateAcademicTiers);
+        populateAcademicTiers();
+    }
 
     const facultyGrid = document.getElementById('facultyGrid');
     const searchInput = document.getElementById('directorySearch');
