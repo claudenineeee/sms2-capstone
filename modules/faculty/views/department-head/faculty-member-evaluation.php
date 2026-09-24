@@ -267,31 +267,32 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <!-- Evaluation Stats Row -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-md-6">
-            <div class="card bg-body text-body border-secondary-subtle shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="p-3 bg-primary-subtle text-primary rounded-3 me-3 fs-4 d-flex align-items-center justify-content-center">
+            <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
+                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+                <div class="card-body d-flex align-items-center ps-4">
+                    <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
                         <i class="fas fa-users"></i>
                     </div>
                     <div>
-                        <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Department Faculty</h6>
-                        <h4 class="mb-0 fw-bold text-body"><?= $totalFaculty ?> Members</h4>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Department Faculty</h6>
+                        <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= $totalFaculty ?> <small class="text-muted fs-6 fw-normal">Members</small></h4>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
-
         <div class="col-12 col-md-6">
-            <div class="card bg-body text-body border-secondary-subtle shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="p-3 bg-success-subtle text-success rounded-3 me-3 fs-4 d-flex align-items-center justify-content-center">
+            <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #28a745; z-index: 1;"></div>
+                <div class="card-body d-flex align-items-center ps-4">
+                    <div class="stat-icon me-3 fs-4" style="color: #28a745;">
                         <i class="fas fa-check-circle"></i>
                     </div>
                     <div>
-                        <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Completed Ratings</h6>
-                        <h4 class="mb-0 fw-bold text-body"><?= $evaluatedCount ?> / <?= $totalFaculty ?> Evaluated</h4>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Completed Ratings</h6>
+                        <h4 class="mb-0 fw-bold" style="color: #28a745;"><?= $evaluatedCount ?> <small class="text-muted fs-6 fw-normal">/ <?= $totalFaculty ?> Evaluated</small></h4>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     </div>
 
@@ -305,8 +306,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </h6>
                     <small class="text-body-secondary">Rate your department's faculty for current academic term</small>
                 </div>
-                <div class="col-12 col-md-6 d-flex gap-2 justify-content-md-end">
-                    <div class="input-group input-group-sm" style="max-width: 240px;">
+                <!-- Filter Dropdown & Search Bar placed cleanly side-by-side -->
+                <div class="col-12 col-md-6 d-flex gap-2 justify-content-md-end align-items-center flex-wrap">
+                    <select id="facultyStatusFilter" class="form-select form-select-sm bg-body text-body border-secondary-subtle" style="max-width: 150px;" onchange="filterFaculty()">
+                        <option value="">All Status</option>
+                        <option value="COMPLETED">Done</option>
+                        <option value="PENDING">Pending</option>
+                    </select>
+                    <div class="input-group input-group-sm" style="max-width: 220px;">
                         <input type="text" id="facultySearchInput" class="form-control bg-body text-body border-secondary-subtle" placeholder="Search..." onkeyup="filterFaculty()">
                         <button class="btn btn-outline-secondary border-secondary-subtle" type="button"><i class="fas fa-search"></i></button>
                     </div>
@@ -587,6 +594,7 @@ const facultyPerPage = 5;
 
 function renderFacultyTable() {
     const searchInput = document.getElementById('facultySearchInput')?.value.toLowerCase().trim() || '';
+    const statusFilter = document.getElementById('facultyStatusFilter')?.value || '';
     const rows = Array.from(document.querySelectorAll('#facultyTable .faculty-row'));
     const noResultsMsg = document.getElementById('noFacultyMessage');
     const paginationNav = document.getElementById('facultyPagination');
@@ -596,7 +604,12 @@ function renderFacultyTable() {
 
     const filteredRows = rows.filter(row => {
         const searchData = row.getAttribute('data-search') || '';
-        return searchData.includes(searchInput);
+        const rowStatus = row.getAttribute('data-status') || '';
+
+        const matchesSearch = searchData.includes(searchInput);
+        const matchesStatus = (statusFilter === '' || rowStatus === statusFilter);
+
+        return matchesSearch && matchesStatus;
     });
 
     const totalItems = filteredRows.length;

@@ -73,9 +73,12 @@ try {
         }
 
         $stmt = $pdo->prepare("
-            SELECT lr.id, lr.screening_status, fp.designated_department
+            SELECT lr.id, lr.screening_status,
+                   COALESCE(fp.designated_department, fp2.designated_department) AS designated_department
             FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+            LEFT JOIN faculty_db.faculty f       ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_db.faculty_profiles fp  ON fp.email = f.email
+            LEFT JOIN faculty_db.faculty_profiles fp2 ON fp2.id = lr.faculty_id
             WHERE lr.id = :id
             LIMIT 1
         ");
@@ -173,14 +176,17 @@ try {
     $params = [];
 
     if ($restrictedDeptCode !== null) {
-        $where[] = 'fp.designated_department = :dept_code';
+        $where[] = '(fp.designated_department = :dept_code OR fp2.designated_department = :dept_code)';
         $params[':dept_code'] = $restrictedDeptCode;
     }
 
     if ($q !== '') {
-        $where[] = "(CONCAT_WS(' ', fp.first_name, fp.last_name) LIKE :q_name OR lr.request_ref LIKE :q_ref)";
-        $params[':q_name'] = '%' . $q . '%';
-        $params[':q_ref'] = '%' . $q . '%';
+        $where[] = "(CONCAT_WS(' ', fp.first_name, fp.last_name) LIKE :q_name 
+                     OR CONCAT_WS(' ', fp2.first_name, fp2.last_name) LIKE :q_name2 
+                     OR lr.request_ref LIKE :q_ref)";
+        $params[':q_name']  = '%' . $q . '%';
+        $params[':q_name2'] = '%' . $q . '%';
+        $params[':q_ref']   = '%' . $q . '%';
     }
 
     if ($filterStatus !== '') {
@@ -195,10 +201,18 @@ try {
 
     $whereClause = !empty($where) ? ' WHERE ' . implode(' AND ', $where) : '';
 
+    $fromJoins = "
+        FROM faculty_db.leave_requests lr
+        LEFT JOIN faculty_db.faculty f       ON f.faculty_id = lr.faculty_id
+        LEFT JOIN faculty_db.faculty_profiles fp  ON fp.email = f.email
+        LEFT JOIN faculty_db.faculty_profiles fp2 ON fp2.id = lr.faculty_id
+        LEFT JOIN faculty_db.leave_balances lb ON lb.faculty_id = f.faculty_id
+                                              AND lb.academic_year = '2026-2027'
+    ";
+
     // Aggregated counts for cards
     $statsSql = "SELECT lr.screening_status, COUNT(*) as cnt
-                 FROM faculty_db.leave_requests lr
-                 LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+                 $fromJoins
                  $whereClause
                  GROUP BY lr.screening_status";
                  
@@ -216,7 +230,7 @@ try {
     }
 
     // Total records for pagination
-    $countSql = "SELECT COUNT(*) FROM faculty_db.leave_requests lr LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id $whereClause";
+    $countSql = "SELECT COUNT(*) $fromJoins $whereClause";
     $stmtCount = $pdo->prepare($countSql);
     foreach ($params as $k => $v) {
         $stmtCount->bindValue($k, $v, PDO::PARAM_STR);
@@ -231,9 +245,42 @@ try {
     $offset = ($page - 1) * $limit;
 
     // Fetch paginated records
-    $sql = "SELECT lr.*, fp.id AS faculty_profile_id, fp.designated_department, CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name, DATEDIFF(lr.end_date, lr.start_date) + 1 AS days
-            FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+    $sql = "SELECT lr.*, 
+                   COALESCE(fp.id, fp2.id) AS faculty_profile_id,
+                   COALESCE(fp.designated_department, fp2.designated_department) AS designated_department,
+                   COALESCE(
+                       NULLIF(CONCAT_WS(' ', fp.first_name, fp.last_name), ' '),
+                       NULLIF(CONCAT_WS(' ', fp2.first_name, fp2.last_name), ' ')
+                   ) AS faculty_name,
+                   DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
+                   f.faculty_id AS faculty_record_id,
+                   (CASE lr.leave_type
+                        WHEN 'Sick Leave'              THEN lb.sick_leave_total       - lb.sick_leave_used
+                        WHEN 'Vacation Leave'          THEN lb.vacation_leave_total   - lb.vacation_leave_used
+                        WHEN 'Emergency Leave'         THEN lb.emergency_total        - lb.emergency_used
+                        WHEN 'Maternity Leave'         THEN lb.maternity_total        - lb.maternity_used
+                        WHEN 'Paternity Leave'         THEN lb.paternity_total        - lb.paternity_used
+                        WHEN 'Magna Carta Leave'       THEN lb.magna_carta_total      - lb.magna_carta_used
+                        WHEN 'VAWC Leave'              THEN lb.vawc_total             - lb.vawc_used
+                        WHEN 'Sabbatical Leave'        THEN lb.sabbatical_total       - lb.sabbatical_used
+                        WHEN 'Academic/Vacation Leave' THEN lb.admin_vacation_total   - lb.admin_vacation_used
+                        WHEN 'Special Leave Privileges' THEN lb.admin_special_total   - lb.admin_special_used
+                        ELSE NULL
+                    END) AS remaining_balance,
+                    (CASE lr.leave_type
+                        WHEN 'Sick Leave'              THEN lb.sick_leave_total
+                        WHEN 'Vacation Leave'          THEN lb.vacation_leave_total
+                        WHEN 'Emergency Leave'         THEN lb.emergency_total
+                        WHEN 'Maternity Leave'         THEN lb.maternity_total
+                        WHEN 'Paternity Leave'         THEN lb.paternity_total
+                        WHEN 'Magna Carta Leave'       THEN lb.magna_carta_total
+                        WHEN 'VAWC Leave'              THEN lb.vawc_total
+                        WHEN 'Sabbatical Leave'        THEN lb.sabbatical_total
+                        WHEN 'Academic/Vacation Leave' THEN lb.admin_vacation_total
+                        WHEN 'Special Leave Privileges' THEN lb.admin_special_total
+                        ELSE NULL
+                    END) AS total_balance
+            $fromJoins
             $whereClause
             ORDER BY CASE WHEN lr.screening_status = 'Pending' THEN 0 ELSE 1 END, lr.created_at DESC
             LIMIT :limit OFFSET :offset";
@@ -248,14 +295,13 @@ try {
 
     $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // Handle AJAX request responses (Return JSON with updated HTML fragments)
+    // AJAX request responses
     if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest' || isset($_GET['ajax'])) {
         header('Content-Type: application/json');
         
-        // Render table rows HTML
         ob_start();
         if (empty($leaveRequests)) {
-            echo '<tr><td colspan="8" class="text-center text-muted py-4">No leave requests found.</td></tr>';
+            echo '<tr><td colspan="9" class="text-center text-muted py-4">No leave requests found.</td></tr>';
         } else {
             foreach ($leaveRequests as $r) {
                 $screeningStatus = $r['screening_status'] ?? 'Pending';
@@ -269,6 +315,26 @@ try {
                 
                 $facultyName = trim((string) ($r['faculty_name'] ?? ''));
                 $displayFacultyName = ($facultyName !== '') ? $facultyName : 'Missing Profile (ID: ' . (int)($r['faculty_id'] ?? 0) . ')';
+
+                $remBal = $r['remaining_balance'];
+                $totBal = $r['total_balance'];
+                if ($remBal === null || $totBal === null) {
+                    $balanceHtml = '<span class="status-badge badge-none">—</span>';
+                } else {
+                    $remBal = (int)$remBal;
+                    $totBal = (int)$totBal;
+                    $days   = (int)($r['days'] ?? 0);
+                    $willBe = $remBal - $days;
+
+                    if ($remBal <= 0 || $willBe < 0) {
+                        $cls = 'badge-returned';
+                    } elseif ($willBe <= 2) {
+                        $cls = 'badge-pending';
+                    } else {
+                        $cls = 'badge-screened';
+                    }
+                    $balanceHtml = '<span class="status-badge ' . $cls . '">' . $remBal . ' / ' . $totBal . ' left</span>';
+                }
                 ?>
                 <tr>
                     <td class="fw-bold ps-3">
@@ -281,6 +347,7 @@ try {
                     <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?></span></td>
                     <td class="small text-muted"><?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?> &rarr; <?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                     <td><span class="fw-medium"><?= (int) ($r['days'] ?? 0) ?></span></td>
+                    <td><?= $balanceHtml ?></td>
                     <td>
                         <?php if ($hasDocument): ?>
                             <a href="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"
@@ -301,7 +368,10 @@ try {
                                     data-type="<?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                     data-start="<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                     data-end="<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-days="<?= (int)($r['days'] ?? 0) ?>"
                                     data-reason="<?= htmlspecialchars($r['reason'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                    data-remaining="<?= $remBal === null ? '' : (int)$remBal ?>"
+                                    data-total="<?= $totBal === null ? '' : (int)$totBal ?>"
                                     data-has-doc="<?= $hasDocument ? 'true' : 'false' ?>"
                                     data-doc-url="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>">
                                 <i class="fas fa-eye me-1"></i>Review
@@ -321,7 +391,6 @@ try {
         }
         $tableHtml = ob_get_clean();
 
-        // Render Pagination HTML
         ob_start();
         if ($totalPages > 1) {
             $urlParams = $_GET;
@@ -376,13 +445,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 
 <style>
-    /* Fix Bootstrap modal backdrop and stacking context issues */
-    .modal {
-        z-index: 1055 !important;
-    }
-    .modal-backdrop {
-        z-index: 1050 !important;
-    }
+    .modal { z-index: 1055 !important; }
+    .modal-backdrop { z-index: 1050 !important; }
 
     .status-badge {
         display: inline-flex;
@@ -402,19 +466,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         color: #d97706 !important;
         border: 1px solid rgba(245, 158, 11, 0.3);
     }
-
     .badge-screened {
         background-color: rgba(16, 185, 129, 0.15) !important;
         color: #059669 !important;
         border: 1px solid rgba(16, 185, 129, 0.3);
     }
-
     .badge-returned {
         background-color: rgba(239, 68, 68, 0.15) !important;
         color: #dc2626 !important;
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
-
     .badge-none {
         background-color: rgba(148, 163, 184, 0.15) !important;
         color: #64748b !important;
@@ -428,7 +489,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         color: #fbbf24 !important;
         border-color: rgba(251, 191, 36, 0.35);
     }
-
     [data-bs-theme="dark"] .badge-screened,
     [data-theme="dark"] .badge-screened,
     body.dark-mode .badge-screened {
@@ -436,7 +496,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         color: #34d399 !important;
         border-color: rgba(52, 211, 153, 0.35);
     }
-
     [data-bs-theme="dark"] .badge-returned,
     [data-theme="dark"] .badge-returned,
     body.dark-mode .badge-returned {
@@ -444,7 +503,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         color: #f87171 !important;
         border-color: rgba(248, 113, 113, 0.35);
     }
-
     [data-bs-theme="dark"] .badge-none,
     [data-theme="dark"] .badge-none,
     body.dark-mode .badge-none {
@@ -466,13 +524,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- Toast Notification Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
     <div id="liveToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
-            <div class="toast-body d-flex align-items-center gap-2" id="toastMessageBody">
-                <!-- Message injected via JS -->
-            </div>
+            <div class="toast-body d-flex align-items-center gap-2" id="toastMessageBody"></div>
             <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
@@ -487,13 +542,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let message = '';
     let isError = false;
 
-    if (phpError) {
-        message = phpError;
-        isError = true;
-    } else if (phpSuccess) {
-        message = phpSuccess;
-        isError = false;
-    }
+    if (phpError) { message = phpError; isError = true; }
+    else if (phpSuccess) { message = phpSuccess; isError = false; }
 
     if (message) {
         const toastEl = document.getElementById('liveToast');
@@ -512,27 +562,21 @@ document.addEventListener('DOMContentLoaded', function () {
             toastBody.innerHTML = `<i class="fas fa-check-circle fs-5 text-white"></i> <span class="text-white">${message}</span>`;
         }
         
-        const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
-        toast.show();
+        new bootstrap.Toast(toastEl, { delay: 5000 }).show();
     }
 });
 </script>
 <?php endif; ?>
 
 <div class="row g-3 mb-4">
-    <!-- Card 1: Pending Review -->
     <div class="col-12 col-sm-6 col-xl-4">
         <section class="card stat-card warning border shadow-sm position-relative h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-warning fs-4">
-                    <i class="fas fa-clock"></i>
-                </div>
+                <div class="stat-icon me-3 text-warning fs-4"><i class="fas fa-clock"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Review</h6>
                     <h4 class="mb-0 fw-bold text-warning" id="stat-pending"><?= (int) $pendingCount ?></h4>
-                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
-                        Awaiting screening
-                    </small>
+                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">Awaiting screening</small>
                 </div>
             </div>
             <a href="?screening_status=Pending" class="status-filter-card position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" data-status="Pending" style="width: 24px; height: 24px; font-size: 0.7rem; cursor:pointer;" title="Filter Pending">
@@ -541,19 +585,14 @@ document.addEventListener('DOMContentLoaded', function () {
         </section>
     </div>
 
-    <!-- Card 2: Signed / Sent to Dept. Head -->
     <div class="col-12 col-sm-6 col-xl-4">
         <section class="card stat-card success border shadow-sm position-relative h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-success fs-4">
-                    <i class="fas fa-file-signature"></i>
-                </div>
+                <div class="stat-icon me-3 text-success fs-4"><i class="fas fa-file-signature"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Signed / Sent to Dept. Head</h6>
                     <h4 class="mb-0 fw-bold text-success" id="stat-screened"><?= (int) $screenedCount ?></h4>
-                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
-                        Forwarded applications
-                    </small>
+                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">Forwarded applications</small>
                 </div>
             </div>
             <a href="?screening_status=Screened" class="status-filter-card position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" data-status="Screened" style="width: 24px; height: 24px; font-size: 0.7rem; cursor:pointer;" title="Filter Screened">
@@ -562,19 +601,14 @@ document.addEventListener('DOMContentLoaded', function () {
         </section>
     </div>
 
-    <!-- Card 3: Returned to Faculty -->
     <div class="col-12 col-sm-6 col-xl-4">
         <section class="card stat-card danger border-0 border-start border-4 shadow-sm position-relative h-100" style="border-left-color: #dc3545 !important;">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-danger fs-4">
-                    <i class="fas fa-undo"></i>
-                </div>
+                <div class="stat-icon me-3 text-danger fs-4"><i class="fas fa-undo"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Returned to Faculty</h6>
                     <h4 class="mb-0 fw-bold text-danger" id="stat-returned"><?= (int) $returnedCount ?></h4>
-                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
-                        Requires revision
-                    </small>
+                    <small class="text-muted fw-semibold" style="font-size: 0.75rem;">Requires revision</small>
                 </div>
             </div>
             <a href="?screening_status=Returned" class="status-filter-card position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" data-status="Returned" style="width: 24px; height: 24px; font-size: 0.7rem; cursor:pointer;" title="Filter Returned">
@@ -592,7 +626,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="input-group">
                     <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-search"></i></span>
                     <input type="text" name="q" id="searchInput" class="form-control border-start-0 ps-0 bg-light" placeholder="Faculty name or reference no."
-                           value="<?= htmlspecialchars($q, ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
+                           value="<?= htmlspecialchars($q ?? '', ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
                 </div>
             </div>
             
@@ -601,10 +635,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 <select name="leave_type" id="filterLeaveType" class="form-select bg-light">
                     <option value="">All Categories</option>
                     <?php 
-                        $types = ['Vacation Leave', 'Sick Leave', 'Emergency Leave', 'Study Leave'];
+                        $types = [
+                            'Sick Leave',
+                            'Vacation Leave',
+                            'Emergency Leave',
+                            'Maternity Leave',
+                            'Paternity Leave',
+                            'Magna Carta Leave',
+                            'VAWC Leave',
+                            'Sabbatical Leave',
+                            'Academic/Vacation Leave',
+                            'Special Leave Privileges',
+                            'Study Leave',
+                        ];
                         foreach ($types as $type): 
                     ?>
-                        <option value="<?= $type ?>" <?= $filterType === $type ? 'selected' : '' ?>><?= $type ?></option>
+                        <option value="<?= $type ?>" <?= ($filterType ?? '') === $type ? 'selected' : '' ?>><?= $type ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -614,7 +660,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <select name="screening_status" id="filterScreeningStatus" class="form-select bg-light">
                     <option value="">All</option>
                     <?php foreach (['Pending', 'Screened', 'Returned'] as $s): ?>
-                        <option value="<?= $s ?>" <?= $filterStatus === $s ? 'selected' : '' ?>><?= $s ?></option>
+                        <option value="<?= $s ?>" <?= ($filterStatus ?? '') === $s ? 'selected' : '' ?>><?= $s ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -631,6 +677,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <th>Type</th>
                     <th>Duration</th>
                     <th>Days</th>
+                    <th>Balance</th>
                     <th>Documents</th>
                     <th>Screening Status</th>
                     <th>Filed</th>
@@ -640,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <tbody id="leaveTableBody">
                 <?php if (empty($leaveRequests)): ?>
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">No leave requests found.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No leave requests found.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($leaveRequests as $r): ?>
@@ -656,6 +703,26 @@ document.addEventListener('DOMContentLoaded', function () {
                             
                             $facultyName = trim((string) ($r['faculty_name'] ?? ''));
                             $displayFacultyName = ($facultyName !== '') ? $facultyName : 'Missing Profile (ID: ' . (int)($r['faculty_id'] ?? 0) . ')';
+
+                            $remBal = $r['remaining_balance'];
+                            $totBal = $r['total_balance'];
+                            if ($remBal === null || $totBal === null) {
+                                $balanceHtml = '<span class="status-badge badge-none">—</span>';
+                            } else {
+                                $remBal = (int)$remBal;
+                                $totBal = (int)$totBal;
+                                $days   = (int)($r['days'] ?? 0);
+                                $willBe = $remBal - $days;
+
+                                if ($remBal <= 0 || $willBe < 0) {
+                                    $cls = 'badge-returned';
+                                } elseif ($willBe <= 2) {
+                                    $cls = 'badge-pending';
+                                } else {
+                                    $cls = 'badge-screened';
+                                }
+                                $balanceHtml = '<span class="status-badge ' . $cls . '">' . $remBal . ' / ' . $totBal . ' left</span>';
+                            }
                         ?>
                         <tr>
                             <td class="fw-bold ps-3">
@@ -668,6 +735,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?></span></td>
                             <td class="small text-muted"><?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?> &rarr; <?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><span class="fw-medium"><?= (int) ($r['days'] ?? 0) ?></span></td>
+                            <td><?= $balanceHtml ?></td>
                             <td>
                                 <?php if ($hasDocument): ?>
                                     <a href="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"
@@ -688,7 +756,10 @@ document.addEventListener('DOMContentLoaded', function () {
                                             data-type="<?= htmlspecialchars($r['leave_type'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                             data-start="<?= htmlspecialchars($r['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                             data-end="<?= htmlspecialchars($r['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-days="<?= (int)($r['days'] ?? 0) ?>"
                                             data-reason="<?= htmlspecialchars($r['reason'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-remaining="<?= $remBal === null ? '' : (int)$remBal ?>"
+                                            data-total="<?= $totBal === null ? '' : (int)$totBal ?>"
                                             data-has-doc="<?= $hasDocument ? 'true' : 'false' ?>"
                                             data-doc-url="<?= htmlspecialchars($documentUrl, ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-eye me-1"></i>Review
@@ -709,7 +780,6 @@ document.addEventListener('DOMContentLoaded', function () {
         </table>
     </div>
     
-    <!-- Pagination UI Container -->
     <div class="card-footer bg-transparent border-top p-3 d-flex justify-content-between align-items-center flex-wrap gap-2" id="paginationContainer">
         <?php if ($totalPages > 1): 
             $currentPage = isset($page) ? (int)$page : 1;
@@ -753,6 +823,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     
                     <dt class="col-4 text-muted small">Duration</dt>
                     <dd class="col-8" id="rm-duration"></dd>
+
+                    <dt class="col-4 text-muted small">Balance</dt>
+                    <dd class="col-8" id="rm-balance"></dd>
                     
                     <dt class="col-4 text-muted small mt-2">Reason</dt>
                     <dd class="col-8 mt-2 bg-light p-2 rounded small" id="rm-reason"></dd>
@@ -881,7 +954,6 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 
 <script>
-// AJAX-powered Filtering and Search Script
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
     const leaveTypeSelect = document.getElementById('filterLeaveType');
@@ -894,14 +966,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const leaveType = leaveTypeSelect.value;
         const status = screeningStatusSelect.value;
 
-        const params = new URLSearchParams({
-            q: query,
-            leave_type: leaveType,
-            screening_status: status,
-            page: page,
-            ajax: 1
-        });
-
         const newUrl = '?' + new URLSearchParams({
             q: query,
             leave_type: leaveType,
@@ -911,9 +975,7 @@ document.addEventListener('DOMContentLoaded', function() {
         window.history.pushState({path: newUrl}, '', newUrl);
 
         fetch(newUrl + '&ajax=1', {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(response => response.json())
         .then(data => {
@@ -933,9 +995,7 @@ document.addEventListener('DOMContentLoaded', function() {
             link.addEventListener('click', function(e) {
                 e.preventDefault();
                 const page = this.getAttribute('data-page');
-                if (page) {
-                    fetchFilteredData(page);
-                }
+                if (page) fetchFilteredData(page);
             });
         });
     }
@@ -943,18 +1003,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (searchInput) {
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                fetchFilteredData(1);
-            }, 400);
+            searchTimeout = setTimeout(() => fetchFilteredData(1), 400);
         });
     }
 
-    if (leaveTypeSelect) {
-        leaveTypeSelect.addEventListener('change', () => fetchFilteredData(1));
-    }
-    if (screeningStatusSelect) {
-        screeningStatusSelect.addEventListener('change', () => fetchFilteredData(1));
-    }
+    if (leaveTypeSelect) leaveTypeSelect.addEventListener('change', () => fetchFilteredData(1));
+    if (screeningStatusSelect) screeningStatusSelect.addEventListener('change', () => fetchFilteredData(1));
 
     document.querySelectorAll('.status-filter-card').forEach(card => {
         card.addEventListener('click', function(e) {
@@ -968,7 +1022,6 @@ document.addEventListener('DOMContentLoaded', function() {
     attachPaginationListeners();
 });
 
-// Event Delegation for Review Buttons
 document.addEventListener('click', function(event) {
     const btn = event.target.closest('.review-btn');
     if (!btn) return;
@@ -979,7 +1032,10 @@ document.addEventListener('click', function(event) {
         btn.dataset.type,
         btn.dataset.start,
         btn.dataset.end,
+        btn.dataset.days,
         btn.dataset.reason,
+        btn.dataset.remaining,
+        btn.dataset.total,
         btn.dataset.hasDoc === 'true',
         btn.dataset.docUrl
     );
@@ -987,15 +1043,29 @@ document.addEventListener('click', function(event) {
 
 let currentReviewId = null;
 
-function openReviewModal(id, faculty, type, startDate, endDate, reason, hasDocument, documentUrl) {
+function openReviewModal(id, faculty, type, startDate, endDate, days, reason, remaining, total, hasDocument, documentUrl) {
     currentReviewId = id;
     
-    const facultyContainer = document.getElementById('rm-faculty');
-    facultyContainer.innerHTML = faculty;
-
+    document.getElementById('rm-faculty').textContent = faculty;
     document.getElementById('rm-type').textContent = type;
-    document.getElementById('rm-duration').textContent = startDate + ' to ' + endDate;
+    document.getElementById('rm-duration').textContent = startDate + ' to ' + endDate + ' (' + days + ' day' + (days == 1 ? '' : 's') + ')';
     document.getElementById('rm-reason').textContent = reason || '(none provided)';
+
+    const balanceEl = document.getElementById('rm-balance');
+    if (remaining === '' || total === '') {
+        balanceEl.innerHTML = '<span class="text-muted">Not applicable</span>';
+    } else {
+        const rem = parseInt(remaining, 10);
+        const tot = parseInt(total, 10);
+        const d   = parseInt(days, 10);
+        const willBe = rem - d;
+        let cls = 'text-success';
+        if (rem <= 0 || willBe < 0) cls = 'text-danger';
+        else if (willBe <= 2) cls = 'text-warning';
+
+        balanceEl.innerHTML = '<span class="fw-semibold ' + cls + '">' + rem + ' of ' + tot + ' days remaining</span>' +
+                              '<br><small class="text-muted">After this request: ' + willBe + ' day' + (willBe === 1 ? '' : 's') + '</small>';
+    }
 
     const docLink = document.getElementById('rm-document-link');
     const docLabel = document.getElementById('rm-documents');
@@ -1057,12 +1127,8 @@ function applyThemeToSignaturePad() {
     }
 
     currentPenColor = getDefaultPenColor();
-    if (colorPicker) {
-        colorPicker.value = currentPenColor;
-    }
-    if (sigCtx) {
-        sigCtx.strokeStyle = currentPenColor;
-    }
+    if (colorPicker) colorPicker.value = currentPenColor;
+    if (sigCtx) sigCtx.strokeStyle = currentPenColor;
 }
 
 function initSignaturePad() {
@@ -1090,10 +1156,7 @@ function initSignaturePad() {
         function getPos(e) {
             const r = sigCanvas.getBoundingClientRect();
             const point = e.touches ? e.touches[0] : e;
-            return {
-                x: point.clientX - r.left,
-                y: point.clientY - r.top
-            };
+            return { x: point.clientX - r.left, y: point.clientY - r.top };
         }
 
         function start(e) {
@@ -1113,9 +1176,7 @@ function initSignaturePad() {
             sigCtx.stroke();
         }
 
-        function end() {
-            sigDrawing = false;
-        }
+        function end() { sigDrawing = false; }
 
         sigCanvas.addEventListener('mousedown', start);
         sigCanvas.addEventListener('mousemove', move);
@@ -1129,9 +1190,7 @@ function initSignaturePad() {
 
 function changePenColor(color) {
     currentPenColor = color;
-    if (sigCtx) {
-        sigCtx.strokeStyle = color;
-    }
+    if (sigCtx) sigCtx.strokeStyle = color;
 }
 
 function clearSignaturePad() {
@@ -1171,9 +1230,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const modal = bootstrap.Modal.getInstance(modalEl);
             if (modal) modal.hide();
             
-            if (typeof onConfirmCallback === 'function') {
-                onConfirmCallback();
-            }
+            if (typeof onConfirmCallback === 'function') onConfirmCallback();
         });
     }
 });

@@ -31,13 +31,69 @@ $facultyGroupedRequests = [];
 $formError = '';
 $formSuccess = '';
 
+$ACADEMIC_YEAR = '2026-2027';
+
 /**
- * Helper function to send email notifications via PHPMailer using your specific credentials
+ * Human-friendly label for a balance column prefix.
  */
-function sendLeaveStatusEmail($toEmail, $toName, $subject, $statusMessage, $details = [])
+function balanceLabel(string $key): string
+{
+    return match ($key) {
+        'sick_leave' => 'Sick Leave',
+        'vacation_leave' => 'Vacation Leave',
+        'emergency' => 'Emergency Leave',
+        'maternity' => 'Maternity Leave',
+        'paternity' => 'Paternity Leave',
+        'magna_carta' => 'Magna Carta Leave',
+        'vawc' => 'VAWC Leave',
+        'sabbatical' => 'Sabbatical Leave',
+        'admin_vacation' => 'Academic/Vacation Leave',
+        'admin_special' => 'Special Leave Privileges',
+        default => $key,
+    };
+}
+
+/**
+ * Ordered list of balance column prefixes as stored in faculty_db.leave_balances.
+ */
+function balanceColumnKeys(): array
+{
+    return [
+        'sick_leave',
+        'vacation_leave',
+        'emergency',
+        'maternity',
+        'paternity',
+        'magna_carta',
+        'vawc',
+        'sabbatical',
+        'admin_vacation',
+        'admin_special',
+    ];
+}
+
+/**
+ * Email helper — unchanged.
+ */
+function sendLeaveStatusEmail($toEmail, $toName, $subject, $statusMessage, $details = [], $status = '')
 {
     if (empty($toEmail) || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
         return false;
+    }
+
+    switch (strtolower((string) $status)) {
+        case 'approved':
+            $badgeLabel = 'Request Approved';
+            break;
+        case 'rejected':
+            $badgeLabel = 'Request Rejected';
+            break;
+        case 'document_required':
+            $badgeLabel = 'Action Required';
+            break;
+        default:
+            $badgeLabel = 'Leave Request Update';
+            break;
     }
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
@@ -45,39 +101,115 @@ function sendLeaveStatusEmail($toEmail, $toName, $subject, $statusMessage, $deta
         $mail->isSMTP();
         $mail->Host = defined('SMTP_HOST') ? SMTP_HOST : 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-
-        // Use constants from config.php if available, fallback to your credentials safely
         $mail->Username = defined('SMTP_USER') ? SMTP_USER : 'jcespejo002@gmail.com';
         $mail->Password = defined('SMTP_PASS') ? SMTP_PASS : 'cshwohpgllkqdtga';
-
         $mail->SMTPSecure = defined('SMTP_SECURE') ? SMTP_SECURE : PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = defined('SMTP_PORT') ? SMTP_PORT : 587;
 
-        // Recipients
         $mail->setFrom($mail->Username, 'Bestlink College No-Reply');
         $mail->addAddress($toEmail, $toName);
 
-        // Content
         $mail->isHTML(true);
         $mail->Subject = $subject;
 
-        $body = '
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-            <h2 style="color: #333;">Leave Request Update</h2>
-            <p>Dear <strong>' . htmlspecialchars($toName) . '</strong>,</p>
-            <p>' . $statusMessage . '</p>';
+        $logoUrl = defined('BASE_URL') ? rtrim(BASE_URL, '/') . '/images/bestlink.png' : '';
+        $logoHtml = $logoUrl !== '' ? "<img src='" . htmlspecialchars($logoUrl) . "' width='40' height='40' alt='Bestlink College of the Philippines' style='display:block; width:40px; height:40px; border-radius:6px;'>" : '';
+
+        $body = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>" . htmlspecialchars($subject) . "</title>
+            <style>
+                body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; }
+                table { border-collapse: collapse; }
+                img { border: 0; line-height: 100%; outline: none; text-decoration: none; }
+                @media screen and (max-width: 600px) {
+                    .email-container { width: 100% !important; }
+                    .content-padding { padding: 22px !important; }
+                }
+            </style>
+        </head>
+        <body style='margin: 0; padding: 0; background-color: #f4f4f4;'>
+            <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #f4f4f4; padding: 24px 0;'>
+                <tr>
+                    <td align='center'>
+                        <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='600' class='email-container' style='background-color: #121212; border-radius: 10px; overflow: hidden; border: 1px solid #333; width: 100%; max-width: 600px;'>
+
+                            <tr>
+                                <td style='background-color: #0077b3; height: 4px; line-height: 4px; font-size: 0;'>&nbsp;</td>
+                            </tr>
+
+                            <tr>
+                                <td style='background-color: #0093dd; padding: 22px 25px;'>
+                                    <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
+                                        <tr>
+                                            <td width='46' valign='middle' style='padding-right: 14px;'>{$logoHtml}</td>
+                                            <td valign='middle'>
+                                                <div style='color: #ffffff; font-size: 15px; font-weight: 700;'>BESTLINK COLLEGE OF THE PHILIPPINES</div>
+                                                <div style='color: rgba(255,255,255,0.75); font-size: 11px; font-weight: 600; letter-spacing: 1px; margin-top: 4px; text-transform: uppercase;'>{$badgeLabel}</div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class='content-padding' style='padding: 32px; color: #e0e0e0; font-size: 14px; line-height: 1.65;'>
+                                    <p style='margin: 0 0 16px 0;'>Dear <strong>" . htmlspecialchars($toName) . "</strong>,</p>
+                                    <p style='margin: 0 0 22px 0;'>{$statusMessage}</p>";
 
         if (!empty($details)) {
-            $body .= '<ul style="background: #f9f9f9; padding: 15px; border-radius: 4px; list-style: none;">';
+            $body .= "
+                                    <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #1e1e1e; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 22px;'>
+                                        <tr>
+                                            <td style='padding: 18px 20px;'>
+                                                <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>";
+            $rowIndex = 0;
             foreach ($details as $label => $val) {
-                $body .= '<li style="margin-bottom: 8px;"><strong>' . htmlspecialchars($label) . ':</strong> ' . htmlspecialchars($val) . '</li>';
+                $rowIndex++;
+                $padBottom = $rowIndex === count($details) ? '0' : '10px';
+                $body .= "
+                                                    <tr>
+                                                        <td width='130' style='color: #9a9a9a; font-weight: 600; font-size: 12.5px; padding-bottom: {$padBottom}; vertical-align: top;'>" . htmlspecialchars((string) $label) . "</td>
+                                                        <td style='color: #ffffff; font-size: 13.5px; font-weight: 600; padding-bottom: {$padBottom}; word-break: break-word;'>" . nl2br(htmlspecialchars((string) $val)) . "</td>
+                                                    </tr>";
             }
-            $body .= '</ul>';
+            $body .= "
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>";
         }
 
-        $body .= '
-            <p style="margin-top: 20px; font-size: 12px; color: #777;">This is an automated notification from the Faculty Management System. Please do not reply directly to this email.</p>
-        </div>';
+        $body .= "
+                                    <p style='margin: 0 0 22px 0; color: #9a9a9a; font-size: 12.5px;'>This is an automated notification from the Faculty Leave Management System. Please do not reply directly to this email — for questions, coordinate with your Department Head.</p>
+
+                                    <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
+                                        <tr>
+                                            <td style='color: #bbbbbb; padding-top: 6px; border-top: 1px solid #2a2a2a;'>
+                                                <p style='margin: 14px 0 0 0;'>Regards,</p>
+                                                <p style='margin: 4px 0 0 0; font-weight: bold; color: #ffffff;'>Faculty Administration</p>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td style='background-color: #0a0a0a; padding: 14px 25px; text-align: center;'>
+                                    <span style='color: #6b6b6b; font-size: 11px;'>&copy; " . date('Y') . " Bestlink College of the Philippines &middot; Faculty Management System</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        ";
 
         $mail->Body = $body;
         $mail->AltBody = strip_tags($statusMessage);
@@ -119,13 +251,83 @@ try {
             throw new RuntimeException('Your account could not be identified. Please log in again.');
         }
 
-        // Fetch request details along with faculty user info/email
+        if ($action === 'save_signature_data') {
+            try {
+                $dataUrl = trim((string) ($_POST['signature_data'] ?? ''));
+                if ($dataUrl === '') {
+                    echo json_encode(['success' => false, 'message' => 'No signature data provided.']);
+                    exit;
+                }
+
+                if (preg_match('/^data:image\/(\w+);base64,/', $dataUrl, $type)) {
+                    $data = substr($dataUrl, strpos($dataUrl, ',') + 1);
+                    $data = base64_decode($data);
+                    if ($data === false) {
+                        echo json_encode(['success' => false, 'message' => 'Base64 decode failed.']);
+                        exit;
+                    }
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Invalid data URL format.']);
+                    exit;
+                }
+
+                $uploadDir = __DIR__ . '/../../../../uploads/signatures/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+
+                $fileName = 'sig_' . $approverId . '_' . time() . '.png';
+                $filePath = $uploadDir . $fileName;
+                file_put_contents($filePath, $data);
+
+                $relativeSignaturePath = 'uploads/signatures/' . $fileName;
+
+                $checkProf = $pdo->prepare("SELECT id FROM faculty_db.faculty_profiles WHERE user_id = :uid1 OR id = :uid2 LIMIT 1");
+                $checkProf->execute([':uid1' => $approverId, ':uid2' => $approverId]);
+                $exists = $checkProf->fetchColumn();
+
+                if (!$exists) {
+                    $insProf = $pdo->prepare("
+                        INSERT INTO faculty_db.faculty_profiles (user_id, signature, created_at) 
+                        VALUES (:uid, :sig, NOW())
+                    ");
+                    $insProf->execute([
+                        ':uid' => $approverId,
+                        ':sig' => $relativeSignaturePath
+                    ]);
+                } else {
+                    $updSig = $pdo->prepare("
+                        UPDATE faculty_db.faculty_profiles 
+                        SET signature = :sig 
+                        WHERE user_id = :uid1 OR id = :uid2
+                    ");
+                    $updSig->execute([
+                        ':sig' => $relativeSignaturePath,
+                        ':uid1' => $approverId,
+                        ':uid2' => $approverId
+                    ]);
+                }
+
+                echo json_encode(['success' => true, 'path' => $relativeSignaturePath]);
+                exit;
+            } catch (Throwable $dbEx) {
+                echo json_encode(['success' => false, 'message' => 'DB Error: ' . $dbEx->getMessage()]);
+                exit;
+            }
+        }
+
         $stmt = $pdo->prepare("
-            SELECT lr.*, fp.first_name, fp.last_name, fp.user_id as profile_user_id,
-                   COALESCE(u.email, fp.email) AS faculty_email
+            SELECT lr.*,
+                   COALESCE(fp.first_name, fp2.first_name) AS first_name,
+                   COALESCE(fp.last_name,  fp2.last_name)  AS last_name,
+                   COALESCE(fp.user_id,    fp2.user_id)    AS profile_user_id,
+                   COALESCE(u.email, fp.email, fp2.email)  AS faculty_email,
+                   f.faculty_id AS faculty_record_id
             FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
-            LEFT JOIN users u ON u.id = fp.user_id
+            LEFT JOIN faculty_db.faculty f       ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_db.faculty_profiles fp  ON fp.email = f.email
+            LEFT JOIN faculty_db.faculty_profiles fp2 ON fp2.id = lr.faculty_id
+            LEFT JOIN sms2_db.users u ON u.id = COALESCE(fp.user_id, fp2.user_id)
             WHERE lr.id = :id
             LIMIT 1
         ");
@@ -210,7 +412,6 @@ try {
                 throw new RuntimeException('The leave request could not be approved.');
             }
 
-            // Send Email for Approval
             if (!empty($facultyEmail)) {
                 sendLeaveStatusEmail(
                     $facultyEmail,
@@ -222,7 +423,8 @@ try {
                         'Leave Type' => $leaveType,
                         'Start Date' => $request['start_date'] ?? '',
                         'End Date' => $request['end_date'] ?? ''
-                    ]
+                    ],
+                    'approved'
                 );
             }
 
@@ -266,7 +468,7 @@ try {
             $stmt->execute([':id' => $requestId]);
 
         } else {
-            // Reject Action
+            // Reject
             $updateFields = [
                 "status = 'Rejected'",
                 "approver_id = :approver_id",
@@ -297,7 +499,6 @@ try {
 
             $stmt->execute($params);
 
-            // Send Email for Rejection
             if (!empty($facultyEmail)) {
                 sendLeaveStatusEmail(
                     $facultyEmail,
@@ -308,7 +509,8 @@ try {
                         'Reference No' => $refNo,
                         'Leave Type' => $leaveType,
                         'Reason' => $comment ?: 'No reason provided.'
-                    ]
+                    ],
+                    'rejected'
                 );
             }
         }
@@ -344,39 +546,59 @@ try {
     $documentRequiredCount = $counts['document required'] ?? $counts['document_required'] ?? 0;
     $totalRequests = array_sum($counts);
 
-    $usageStmt = $pdo->query("
-        SELECT faculty_id, SUM(DATEDIFF(end_date, start_date) + 1) AS total_used_days
-        FROM faculty_db.leave_requests
-        WHERE LOWER(status) IN ('approved', 'finished') AND faculty_id IS NOT NULL
-        GROUP BY faculty_id
+    $balanceStmt = $pdo->prepare("
+        SELECT lb.*
+        FROM faculty_db.leave_balances lb
+        WHERE lb.academic_year = :yr
     ");
-    while ($row = $usageStmt->fetch(PDO::FETCH_ASSOC)) {
-        $fId = (int) $row['faculty_id'];
-        $days = (int) $row['total_used_days'];
-        $leaveUsageData[$fId] = $days;
+    $balanceStmt->execute([':yr' => $ACADEMIC_YEAR]);
+    $allBalances = [];
+    foreach ($balanceStmt->fetchAll(PDO::FETCH_ASSOC) as $b) {
+        $allBalances[(int) $b['faculty_id']] = $b;
     }
 
-    $sql = "SELECT lr.*, fp.id AS faculty_profile_id, fp.user_id AS faculty_user_id, fp.faculty_id AS faculty_identifier, CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name, 'Faculty Department' AS department, DATEDIFF(lr.end_date, lr.start_date) + 1 AS days FROM faculty_db.leave_requests lr LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id WHERE lr.screening_status = 'Screened' ORDER BY lr.created_at DESC";
+    $sql = "SELECT lr.*,
+                   COALESCE(fp.id, fp2.id) AS faculty_profile_id,
+                   COALESCE(fp.user_id, fp2.user_id) AS faculty_user_id,
+                   COALESCE(fp.faculty_id, fp2.faculty_id) AS faculty_identifier,
+                   COALESCE(
+                       NULLIF(CONCAT_WS(' ', fp.first_name, fp.last_name), ' '),
+                       NULLIF(CONCAT_WS(' ', fp2.first_name, fp2.last_name), ' ')
+                   ) AS faculty_name,
+                   'Faculty Department' AS department,
+                   DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
+                   f.faculty_id AS faculty_record_id
+            FROM faculty_db.leave_requests lr
+            LEFT JOIN faculty_db.faculty f       ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_db.faculty_profiles fp  ON fp.email = f.email
+            LEFT JOIN faculty_db.faculty_profiles fp2 ON fp2.id = lr.faculty_id
+            WHERE lr.screening_status = 'Screened'
+            ORDER BY lr.created_at DESC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
     $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     foreach ($leaveRequests as $req) {
-        $fId = (int) ($req['faculty_profile_id'] ?? 0);
-        if ($fId <= 0)
+        $fKey = (int) ($req['faculty_record_id'] ?? 0);
+        if ($fKey <= 0) {
+            $fKey = (int) ($req['faculty_profile_id'] ?? 0);
+        }
+        if ($fKey <= 0)
             continue;
 
-        if (!isset($facultyGroupedRequests[$fId])) {
-            $facultyGroupedRequests[$fId] = [
-                'faculty_profile_id' => $fId,
+        if (!isset($facultyGroupedRequests[$fKey])) {
+            $facultyGroupedRequests[$fKey] = [
+                'faculty_profile_id' => (int) ($req['faculty_profile_id'] ?? 0),
+                'faculty_record_id' => $fKey,
                 'faculty_name' => $req['faculty_name'] ?? 'Unknown Faculty',
                 'faculty_identifier' => $req['faculty_identifier'] ?? '',
                 'department' => $req['department'] ?? 'Faculty Department',
-                'requests' => []
+                'requests' => [],
+                'balance' => $allBalances[$fKey] ?? null,
             ];
         }
-        $facultyGroupedRequests[$fId]['requests'][] = $req;
+        $facultyGroupedRequests[$fKey]['requests'][] = $req;
     }
 
 } catch (Throwable $e) {
@@ -398,7 +620,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         white-space: nowrap !important;
     }
 
-    /* Fix for nested modal stacking order */
+    #signatureCanvas {
+        cursor: crosshair;
+        background-color: #fff;
+        touch-action: none;
+    }
+
     .modal.show {
         background-color: rgba(0, 0, 0, 0.4);
     }
@@ -410,6 +637,70 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     .modal-backdrop+.modal-backdrop {
         z-index: 1055 !important;
     }
+
+    .balance-mini {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.28rem 0.65rem;
+        font-size: 0.72rem;
+        font-weight: 650;
+        border-radius: 6px;
+        line-height: 1;
+        border: 1px solid;
+    }
+
+    .balance-mini.ok {
+        background: rgba(16, 185, 129, 0.12);
+        color: #059669;
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .balance-mini.low {
+        background: rgba(245, 158, 11, 0.15);
+        color: #d97706;
+        border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .balance-mini.danger {
+        background: rgba(239, 68, 68, 0.15);
+        color: #dc2626;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .balance-mini.none {
+        background: rgba(148, 163, 184, 0.15);
+        color: #64748b;
+        border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    [data-bs-theme="dark"] .balance-mini.ok,
+    body.dark-mode .balance-mini.ok {
+        background: rgba(16, 185, 129, 0.22);
+        color: #34d399;
+        border-color: rgba(52, 211, 153, 0.35);
+    }
+
+    [data-bs-theme="dark"] .balance-mini.low,
+    body.dark-mode .balance-mini.low {
+        background: rgba(245, 158, 11, 0.22);
+        color: #fbbf24;
+        border-color: rgba(251, 191, 36, 0.35);
+    }
+
+    [data-bs-theme="dark"] .balance-mini.danger,
+    body.dark-mode .balance-mini.danger {
+        background: rgba(239, 68, 68, 0.22);
+        color: #f87171;
+        border-color: rgba(248, 113, 113, 0.35);
+    }
+
+    [data-bs-theme="dark"] .balance-mini.none,
+    body.dark-mode .balance-mini.none {
+        background: rgba(148, 163, 184, 0.20);
+        color: #94a3b8;
+        border-color: rgba(148, 163, 184, 0.3);
+    }
 </style>
 
 <?php
@@ -418,14 +709,12 @@ if (function_exists('renderBreadcrumbs')) {
 }
 ?>
 
-<!-- Toast Container (Bottom Right) -->
+<!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
     <div id="actionToast" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive"
         aria-atomic="true">
         <div class="d-flex">
-            <div class="toast-body fw-semibold" id="toastMessage">
-                <!-- Message goes here -->
-            </div>
+            <div class="toast-body fw-semibold" id="toastMessage"></div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
                 aria-label="Close"></button>
         </div>
@@ -469,46 +758,104 @@ if (function_exists('renderBreadcrumbs')) {
 </div>
 
 <!-- Metric Summary Cards -->
-<div class="row g-3 mb-3">
-    <div class="col-12 col-md-4">
-        <section class="card border-0 border-start border-4 shadow-sm position-relative h-100"
-            style="border-left-color: var(--bs-warning) !important;">
-            <div class="card-body d-flex align-items-center">
-                <div class="me-3 text-warning fs-4 d-flex align-items-center justify-content-center"><i
-                        class="fas fa-clock"></i></div>
+<div class="row g-3 mb-4">
+    <!-- Pending Requests — Amber -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100"
+                style="width: 4px; background-color: #f59e0b; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #f59e0b;">
+                    <i class="fas fa-clock"></i>
+                </div>
                 <div>
-                    <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Pending Requests</h6>
-                    <h4 class="mb-0 fw-bold text-body"><?= $pendingCount ?></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Requests</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #f59e0b;"><?= $pendingCount ?></h4>
+                    <small class="fw-semibold" style="color: #f59e0b; font-size: 0.75rem;">
+                        Awaiting your action
+                    </small>
                 </div>
             </div>
+            <a href="#"
+                class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Pending">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
         </section>
     </div>
 
-    <div class="col-12 col-md-4">
-        <section class="card border-0 border-start border-4 shadow-sm position-relative h-100"
-            style="border-left-color: var(--bs-success) !important;">
-            <div class="card-body d-flex align-items-center">
-                <div class="me-3 text-success fs-4 d-flex align-items-center justify-content-center"><i
-                        class="fas fa-check-circle"></i></div>
+    <!-- Approved — Green -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100"
+                style="width: 4px; background-color: #10b981; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #10b981;">
+                    <i class="fas fa-check-circle"></i>
+                </div>
                 <div>
-                    <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Approved</h6>
-                    <h4 class="mb-0 fw-bold text-body"><?= $approvedCount ?></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Approved</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #10b981;"><?= $approvedCount ?></h4>
+                    <small class="fw-semibold" style="color: #10b981; font-size: 0.75rem;">
+                        Successfully processed
+                    </small>
                 </div>
             </div>
+            <a href="#"
+                class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Approved">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
         </section>
     </div>
 
-    <div class="col-12 col-md-4">
-        <section class="card border-0 border-start border-4 shadow-sm position-relative h-100"
-            style="border-left-color: var(--bs-danger) !important;">
-            <div class="card-body d-flex align-items-center">
-                <div class="me-3 text-danger fs-4 d-flex align-items-center justify-content-center"><i
-                        class="fas fa-times-circle"></i></div>
+    <!-- Rejected — Red -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100"
+                style="width: 4px; background-color: #ff4d4d; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #ff4d4d;">
+                    <i class="fas fa-times-circle"></i>
+                </div>
                 <div>
-                    <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Rejected</h6>
-                    <h4 class="mb-0 fw-bold text-body"><?= $rejectedCount ?></h4>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Rejected</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #ff4d4d;"><?= $rejectedCount ?></h4>
+                    <small class="fw-semibold" style="color: #ff4d4d; font-size: 0.75rem;">
+                        Declined applications
+                    </small>
                 </div>
             </div>
+            <a href="#"
+                class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Rejected">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+        </section>
+    </div>
+
+    <!-- Total Requests — Blue -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100"
+                style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center ps-4">
+                <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
+                    <i class="fas fa-file-signature"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Requests</h6>
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= $totalRequests ?></h4>
+                    <small class="fw-semibold" style="color: #0d6efd; font-size: 0.75rem;">
+                        All leave submissions
+                    </small>
+                </div>
+            </div>
+            <a href="#"
+                class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                style="width: 24px; height: 24px; font-size: 0.7rem;" title="View All">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
         </section>
     </div>
 </div>
@@ -570,16 +917,12 @@ if (function_exists('renderBreadcrumbs')) {
                             $totalFacultyRequests = count($requests);
                             $pendingFacultyRequests = 0;
                             $allRefs = [];
-                            $allTypes = [];
-                            $allStatuses = [];
 
                             foreach ($requests as $r) {
                                 $stRaw = strtolower(trim($r['status'] ?? 'pending'));
                                 if ($stRaw === 'pending')
                                     $pendingFacultyRequests++;
                                 $allRefs[] = strtolower($r['request_ref'] ?? ('lr-' . $r['id']));
-                                $allTypes[] = strtolower($r['leave_type'] ?? '');
-                                $allStatuses[] = $stRaw;
                             }
 
                             $encodedGroup = htmlspecialchars(json_encode($group, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
@@ -646,18 +989,11 @@ if (function_exists('renderBreadcrumbs')) {
             </div>
             <div class="modal-body p-4">
                 <div class="mb-4">
-                    <h6 class="fw-bold text-body mb-2"><i class="fas fa-chart-pie text-primary me-2"></i> Semester Leave
-                        Balance Pool (7 Days Max)</h6>
-                    <div class="p-3 border rounded bg-body-tertiary">
-                        <div class="d-flex justify-content-between mb-1 small fw-semibold text-body">
-                            <span>Total Used</span>
-                            <span id="modal-pool-text">0 / 7 Days</span>
-                        </div>
-                        <div class="progress" style="height: 10px;">
-                            <div id="modal-pool-progress" class="progress-bar bg-primary" role="progressbar"
-                                style="width: 0%;"></div>
-                        </div>
-                    </div>
+                    <h6 class="fw-bold text-body mb-2">
+                        <i class="fas fa-chart-pie text-primary me-2"></i>
+                        Leave Balance — <?= htmlspecialchars($ACADEMIC_YEAR) ?>
+                    </h6>
+                    <div id="modal-balance-grid" class="row g-2"></div>
                 </div>
 
                 <div class="table-responsive">
@@ -669,6 +1005,7 @@ if (function_exists('renderBreadcrumbs')) {
                                 <th>Duration</th>
                                 <th>Reason</th>
                                 <th>Status</th>
+                                <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="modal-requests-tbody"></tbody>
@@ -704,7 +1041,28 @@ if (function_exists('renderBreadcrumbs')) {
 
 <script>
     const BASE_URL = <?= json_encode(rtrim(BASE_URL, '/')) ?>;
-    const leaveUsageData = <?= json_encode($leaveUsageData) ?>;
+    const ACADEMIC_YEAR = <?= json_encode($ACADEMIC_YEAR) ?>;
+
+    /* Ordered balance column keys, matching the current faculty_db.leave_balances schema */
+    const BALANCE_KEYS = [
+        'sick_leave', 'vacation_leave', 'emergency',
+        'maternity', 'paternity',
+        'magna_carta', 'vawc', 'sabbatical',
+        'admin_vacation', 'admin_special'
+    ];
+
+    const BALANCE_LABELS = {
+        sick_leave: 'Sick Leave',
+        vacation_leave: 'Vacation Leave',
+        emergency: 'Emergency Leave',
+        maternity: 'Maternity Leave',
+        paternity: 'Paternity Leave',
+        magna_carta: 'Magna Carta Leave',
+        vawc: 'VAWC Leave',
+        sabbatical: 'Sabbatical Leave',
+        admin_vacation: 'Academic/Vacation Leave',
+        admin_special: 'Special Leave Privileges'
+    };
 
     let pendingActionData = { action: '', id: '', comment: '' };
 
@@ -784,7 +1142,7 @@ if (function_exists('renderBreadcrumbs')) {
         bsToast.show();
     }
 
-    // Live Search Filter Implementation
+    // Live Search Filter
     document.getElementById('tableSearchInput').addEventListener('input', function () {
         const query = this.value.toLowerCase().trim();
         const rows = document.querySelectorAll('#leaveRequestsTable .faculty-row');
@@ -800,15 +1158,78 @@ if (function_exists('renderBreadcrumbs')) {
         });
     });
 
+    /**
+     * Renders a leave-balance grid inside the modal for the selected faculty.
+     */
+    function renderBalanceGrid(balance) {
+        const grid = document.getElementById('modal-balance-grid');
+        grid.innerHTML = '';
+
+        if (!balance) {
+            grid.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-secondary small mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    No leave balance record found for this faculty for ${ACADEMIC_YEAR}.
+                </div>
+            </div>`;
+            return;
+        }
+
+        const activeCols = BALANCE_KEYS.filter(k => {
+            const total = parseInt(balance[k + '_total'] ?? 0, 10);
+            return total > 0;
+        });
+
+        if (activeCols.length === 0) {
+            grid.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-secondary small mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    No active leave categories for this faculty.
+                </div>
+            </div>`;
+            return;
+        }
+
+        activeCols.forEach(key => {
+            const total = parseInt(balance[key + '_total'] ?? 0, 10);
+            const used = parseInt(balance[key + '_used'] ?? 0, 10);
+            const bal = Math.max(0, total - used);
+            const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+
+            let cls = 'ok';
+            if (bal <= 0) cls = 'danger';
+            else if (bal <= 2) cls = 'low';
+            if (pct >= 75) cls = 'danger';
+            else if (pct >= 40) cls = cls === 'ok' ? 'low' : cls;
+
+            const card = document.createElement('div');
+            card.className = 'col-12 col-sm-6 col-lg-4';
+            card.innerHTML = `
+            <div class="border rounded p-2 bg-body-tertiary h-100">
+                <div class="d-flex justify-content-between align-items-baseline mb-1">
+                    <small class="fw-semibold text-body-secondary text-truncate" style="max-width: 60%;" title="${BALANCE_LABELS[key]}">
+                        ${BALANCE_LABELS[key]}
+                    </small>
+                    <span class="balance-mini ${cls}">${bal} / ${total}</span>
+                </div>
+                <div class="progress" style="height: 5px;">
+                    <div class="progress-bar" role="progressbar"
+                         style="width: ${pct}%; background-color: ${cls === 'danger' ? '#dc3545' : (cls === 'low' ? '#fd7e14' : '#198754')};"></div>
+                </div>
+                <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">
+                    ${used} used · ${bal} left
+                </small>
+            </div>`;
+            grid.appendChild(card);
+        });
+    }
+
     function showFacultyRequestsModal(group) {
         document.getElementById('modal-faculty-title-name').textContent = group.faculty_name;
-        const totalUsed = leaveUsageData[group.faculty_profile_id] || 0;
-        const maxLimit = 7;
-        const percentage = Math.min(100, Math.round((totalUsed / maxLimit) * 100));
 
-        document.getElementById('modal-pool-text').textContent = `${totalUsed} / ${maxLimit} Days`;
-        const progressBar = document.getElementById('modal-pool-progress');
-        progressBar.style.width = `${percentage}%`;
+        renderBalanceGrid(group.balance || null);
 
         const tbody = document.getElementById('modal-requests-tbody');
         tbody.innerHTML = '';
@@ -819,20 +1240,28 @@ if (function_exists('renderBreadcrumbs')) {
             group.requests.forEach(req => {
                 const reqId = req.id;
                 const ref = req.request_ref || ('LR-' + reqId);
-                const statusRaw = (req.status || 'pending').toLowerCase();
+                const statusRaw = (req.status || 'pending').toLowerCase().replace(/\s+/g, '_');
+
+                const statusClass = {
+                    pending: 'bg-warning-subtle text-warning-emphasis',
+                    approved: 'bg-success-subtle text-success-emphasis',
+                    rejected: 'bg-danger-subtle text-danger-emphasis',
+                    document_required: 'bg-info-subtle text-info-emphasis',
+                    returned: 'bg-danger-subtle text-danger-emphasis'
+                }[statusRaw] || 'bg-secondary-subtle text-secondary-emphasis';
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                <td><strong class="font-monospace text-body">${ref}</strong></td>
+                <td><strong class="font-monospace text-body">${ref}</strong><br><small class="text-muted">${req.created_at || ''}</small></td>
                 <td><span class="badge bg-primary bg-opacity-10 text-info">${req.leave_type}</span></td>
                 <td><span class="badge bg-light text-dark">${req.days} day(s)</span></td>
-                <td><small class="text-truncate" style="max-width: 150px; display:inline-block;"><?= htmlspecialchars($req['reason'] ?? '') ?></small></td>
-                <td><span class="badge bg-warning-subtle text-warning-emphasis">${statusRaw}</span></td>
+                <td><small class="text-truncate d-inline-block" style="max-width: 200px;" title="${(req.reason || '').replace(/"/g, '&quot;')}">${req.reason || ''}</small></td>
+                <td><span class="badge ${statusClass}">${statusRaw.replace(/_/g, ' ')}</span></td>
                 <td class="text-end text-nowrap">
-                    ${statusRaw === 'pending' ? `
+                    ${(statusRaw === 'pending' || statusRaw === 'document_required') ? `
                         <button type="button" class="btn btn-sm btn-outline-success" onclick="approveRequest(${reqId})" title="Approve"><i class="fas fa-check"></i></button>
                         <button type="button" class="btn btn-sm btn-outline-danger" onclick="rejectRequest(${reqId})" title="Reject"><i class="fas fa-times"></i></button>
-                    ` : ''}
+                    ` : '<span class="text-muted small">—</span>'}
                 </td>
             `;
                 tbody.appendChild(tr);
@@ -844,7 +1273,6 @@ if (function_exists('renderBreadcrumbs')) {
     function rejectRequest(id) {
         if (!id) return;
 
-        // Hide the faculty requests modal first to prevent 3-tier modal backdrop conflicts
         const facultyModal = bootstrap.Modal.getInstance(document.getElementById('facultyRequestsModal'));
         if (facultyModal) {
             facultyModal.hide();
@@ -853,7 +1281,6 @@ if (function_exists('renderBreadcrumbs')) {
         document.getElementById('rejectModal').dataset.requestId = id;
         document.getElementById('reject-reason').value = '';
 
-        // Small timeout ensures clean DOM transition between modals
         setTimeout(() => {
             bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectModal')).show();
         }, 150);

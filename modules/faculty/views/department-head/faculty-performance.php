@@ -20,14 +20,29 @@ $breadcrumbs  = [
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
-
 ?>
+
+<style>
+    #aiModalBody .ai-insight-text {
+        font-size: 14px;
+        line-height: 1.65;
+        color: var(--bs-body-color);
+        white-space: pre-wrap;
+    }
+</style>
 
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
         <h1><i class="fas fa-chalkboard-teacher text-sms-primary me-2"></i> Faculty Performance</h1>
         <p class="text-muted mb-0">Showing faculty assigned to <strong><?= htmlspecialchars($headDepartment, ENT_QUOTES, 'UTF-8') ?></strong></p>
         <small class="text-muted">Overall = 50% Student + 30% Peer + 20% Department Head</small>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2"
+                onclick="openAiModal('department')">
+            <i class="fas fa-wand-magic-sparkles"></i>
+            <span>AI Department Summary</span>
+        </button>
     </div>
 </div>
 
@@ -200,6 +215,33 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
+<!-- AI Insight Modal -->
+<div class="modal fade" id="aiModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="aiModalTitle">
+          <i class="fas fa-wand-magic-sparkles text-primary me-2"></i>
+          <span id="aiModalTitleText">AI Insight</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="aiModalBody">
+        <div class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="text-muted mt-2 mb-0">Analyzing evaluation data…</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-outline-secondary" id="aiRegenBtn" onclick="regenAiInsight()">
+          <i class="fas fa-rotate me-1"></i>Regenerate
+        </button>
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 let searchDebounce = null;
 
@@ -248,11 +290,64 @@ function viewPerformanceDetails(name, id) {
     alert("Viewing performance details for: " + name);
 }
 
-function openAiRecommendations(name) {
-    alert("Generating AI recommendations for: " + name);
+/* ---------- AI Insight Modal ---------- */
+let aiModal = null;
+let aiCurrentReq = null;
+
+function openAiModal(scope, facultyId) {
+    if (!aiModal) aiModal = new bootstrap.Modal(document.getElementById('aiModal'));
+    aiCurrentReq = { scope };
+    if (scope === 'faculty' && facultyId) aiCurrentReq.faculty_id = facultyId;
+
+    document.getElementById('aiModalTitleText').innerText =
+        scope === 'faculty'
+            ? 'AI Performance Insight'
+            : 'AI Department Summary';
+
+    document.getElementById('aiModalBody').innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2 mb-0">Analyzing evaluation data…</p>
+        </div>`;
+
+    aiModal.show();
+    callAiEndpoint(aiCurrentReq);
+}
+
+function regenAiInsight() {
+    if (aiCurrentReq) callAiEndpoint(aiCurrentReq, true);
+}
+
+function callAiEndpoint(req, forceRefresh = false) {
+    const body = Object.assign({}, req);
+    if (forceRefresh) body.force = true;
+
+    fetch('<?= BASE_URL ?>/modules/faculty/controllers/ai-insight.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify(body)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) {
+            document.getElementById('aiModalBody').innerHTML =
+                `<div class="alert alert-warning mb-0"><i class="fas fa-triangle-exclamation me-2"></i>${escapeHtml(data.message)}</div>`;
+            return;
+        }
+        document.getElementById('aiModalBody').innerHTML =
+            `<div class="ai-insight-text">${escapeHtml(data.insight)}</div>`;
+    })
+    .catch(() => {
+        document.getElementById('aiModalBody').innerHTML =
+            `<div class="alert alert-warning mb-0"><i class="fas fa-triangle-exclamation me-2"></i>Could not reach GPT 4.1. Check your connection and retry.</div>`;
+    });
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 </script>
 
-<?php 
-require_once __DIR__ . '/../../../../includes/layout-end.php'; 
+<?php
+require_once __DIR__ . '/../../../../includes/layout-end.php';
 ?>
