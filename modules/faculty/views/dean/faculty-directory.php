@@ -508,19 +508,40 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </div>
                     </div>
 
-                    <div class="row g-3 mb-3">
-                        <div class="col-6 col-sm-4">
-                            <label for="birthdate" class="form-label text-muted small fw-bold">Birthdate</label>
-                            <input type="date" id="birthdate" name="birthdate" class="form-control bg-body border-secondary-subtle text-body" required>
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-12 col-md-6">
+                            <label for="birthMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-day text-primary me-1"></i> Birthdate
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="birthMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">Jan</option>
+                                    <option value="02">Feb</option>
+                                    <option value="03">Mar</option>
+                                    <option value="04">Apr</option>
+                                    <option value="05">May</option>
+                                    <option value="06">Jun</option>
+                                    <option value="07">Jul</option>
+                                    <option value="08">Aug</option>
+                                    <option value="09">Sep</option>
+                                    <option value="10">Oct</option>
+                                    <option value="11">Nov</option>
+                                    <option value="12">Dec</option>
+                                </select>
+                                <input type="number" id="birthDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="DD" min="1" max="31" required>
+                                <input type="number" id="birthYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="YYYY" min="1900" max="2026" required>
+                            </div>
+                            <input type="hidden" id="birthdate" name="birthdate" required>
                         </div>
 
-                        <div class="col-6 col-sm-4">
-                            <label for="addAge" class="form-label text-muted small fw-bold">Age</label>
-                            <input type="text" id="addAge" class="form-control bg-body border-secondary-subtle text-body" placeholder="Age" readonly>
+                        <div class="col-6 col-md-2">
+                            <label for="addAge" class="form-label text-muted small fw-bold mb-1">Age</label>
+                            <input type="text" id="addAge" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Age" readonly>
                         </div>
 
-                        <div class="col-6 col-sm-4">
-                            <label for="sex" class="form-label text-muted small fw-bold">Sex</label>
+                        <div class="col-6 col-md-4">
+                            <label for="sex" class="form-label text-muted small fw-bold mb-1">Sex</label>
                             <select id="sex" name="sex" class="form-select bg-body border-secondary-subtle text-body" required>
                                 <option value="MALE">Male</option>
                                 <option value="FEMALE">Female</option>
@@ -618,6 +639,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusFilter = document.getElementById('statusFilter');
     const pagination = document.getElementById('directoryPagination');
     const birthdateInput = document.getElementById('birthdate');
+    const birthMonthSel = document.getElementById('birthMonthSelect');
+    const birthDayInp   = document.getElementById('birthDayInput');
+    const birthYearInp  = document.getElementById('birthYearInput');
     const ageInput = document.getElementById('addAge');
     const employmentStatus = document.getElementById('employmentStatus');
     const contractualEndCol = document.getElementById('contractualEndCol');
@@ -645,10 +669,32 @@ document.addEventListener('DOMContentLoaded', () => {
         return age >= 0 ? age : '';
     }
 
-    function updateAge() {
-        if (birthdateInput && ageInput) {
-            ageInput.value = calculateAge(birthdateInput.value);
+    function syncBirthdate() {
+        if (!birthMonthSel || !birthDayInp || !birthYearInp || !birthdateInput || !ageInput) {
+            return;
         }
+
+        const m = birthMonthSel.value;
+        const d = parseInt(birthDayInp.value, 10);
+        const y = parseInt(birthYearInp.value, 10);
+
+        if (!m || isNaN(d) || isNaN(y) || y < 1900 || y > 2026) {
+            birthdateInput.value = '';
+            ageInput.value = '';
+            return;
+        }
+
+        const formatted = `${y}-${m}-${String(d).padStart(2, '0')}`;
+
+        const parsed = new Date(formatted);
+        if (Number.isNaN(parsed.getTime())) {
+            birthdateInput.value = '';
+            ageInput.value = '';
+            return;
+        }
+
+        birthdateInput.value = formatted;
+        ageInput.value = calculateAge(formatted);
     }
 
     function updateContractualEnd() {
@@ -817,7 +863,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (birthdateInput) birthdateInput.addEventListener('change', updateAge);
+    if (birthMonthSel) birthMonthSel.addEventListener('change', syncBirthdate);
+    if (birthDayInp)   birthDayInp.addEventListener('input', syncBirthdate);
+    if (birthYearInp)  birthYearInp.addEventListener('input', syncBirthdate);
     if (employmentStatus) employmentStatus.addEventListener('change', updateContractualEnd);
 
     if (searchInput) {
@@ -841,7 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    updateAge();
+    syncBirthdate();
     updateContractualEnd();
     renderDirectory();
     setupCardModalHandlers();
