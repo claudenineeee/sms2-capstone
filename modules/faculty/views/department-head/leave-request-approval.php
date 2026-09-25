@@ -49,6 +49,7 @@ function balanceLabel(string $key): string
         'sabbatical' => 'Sabbatical Leave',
         'admin_vacation' => 'Academic/Vacation Leave',
         'admin_special' => 'Special Leave Privileges',
+        'study_leave' => 'Study Leave',
         default => $key,
     };
 }
@@ -69,6 +70,7 @@ function balanceColumnKeys(): array
         'sabbatical',
         'admin_vacation',
         'admin_special',
+        'study_leave',
     ];
 }
 
@@ -1048,7 +1050,7 @@ if (function_exists('renderBreadcrumbs')) {
         'sick_leave', 'vacation_leave', 'emergency',
         'maternity', 'paternity',
         'magna_carta', 'vawc', 'sabbatical',
-        'admin_vacation', 'admin_special'
+        'admin_vacation', 'admin_special', 'study_leave'
     ];
 
     const BALANCE_LABELS = {
@@ -1061,7 +1063,8 @@ if (function_exists('renderBreadcrumbs')) {
         vawc: 'VAWC Leave',
         sabbatical: 'Sabbatical Leave',
         admin_vacation: 'Academic/Vacation Leave',
-        admin_special: 'Special Leave Privileges'
+        admin_special: 'Special Leave Privileges',
+        study_leave: 'Study Leave'
     };
 
     let pendingActionData = { action: '', id: '', comment: '' };

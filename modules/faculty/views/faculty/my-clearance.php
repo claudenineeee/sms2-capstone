@@ -761,6 +761,31 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
         background: var(--bs-tertiary-bg, rgba(0, 0, 0, .02));
     }
 
+    /* Dark mode: suppress bright Bootstrap alert-success & body-tertiary panels */
+    [data-bs-theme="dark"] .clr-form-footer,
+    [data-theme="dark"] .clr-form-footer {
+        background: rgba(255, 255, 255, 0.04) !important;
+        border-top-color: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    [data-bs-theme="dark"] .alert.alert-success,
+    [data-theme="dark"] .alert.alert-success {
+        background-color: rgba(34, 197, 94, 0.12) !important;
+        border-color: rgba(34, 197, 94, 0.25) !important;
+        color: #86efac !important;
+    }
+
+    [data-bs-theme="dark"] .alert.alert-success strong,
+    [data-theme="dark"] .alert.alert-success strong {
+        color: #bbf7d0 !important;
+    }
+
+    [data-bs-theme="dark"] .p-3.bg-body-tertiary.rounded-3.border,
+    [data-theme="dark"] .p-3.bg-body-tertiary.rounded-3.border {
+        background-color: rgba(255, 255, 255, 0.04) !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+    }
+
     .btn-clr-primary {
         background: linear-gradient(135deg, #1a2e5a, #0d6efd);
         color: #fff;
@@ -932,7 +957,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
     .signature-pad-container {
         border: 2px dashed var(--bs-border-color);
         border-radius: .75rem;
-        background: var(--bs-tertiary-bg);
+        background: #ffffff;
         position: relative;
         overflow: hidden;
         cursor: crosshair;
@@ -940,11 +965,18 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
         max-width: 100%;
     }
 
+    [data-bs-theme="dark"] .signature-pad-container,
+    [data-theme="dark"] .signature-pad-container {
+        background: #1e293b !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+    }
+
     .signature-pad-canvas {
         display: block;
         width: 100%;
         height: 140px;
         touch-action: none;
+        background: transparent;
     }
 
     .signature-baseline {
@@ -1782,7 +1814,8 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
                                             <i class="fas fa-lock text-secondary mb-2" style="font-size:1.75rem;"></i>
                                             <div class="fw-semibold text-secondary small mb-1">Clearance Step Locked</div>
                                             <div class="upload-hint-text text-body-secondary small">
-                                                <?= facultyClearanceEsc($uploadHint) ?></div>
+                                                <?= facultyClearanceEsc($uploadHint) ?>
+                                            </div>
                                         </div>
                                     <?php else: ?>
                                         <div class="upload-zone-inner <?= $uploadBlocked ? 'opacity-50' : '' ?>"
@@ -2013,7 +2046,8 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
                                 </div>
                                 <?php if ($status !== 'Cleared'): ?>
                                     <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
+                                        <button type="button"
+                                            class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
                                             onclick="confirmResetFacultySignature()" title="Reset Declaration Signature">
                                             <i class="fas fa-rotate-left"></i> Reset Signature
                                         </button>
@@ -2231,7 +2265,8 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
             </div>
             <div class="modal-body px-4 py-3">
                 <p class="text-body-secondary small mb-0">
-                    This will clear all uploaded documents, official clearance signatures, remove office review flags, and reset your status tracker
+                    This will clear all uploaded documents, official clearance signatures, remove office review flags,
+                    and reset your status tracker
                     back to <strong>Step 1: Faculty Submit (0%)</strong>.
                 </p>
             </div>
@@ -2267,7 +2302,8 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
             </div>
             <div class="modal-body px-4 py-3">
                 <p class="text-body-secondary small mb-0">
-                    This will clear all <strong>official clearance signatures</strong> and reset office approvals back to pending state.
+                    This will clear all <strong>official clearance signatures</strong> and reset office approvals back
+                    to pending state.
                 </p>
             </div>
             <div class="modal-footer border-0 pt-0 px-4 pb-4 d-flex gap-2">
@@ -2655,7 +2691,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
                 const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark'
                     || document.documentElement.classList.contains('dark-mode')
                     || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !document.documentElement.hasAttribute('data-bs-theme'));
-                ctx.strokeStyle = isDark ? '#ffffff' : '#000000';
+                ctx.strokeStyle = isDark ? '#e2e8f0' : '#1e293b';
             }
         }
         resizeCanvas();
@@ -2688,7 +2724,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
             const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark'
                 || document.documentElement.classList.contains('dark-mode')
                 || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !document.documentElement.hasAttribute('data-bs-theme'));
-            ctx.strokeStyle = isDark ? '#ffffff' : '#000000';
+            ctx.strokeStyle = isDark ? '#e2e8f0' : '#1e293b';
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
             hasDrawnSignature = true;

@@ -597,18 +597,10 @@ $scopeItems = $scopeItems ?? ($sections[$targetRequirementName]['items'] ?? [
             <div class="modal-header py-3 px-4 text-white"
                 style="background: linear-gradient(135deg, #0b345f 0%, #0d2847 100%);">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="fas fa-shield-halved fs-5 text-white"></i>
-                    <h5 class="modal-title fw-bold text-white mb-0" style="letter-spacing: -0.01em;">Employee Clearance
-                    </h5>
+                    <i class="fas fa-circle-user text-white"></i>
+                    <h5 class="modal-title fw-bold text-white mb-0" style="letter-spacing: -0.01em;"><?= htmlspecialchars($officeLabel) ?></h5>
                 </div>
-                <div class="d-flex align-items-center gap-3">
-                    <div
-                        class="d-none d-sm-flex align-items-center gap-2 text-white-50 small bg-white bg-opacity-10 px-3 py-1 rounded-pill">
-                        <i class="fas fa-circle-user text-white"></i>
-                        <span class="text-white fw-medium"><?= htmlspecialchars($officeLabel) ?></span>
-                    </div>
-                    <button class="btn-close btn-close-white ms-1" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
+                <button class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body p-3 p-md-4">

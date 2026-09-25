@@ -719,7 +719,7 @@ CREATE TABLE `leave_requests` (
   `id` int(10) UNSIGNED NOT NULL,
   `request_ref` varchar(20) NOT NULL,
   `faculty_id` int(10) UNSIGNED NOT NULL,
-  `leave_type` enum('Vacation Leave','Sick Leave','Emergency Leave','Study Leave') NOT NULL,
+  `leave_type` varchar(100) NOT NULL,
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `total_days` int(10) UNSIGNED NOT NULL,

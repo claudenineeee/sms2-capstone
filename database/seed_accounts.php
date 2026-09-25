@@ -12,7 +12,73 @@ if (PHP_SAPI !== 'cli') {
 require_once __DIR__ . '/../config/config.php';
 require_once ROOT_PATH . '/config/database.php';
 
-$pdo = getDatabaseConnection();
+try {
+    $pdo = getDatabaseConnection();
+} catch (Throwable $e) {
+    echo "ERROR: Cannot connect to database." . PHP_EOL;
+    echo "Host: " . (defined('DB_HOST') ? DB_HOST : 'not defined') . PHP_EOL;
+    echo "Database: " . (defined('DB_NAME') ? DB_NAME : 'not defined') . PHP_EOL;
+    echo "User: " . (defined('DB_USER') ? DB_USER : 'not defined') . PHP_EOL;
+    echo "Details: " . $e->getMessage() . PHP_EOL;
+    exit(1);
+}
+
+// ── Auto-import schemas if tables do not exist yet ────────────────────────
+try {
+    $hasRoles = $pdo->query("SHOW TABLES LIKE 'roles'")->rowCount() > 0;
+    if (!$hasRoles) {
+        echo "Database tables not found. Auto-importing sms2_db.sql..." . PHP_EOL;
+        $schemaFile = __DIR__ . '/sms2_db.sql';
+        if (is_readable($schemaFile)) {
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+            $sql = file_get_contents($schemaFile);
+            $pdo->exec($sql);
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+            echo "  ✓ sms2_db.sql schema imported successfully." . PHP_EOL;
+        } else {
+            echo "  ✗ sms2_db.sql not found!" . PHP_EOL;
+        }
+    }
+
+    $hasFaculty = $pdo->query("SHOW TABLES LIKE 'faculty_profiles'")->rowCount() > 0;
+    if (!$hasFaculty) {
+        $facultySqlFile = ROOT_PATH . '/modules/faculty/faculty_db.sql';
+        if (is_readable($facultySqlFile)) {
+            echo "Auto-importing faculty_db.sql..." . PHP_EOL;
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+            $fsql = file_get_contents($facultySqlFile);
+            $pdo->exec($fsql);
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+            echo "  ✓ faculty_db.sql schema imported successfully." . PHP_EOL;
+        }
+    }
+
+    // Seed basic system settings if table is empty
+    $hasSettings = (int) ($pdo->query("SELECT COUNT(*) AS c FROM system_settings")->fetch()['c'] ?? 0);
+    if ($hasSettings === 0) {
+        $settings = [
+            'session_timeout_minutes' => '30',
+            'max_failed_logins' => '3',
+            'lockout_value' => '5',
+            'lockout_unit' => 'minutes',
+            'lockout_seconds' => '300',
+            'lockout_minutes' => '5',
+            'min_password_length' => '8',
+            'password_expiry_days' => '0',
+            'require_password_change_first_login' => '0',
+            'csrf_enabled' => '1',
+            'mail_from_email' => 'noreply@bestlink.edu.ph',
+            'mail_from_name' => 'SMS 2',
+        ];
+        $insSet = $pdo->prepare('INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
+        foreach ($settings as $k => $v) {
+            $insSet->execute([$k, $v]);
+        }
+        echo "  ✓ System settings initialized." . PHP_EOL;
+    }
+} catch (Throwable $e) {
+    echo "Note during schema check: " . $e->getMessage() . PHP_EOL;
+}
 
 echo "Ensuring roles..." . PHP_EOL;
 

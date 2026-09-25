@@ -896,7 +896,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             <div class="modal-header py-3 px-4 text-white d-flex align-items-center justify-content-between"
                 style="background: linear-gradient(135deg, #0b345f 0%, #0d2847 100%);">
                 <div class="d-flex align-items-center gap-2 flex-grow-1 min-w-0">
-                    <i class="fas fa-shield-halved fs-5 text-white flex-shrink-0"></i>
                     <h5 class="modal-title fw-bold text-white mb-0" style="letter-spacing: -0.01em;">
                     </h5>
                     <div
@@ -1321,15 +1320,15 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     </div>
                     <div class="card-body p-3">
                         <div class="row g-3 text-body">
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Faculty Member</small>
                                 <strong class="text-body-emphasis" id="archiveFacultyName">-</strong>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Faculty ID No.</small>
                                 <span id="archiveFacultyNo">-</span>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Department</small>
                                 <span id="archiveDepartment">-</span>
                             </div>
@@ -1345,7 +1344,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 <small class="text-body-secondary d-block">Employment Status</small>
                                 <span id="archiveEmpStatus">-</span>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Contact Email</small>
                                 <span id="archiveEmail" class="small">-</span>
                             </div>

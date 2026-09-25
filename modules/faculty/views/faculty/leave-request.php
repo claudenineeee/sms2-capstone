@@ -60,7 +60,11 @@ class LeaveBalance
             (!$isFemale && (int) ($row['vawc_total'] ?? 0) > 0) ||
             ($isFemale && (int) ($row['paternity_total'] ?? 0) > 0) ||
             ((int) ($row['vacation_leave_total'] ?? 0) === 0) ||
-            ((int) ($row['emergency_total'] ?? 0) === 0);
+            ((int) ($row['emergency_total'] ?? 0) === 0) ||
+            ((int) ($row['admin_vacation_total'] ?? 0) === 0) ||
+            ((int) ($row['admin_special_total'] ?? 0) === 0) ||
+            ((int) ($row['sabbatical_total'] ?? 0) === 0) ||
+            ((int) ($row['study_leave_total'] ?? 0) === 0);
 
         if ($needsRepair) {
             return $this->seed($facultyId, $academicYear);
@@ -87,20 +91,14 @@ class LeaveBalance
         $sex = strtoupper($sexRaw);
         $isFemale = ($sex === 'FEMALE');
 
-        $position = strtolower(trim((string) ($info['position'] ?? '')));
-        $hired = $info['hired_date'] ?? null;
-
-        $isAdmin = (str_contains($position, 'head')
-            || str_contains($position, 'dean')
-            || str_contains($position, 'secretary'));
-
-        $yearsOfService = $hired ? max(0, (int) date('Y') - (int) date('Y', strtotime($hired))) : 0;
-        $isEligibleSab = ($yearsOfService >= 6);
-
         // --- Universal leaves (all faculty) ---
         $sickTotal = 15;
         $vacationTotal = 7;
         $emergencyTotal = 3;
+        $adminVacTotal = 10;
+        $adminSpecTotal = 3;
+        $sabbaticalTotal = 365;
+        $studyTotal = 365;
 
         // --- Female-only leaves ---
         $maternityTotal = $isFemale ? 105 : 0;
@@ -110,13 +108,6 @@ class LeaveBalance
         // --- Male-only leave ---
         $paternityTotal = $isFemale ? 0 : 7;
 
-        // --- Tenure-gated ---
-        $sabbaticalTotal = $isEligibleSab ? 365 : 0;
-
-        // --- Admin-gated ---
-        $adminVacTotal = $isAdmin ? 10 : 0;
-        $adminSpecTotal = $isAdmin ? 3 : 0;
-
         try {
             $ins = $this->pdo->prepare("
                 INSERT INTO faculty_db.leave_balances (
@@ -124,13 +115,15 @@ class LeaveBalance
                     sick_leave_total, vacation_leave_total, emergency_total,
                     maternity_total, paternity_total,
                     magna_carta_total, vawc_total,
-                    sabbatical_total, admin_vacation_total, admin_special_total
+                    sabbatical_total, admin_vacation_total, admin_special_total,
+                    study_leave_total
                 ) VALUES (
                     :fid, :yr,
                     :sick, :vac, :emg,
                     :mat, :pat,
                     :mc, :vawc,
-                    :sab, :avac, :aspec
+                    :sab, :avac, :aspec,
+                    :study
                 )
                 ON DUPLICATE KEY UPDATE
                     sick_leave_total     = VALUES(sick_leave_total),
@@ -142,7 +135,8 @@ class LeaveBalance
                     vawc_total           = VALUES(vawc_total),
                     sabbatical_total     = VALUES(sabbatical_total),
                     admin_vacation_total = VALUES(admin_vacation_total),
-                    admin_special_total  = VALUES(admin_special_total)
+                    admin_special_total  = VALUES(admin_special_total),
+                    study_leave_total    = VALUES(study_leave_total)
             ");
             $ins->execute([
                 ':fid' => $facultyId,
@@ -157,13 +151,20 @@ class LeaveBalance
                 ':sab' => $sabbaticalTotal,
                 ':avac' => $adminVacTotal,
                 ':aspec' => $adminSpecTotal,
+                ':study' => $studyTotal,
             ]);
         } catch (Throwable $e) {
             error_log('[LeaveBalance::seed] faculty=' . $facultyId . ' error=' . $e->getMessage());
             throw $e;
         }
 
-        return $this->forFaculty($facultyId, $academicYear);
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM faculty_db.leave_balances
+            WHERE faculty_id = :fid AND academic_year = :yr
+            LIMIT 1
+        ");
+        $stmt->execute([':fid' => $facultyId, ':yr' => $academicYear]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
     public static function mapLeaveType(string $leaveType): array
@@ -179,7 +180,7 @@ class LeaveBalance
             'sabbatical leave' => ['key' => 'sabbatical', 'label' => 'Sabbatical Leave'],
             'academic/vacation leave', 'administrative vacation' => ['key' => 'admin_vacation', 'label' => 'Academic/Vacation Leave'],
             'special leave privileges' => ['key' => 'admin_special', 'label' => 'Special Leave Privileges'],
-            'study leave' => ['key' => '', 'label' => 'Study Leave'],
+            'study leave' => ['key' => 'study_leave', 'label' => 'Study Leave'],
             default => ['key' => '', 'label' => $leaveType],
         };
     }
@@ -547,6 +548,7 @@ try {
         'sabbatical' => 'Sabbatical Leave',
         'admin_vacation' => 'Academic/Vacation Leave',
         'admin_special' => 'Special Leave Privileges',
+        'study_leave' => 'Study Leave',
     ];
 
     foreach ($candidates as $key => $label) {
