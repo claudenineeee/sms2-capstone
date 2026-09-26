@@ -5,8 +5,11 @@
  * // CHANGED: header comment updated from "(Dean View)" to "(Secretary View)"
  */
 require_once __DIR__ . '/../../../../config/config.php';
+require_once __DIR__ . '/../../../../includes/authentication.php';
 // Connect to the separate faculty module database where profiles and teaching histories reside[cite: 3]
 require_once __DIR__ . '/../../config/database.php';
+
+requireAuth();
 
 try {
     $pdo = getFacultyDatabaseConnection();
@@ -18,26 +21,33 @@ try {
 }
 
 // 1. Identify Secretary's Department / Scope
-// CHANGED: comment updated from "Dean's Department / Scope" to "Secretary's Department / Scope"
-$currentUserId = $_SESSION['user_id'] ?? $_SESSION['id'] ?? 0;
-$deptScope = null; // CHANGED: renamed from $deanDept to $deptScope
+// Read directly from the session values set at login (department_id, department_name,
+// department) rather than getRestrictedDepartmentId() - that helper returns 0 (unrestricted)
+// for this account type, so it isn't the right source here. $_SESSION['department'] holds
+// the department code (e.g. 'BSIT'), matching what's stored in faculty_profiles.designated_department.
+$deptScope = trim((string) ($_SESSION['department'] ?? ''));
 
-if ($currentUserId) {
+$deptFallbackUsed = false;
+if (empty($deptScope) && !empty($_SESSION['department_id'])) {
+    // Fallback: if only the numeric id is available in session, translate it to its code.
+    $deptFallbackUsed = true;
     try {
-        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
-        $stmt->execute(['uid' => $currentUserId, 'id' => $currentUserId]);
-        $row = $stmt->fetch();
-        if ($row) {
-            $deptScope = trim($row['designated_department'] ?? ''); // CHANGED: $deanDept -> $deptScope
-        }
+        $deptCodeStmt = $pdo->prepare("SELECT code FROM departments WHERE department_id = :id LIMIT 1");
+        $deptCodeStmt->execute([':id' => (int) $_SESSION['department_id']]);
+        $deptScope = trim((string) ($deptCodeStmt->fetchColumn() ?: ''));
     } catch (PDOException $e) {
-        $deptScope = null; // CHANGED: $deanDept -> $deptScope
+        $deptScope = '';
     }
 }
 
-if (empty($deptScope)) {
-    $deptScope = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? ''); // CHANGED: $deanDept -> $deptScope
-}
+// TEMPORARY DEBUG - remove once department scoping is confirmed working.
+$debugInfo = [
+    'session_department_raw'    => var_export($_SESSION['department'] ?? null, true),
+    'session_department_id_raw' => var_export($_SESSION['department_id'] ?? null, true),
+    'session_department_name'   => var_export($_SESSION['department_name'] ?? null, true),
+    'used_department_id_fallback' => $deptFallbackUsed ? 'yes' : 'no',
+    'final_deptScope'           => $deptScope !== '' ? $deptScope : '(empty)',
+];
 
 // 2. Fetch Distinct Academic Terms/Years & Semesters dynamically from teaching load history
 $academicTerms = [];
@@ -56,9 +66,21 @@ try {
 // Default fallback term if none exist in history
 $selectedTerm = $_GET['term'] ?? '';
 if (empty($selectedTerm) && !empty($academicTerms)) {
-    $selectedTerm = $academicTerms[0]['academic_year'] . '-' . $academicTerms[0]['semester'];
+    // CHANGED: default to the 1st Semester of the most recent academic year instead of
+    // whichever term happens to sort first (previously landed on 2nd Semester)
+    $defaultTerm = null;
+    foreach ($academicTerms as $term) {
+        if (stripos(trim($term['semester']), '1st') !== false) {
+            $defaultTerm = $term;
+            break;
+        }
+    }
+    if ($defaultTerm === null) {
+        $defaultTerm = $academicTerms[0]; // Fallback if no 1st Semester term exists
+    }
+    $selectedTerm = $defaultTerm['academic_year'] . '-' . $defaultTerm['semester'];
 } elseif (empty($selectedTerm)) {
-    $selectedTerm = '2025-2026-2';
+    $selectedTerm = '2025-2026-1'; // CHANGED: fallback default now 1st Semester instead of 2nd
 }
 
 // Parse selected term back into components
@@ -71,7 +93,7 @@ $selectedSem = $termParts[2] ?? '2';
 $facultyMembers = [];
 $facultyQuerySql = "
     SELECT fp.id, fp.faculty_id AS profile_faculty_no, fp.first_name, fp.last_name,
-           fp.designated_department, fp.position, fp.email,
+           fp.designated_department, fp.position, fp.email, fp.employment_status,
            f.faculty_id AS real_faculty_id
     FROM faculty_profiles fp
     LEFT JOIN faculty f ON f.faculty_id = (
@@ -87,13 +109,17 @@ $facultyQuerySql = "
 if (!empty($deptScope)) { // CHANGED: $deanDept -> $deptScope
     $stmt = $pdo->prepare($facultyQuerySql . "
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:dept)
+          AND LOWER(TRIM(fp.request_status)) = 'approved'
         ORDER BY fp.last_name ASC
     ");
     $stmt->execute(['dept' => $deptScope]); // CHANGED: $deanDept -> $deptScope
     $facultyMembers = $stmt->fetchAll();
 } else {
     // Fallback if no scope found (though normally restricted)
-    $stmt = $pdo->query($facultyQuerySql . " ORDER BY fp.last_name ASC");
+    $stmt = $pdo->query($facultyQuerySql . "
+        WHERE LOWER(TRIM(fp.request_status)) = 'approved'
+        ORDER BY fp.last_name ASC
+    ");
     $facultyMembers = $stmt->fetchAll();
 }
 
@@ -102,12 +128,32 @@ $facultyLoadData = [];
 $totalActiveFaculty = count($facultyMembers);
 $fullyLoadedCount = 0;
 $totalUnassignedUnits = 0;
-$maxUnitsLimit = 21; // Standard max load units
+
+// CHANGED: max load units now depend on employment status instead of a single flat value
+// Regular: 24 units | Probationary: 24 units | Part-Time: 15 units
+function getMaxUnitsForEmploymentStatus($employmentStatus) {
+    $normalized = strtolower(trim($employmentStatus ?? ''));
+    switch ($normalized) {
+        case 'part-time':
+        case 'part time':
+        case 'parttime':
+            return 15;
+        case 'regular':
+            return 24;
+        case 'probationary':
+            return 24;
+        default:
+            return 24; // Fallback default if employment status is missing/unrecognized
+    }
+}
 
 foreach ($facultyMembers as $fac) {
     $facId = $fac['id'];
     $realFacultyId = $fac['real_faculty_id'] !== null ? (int)$fac['real_faculty_id'] : null;
     $isLinked = $realFacultyId !== null;
+
+    // CHANGED: max units now computed per faculty member based on employment status
+    $maxUnitsLimit = getMaxUnitsForEmploymentStatus($fac['employment_status'] ?? '');
 
     $assignedSubjects = [];
     $totalAssignedUnits = 0.0;
@@ -201,6 +247,16 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
 </style>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
+
+<!-- TEMPORARY DEBUG BANNER - remove once department scoping is confirmed working -->
+<div class="alert alert-warning small mb-3">
+    <strong>DEBUG (remove me):</strong>
+    <ul class="mb-0">
+        <?php foreach ($debugInfo as $k => $v): ?>
+            <li><?= htmlspecialchars($k) ?>: <code><?= htmlspecialchars((string) $v) ?></code></li>
+        <?php endforeach; ?>
+    </ul>
+</div>
 
 <!-- Page Header with Global Academic Term / School Year Filter -->
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
