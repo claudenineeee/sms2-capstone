@@ -265,37 +265,42 @@ if (!function_exists('insertFacultyProfile')) {
         $sql = "INSERT INTO faculty_db.faculty_profiles (
                     user_id, faculty_id, first_name, middle_name, last_name, suffix, 
                     sex, birthdate, age, phone, email, designated_department, 
-                    position, academic_rank, tier, hired_date, contractual_end, employment_status, 
+                    position, academic_rank, specialization_assignment, is_coordinator, coordinator_type, tier, hired_date, contractual_end, employment_status, 
                     profile_status, request_status, created_at
                 ) VALUES (
                     :user_id, :faculty_id, :first_name, :middle_name, :last_name, :suffix, 
                     :sex, :birthdate, :age, :phone, :email, :designated_department, 
-                    :position, :academic_rank, :tier, :hired_date, :contractual_end, :employment_status, 
+                    :position, :academic_rank, :specialization_assignment, :is_coordinator, :coordinator_type, :tier, :hired_date, :contractual_end, :employment_status, 
                     :profile_status, :request_status, NOW()
                 )";
 
+        $coordinatorType = !empty($profile['coordinator_type']) ? $profile['coordinator_type'] : null;
+
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            ':user_id'               => $profile['user_id'] ?? null,
-            ':faculty_id'            => $profile['faculty_id'] ?? null,
-            ':first_name'            => $profile['first_name'],
-            ':middle_name'           => $profile['middle_name'] ?? null,
-            ':last_name'             => $profile['last_name'],
-            ':suffix'                => $profile['suffix'] ?? null,
-            ':sex'                   => $profile['sex'],
-            ':birthdate'             => $profile['birthdate'],
-            ':age'                   => $profile['age'] ?? 0,
-            ':phone'                 => $profile['phone'] ?? null,
-            ':email'                 => $profile['email'],
-            ':designated_department' => $profile['designated_department'],
-            ':position'              => $profile['position'],
-            ':academic_rank'         => !empty($profile['academic_rank']) ? $profile['academic_rank'] : null,
-            ':tier'                  => !empty($profile['tier']) ? $profile['tier'] : null,
-            ':hired_date'            => $profile['hired_date'],
-            ':contractual_end'       => !empty($profile['contractual_end']) ? $profile['contractual_end'] : null,
-            ':employment_status'     => $profile['employment_status'],
-            ':profile_status'        => $profile['profile_status'] ?? 'Active',
-            ':request_status'        => $profile['request_status'] ?? 'approved',
+            ':user_id'                     => $profile['user_id'] ?? null,
+            ':faculty_id'                  => $profile['faculty_id'] ?? null,
+            ':first_name'                  => $profile['first_name'],
+            ':middle_name'                 => $profile['middle_name'] ?? null,
+            ':last_name'                   => $profile['last_name'],
+            ':suffix'                      => $profile['suffix'] ?? null,
+            ':sex'                         => $profile['sex'],
+            ':birthdate'                   => $profile['birthdate'],
+            ':age'                         => $profile['age'] ?? 0,
+            ':phone'                       => $profile['phone'] ?? null,
+            ':email'                       => $profile['email'],
+            ':designated_department'       => $profile['designated_department'],
+            ':position'                    => $profile['position'],
+            ':academic_rank'               => !empty($profile['academic_rank']) ? $profile['academic_rank'] : null,
+            ':specialization_assignment'   => !empty($profile['specialization_assignment']) ? $profile['specialization_assignment'] : null,
+            ':is_coordinator'              => $coordinatorType !== null ? 1 : 0,
+            ':coordinator_type'            => $coordinatorType,
+            ':tier'                        => !empty($profile['tier']) ? $profile['tier'] : null,
+            ':hired_date'                  => $profile['hired_date'],
+            ':contractual_end'             => !empty($profile['contractual_end']) ? $profile['contractual_end'] : null,
+            ':employment_status'           => $profile['employment_status'],
+            ':profile_status'              => $profile['profile_status'] ?? 'Active',
+            ':request_status'              => $profile['request_status'] ?? 'approved',
         ]);
 
         return (int) $pdo->lastInsertId();
