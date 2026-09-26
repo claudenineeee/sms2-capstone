@@ -36,26 +36,38 @@ try {
     $dbError = $e->getMessage();
 }
 
-// Handle Migration Action
-if ($dbConnected && $action === 'migrate') {
+// Handle Migration / Seed Actions
+if ($dbConnected && ($action === 'migrate' || $action === 'seed')) {
+    @set_time_limit(300);
+    @ini_set('memory_limit', '256M');
+
     try {
-        $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+        if ($action === 'migrate') {
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
 
-        // 1. sms2_db.sql
-        $sms2SqlFile = __DIR__ . '/sms2_db.sql';
-        if (is_readable($sms2SqlFile)) {
-            $pdo->exec(file_get_contents($sms2SqlFile));
+            // Drop any existing leftover tables to prevent "Table already exists" errors
+            $stmt = $pdo->query('SHOW TABLES');
+            $existing = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($existing as $t) {
+                $pdo->exec("DROP TABLE IF EXISTS `{$t}`");
+            }
+
+            // 1. sms2_db.sql
+            $sms2SqlFile = __DIR__ . '/sms2_db.sql';
+            if (is_readable($sms2SqlFile)) {
+                $pdo->exec(file_get_contents($sms2SqlFile));
+            }
+
+            // 2. faculty_db.sql
+            $facultySqlFile = ROOT_PATH . '/modules/faculty/faculty_db.sql';
+            if (is_readable($facultySqlFile)) {
+                $pdo->exec(file_get_contents($facultySqlFile));
+            }
+
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
         }
 
-        // 2. faculty_db.sql
-        $facultySqlFile = ROOT_PATH . '/modules/faculty/faculty_db.sql';
-        if (is_readable($facultySqlFile)) {
-            $pdo->exec(file_get_contents($facultySqlFile));
-        }
-
-        $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
-
-        // 3. Run seed_accounts logic
+        // Run seed_accounts logic
         ob_start();
         include __DIR__ . '/seed_accounts.php';
         $seedOutput = ob_get_clean();
@@ -69,7 +81,9 @@ if ($dbConnected && $action === 'migrate') {
             $userCount = (int) ($uStmt->fetch()['c'] ?? 0);
         }
 
-        $message = "Database schemas imported and accounts seeded successfully! Total tables: {$tableCount}. Users ready: {$userCount}.";
+        $message = ($action === 'migrate')
+            ? "Database schemas imported and accounts seeded successfully! Total tables: {$tableCount}. Users ready: {$userCount}."
+            : "Accounts re-seeded successfully! Total tables: {$tableCount}. Users ready: {$userCount}.";
         $messageType = 'success';
     } catch (Throwable $e) {
         $message = "Migration failed: " . $e->getMessage();
@@ -227,13 +241,17 @@ if ($dbConnected && $action === 'migrate') {
                         <i class="fas fa-check me-2"></i><strong>Database Ready!</strong> You can log in with any seeded
                         account.
                     </div>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex flex-wrap gap-2">
                         <a href="<?= BASE_URL ?>/login/login.php" class="btn btn-success flex-fill py-2 fw-bold">
                             <i class="fas fa-sign-in-alt me-1"></i>Go to Sign In
                         </a>
+                        <a href="?action=seed" class="btn btn-outline-info py-2"
+                            onclick="return confirm('Re-seed official accounts and permissions without wiping tables?');">
+                            <i class="fas fa-user-check me-1"></i>Re-seed Accounts
+                        </a>
                         <a href="?action=migrate" class="btn btn-outline-warning py-2"
-                            onclick="return confirm('Re-run migrations and reset seed accounts?');">
-                            <i class="fas fa-redo me-1"></i>Re-seed Accounts
+                            onclick="return confirm('Wipe tables and re-run fresh migration & seed?');">
+                            <i class="fas fa-redo me-1"></i>Fresh Reinstall
                         </a>
                     </div>
                 <?php endif; ?>
