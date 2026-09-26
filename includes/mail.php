@@ -19,8 +19,11 @@ function smsSendMail(string $to, string $subject, string $htmlBody, string $text
         return ['ok' => false, 'error' => 'Invalid recipient email.'];
     }
 
-    $fromEmail = 'jcespejo002@gmail.com';
-    $fromName = defined('APP_SHORT_NAME') ? APP_SHORT_NAME : 'Bestlink College No-Reply';
+    $fromEmail = trim((string) sms2_env('SMS2_MAIL_FROM', sms2_env('MAIL_FROM', 'no-reply@sms2.local')));
+    $fromName = trim((string) sms2_env(
+        'SMS2_MAIL_FROM_NAME',
+        sms2_env('MAIL_FROM_NAME', defined('APP_SHORT_NAME') ? APP_SHORT_NAME : 'SMS 2')
+    ));
 
     if ($textBody === '') {
         $textBody = trim(html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $htmlBody)), ENT_QUOTES | ENT_HTML5));
@@ -40,26 +43,49 @@ function smsSendMailSmtp(
     string $fromEmail,
     string $fromName
 ): array {
+    $host = trim((string) sms2_env('SMS2_SMTP_HOST', sms2_env('SMTP_HOST', '')));
+    if ($host === '') {
+        return ['ok' => false, 'error' => 'SMTP is not configured.'];
+    }
+
+    $port = (int) sms2_env('SMS2_SMTP_PORT', sms2_env('SMTP_PORT', '587'));
+    $port = $port > 0 && $port <= 65535 ? $port : 587;
+    $encryption = strtolower(trim((string) sms2_env('SMS2_SMTP_ENCRYPTION', sms2_env('SMTP_ENCRYPTION', 'tls'))));
+    $auth = in_array(
+        strtolower(trim((string) sms2_env('SMS2_SMTP_AUTH', sms2_env('SMTP_AUTH', 'true')))),
+        ['1', 'true', 'yes', 'on'],
+        true
+    );
+    $username = (string) sms2_env('SMS2_SMTP_USERNAME', sms2_env('SMTP_USERNAME', ''));
+    $password = (string) sms2_env('SMS2_SMTP_PASSWORD', sms2_env('SMTP_PASSWORD', ''));
+
+    if ($auth && ($username === '' || $password === '')) {
+        return ['ok' => false, 'error' => 'SMTP authentication is incomplete.'];
+    }
+
     try {
         $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-
-        // Server settings identical to your pending-approvals script
         $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'jcespejo002@gmail.com';             
-        $mail->Password   = 'cshwohpgllkqdtga';          
-        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+        $mail->Host = $host;
+        $mail->Port = $port;
+        $mail->SMTPAuth = $auth;
+        $mail->Username = $username;
+        $mail->Password = $password;
 
-        // Recipients
+        if (in_array($encryption, ['ssl', 'smtps'], true)) {
+            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+        } elseif (in_array($encryption, ['tls', 'starttls'], true)) {
+            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        } else {
+            $mail->SMTPSecure = '';
+            $mail->SMTPAutoTLS = false;
+        }
+
         $mail->setFrom($fromEmail, $fromName);
         $mail->addAddress($to);
-
-        // Content
         $mail->isHTML(true);
         $mail->Subject = $subject;
-        $mail->Body    = $htmlBody;
+        $mail->Body = $htmlBody;
         $mail->AltBody = $textBody;
 
         $mail->send();

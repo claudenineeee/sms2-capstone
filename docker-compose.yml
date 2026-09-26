@@ -1,0 +1,84 @@
+﻿services:
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sms2-web
+    ports:
+      - "8080:80"
+
+    environment:
+      SMS2_DB_HOST: db
+      SMS2_DB_NAME: sms2_db
+      SMS2_DB_USER: sms2_user
+      SMS2_DB_PASS: sms2_password
+      SMS2_DB_CHARSET: utf8mb4
+
+      SMS2_FACULTY_DB_HOST: db
+      SMS2_FACULTY_DB_PORT: "3306"
+      SMS2_FACULTY_DB_NAME: faculty_db
+      SMS2_FACULTY_DB_USER: sms2_user
+      SMS2_FACULTY_DB_PASS: sms2_password
+      SMS2_FACULTY_DB_CHARSET: utf8mb4
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    volumes:
+      - .:/var/www/html
+
+
+  db:
+    image: mysql:8.0
+    container_name: sms2-db
+    restart: unless-stopped
+
+    environment:
+      MYSQL_DATABASE: sms2_db
+      MYSQL_USER: sms2_user
+      MYSQL_PASSWORD: sms2_password
+      MYSQL_ROOT_PASSWORD: root_password
+
+    volumes:
+      - sms2_mysql_data:/var/lib/mysql
+      - ./database/sms2_db.sql:/docker-entrypoint-initdb.d/01_sms2_db.sql:ro
+      - ./modules/faculty/faculty_db.sql:/docker-entrypoint-initdb.d/02_faculty_db.sql:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-proot_password"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: sms2-phpmyadmin
+    restart: unless-stopped
+
+    ports:
+      - "8081:80"
+
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+volumes:
+  sms2_mysql_data:
