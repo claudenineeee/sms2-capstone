@@ -11,6 +11,66 @@ if (!function_exists('facultyDb')) {
 }
 
 /**
+ * Canonical Academic Rank -> Tier options. Single source of truth for:
+ *  - the "Academic Rank" / "Tier" cascading dropdowns on the Add/Edit Faculty forms
+ *  - server-side validation so a submitted Tier can never contradict the
+ *    selected Rank (e.g. Rank=Instructor with Tier="Assistant Professor I"
+ *    is rejected even if someone bypasses the dropdown on the frontend).
+ */
+if (!function_exists('getAcademicRankTiers')) {
+    function getAcademicRankTiers(): array {
+        return [
+            'Instructor' => [
+                'Instructor I',
+                'Instructor II',
+                'Instructor III',
+            ],
+            'Assistant Professor' => [
+                'Assistant Professor I',
+                'Assistant Professor II',
+                'Assistant Professor III',
+                'Assistant Professor IV',
+            ],
+            'Associate Professor' => [
+                'Associate Professor I',
+                'Associate Professor II',
+                'Associate Professor III',
+                'Associate Professor IV',
+                'Associate Professor V',
+            ],
+            'Professor' => [
+                'Professor I',
+                'Professor II',
+                'Professor III',
+                'Professor IV',
+                'Professor V',
+                'Professor VI',
+            ],
+        ];
+    }
+}
+
+/**
+ * Validate that $tier is one of the allowed tiers for $academicRank.
+ * Returns true when both are blank (some forms may leave this optional).
+ */
+if (!function_exists('isValidAcademicRankTier')) {
+    function isValidAcademicRankTier(string $academicRank, string $tier): bool {
+        if ($academicRank === '' && $tier === '') {
+            return true;
+        }
+        $map = getAcademicRankTiers();
+        if (!isset($map[$academicRank])) {
+            return false;
+        }
+        if ($tier === '') {
+            return true; // Rank chosen, tier not yet required
+        }
+        return in_array($tier, $map[$academicRank], true);
+    }
+}
+
+/**
  * Retrieves directory list, scoped by the logged-in user's role:
  *   - department_head: only their own designated_department
  *   - dean: every department in faculty_profile_department_assignments
@@ -205,35 +265,42 @@ if (!function_exists('insertFacultyProfile')) {
         $sql = "INSERT INTO faculty_db.faculty_profiles (
                     user_id, faculty_id, first_name, middle_name, last_name, suffix, 
                     sex, birthdate, age, phone, email, designated_department, 
-                    position, hired_date, contractual_end, employment_status, 
+                    position, academic_rank, specialization_assignment, is_coordinator, coordinator_type, tier, hired_date, contractual_end, employment_status, 
                     profile_status, request_status, created_at
                 ) VALUES (
                     :user_id, :faculty_id, :first_name, :middle_name, :last_name, :suffix, 
                     :sex, :birthdate, :age, :phone, :email, :designated_department, 
-                    :position, :hired_date, :contractual_end, :employment_status, 
+                    :position, :academic_rank, :specialization_assignment, :is_coordinator, :coordinator_type, :tier, :hired_date, :contractual_end, :employment_status, 
                     :profile_status, :request_status, NOW()
                 )";
 
+        $coordinatorType = !empty($profile['coordinator_type']) ? $profile['coordinator_type'] : null;
+
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            ':user_id'               => $profile['user_id'] ?? null,
-            ':faculty_id'            => $profile['faculty_id'] ?? null,
-            ':first_name'            => $profile['first_name'],
-            ':middle_name'           => $profile['middle_name'] ?? null,
-            ':last_name'             => $profile['last_name'],
-            ':suffix'                => $profile['suffix'] ?? null,
-            ':sex'                   => $profile['sex'],
-            ':birthdate'             => $profile['birthdate'],
-            ':age'                   => $profile['age'] ?? 0,
-            ':phone'                 => $profile['phone'] ?? null,
-            ':email'                 => $profile['email'],
-            ':designated_department' => $profile['designated_department'],
-            ':position'              => $profile['position'],
-            ':hired_date'            => $profile['hired_date'],
-            ':contractual_end'       => !empty($profile['contractual_end']) ? $profile['contractual_end'] : null,
-            ':employment_status'     => $profile['employment_status'],
-            ':profile_status'        => $profile['profile_status'] ?? 'Active',
-            ':request_status'        => $profile['request_status'] ?? 'approved',
+            ':user_id'                     => $profile['user_id'] ?? null,
+            ':faculty_id'                  => $profile['faculty_id'] ?? null,
+            ':first_name'                  => $profile['first_name'],
+            ':middle_name'                 => $profile['middle_name'] ?? null,
+            ':last_name'                   => $profile['last_name'],
+            ':suffix'                      => $profile['suffix'] ?? null,
+            ':sex'                         => $profile['sex'],
+            ':birthdate'                   => $profile['birthdate'],
+            ':age'                         => $profile['age'] ?? 0,
+            ':phone'                       => $profile['phone'] ?? null,
+            ':email'                       => $profile['email'],
+            ':designated_department'       => $profile['designated_department'],
+            ':position'                    => $profile['position'],
+            ':academic_rank'               => !empty($profile['academic_rank']) ? $profile['academic_rank'] : null,
+            ':specialization_assignment'   => !empty($profile['specialization_assignment']) ? $profile['specialization_assignment'] : null,
+            ':is_coordinator'              => $coordinatorType !== null ? 1 : 0,
+            ':coordinator_type'            => $coordinatorType,
+            ':tier'                        => !empty($profile['tier']) ? $profile['tier'] : null,
+            ':hired_date'                  => $profile['hired_date'],
+            ':contractual_end'             => !empty($profile['contractual_end']) ? $profile['contractual_end'] : null,
+            ':employment_status'           => $profile['employment_status'],
+            ':profile_status'              => $profile['profile_status'] ?? 'Active',
+            ':request_status'              => $profile['request_status'] ?? 'approved',
         ]);
 
         return (int) $pdo->lastInsertId();
