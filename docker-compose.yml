@@ -1,0 +1,80 @@
+﻿services:
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sms2-web
+    ports:
+      - "8080:80"
+    environment:
+      SMS2_DB_HOST: db
+      SMS2_DB_NAME: sms2_db
+      SMS2_DB_USER: sms2_user
+      SMS2_DB_PASS: sms2_password
+      SMS2_DB_CHARSET: utf8mb4
+
+      SMS2_FACULTY_DB_HOST: db
+      SMS2_FACULTY_DB_PORT: "3306"
+      SMS2_FACULTY_DB_NAME: faculty_db
+      SMS2_FACULTY_DB_USER: sms2_user
+      SMS2_FACULTY_DB_PASS: sms2_password
+      SMS2_FACULTY_DB_CHARSET: utf8mb4
+
+      SMS2_MAIL_FROM: no-reply@sms2.local
+      SMS2_MAIL_FROM_NAME: SMS 2
+      SMS2_SMTP_HOST: mailpit
+      SMS2_SMTP_PORT: "1025"
+      SMS2_SMTP_ENCRYPTION: none
+      SMS2_SMTP_AUTH: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    volumes:
+      - .:/var/www/html
+
+  db:
+    image: mysql:8.0
+    container_name: sms2-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: sms2_db
+      MYSQL_USER: sms2_user
+      MYSQL_PASSWORD: sms2_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - sms2_mysql_data:/var/lib/mysql
+      - ./database/sms2_db.sql:/docker-entrypoint-initdb.d/sms2_db.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: sms2-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: sms2-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  sms2_mysql_data:
+
