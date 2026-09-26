@@ -472,7 +472,7 @@ function smsPostLoginRedirectUrl(): string
     }
 
     if ($roleKey === 'registrar_clearance') {
-        return BASE_URL . '/modules/faculty/views/registrar/dashboard.php';
+        return BASE_URL . '/modules/faculty/views/registrar/faculty-clearance.php';
     }
 
     if (in_array($roleKey, ['library_clearance', 'library'], true)) {
