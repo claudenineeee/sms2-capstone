@@ -14,25 +14,45 @@ function smsEnsureAuthenticatorTable(): void
     if (!$pdo) {
         return;
     }
-    $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS user_authenticators (
-            user_id INT UNSIGNED NOT NULL,
-            secret VARCHAR(512) NOT NULL,
-            enabled TINYINT(1) NOT NULL DEFAULT 0,
-            pending_secret VARCHAR(512) NULL,
-            confirmed_at DATETIME NULL,
-            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (user_id),
-            CONSTRAINT fk_ua_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
-    );
-    // Widen legacy VARCHAR(64) columns so encrypted secrets fit
     try {
-        $pdo->exec('ALTER TABLE user_authenticators MODIFY secret VARCHAR(512) NOT NULL');
-        $pdo->exec('ALTER TABLE user_authenticators MODIFY pending_secret VARCHAR(512) NULL');
+        $hasUsers = false;
+        try {
+            $stmt = $pdo->query("SHOW TABLES LIKE 'users'");
+            $hasUsers = (bool) $stmt->fetchColumn();
+        } catch (Throwable $e) {
+            $hasUsers = false;
+        }
+
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS user_authenticators (
+                user_id INT UNSIGNED NOT NULL,
+                secret VARCHAR(512) NOT NULL,
+                enabled TINYINT(1) NOT NULL DEFAULT 0,
+                pending_secret VARCHAR(512) NULL,
+                confirmed_at DATETIME NULL,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        if ($hasUsers) {
+            try {
+                $pdo->exec('ALTER TABLE user_authenticators ADD CONSTRAINT fk_ua_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE');
+            } catch (Throwable $e) {
+                // Ignore if constraint already exists
+            }
+        }
+
+        // Widen legacy VARCHAR(64) columns so encrypted secrets fit
+        try {
+            $pdo->exec('ALTER TABLE user_authenticators MODIFY secret VARCHAR(512) NOT NULL');
+            $pdo->exec('ALTER TABLE user_authenticators MODIFY pending_secret VARCHAR(512) NULL');
+        } catch (Throwable $e) {
+            // Ignore if already widened / no permission
+        }
     } catch (Throwable $e) {
-        // Ignore if already widened / no permission
+        error_log('smsEnsureAuthenticatorTable notice: ' . $e->getMessage());
     }
 }
 
