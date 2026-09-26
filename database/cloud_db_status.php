@@ -23,6 +23,43 @@ try {
     $pdo = getDatabaseConnection();
     $dbConnected = true;
 
+    // Self-repair login_throttles table if id column lacks AUTO_INCREMENT
+    try {
+        $col = $pdo->query("SHOW COLUMNS FROM login_throttles LIKE 'id'")->fetch(PDO::FETCH_ASSOC);
+        if ($col && stripos($col['Extra'] ?? '', 'auto_increment') === false) {
+            try {
+                $pdo->exec('ALTER TABLE login_throttles ADD PRIMARY KEY (id)');
+            } catch (Throwable $ignore) {
+            }
+            try {
+                $pdo->exec('ALTER TABLE login_throttles MODIFY id INT UNSIGNED NOT NULL AUTO_INCREMENT');
+            } catch (Throwable $ignore) {
+            }
+        }
+        try {
+            $pdo->exec('ALTER TABLE login_throttles ADD UNIQUE KEY uq_login_throttle_key (throttle_key)');
+        } catch (Throwable $ignore) {
+        }
+    } catch (Throwable $ignore) {
+    }
+
+    // Ensure registrarclearance121@gmail.com account exists with supersonic0123
+    try {
+        if ($pdo->query("SHOW TABLES LIKE 'users'")->rowCount() > 0) {
+            $checkUser = $pdo->prepare("SELECT id FROM users WHERE email = 'registrarclearance121@gmail.com' OR username = 'registrarclearance'");
+            $checkUser->execute();
+            $existingId = $checkUser->fetchColumn();
+            if (!$existingId) {
+                $pdo->prepare("INSERT INTO users (username, email, password_hash, full_name, role_key, status) VALUES (?, ?, ?, ?, ?, 'active')")
+                    ->execute(['registrarclearance', 'registrarclearance121@gmail.com', password_hash('supersonic0123', PASSWORD_DEFAULT), 'Registrar Clearance Officer', 'registrar_clearance']);
+            } else {
+                $pdo->prepare("UPDATE users SET username = 'registrarclearance', email = 'registrarclearance121@gmail.com', password_hash = ?, role_key = 'registrar_clearance', status = 'active' WHERE id = ?")
+                    ->execute([password_hash('supersonic0123', PASSWORD_DEFAULT), $existingId]);
+            }
+        }
+    } catch (Throwable $ignore) {
+    }
+
     // Get list of tables
     $stmt = $pdo->query('SHOW TABLES');
     $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
