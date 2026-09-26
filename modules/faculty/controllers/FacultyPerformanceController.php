@@ -25,10 +25,6 @@ class FacultyPerformanceController {
         $summary       = $this->model->getPerformanceMetrics($userDeptId);
         $topPerformers = $this->model->getTopPerformers($userDeptId);
 
-        // Pagination must be based on the count AFTER search/rating filters
-        // are applied, not the department-wide total_evaluated figure -
-        // otherwise the page numbers stop matching what's actually shown
-        // the moment a filter narrows the result set.
         $totalRows  = $this->model->getPerformanceListCount($userDeptId, $searchName, $ratingRange);
         $totalPages = max(1, (int)ceil($totalRows / $limit));
         if ($page > $totalPages) { $page = $totalPages; }
@@ -56,11 +52,6 @@ class FacultyPerformanceController {
         ];
     }
 
-    /**
-     * Renders one performance row. Shared between the initial page load
-     * (faculty-performance.php) and the AJAX partial refresh below, so the
-     * two can't drift out of sync with each other.
-     */
     private function renderRow(array $row): string {
         ob_start();
         ?>
@@ -80,14 +71,18 @@ class FacultyPerformanceController {
             <td><?= isset($row['student_score']) && !is_null($row['student_score']) ? number_format((float)$row['student_score'], 1) : '—' ?></td>
             <td class="text-end">
                 <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-secondary"
-                            title="View Details"
-                            onclick="viewPerformanceDetails('<?= htmlspecialchars($row['full_name'], ENT_QUOTES) ?>', <?= (int)$row['id'] ?>)">
+                    <button type="button"
+                            class="btn btn-outline-secondary js-view-details"
+                            data-id="<?= (int)$row['id'] ?>"
+                            data-name="<?= htmlspecialchars($row['full_name'], ENT_QUOTES, 'UTF-8') ?>"
+                            title="View Details">
                         <i class="fas fa-eye text-primary"></i>
                     </button>
-                    <button class="btn btn-outline-secondary"
-                            title="AI Insight"
-                            onclick="openAiModal('faculty', <?= (int)$row['id'] ?>)">
+                    <button type="button"
+                            class="btn btn-outline-secondary js-ai-insight"
+                            data-id="<?= (int)$row['id'] ?>"
+                            data-name="<?= htmlspecialchars($row['full_name'], ENT_QUOTES, 'UTF-8') ?>"
+                            title="AI Insight">
                         <i class="fas fa-wand-magic-sparkles text-warning"></i>
                     </button>
                 </div>
@@ -118,11 +113,17 @@ class FacultyPerformanceController {
         if ($totalPages > 1): ?>
             <nav class="d-flex justify-content-end mt-3" id="paginationNav">
                 <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>"><a class="page-link" href="#" onclick="fetchPage(<?= $page - 1 ?>); return false;">Previous</a></li>
+                    <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                        <a class="page-link js-page" href="#" data-page="<?= $page - 1 ?>">Previous</a>
+                    </li>
                     <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                        <li class="page-item <?= ($page == $i) ? 'active' : '' ?>"><a class="page-link" href="#" onclick="fetchPage(<?= $i ?>); return false;"><?= $i ?></a></li>
+                        <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                            <a class="page-link js-page" href="#" data-page="<?= $i ?>"><?= $i ?></a>
+                        </li>
                     <?php endfor; ?>
-                    <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>"><a class="page-link" href="#" onclick="fetchPage(<?= $page + 1 ?>); return false;">Next</a></li>
+                    <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
+                        <a class="page-link js-page" href="#" data-page="<?= $page + 1 ?>">Next</a>
+                    </li>
                 </ul>
             </nav>
         <?php endif;
@@ -132,10 +133,6 @@ class FacultyPerformanceController {
         echo json_encode(['tbody' => $tbodyHtml, 'pagination' => $paginationHtml]);
     }
 
-    /**
-     * Exposed so faculty-performance.php's initial (non-AJAX) render can
-     * reuse the exact same row markup as the AJAX path.
-     */
     public function renderRowPublic(array $row): string {
         return $this->renderRow($row);
     }

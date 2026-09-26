@@ -5,7 +5,6 @@ require_once __DIR__ . '/../../controllers/FacultyPerformanceController.php';
 
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 
-// Instantiate Controller & Extract Variables
 $controller = new FacultyPerformanceController($pdo);
 $data       = $controller->handleRequest();
 extract($data);
@@ -38,8 +37,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <small class="text-muted">Overall = 50% Student + 30% Peer + 20% Department Head</small>
     </div>
     <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2"
-                onclick="openAiModal('department')">
+        <button type="button" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2"
+                id="aiDeptSummaryBtn">
             <i class="fas fa-wand-magic-sparkles"></i>
             <span>AI Department Summary</span>
         </button>
@@ -48,13 +47,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <!-- Metric Summary Cards -->
 <div class="row g-3 mb-4">
-    <!-- Top Performers Card (Warning/Gold) -->
     <div class="col-12 col-md-4">
         <section class="card stat-card warning border shadow-sm position-relative h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-warning fs-4">
-                    <i class="fas fa-trophy"></i>
-                </div>
+                <div class="stat-icon me-3 text-warning fs-4"><i class="fas fa-trophy"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Top Performers</h6>
                     <h4 class="mb-0 fw-bold"><?= htmlspecialchars((string)($summary['top_performers'] ?? 0)) ?></h4>
@@ -63,19 +59,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </small>
                 </div>
             </div>
-            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Performers">
-                <i class="fas fa-arrow-up-right-from-square"></i>
-            </a>
         </section>
     </div>
 
-    <!-- Dept Average Card (Success/Green) -->
     <div class="col-12 col-md-4">
         <section class="card stat-card success border shadow-sm position-relative h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-success fs-4">
-                    <i class="fas fa-chart-line"></i>
-                </div>
+                <div class="stat-icon me-3 text-success fs-4"><i class="fas fa-chart-line"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Dept Average</h6>
                     <h4 class="mb-0 fw-bold"><?= htmlspecialchars((string)($summary['dept_avg'] ?? '0.0')) ?></h4>
@@ -84,19 +74,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </small>
                 </div>
             </div>
-            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Average Details">
-                <i class="fas fa-arrow-up-right-from-square"></i>
-            </a>
         </section>
     </div>
 
-    <!-- Faculty Evaluated Card (Info/Blue-Cyan) -->
     <div class="col-12 col-md-4">
         <section class="card stat-card info border shadow-sm position-relative h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-info fs-4">
-                    <i class="fas fa-user-check"></i>
-                </div>
+                <div class="stat-icon me-3 text-info fs-4"><i class="fas fa-user-check"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Fully Evaluated</h6>
                     <h4 class="mb-0 fw-bold"><?= (int)($summary['total_evaluated'] ?? 0) ?> <span class="text-muted fs-6 fw-normal">/ <?= (int)($summary['total_faculty'] ?? 0) ?></span></h4>
@@ -105,9 +89,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </small>
                 </div>
             </div>
-            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Evaluated List">
-                <i class="fas fa-arrow-up-right-from-square"></i>
-            </a>
         </section>
     </div>
 </div>
@@ -136,14 +117,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <!-- Search & Auto-Filter Bar -->
 <div class="card border shadow-sm p-3 bg-white mb-4">
-    <form id="searchForm" onsubmit="event.preventDefault(); triggerAutoSearch();" class="row g-2 align-items-end">
+    <form id="searchForm" class="row g-2 align-items-end">
         <div class="col-12 col-md-5">
             <label class="form-label small fw-bold text-muted text-uppercase mb-1">Faculty Name</label>
-            <input type="text" id="searchInput" name="search_name" class="form-control form-control-sm" placeholder="Search faculty..." value="<?= htmlspecialchars($searchName) ?>" oninput="triggerAutoSearch()">
+            <input type="text" id="searchInput" name="search_name" class="form-control form-control-sm" placeholder="Search faculty..." value="<?= htmlspecialchars($searchName) ?>">
         </div>
         <div class="col-12 col-md-3">
             <label class="form-label small fw-bold text-muted text-uppercase mb-1">Evaluation Period</label>
-            <select id="periodInput" name="evaluation_period" class="form-select form-select-sm" onchange="triggerAutoSearch()">
+            <select id="periodInput" name="evaluation_period" class="form-select form-select-sm">
                 <option value="">All Periods</option>
                 <option value="2nd Semester 2025" <?= $searchPeriod === '2nd Semester 2025' ? 'selected' : '' ?>>2nd Semester 2025</option>
                 <option value="1st Semester 2025" <?= $searchPeriod === '1st Semester 2025' ? 'selected' : '' ?>>1st Semester 2025</option>
@@ -151,7 +132,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
         <div class="col-12 col-md-3">
             <label class="form-label small fw-bold text-muted text-uppercase mb-1">Rating Range</label>
-            <select id="ratingInput" name="rating_range" class="form-select form-select-sm" onchange="triggerAutoSearch()">
+            <select id="ratingInput" name="rating_range" class="form-select form-select-sm">
                 <option value="">All</option>
                 <option value="4.5-5.0" <?= $ratingRange === '4.5-5.0' ? 'selected' : '' ?>>4.5 - 5.0</option>
                 <option value="3.5-4.4" <?= $ratingRange === '3.5-4.4' ? 'selected' : '' ?>>3.5 - 4.4</option>
@@ -199,20 +180,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </table>
     </div>
 
-    <!-- Pagination Container -->
-    <div id="paginationContainer">
-        <?php if ($totalPages > 1): ?>
-            <nav class="d-flex justify-content-end mt-3" id="paginationNav">
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>"><a class="page-link" href="#" onclick="fetchPage(<?= $page - 1 ?>); return false;">Previous</a></li>
-                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                        <li class="page-item <?= ($page == $i) ? 'active' : '' ?>"><a class="page-link" href="#" onclick="fetchPage(<?= $i ?>); return false;"><?= $i ?></a></li>
-                    <?php endfor; ?>
-                    <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>"><a class="page-link" href="#" onclick="fetchPage(<?= $page + 1 ?>); return false;">Next</a></li>
-                </ul>
-            </nav>
-        <?php endif; ?>
-    </div>
+    <div id="paginationContainer"></div>
 </div>
 
 <!-- AI Insight Modal -->
@@ -220,7 +188,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="aiModalTitle">
+        <h5 class="modal-title">
           <i class="fas fa-wand-magic-sparkles text-primary me-2"></i>
           <span id="aiModalTitleText">AI Insight</span>
         </h5>
@@ -233,119 +201,224 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-sm btn-outline-secondary" id="aiRegenBtn" onclick="regenAiInsight()">
+        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="regenAiInsight()">
           <i class="fas fa-rotate me-1"></i>Regenerate
         </button>
-        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-let searchDebounce = null;
+/* =====================================================================
+   Faculty Performance — flat script, no IIFE
+   All functions are global so inline onclick can call them.
+   ===================================================================== */
 
-function triggerAutoSearch() {
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(function() {
-        performAjaxSearch(1);
-    }, 300);
+console.log('[faculty-performance] script block reached');
+
+var searchDebounce = null;
+var aiCurrentReq = null;
+
+/* ---------------------------------------------------------------------
+   AI Modal
+   --------------------------------------------------------------------- */
+function openAiModal(scope, facultyId, facultyName) {
+    console.log('[AI] openAiModal called', scope, facultyId, facultyName);
+
+    var el = document.getElementById('aiModal');
+    if (!el) { console.error('[AI] modal not found'); return; }
+    if (typeof bootstrap === 'undefined') { console.error('[AI] bootstrap not loaded'); return; }
+
+    var modal = bootstrap.Modal.getOrCreateInstance(el);
+
+    aiCurrentReq = { scope: scope };
+    if (scope === 'faculty' && facultyId) {
+        aiCurrentReq.faculty_id = parseInt(facultyId, 10);
+    }
+
+    var titleEl = document.getElementById('aiModalTitleText');
+    if (titleEl) {
+        titleEl.innerText = (scope === 'faculty')
+            ? (facultyName ? 'AI Performance Insight — ' + facultyName : 'AI Performance Insight')
+            : 'AI Department Summary';
+    }
+
+    document.getElementById('aiModalBody').innerHTML =
+        '<div class="text-center py-4">' +
+            '<div class="spinner-border text-primary" role="status"></div>' +
+            '<p class="text-muted mt-2 mb-0">Analyzing evaluation data…</p>' +
+        '</div>';
+
+    modal.show();
+    callAiEndpoint(aiCurrentReq);
 }
 
-function fetchPage(page) {
-    performAjaxSearch(page);
+function regenAiInsight() {
+    console.log('[AI] regenAiInsight called');
+    if (aiCurrentReq) callAiEndpoint(aiCurrentReq, true);
 }
 
-function performAjaxSearch(page = 1) {
-    const searchName   = document.getElementById('searchInput').value;
-    const searchPeriod = document.getElementById('periodInput').value;
-    const ratingRange  = document.getElementById('ratingInput').value;
+function callAiEndpoint(req, forceRefresh) {
+    var body = Object.assign({}, req);
+    if (forceRefresh) body.force = true;
 
-    const params = new URLSearchParams({
-        search_name: searchName,
-        evaluation_period: searchPeriod,
-        rating_range: ratingRange,
+    console.log('[AI] Calling endpoint', body);
+
+    fetch('<?= BASE_URL ?>/modules/faculty/controllers/ai-insight.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(body)
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+        console.log('[AI] Response', data);
+        var box = document.getElementById('aiModalBody');
+        if (!box) return;
+        if (!data.ok) {
+            box.innerHTML = '<div class="alert alert-warning mb-0">' +
+                '<i class="fas fa-triangle-exclamation me-2"></i>' +
+                escapeHtml(data.message || 'Unknown error') + '</div>';
+            return;
+        }
+        box.innerHTML = '<div class="ai-insight-text">' + escapeHtml(data.insight) + '</div>';
+    })
+    .catch(function (err) {
+        console.error('[AI] error', err);
+        var box = document.getElementById('aiModalBody');
+        if (!box) return;
+        box.innerHTML = '<div class="alert alert-warning mb-0">' +
+            '<i class="fas fa-triangle-exclamation me-2"></i>' +
+            'Could not reach GPT 4.1. Check your connection and retry.</div>';
+    });
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+}
+
+/* ---------------------------------------------------------------------
+   View Details
+   --------------------------------------------------------------------- */
+function viewPerformanceDetails(name, id) {
+    alert('Viewing performance details for: ' + name);
+}
+
+/* ---------------------------------------------------------------------
+   Search / Filter / Pagination
+   --------------------------------------------------------------------- */
+function performAjaxSearch(page) {
+    page = page || 1;
+
+    var s = document.getElementById('searchInput');
+    var p = document.getElementById('periodInput');
+    var r = document.getElementById('ratingInput');
+
+    var params = new URLSearchParams({
+        search_name: s ? s.value : '',
+        evaluation_period: p ? p.value : '',
+        rating_range: r ? r.value : '',
         page: page
     });
 
     fetch('?' + params.toString(), {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('tableBody').outerHTML = data.tbody;
-        document.getElementById('paginationContainer').innerHTML = data.pagination;
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+        var tb = document.getElementById('tableBody');
+        if (tb && data.tbody) tb.outerHTML = data.tbody;
+        var pc = document.getElementById('paginationContainer');
+        if (pc && data.pagination !== undefined) pc.innerHTML = data.pagination;
     })
-    .catch(error => console.error('Error updating performance table:', error));
+    .catch(function (err) { console.error('[Search] error', err); });
+}
+
+function triggerAutoSearch() {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(function () { performAjaxSearch(1); }, 300);
 }
 
 function resetSearchFilters() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('periodInput').value = '';
-    document.getElementById('ratingInput').value = '';
+    var s = document.getElementById('searchInput');
+    var p = document.getElementById('periodInput');
+    var r = document.getElementById('ratingInput');
+    if (s) s.value = '';
+    if (p) p.value = '';
+    if (r) r.value = '';
     performAjaxSearch(1);
 }
 
-function viewPerformanceDetails(name, id) {
-    alert("Viewing performance details for: " + name);
-}
+/* ---------------------------------------------------------------------
+   Delegated handlers — run after DOM is ready
+   --------------------------------------------------------------------- */
+document.addEventListener('DOMContentLoaded', function () {
+    console.log('[faculty-performance] DOMContentLoaded');
 
-/* ---------- AI Insight Modal ---------- */
-let aiModal = null;
-let aiCurrentReq = null;
+    // Search input
+    var s = document.getElementById('searchInput');
+    if (s) s.addEventListener('input', triggerAutoSearch);
 
-function openAiModal(scope, facultyId) {
-    if (!aiModal) aiModal = new bootstrap.Modal(document.getElementById('aiModal'));
-    aiCurrentReq = { scope };
-    if (scope === 'faculty' && facultyId) aiCurrentReq.faculty_id = facultyId;
+    // Evaluation period
+    var p = document.getElementById('periodInput');
+    if (p) p.addEventListener('change', function () { performAjaxSearch(1); });
 
-    document.getElementById('aiModalTitleText').innerText =
-        scope === 'faculty'
-            ? 'AI Performance Insight'
-            : 'AI Department Summary';
+    // Rating range
+    var r = document.getElementById('ratingInput');
+    if (r) r.addEventListener('change', function () { performAjaxSearch(1); });
 
-    document.getElementById('aiModalBody').innerHTML = `
-        <div class="text-center py-4">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p class="text-muted mt-2 mb-0">Analyzing evaluation data…</p>
-        </div>`;
+    // AI Department Summary button
+    var deptBtn = document.getElementById('aiDeptSummaryBtn');
+    if (deptBtn) {
+        deptBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            openAiModal('department');
+        });
+        console.log('[faculty-performance] dept button wired');
+    } else {
+        console.warn('[faculty-performance] dept button NOT found');
+    }
+});
 
-    aiModal.show();
-    callAiEndpoint(aiCurrentReq);
-}
+/* ---------------------------------------------------------------------
+   Delegated clicks — works for rows added by AJAX too
+   --------------------------------------------------------------------- */
+document.addEventListener('click', function (e) {
+    var t = e.target;
 
-function regenAiInsight() {
-    if (aiCurrentReq) callAiEndpoint(aiCurrentReq, true);
-}
+    // View Details (uses .js-view-details class from controller)
+    var viewBtn = t.closest ? t.closest('.js-view-details') : null;
+    if (viewBtn) {
+        e.preventDefault();
+        viewPerformanceDetails(viewBtn.dataset.name, viewBtn.dataset.id);
+        return;
+    }
 
-function callAiEndpoint(req, forceRefresh = false) {
-    const body = Object.assign({}, req);
-    if (forceRefresh) body.force = true;
+    // AI Insight (uses .js-ai-insight class from controller)
+    var aiBtn = t.closest ? t.closest('.js-ai-insight') : null;
+    if (aiBtn) {
+        e.preventDefault();
+        openAiModal('faculty', aiBtn.dataset.id, aiBtn.dataset.name);
+        return;
+    }
 
-    fetch('<?= BASE_URL ?>/modules/faculty/controllers/ai-insight.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify(body)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (!data.ok) {
-            document.getElementById('aiModalBody').innerHTML =
-                `<div class="alert alert-warning mb-0"><i class="fas fa-triangle-exclamation me-2"></i>${escapeHtml(data.message)}</div>`;
-            return;
-        }
-        document.getElementById('aiModalBody').innerHTML =
-            `<div class="ai-insight-text">${escapeHtml(data.insight)}</div>`;
-    })
-    .catch(() => {
-        document.getElementById('aiModalBody').innerHTML =
-            `<div class="alert alert-warning mb-0"><i class="fas fa-triangle-exclamation me-2"></i>Could not reach GPT 4.1. Check your connection and retry.</div>`;
-    });
-}
+    // Pagination
+    var pageLink = t.closest ? t.closest('.js-page') : null;
+    if (pageLink) {
+        e.preventDefault();
+        var pg = parseInt(pageLink.dataset.page, 10);
+        if (!isNaN(pg) && pg > 0) performAjaxSearch(pg);
+        return;
+    }
+});
 
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
+console.log('[faculty-performance] script block finished');
 </script>
 
 <?php
