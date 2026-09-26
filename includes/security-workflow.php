@@ -111,6 +111,26 @@ function smsEnsureSecurityTables(): void
             KEY idx_login_throttle_locked (locked_until)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+
+    // Upgrade legacy table definition if id lacks AUTO_INCREMENT
+    try {
+        $col = $pdo->query("SHOW COLUMNS FROM login_throttles LIKE 'id'")->fetch(PDO::FETCH_ASSOC);
+        if ($col && stripos($col['Extra'] ?? '', 'auto_increment') === false) {
+            try {
+                $pdo->exec('ALTER TABLE login_throttles ADD PRIMARY KEY (id)');
+            } catch (Throwable $ignore) {
+            }
+            try {
+                $pdo->exec('ALTER TABLE login_throttles MODIFY id INT UNSIGNED NOT NULL AUTO_INCREMENT');
+            } catch (Throwable $ignore) {
+            }
+        }
+        try {
+            $pdo->exec('ALTER TABLE login_throttles ADD UNIQUE KEY uq_login_throttle_key (throttle_key)');
+        } catch (Throwable $ignore) {
+        }
+    } catch (Throwable $ignore) {
+    }
     } catch (Throwable $e) {
         error_log('smsEnsureSecurityTables notice: ' . $e->getMessage());
     }

@@ -833,14 +833,42 @@ function smsRegisterLoginThrottleFailure(string $loginInput = ''): array
     }
 
     // Atomic increment — prevents spam/race from skipping the lock threshold
-    $pdo->prepare(
-        'INSERT INTO login_throttles (throttle_key, ip_address, attempts, locked_until)
-         VALUES (?, ?, 1, NULL)
-         ON DUPLICATE KEY UPDATE
-            attempts = attempts + 1,
-            ip_address = VALUES(ip_address),
-            locked_until = IF(locked_until IS NOT NULL AND locked_until > NOW(), locked_until, NULL)'
-    )->execute([$key, $ip]);
+    try {
+        $pdo->prepare(
+            'INSERT INTO login_throttles (throttle_key, ip_address, attempts, locked_until)
+             VALUES (?, ?, 1, NULL)
+             ON DUPLICATE KEY UPDATE
+                attempts = attempts + 1,
+                ip_address = VALUES(ip_address),
+                locked_until = IF(locked_until IS NOT NULL AND locked_until > NOW(), locked_until, NULL)'
+        )->execute([$key, $ip]);
+    } catch (Throwable $e) {
+        // Auto-repair login_throttles if 'id' column lacks AUTO_INCREMENT or PRIMARY KEY
+        try {
+            $pdo->exec('ALTER TABLE login_throttles ADD PRIMARY KEY (id)');
+        } catch (Throwable $ignore) {
+        }
+        try {
+            $pdo->exec('ALTER TABLE login_throttles MODIFY id INT UNSIGNED NOT NULL AUTO_INCREMENT');
+        } catch (Throwable $ignore) {
+        }
+        try {
+            $pdo->exec('ALTER TABLE login_throttles ADD UNIQUE KEY uq_login_throttle_key (throttle_key)');
+        } catch (Throwable $ignore) {
+        }
+        try {
+            $pdo->prepare(
+                'INSERT INTO login_throttles (throttle_key, ip_address, attempts, locked_until)
+                 VALUES (?, ?, 1, NULL)
+                 ON DUPLICATE KEY UPDATE
+                    attempts = attempts + 1,
+                    ip_address = VALUES(ip_address),
+                    locked_until = IF(locked_until IS NOT NULL AND locked_until > NOW(), locked_until, NULL)'
+            )->execute([$key, $ip]);
+        } catch (Throwable $retryEx) {
+            error_log('Throttle insert failure: ' . $retryEx->getMessage());
+        }
+    }
 
     $stmt = $pdo->prepare('SELECT attempts, locked_until FROM login_throttles WHERE throttle_key = ? LIMIT 1');
     $stmt->execute([$key]);
