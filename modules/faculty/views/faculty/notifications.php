@@ -39,7 +39,7 @@ try {
         $userStmt->execute([':id' => $userId]);
         $userEmail = $userStmt->fetchColumn() ?: '';
 
-        $stmt = $pdo->prepare("SELECT faculty_id FROM faculty_db.faculty WHERE email = :email LIMIT 1");
+        $stmt = $pdo->prepare("SELECT faculty_id FROM faculty WHERE email = :email LIMIT 1");
         $stmt->execute([':email' => $userEmail]);
         $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
     }
@@ -49,7 +49,7 @@ try {
         // 1. Fetch Leave Requests
         $leaveStmt = $pdo->prepare("
             SELECT id, request_ref, leave_type, status, screening_status, reason, created_at, updated_at
-            FROM faculty_db.leave_requests
+            FROM leave_requests
             WHERE faculty_id = :faculty_id
             ORDER BY created_at DESC
         ");
@@ -108,7 +108,7 @@ try {
         try {
             $attStmt = $pdo->prepare("
                 SELECT id, monitoring_date, status, remarks, created_at 
-                FROM faculty_db.attendance_monitoring 
+                FROM attendance_monitoring 
                 WHERE faculty_id = :faculty_id 
                 ORDER BY created_at DESC
             ");
@@ -140,7 +140,7 @@ try {
         try {
             $schedStmt = $pdo->prepare("
                 SELECT id, subject_code, room, day_of_week, start_time, end_time, created_at 
-                FROM faculty_db.schedules 
+                FROM schedules 
                 WHERE faculty_id = :faculty_id 
                 ORDER BY created_at DESC
             ");

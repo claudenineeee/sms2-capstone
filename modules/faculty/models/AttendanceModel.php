@@ -31,7 +31,7 @@ class AttendanceModel {
     public function getFacultyByDepartment($deptId) {
         $this->ensureDb();
         $sql = "SELECT id, faculty_id, first_name, last_name, position 
-                FROM faculty_db.faculty_profiles 
+                FROM faculty_profiles 
                 WHERE (LOWER(designated_department) = LOWER(:deptId1) OR designated_department = :deptId2)
                   AND profile_status IN ('Active', 'Approved')
                 ORDER BY last_name ASC";
@@ -51,10 +51,10 @@ class AttendanceModel {
                 r.room_code,
                 s.code AS subject_code,
                 cas.attending_students
-            FROM faculty_db.class_attendance_sessions cas
-            JOIN faculty_db.faculty_profiles f ON cas.faculty_id = f.id
-            LEFT JOIN faculty_db.rooms r ON cas.room_id = r.room_id
-            JOIN faculty_db.subjects s ON cas.subject_id = s.subject_id
+            FROM class_attendance_sessions cas
+            JOIN faculty_profiles f ON cas.faculty_id = f.id
+            LEFT JOIN rooms r ON cas.room_id = r.room_id
+            JOIN subjects s ON cas.subject_id = s.subject_id
             WHERE cas.department_id = :dept_id AND cas.session_date = :session_date
             ORDER BY cas.created_at DESC
         ");
@@ -76,9 +76,9 @@ class AttendanceModel {
                 cas.attending_students,
                 COALESCE(s.code, 'N/A') AS subject_code,
                 COALESCE(r.room_code, 'N/A') AS room_code
-            FROM faculty_db.class_attendance_sessions cas
-            LEFT JOIN faculty_db.subjects s ON cas.subject_id = s.subject_id
-            LEFT JOIN faculty_db.rooms r ON cas.room_id = r.room_id
+            FROM class_attendance_sessions cas
+            LEFT JOIN subjects s ON cas.subject_id = s.subject_id
+            LEFT JOIN rooms r ON cas.room_id = r.room_id
             WHERE cas.faculty_id = :faculty_id
             ORDER BY cas.session_date DESC, cas.created_at DESC
         ");
@@ -103,9 +103,9 @@ class AttendanceModel {
                 r.room_code,
                 cas.status,
                 cas.attending_students
-            FROM faculty_db.class_attendance_sessions cas
-            LEFT JOIN faculty_db.subjects s ON cas.subject_id = s.subject_id
-            LEFT JOIN faculty_db.rooms r ON cas.room_id = r.room_id
+            FROM class_attendance_sessions cas
+            LEFT JOIN subjects s ON cas.subject_id = s.subject_id
+            LEFT JOIN rooms r ON cas.room_id = r.room_id
             WHERE cas.faculty_id IN ($placeholders)
               AND cas.session_date BETWEEN ? AND ?
             ORDER BY cas.session_date DESC, cas.created_at DESC
@@ -124,7 +124,7 @@ class AttendanceModel {
                 SUM(CASE WHEN LOWER(status) = 'late' THEN 1 ELSE 0 END) AS late_faculty,
                 SUM(CASE WHEN LOWER(status) = 'absent' THEN 1 ELSE 0 END) AS absent_faculty,
                 SUM(attending_students) AS total_students
-            FROM faculty_db.class_attendance_sessions
+            FROM class_attendance_sessions
             WHERE department_id = :dept_id AND session_date = :session_date
         ");
         $stmt->execute([':dept_id' => $deptId, ':session_date' => $date]);
@@ -138,7 +138,7 @@ class AttendanceModel {
             return 1;
         }
 
-        $stmt = $this->db->prepare("SELECT subject_id FROM faculty_db.subjects WHERE code = :code LIMIT 1");
+        $stmt = $this->db->prepare("SELECT subject_id FROM subjects WHERE code = :code LIMIT 1");
         $stmt->execute([':code' => $code]);
         $id = $stmt->fetchColumn();
         if ($id) {
@@ -146,7 +146,7 @@ class AttendanceModel {
         }
 
         $insert = $this->db->prepare("
-            INSERT INTO faculty_db.subjects (department_id, code, title)
+            INSERT INTO subjects (department_id, code, title)
             VALUES (:dept_id, :code, :title)
         ");
         $insert->execute([
@@ -165,7 +165,7 @@ class AttendanceModel {
         }
 
         $stmt = $this->db->prepare("
-            SELECT room_id FROM faculty_db.rooms 
+            SELECT room_id FROM rooms 
             WHERE campus_id = :campus_id AND room_code = :room_code 
             LIMIT 1
         ");
@@ -176,7 +176,7 @@ class AttendanceModel {
         }
 
         $insert = $this->db->prepare("
-            INSERT INTO faculty_db.rooms (campus_id, room_code)
+            INSERT INTO rooms (campus_id, room_code)
             VALUES (:campus_id, :room_code)
         ");
         $insert->execute([':campus_id' => $campusId, ':room_code' => $roomCode]);
@@ -187,20 +187,20 @@ class AttendanceModel {
         $this->ensureDb();
         $facultyProfileId = (int) $facultyProfileId;
 
-        $check = $this->db->prepare("SELECT faculty_id FROM faculty_db.faculty WHERE faculty_id = :id LIMIT 1");
+        $check = $this->db->prepare("SELECT faculty_id FROM faculty WHERE faculty_id = :id LIMIT 1");
         $check->execute([':id' => $facultyProfileId]);
         if ($check->fetchColumn()) {
             return $facultyProfileId;
         }
 
-        $profile = $this->db->prepare("SELECT * FROM faculty_db.faculty_profiles WHERE id = :id LIMIT 1");
+        $profile = $this->db->prepare("SELECT * FROM faculty_profiles WHERE id = :id LIMIT 1");
         $profile->execute([':id' => $facultyProfileId]);
         $fp = $profile->fetch(PDO::FETCH_ASSOC);
         if (!$fp) {
             return null;
         }
 
-        $dept = $this->db->prepare("SELECT department_id FROM faculty_db.departments WHERE code = :code LIMIT 1");
+        $dept = $this->db->prepare("SELECT department_id FROM departments WHERE code = :code LIMIT 1");
         $dept->execute([':code' => $fp['designated_department'] ?? '']);
         $deptId = $dept->fetchColumn() ?: null;
 
@@ -210,7 +210,7 @@ class AttendanceModel {
         $facultyNo = ($fp['faculty_id'] ?: 'FAC') . '-P' . $facultyProfileId;
 
         $insert = $this->db->prepare("
-            INSERT INTO faculty_db.faculty (
+            INSERT INTO faculty (
                 faculty_id, faculty_no, first_name, middle_name, last_name, suffix,
                 birthdate, sex, phone, email, department_id, position,
                 is_coordinator, coordinator_type, tier,
@@ -256,7 +256,7 @@ class AttendanceModel {
             $statusNormalized = ucfirst(strtolower(trim($data['status'])));
 
             $stmt = $this->db->prepare("
-                INSERT INTO faculty_db.class_attendance_sessions 
+                INSERT INTO class_attendance_sessions 
                 (department_id, campus_id, faculty_id, subject_id, room_id, session_date, time_slot, attending_students, secretary_verifier_name, status)
                 VALUES (:dept_id, :campus_id, :faculty_id, :subject_id, :room_id, :session_date, :time_slot, :attending_students, :verifier, :status)
             ");
@@ -274,7 +274,7 @@ class AttendanceModel {
             ]);
 
             $stmt2 = $this->db->prepare("
-                INSERT INTO faculty_db.attendance_records 
+                INSERT INTO attendance_records 
                 (faculty_id, campus_id, attendance_date, status, signature_data, recorded_by_external_id)
                 VALUES (:faculty_id, :campus_id, :attendance_date, :status, :signature, :recorded_by)
                 ON DUPLICATE KEY UPDATE

@@ -90,7 +90,7 @@ if (!function_exists('getScopedFacultyList')) {
 
         try {
             if (in_array($roleKey, ['department_head', 'dept_head', 'secretary'], true) && $userId) {
-                $deptStmt = $pdo->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :uid LIMIT 1");
+                $deptStmt = $pdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid LIMIT 1");
                 $deptStmt->execute([':uid' => $userId]);
                 $myDept = $deptStmt->fetchColumn();
 
@@ -99,7 +99,7 @@ if (!function_exists('getScopedFacultyList')) {
                 }
 
                 $sql = "SELECT fp.*, u.username, u.status AS account_status 
-                        FROM faculty_db.faculty_profiles fp
+                        FROM faculty_profiles fp
                         LEFT JOIN sms2_db.users u ON fp.user_id = u.id
                         WHERE fp.designated_department = :dept
                         ORDER BY fp.id DESC";
@@ -109,7 +109,7 @@ if (!function_exists('getScopedFacultyList')) {
             }
 
             if ($roleKey === 'dean' && $userId) {
-                $myProfileStmt = $pdo->prepare("SELECT id FROM faculty_db.faculty_profiles WHERE user_id = :uid LIMIT 1");
+                $myProfileStmt = $pdo->prepare("SELECT id FROM faculty_profiles WHERE user_id = :uid LIMIT 1");
                 $myProfileStmt->execute([':uid' => $userId]);
                 $myProfileId = $myProfileStmt->fetchColumn();
 
@@ -119,8 +119,8 @@ if (!function_exists('getScopedFacultyList')) {
 
                 $deptCodesStmt = $pdo->prepare("
                     SELECT d.code
-                    FROM faculty_db.faculty_profile_department_assignments a
-                    JOIN faculty_db.departments d ON d.department_id = a.department_id
+                    FROM faculty_profile_department_assignments a
+                    JOIN departments d ON d.department_id = a.department_id
                     WHERE a.faculty_profile_id = :pid
                 ");
                 $deptCodesStmt->execute([':pid' => $myProfileId]);
@@ -132,7 +132,7 @@ if (!function_exists('getScopedFacultyList')) {
 
                 $placeholders = implode(',', array_fill(0, count($deptCodes), '?'));
                 $sql = "SELECT fp.*, u.username, u.status AS account_status 
-                        FROM faculty_db.faculty_profiles fp
+                        FROM faculty_profiles fp
                         LEFT JOIN sms2_db.users u ON fp.user_id = u.id
                         WHERE fp.designated_department IN ($placeholders)
                           AND fp.user_id != ?
@@ -144,7 +144,7 @@ if (!function_exists('getScopedFacultyList')) {
 
             // Default: unrestricted, unchanged from before this fix
             $sql = "SELECT fp.*, u.username, u.status AS account_status 
-                    FROM faculty_db.faculty_profiles fp
+                    FROM faculty_profiles fp
                     LEFT JOIN sms2_db.users u ON fp.user_id = u.id
                     ORDER BY fp.id DESC";
             $stmt = $pdo->prepare($sql);
@@ -170,7 +170,7 @@ if (!function_exists('getMyFacultyProfile')) {
         }
 
         $sql = "SELECT fp.*, u.username, u.status AS account_status 
-                FROM faculty_db.faculty_profiles fp
+                FROM faculty_profiles fp
                 LEFT JOIN sms2_db.users u ON fp.user_id = u.id
                 WHERE fp.user_id = :user_id 
                 LIMIT 1";
@@ -189,7 +189,7 @@ if (!function_exists('getMyFacultyProfile')) {
 
 if (!function_exists('getNextFacultySequenceNumber')) {
     function getNextFacultySequenceNumber(PDO $facPdo): int {
-        $stmt = $facPdo->query("SELECT MAX(id) AS max_id FROM faculty_db.faculty_profiles");
+        $stmt = $facPdo->query("SELECT MAX(id) AS max_id FROM faculty_profiles");
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return ((int) ($row['max_id'] ?? 0)) + 1;
     }
@@ -256,13 +256,13 @@ function insertFacultyUser(PDO $pdo, array $profile, string $rawPassword): int {
 }
 
 /**
- * Inserts entry into faculty_db.faculty_profiles.
+ * Inserts entry into faculty_profiles.
  */
 if (!function_exists('insertFacultyProfile')) {
     function insertFacultyProfile(array $profile): int {
         $pdo = function_exists('facultyDb') ? facultyDb() : db();
 
-        $sql = "INSERT INTO faculty_db.faculty_profiles (
+        $sql = "INSERT INTO faculty_profiles (
                     user_id, faculty_id, first_name, middle_name, last_name, suffix, 
                     sex, birthdate, age, phone, email, designated_department, 
                     position, academic_rank, tier, hired_date, contractual_end, employment_status, 
@@ -319,7 +319,7 @@ if (!function_exists('loadFacultyProfiles')) {
         }
 
         $sql = "SELECT fp.*, u.username, u.status AS account_status 
-                FROM faculty_db.faculty_profiles fp
+                FROM faculty_profiles fp
                 LEFT JOIN sms2_db.users u ON fp.user_id = u.id
                 ORDER BY fp.id DESC";
 

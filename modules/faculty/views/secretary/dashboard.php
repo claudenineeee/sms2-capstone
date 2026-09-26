@@ -61,7 +61,7 @@ if ($pdo && !empty($departmentFacultyIds)) {
     $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
     $stmtLeave = $pdo->prepare("
         SELECT COUNT(*)
-        FROM faculty_db.leave_requests
+        FROM leave_requests
         WHERE approval_status = 'Approved'
           AND CURRENT_DATE() BETWEEN start_date AND end_date
           AND faculty_id IN ($placeholders)
@@ -76,7 +76,7 @@ if ($pdo && !empty($departmentFacultyIds)) {
     $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
     $stmtPending = $pdo->prepare("
         SELECT COUNT(*)
-        FROM faculty_db.leave_requests
+        FROM leave_requests
         WHERE screening_status = 'Pending'
           AND faculty_id IN ($placeholders)
     ");
@@ -92,7 +92,7 @@ if ($pdo && !empty($departmentFacultyIds)) {
     $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
     $stmtCategories = $pdo->prepare("
         SELECT leave_type, COUNT(*) as total
-        FROM faculty_db.leave_requests
+        FROM leave_requests
         WHERE approval_status != 'Rejected'
           AND faculty_id IN ($placeholders)
         GROUP BY leave_type
@@ -125,7 +125,7 @@ if ($pdo) {
         : '';
     $sql = "
         SELECT title, due_date
-        FROM faculty_db.faculty_deadlines
+        FROM faculty_deadlines
         WHERE due_date >= CURRENT_DATE()
     ";
     $params = [];

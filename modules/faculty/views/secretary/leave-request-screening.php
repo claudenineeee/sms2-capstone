@@ -42,7 +42,7 @@ try {
     $restrictedDeptCode = null;
 
     if ($restrictedDeptId !== null && $restrictedDeptId > 0) {
-        $deptCodeStmt = $pdo->prepare("SELECT code FROM faculty_db.departments WHERE department_id = :id LIMIT 1");
+        $deptCodeStmt = $pdo->prepare("SELECT code FROM departments WHERE department_id = :id LIMIT 1");
         $deptCodeStmt->execute([':id' => $restrictedDeptId]);
         $restrictedDeptCode = $deptCodeStmt->fetchColumn() ?: null;
     }
@@ -75,10 +75,10 @@ try {
         $stmt = $pdo->prepare("
             SELECT lr.id, lr.screening_status,
                    COALESCE(fp.designated_department, fp2.designated_department) AS designated_department
-            FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty f       ON f.faculty_id = lr.faculty_id
-            LEFT JOIN faculty_db.faculty_profiles fp  ON fp.email = f.email
-            LEFT JOIN faculty_db.faculty_profiles fp2 ON fp2.id = lr.faculty_id
+            FROM leave_requests lr
+            LEFT JOIN faculty f       ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_profiles fp  ON fp.email = f.email
+            LEFT JOIN faculty_profiles fp2 ON fp2.id = lr.faculty_id
             WHERE lr.id = :id
             LIMIT 1
         ");
@@ -105,7 +105,7 @@ try {
             }
 
             $stmt = $pdo->prepare("
-                UPDATE faculty_db.leave_requests
+                UPDATE leave_requests
                 SET
                     screening_status = 'Screened',
                     screening_signature = :signature,
@@ -134,7 +134,7 @@ try {
             }
 
             $stmt = $pdo->prepare("
-                UPDATE faculty_db.leave_requests
+                UPDATE leave_requests
                 SET
                     screening_status = 'Returned',
                     screened_by_external_id = :screener_id,
@@ -202,11 +202,11 @@ try {
     $whereClause = !empty($where) ? ' WHERE ' . implode(' AND ', $where) : '';
 
     $fromJoins = "
-        FROM faculty_db.leave_requests lr
-        LEFT JOIN faculty_db.faculty f       ON f.faculty_id = lr.faculty_id
-        LEFT JOIN faculty_db.faculty_profiles fp  ON fp.email = f.email
-        LEFT JOIN faculty_db.faculty_profiles fp2 ON fp2.id = lr.faculty_id
-        LEFT JOIN faculty_db.leave_balances lb ON lb.faculty_id = f.faculty_id
+        FROM leave_requests lr
+        LEFT JOIN faculty f       ON f.faculty_id = lr.faculty_id
+        LEFT JOIN faculty_profiles fp  ON fp.email = f.email
+        LEFT JOIN faculty_profiles fp2 ON fp2.id = lr.faculty_id
+        LEFT JOIN leave_balances lb ON lb.faculty_id = f.faculty_id
                                               AND lb.academic_year = '2026-2027'
     ";
 

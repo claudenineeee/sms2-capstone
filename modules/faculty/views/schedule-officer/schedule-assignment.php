@@ -40,7 +40,7 @@ try {
     if ($pdo) {
         $stmt = $pdo->prepare("
             SELECT fp.id, fp.first_name, fp.last_name, fp.faculty_id
-            FROM faculty_db.faculty_profiles fp
+            FROM faculty_profiles fp
             WHERE LOWER(TRIM(fp.position)) LIKE '%faculty professor%'
             OR LOWER(TRIM(fp.position)) = 'faculty'
             ORDER BY fp.last_name, fp.first_name
@@ -48,21 +48,21 @@ try {
         $stmt->execute();
         $facultyProfessors = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $summaryStats['total_classes'] = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.classes")->fetchColumn();
-        $summaryStats['no_prof_classes'] = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.classes WHERE status = 0")->fetchColumn();
+        $summaryStats['total_classes'] = (int) $pdo->query("SELECT COUNT(*) FROM classes")->fetchColumn();
+        $summaryStats['no_prof_classes'] = (int) $pdo->query("SELECT COUNT(*) FROM classes WHERE status = 0")->fetchColumn();
 
         // Count classes with professors (approved, pending, waiting for approval)
-        $summaryStats['approved_classes'] = (int) $pdo->query("SELECT COUNT(DISTINCT class_id) FROM faculty_db.faculty_class_assignments WHERE status IN ('approved')")->fetchColumn();
-        $summaryStats['pending_classes'] = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.faculty_class_assignments WHERE status IN ('pending', 'waiting for approval')")->fetchColumn();
+        $summaryStats['approved_classes'] = (int) $pdo->query("SELECT COUNT(DISTINCT class_id) FROM faculty_class_assignments WHERE status IN ('approved')")->fetchColumn();
+        $summaryStats['pending_classes'] = (int) $pdo->query("SELECT COUNT(*) FROM faculty_class_assignments WHERE status IN ('pending', 'waiting for approval')")->fetchColumn();
 
         $assignmentQuery = "
             SELECT fca.id, fca.faculty_id, fca.class_id, fca.days, fca.room, fca.time, fca.units,
                    fp.first_name, fp.last_name,
                    c.students,
                    fca.status
-            FROM faculty_db.faculty_class_assignments fca
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = fca.faculty_id
-            LEFT JOIN faculty_db.classes c ON c.id = fca.class_id
+            FROM faculty_class_assignments fca
+            LEFT JOIN faculty_profiles fp ON fp.id = fca.faculty_id
+            LEFT JOIN classes c ON c.id = fca.class_id
             ORDER BY fca.id DESC
         ";
         $assignmentStmt = $pdo->query($assignmentQuery);
@@ -71,7 +71,7 @@ try {
         // Fetch unassigned classes (status = 0)
         $classStmt = $pdo->prepare("
             SELECT id, students
-            FROM faculty_db.classes
+            FROM classes
             WHERE status = 0
             ORDER BY id
         ");
@@ -98,7 +98,7 @@ try {
         } else {
             try {
                 $insertStmt = $pdo->prepare("
-                    INSERT INTO faculty_db.faculty_class_assignments (faculty_id, class_id, days, room, time, units)
+                    INSERT INTO faculty_class_assignments (faculty_id, class_id, days, room, time, units)
                     VALUES (:faculty_id, :class_id, :days, :room, :time, :units)
                 ");
                 $insertStmt->execute([
@@ -111,7 +111,7 @@ try {
                 ]);
                 
                 // Update class status to assigned (1)
-                $updateStmt = $pdo->prepare("UPDATE faculty_db.classes SET status = 1 WHERE id = :id");
+                $updateStmt = $pdo->prepare("UPDATE classes SET status = 1 WHERE id = :id");
                 $updateStmt->execute([':id' => $classId]);
                 
                 // PRG Pattern Redirect (Prevents duplicate entries on refresh)

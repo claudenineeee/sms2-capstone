@@ -1,10 +1,10 @@
 <<<<<<< HEAD=======<<<<<<< HEAD <?php
 /**
- * ONE-TIME SCRIPT: Backfill missing faculty_db.faculty records
+ * ONE-TIME SCRIPT: Backfill missing faculty records
  *
  * Run this ONCE to fix already-approved faculty_profiles that were
  * approved BEFORE pending-approvals.php auto-created the bridging
- * faculty_db.faculty row. Those profiles are stuck showing "NOT LINKED"
+ * faculty row. Those profiles are stuck showing "NOT LINKED"
  * on the Peer Evaluation directory / Dean summary / Dept Head summary,
  * even though their account is active and approved.
  *
@@ -36,7 +36,7 @@ echo "Faculty link backfill starting...\n\n";
 // faculty records for pending or rejected requests.
 $stmt = $pdo->query("
     SELECT *
-    FROM faculty_db.faculty_profiles
+    FROM faculty_profiles
     WHERE request_status = 'approved'
        OR profile_status = 'Active'
 ");
@@ -54,7 +54,7 @@ foreach ($profiles as $fp) {
         $emailParam = !empty($fp['email']) ? $fp['email'] : null;
 
         $checkStmt = $pdo->prepare("
-            SELECT faculty_id FROM faculty_db.faculty
+            SELECT faculty_id FROM faculty
             WHERE (:email_check IS NOT NULL AND email = :email_val)
                OR faculty_no = :faculty_no
             LIMIT 1
@@ -73,13 +73,13 @@ foreach ($profiles as $fp) {
 
         $departmentId = null;
         if (!empty($fp['designated_department'])) {
-            $deptStmt = $pdo->prepare("SELECT department_id FROM faculty_db.departments WHERE code = :code LIMIT 1");
+            $deptStmt = $pdo->prepare("SELECT department_id FROM departments WHERE code = :code LIMIT 1");
             $deptStmt->execute([':code' => $fp['designated_department']]);
             $departmentId = $deptStmt->fetchColumn() ?: null;
         }
 
         $insertStmt = $pdo->prepare("
-            INSERT INTO faculty_db.faculty (
+            INSERT INTO faculty (
                 faculty_no, external_user_id, first_name, middle_name, last_name, suffix,
                 birthdate, sex, phone, email, department_id, position,
                 academic_rank, employment_status, profile_status, overall_rating,
@@ -143,7 +143,7 @@ echo "Faculty link backfill starting...\n\n";
 // faculty records for pending or rejected requests.
 $stmt = $pdo->query("
     SELECT *
-    FROM faculty_db.faculty_profiles
+    FROM faculty_profiles
     WHERE request_status = 'approved'
        OR profile_status = 'Active'
 ");
@@ -161,7 +161,7 @@ foreach ($profiles as $fp) {
         $emailParam = !empty($fp['email']) ? $fp['email'] : null;
 
         $checkStmt = $pdo->prepare("
-            SELECT faculty_id FROM faculty_db.faculty
+            SELECT faculty_id FROM faculty
             WHERE (:email_check IS NOT NULL AND email = :email_val)
                OR faculty_no = :faculty_no
             LIMIT 1
@@ -180,13 +180,13 @@ foreach ($profiles as $fp) {
 
         $departmentId = null;
         if (!empty($fp['designated_department'])) {
-            $deptStmt = $pdo->prepare("SELECT department_id FROM faculty_db.departments WHERE code = :code LIMIT 1");
+            $deptStmt = $pdo->prepare("SELECT department_id FROM departments WHERE code = :code LIMIT 1");
             $deptStmt->execute([':code' => $fp['designated_department']]);
             $departmentId = $deptStmt->fetchColumn() ?: null;
         }
 
         $insertStmt = $pdo->prepare("
-            INSERT INTO faculty_db.faculty (
+            INSERT INTO faculty (
                 faculty_no, external_user_id, first_name, middle_name, last_name, suffix,
                 birthdate, sex, phone, email, department_id, position,
                 academic_rank, employment_status, profile_status, overall_rating,

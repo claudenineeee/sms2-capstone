@@ -33,7 +33,7 @@ if (!function_exists('smsResolveFacultyId')) {
         $email = (string)($u->fetchColumn() ?: '');
         if ($email === '') return $cache[$userId] = 0;
 
-        $f = $pdo->prepare("SELECT faculty_id FROM faculty_db.faculty WHERE email = :e LIMIT 1");
+        $f = $pdo->prepare("SELECT faculty_id FROM faculty WHERE email = :e LIMIT 1");
         $f->execute([':e' => $email]);
         return $cache[$userId] = (int)($f->fetchColumn() ?: 0);
     }
@@ -73,7 +73,7 @@ if (!function_exists('smsMarkNotificationRead')) {
                 if ($pdo) {
                     $fid = smsResolveFacultyId($userId);
                     $stmt = $pdo->prepare("
-                        UPDATE faculty_db.notifications
+                        UPDATE notifications
                         SET is_read = 1
                         WHERE notification_id = :id AND faculty_id = :fid
                     ");
@@ -99,7 +99,7 @@ if (!function_exists('smsMarkAllNotificationsRead')) {
                 $fid = smsResolveFacultyId($userId);
                 if ($fid > 0) {
                     $stmt = $pdo->prepare("
-                        UPDATE faculty_db.notifications
+                        UPDATE notifications
                         SET is_read = 1
                         WHERE faculty_id = :fid AND is_read = 0
                     ");
@@ -131,7 +131,7 @@ if (!function_exists('smsDeleteNotification')) {
                 if ($pdo) {
                     $fid = smsResolveFacultyId($userId);
                     $stmt = $pdo->prepare("
-                        DELETE FROM faculty_db.notifications
+                        DELETE FROM notifications
                         WHERE notification_id = :id AND faculty_id = :fid
                     ");
                     $stmt->execute([':id' => (int)$m[1], ':fid' => $fid]);
@@ -155,7 +155,7 @@ if (!function_exists('smsDeleteAllNotifications')) {
             if ($pdo) {
                 $fid = smsResolveFacultyId($userId);
                 if ($fid > 0) {
-                    $stmt = $pdo->prepare("DELETE FROM faculty_db.notifications WHERE faculty_id = :fid");
+                    $stmt = $pdo->prepare("DELETE FROM notifications WHERE faculty_id = :fid");
                     $stmt->execute([':fid' => $fid]);
                 }
             }
@@ -292,7 +292,7 @@ if (!function_exists('smsNotificationPayloadForCurrentUser')) {
             try {
                 $q = $pdo->prepare("
                     SELECT id, leave_type, status, screening_status, updated_at, created_at
-                    FROM faculty_db.leave_requests
+                    FROM leave_requests
                     WHERE faculty_id = :fid
                     ORDER BY COALESCE(updated_at, created_at) DESC
                     LIMIT 6
@@ -343,7 +343,7 @@ if (!function_exists('smsNotificationPayloadForCurrentUser')) {
             try {
                 $q = $pdo->prepare("
                     SELECT notification_id, title, priority, notification_type, is_read, created_at
-                    FROM faculty_db.notifications
+                    FROM notifications
                     WHERE faculty_id = :fid
                     ORDER BY created_at DESC
                     LIMIT 10
@@ -393,7 +393,7 @@ if (!function_exists('smsNotificationPayloadForCurrentUser')) {
             $items = [];
 
             try {
-                $q = $pdo->prepare("SELECT COUNT(*) FROM faculty_db.leave_requests WHERE screening_status = 'Pending'");
+                $q = $pdo->prepare("SELECT COUNT(*) FROM leave_requests WHERE screening_status = 'Pending'");
                 $q->execute();
                 $pending = (int)$q->fetchColumn();
                 if ($pending > 0) {
@@ -421,7 +421,7 @@ if (!function_exists('smsNotificationPayloadForCurrentUser')) {
 
             try {
                 $q = $pdo->prepare("
-                    SELECT COUNT(*) FROM faculty_db.leave_requests
+                    SELECT COUNT(*) FROM leave_requests
                     WHERE screening_status = 'Screened' AND LOWER(status) = 'pending'
                 ");
                 $q->execute();
@@ -450,7 +450,7 @@ if (!function_exists('smsNotificationPayloadForCurrentUser')) {
             $items = [];
 
             try {
-                $q = $pdo->prepare("SELECT COUNT(*) FROM faculty_db.faculty WHERE overall_rating > 0 AND overall_rating < 3.50");
+                $q = $pdo->prepare("SELECT COUNT(*) FROM faculty WHERE overall_rating > 0 AND overall_rating < 3.50");
                 $q->execute();
                 $below = (int)$q->fetchColumn();
                 if ($below > 0) {
@@ -477,7 +477,7 @@ if (!function_exists('smsNotificationPayloadForCurrentUser')) {
             $items = [];
 
             try {
-                $q = $pdo->prepare("SELECT COUNT(*) FROM faculty_db.clearance_requests WHERE overall_status != 'Cleared'");
+                $q = $pdo->prepare("SELECT COUNT(*) FROM clearance_requests WHERE overall_status != 'Cleared'");
                 $q->execute();
                 $open = (int)$q->fetchColumn();
                 if ($open > 0) {

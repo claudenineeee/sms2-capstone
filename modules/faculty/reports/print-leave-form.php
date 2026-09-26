@@ -19,8 +19,8 @@ try {
             fp.faculty_id AS faculty_identifier,
             CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name,
             lr.updated_at AS approval_timestamp
-        FROM faculty_db.leave_requests lr
-        LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = lr.faculty_id
+        FROM leave_requests lr
+        LEFT JOIN faculty_profiles fp ON fp.id = lr.faculty_id
         WHERE lr.id = :id
         LIMIT 1
     ";

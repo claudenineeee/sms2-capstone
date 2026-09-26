@@ -30,7 +30,7 @@ class LeaveBalance
     public function forFaculty(int $facultyId, string $academicYear): array
     {
         $stmt = $this->pdo->prepare("
-            SELECT * FROM faculty_db.leave_balances
+            SELECT * FROM leave_balances
             WHERE faculty_id = :fid AND academic_year = :yr
             LIMIT 1
         ");
@@ -45,8 +45,8 @@ class LeaveBalance
         // expected base categories (Vacation / Emergency), re-seed it.
         $check = $this->pdo->prepare("
             SELECT COALESCE(fp.sex, f.sex) AS sex
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.email = f.email
+            FROM faculty f
+            LEFT JOIN faculty_profiles fp ON fp.email = f.email
             WHERE f.faculty_id = :fid
             LIMIT 1
         ");
@@ -79,8 +79,8 @@ class LeaveBalance
             SELECT COALESCE(fp.sex, f.sex)              AS sex,
                    COALESCE(fp.position, f.position)    AS position,
                    COALESCE(fp.hired_date, f.hired_date) AS hired_date
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.email = f.email
+            FROM faculty f
+            LEFT JOIN faculty_profiles fp ON fp.email = f.email
             WHERE f.faculty_id = :fid
             LIMIT 1
         ");
@@ -110,7 +110,7 @@ class LeaveBalance
 
         try {
             $ins = $this->pdo->prepare("
-                INSERT INTO faculty_db.leave_balances (
+                INSERT INTO leave_balances (
                     faculty_id, academic_year,
                     sick_leave_total, vacation_leave_total, emergency_total,
                     maternity_total, paternity_total,
@@ -159,7 +159,7 @@ class LeaveBalance
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT * FROM faculty_db.leave_balances
+            SELECT * FROM leave_balances
             WHERE faculty_id = :fid AND academic_year = :yr
             LIMIT 1
         ");
@@ -223,7 +223,7 @@ try {
         $userData = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
         $userEmail = (string) ($userData['email'] ?? '');
 
-        $stmt = $pdo->prepare("SELECT faculty_id FROM faculty_db.faculty WHERE email = :email LIMIT 1");
+        $stmt = $pdo->prepare("SELECT faculty_id FROM faculty WHERE email = :email LIMIT 1");
         $stmt->execute([':email' => $userEmail]);
         $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
 
@@ -232,7 +232,7 @@ try {
                 $facultyNo = 'FAC-' . date('Y') . '-' . str_pad((string) $userId, 4, '0', STR_PAD_LEFT);
                 $firstName = $userData['username'] ?? 'Faculty';
                 $insertFaculty = $pdo->prepare("
-                    INSERT INTO faculty_db.faculty (faculty_no, first_name, last_name, email, department_id, position)
+                    INSERT INTO faculty (faculty_no, first_name, last_name, email, department_id, position)
                     VALUES (:faculty_no, :first_name, 'Member', :email, 1, 'Faculty Professor')
                 ");
                 $insertFaculty->execute([
@@ -252,8 +252,8 @@ try {
 
             $sexQ = $pdo->prepare("
                 SELECT UPPER(COALESCE(fp.sex, f.sex))
-                FROM faculty_db.faculty f
-                LEFT JOIN faculty_db.faculty_profiles fp ON fp.email = f.email
+                FROM faculty f
+                LEFT JOIN faculty_profiles fp ON fp.email = f.email
                 WHERE f.faculty_id = :id LIMIT 1
             ");
             $sexQ->execute([':id' => $facultyProfileId]);
@@ -283,7 +283,7 @@ try {
         $totalDays = ($startDate && $endDate) ? (int) ((strtotime($endDate) - strtotime($startDate)) / 86400) + 1 : 0;
 
         if ($formError === '') {
-            $chk = $pdo->prepare('SELECT id, documents, faculty_id, status, screening_status, total_days FROM faculty_db.leave_requests WHERE id = :id LIMIT 1');
+            $chk = $pdo->prepare('SELECT id, documents, faculty_id, status, screening_status, total_days FROM leave_requests WHERE id = :id LIMIT 1');
             $chk->execute([':id' => $editRequestId]);
             $row = $chk->fetch(PDO::FETCH_ASSOC);
 
@@ -337,13 +337,13 @@ try {
 
         if ($formError === '') {
             try {
-                $docQ = $pdo->prepare("SELECT documents FROM faculty_db.leave_requests WHERE id = :id LIMIT 1");
+                $docQ = $pdo->prepare("SELECT documents FROM leave_requests WHERE id = :id LIMIT 1");
                 $docQ->execute([':id' => $editRequestId]);
                 $existingDoc = (string) ($docQ->fetchColumn() ?: '');
                 $finalDoc = $uploadedName ?: $existingDoc;
 
                 $upSql = "
-                    UPDATE faculty_db.leave_requests
+                    UPDATE leave_requests
                     SET leave_type=:leave_type, start_date=:start_date, end_date=:end_date,
                         total_days=:total_days, reason=:reason, documents=:documents,
                         status='Pending', screening_status='Pending', notification=0, updated_at=NOW()
@@ -435,7 +435,7 @@ try {
             try {
                 $pdo->beginTransaction();
                 $sql = "
-                    INSERT INTO faculty_db.leave_requests (
+                    INSERT INTO leave_requests (
                         faculty_id, request_ref, leave_type,
                         start_date, end_date, total_days, reason,
                         documents, status, screening_status
@@ -461,7 +461,7 @@ try {
                 if ($map['key'] !== '' && isset($balance[$map['key'] . '_used'])) {
                     $col = $map['key'] . '_used';
                     $upd = $pdo->prepare("
-                        UPDATE faculty_db.leave_balances
+                        UPDATE leave_balances
                         SET {$col} = {$col} + :days, updated_at = NOW()
                         WHERE faculty_id = :fid AND academic_year = :yr
                     ");
@@ -493,8 +493,8 @@ try {
                 CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name,
                 DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
                 lr.updated_at AS approval_timestamp
-            FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty fp ON fp.faculty_id = lr.faculty_id
+            FROM leave_requests lr
+            LEFT JOIN faculty fp ON fp.faculty_id = lr.faculty_id
             WHERE lr.faculty_id = :faculty_profile_id
             ORDER BY lr.created_at DESC
         ";

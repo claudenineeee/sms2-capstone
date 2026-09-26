@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!empty($code) && !empty($name)) {
             try {
-                $stmt = $pdo->prepare("INSERT INTO faculty_db.departments (code, name, description) VALUES (:code, :name, :desc)");
+                $stmt = $pdo->prepare("INSERT INTO departments (code, name, description) VALUES (:code, :name, :desc)");
                 $stmt->execute([
                     ':code' => $code,
                     ':name' => $name,
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newStatus = ($currentStatus === 'Active') ? 'Inactive' : 'Active';
 
         if ($deptId > 0) {
-            $stmt = $pdo->prepare("UPDATE faculty_db.departments SET status = :status WHERE department_id = :id");
+            $stmt = $pdo->prepare("UPDATE departments SET status = :status WHERE department_id = :id");
             $stmt->execute([':status' => $newStatus, ':id' => $deptId]);
             $message = "Department status updated to {$newStatus}.";
         }
@@ -50,9 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $pdo->query("
     SELECT d.*, 
            (SELECT COUNT(*) 
-            FROM faculty_db.faculty_profiles fp 
+            FROM faculty_profiles fp 
             WHERE fp.designated_department = d.code) AS faculty_count
-    FROM faculty_db.departments d
+    FROM departments d
     ORDER BY d.created_at DESC
 ");
 $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);

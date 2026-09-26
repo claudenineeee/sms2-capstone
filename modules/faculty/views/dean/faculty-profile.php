@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'active' WHERE id = :user_id");
         $res1 = $stmt1->execute([':user_id' => $userId]);
 
-        $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Active' WHERE user_id = :user_id");
+        $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Active' WHERE user_id = :user_id");
         $res2 = $stmt2->execute([':user_id' => $userId]);
 
         if ($res1 && $res2) {
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'rejected' WHERE id = :user_id");
         $res1 = $stmt1->execute([':user_id' => $userId]);
 
-        $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Rejected' WHERE user_id = :user_id");
+        $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Rejected' WHERE user_id = :user_id");
         $res2 = $stmt2->execute([':user_id' => $userId]);
 
         if ($res1 && $res2) {

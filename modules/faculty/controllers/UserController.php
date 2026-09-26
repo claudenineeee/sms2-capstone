@@ -41,7 +41,7 @@ class UserController {
 
             $newUserId = $this->db->lastInsertId();
 
-            // 2. Profile record inheriting creator's department (faculty_db.faculty_profiles or faculty)
+            // 2. Profile record inheriting creator's department (faculty_profiles or faculty)
             $stmtProfile = $this->db->prepare("
                 INSERT INTO faculty (user_id, first_name, last_name, department_id, profile_status, created_at)
                 VALUES (:user_id, :first_name, :last_name, :dept_id, 'Active', NOW())
