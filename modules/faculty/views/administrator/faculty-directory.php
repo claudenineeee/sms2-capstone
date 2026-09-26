@@ -130,6 +130,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 $hiredDate = !empty($f['hired_date']) ? $f['hired_date'] : '—';
                 $phone = $f['phone'] ?? '—';
                 $email = $f['email'] ?? '—';
+                $academicRank = trim((string) ($f['academic_rank'] ?? ''));
+                $tier = trim((string) ($f['tier'] ?? ''));
             ?>
             <div class="col-12 col-md-6 col-lg-4 faculty-card-item"
                  data-dept="<?= htmlspecialchars($deptName) ?>"
@@ -209,6 +211,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 data-phone="<?= htmlspecialchars($phone) ?>"
                                 data-position="<?= htmlspecialchars($f['position'] ?? '—') ?>"
                                 data-department="<?= htmlspecialchars($deptName) ?>"
+                                data-academic-rank="<?= htmlspecialchars($academicRank !== '' ? $academicRank : '—') ?>"
+                                data-tier="<?= htmlspecialchars($tier !== '' ? $tier : '—') ?>"
                                 data-status="<?= htmlspecialchars($empStatus) ?>"
                                 data-profile-status="<?= htmlspecialchars($profStatus) ?>"
                                 data-hired-date="<?= htmlspecialchars($hiredDate) ?>"
@@ -248,6 +252,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                                 <dt class="col-5 text-muted small fw-semibold">Position</dt>
                                 <dd class="col-7 mb-3" id="modalPosition">—</dd>
+
+                                <dt class="col-5 text-muted small fw-semibold">Academic Rank</dt>
+                                <dd class="col-7 mb-3" id="modalAcademicRank">—</dd>
+
+                                <dt class="col-5 text-muted small fw-semibold">Tier</dt>
+                                <dd class="col-7 mb-3" id="modalTier">—</dd>
 
                                 <dt class="col-5 text-muted small fw-semibold">Employment</dt>
                                 <dd class="col-7 mb-3" id="modalStatus">—</dd>
@@ -390,6 +400,25 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <?php endforeach; ?>
                             </div>
                             <div id="deanDeptError" class="text-danger small mt-1 d-none">Select at least one department.</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label for="deanAcademicRankSelect" class="form-label text-muted small fw-bold mb-1">Academic Rank</label>
+                            <select id="deanAcademicRankSelect" name="academic_rank" class="form-select bg-body border-secondary-subtle text-body" required>
+                                <option value="" selected disabled>Select Academic Rank</option>
+                                <option value="Instructor">Instructor</option>
+                                <option value="Assistant Professor">Assistant Professor</option>
+                                <option value="Associate Professor">Associate Professor</option>
+                                <option value="Professor">Professor</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label for="deanAcademicTierSelect" class="form-label text-muted small fw-bold mb-1">Tier</label>
+                            <select id="deanAcademicTierSelect" name="tier" class="form-select bg-body border-secondary-subtle text-body" required disabled>
+                                <option value="" selected>Select Academic Rank first</option>
+                            </select>
                         </div>
                     </div>
 
@@ -567,6 +596,24 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </div>
                     </div>
                     <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label for="deptHeadAcademicRankSelect" class="form-label text-muted small fw-bold mb-1">Academic Rank</label>
+                            <select id="deptHeadAcademicRankSelect" name="academic_rank" class="form-select bg-body border-secondary-subtle text-body" required>
+                                <option value="" selected disabled>Select Academic Rank</option>
+                                <option value="Instructor">Instructor</option>
+                                <option value="Assistant Professor">Assistant Professor</option>
+                                <option value="Associate Professor">Associate Professor</option>
+                                <option value="Professor">Professor</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label for="deptHeadAcademicTierSelect" class="form-label text-muted small fw-bold mb-1">Tier</label>
+                            <select id="deptHeadAcademicTierSelect" name="tier" class="form-select bg-body border-secondary-subtle text-body" required disabled>
+                                <option value="" selected>Select Academic Rank first</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
                             <label for="deptHeadHiredMonthSelect" class="form-label text-muted small fw-bold mb-1">
                                 <i class="fas fa-calendar-check text-primary me-1"></i> Hired Date
@@ -674,6 +721,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const deptHeadBirthMonthSel  = document.getElementById("deptHeadBirthMonthSelect");
     const deptHeadBirthDayInp    = document.getElementById("deptHeadBirthDayInput");
     const deptHeadBirthYearInp   = document.getElementById("deptHeadBirthYearInput");
+    const deptHeadAgeInput       = document.getElementById("deptHeadAge");
 
     // Dept Head modal — Hired Date
     const deptHeadHiredMonthSel  = document.getElementById("deptHeadHiredMonthSelect");
@@ -694,6 +742,35 @@ document.addEventListener("DOMContentLoaded", function () {
     const deptHeadContractDateInput = document.getElementById("deptHeadContractualEnd");
     const employmentStatusSelect = document.getElementById("employmentStatus");
     const contractualEndCol = document.getElementById("contractualEndCol");
+
+    // Academic Rank -> Tier cascading dropdowns (single source of truth
+    // comes from getAcademicRankTiers() in faculty-data.php, so the
+    // frontend options can never drift out of sync with server validation).
+    const RANK_TIERS = <?= json_encode(function_exists('getAcademicRankTiers') ? getAcademicRankTiers() : []) ?>;
+
+    function bindAcademicRankTier(rankSelectId, tierSelectId) {
+        const rankSelect = document.getElementById(rankSelectId);
+        const tierSelect = document.getElementById(tierSelectId);
+        if (!rankSelect || !tierSelect) return;
+
+        function populateTiers() {
+            const tiers = RANK_TIERS[rankSelect.value] || [];
+            if (tiers.length === 0) {
+                tierSelect.disabled = true;
+                tierSelect.innerHTML = '<option value="" selected>Select Academic Rank first</option>';
+                return;
+            }
+            tierSelect.disabled = false;
+            tierSelect.innerHTML = '<option value="" selected disabled>Select Tier</option>' +
+                tiers.map(t => `<option value="${t}">${t}</option>`).join('');
+        }
+
+        rankSelect.addEventListener('change', populateTiers);
+        populateTiers();
+    }
+
+    bindAcademicRankTier('deanAcademicRankSelect', 'deanAcademicTierSelect');
+    bindAcademicRankTier('deptHeadAcademicRankSelect', 'deptHeadAcademicTierSelect');
 
     function computeAge(birthDateString) {
         if (!birthDateString) return '';
@@ -786,7 +863,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // NEW: same age-calc + contractual-end toggle, wired to the
     // Add Department Head form's separately-namespaced fields.
-    const deptHeadAgeInput = document.getElementById("deptHeadAge");
     const deptHeadEmploymentStatusSelect = document.getElementById("deptHeadEmploymentStatus");
     const deptHeadContractualEndCol = document.getElementById("deptHeadContractualEndCol");
 
@@ -838,6 +914,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 viewModal.querySelector('#viewProfileModalLabel').textContent = this.dataset.fullName || 'Faculty Profile';
                 viewModal.querySelector('#modalFacultyId').textContent = this.dataset.facultyId || '—';
                 viewModal.querySelector('#modalPosition').textContent = this.dataset.position || '—';
+                viewModal.querySelector('#modalAcademicRank').textContent = this.dataset.academicRank || '—';
+                viewModal.querySelector('#modalTier').textContent = this.dataset.tier || '—';
                 viewModal.querySelector('#modalStatus').textContent = this.dataset.status || '—';
                 viewModal.querySelector('#modalProfileStatus').textContent = this.dataset.profileStatus || '—';
                 viewModal.querySelector('#modalDepartment').textContent = this.dataset.department || '—';
