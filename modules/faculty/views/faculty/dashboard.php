@@ -42,8 +42,9 @@ $teachingLoad = 0;
 $classesToday = 0;
 $rating = 0;
 $ratingLabel = 'No Rating';
+$leaveRequests = [];
 
-// Fetch Teaching Load and Rating from database
+// Fetch Teaching Load, Rating, and Leave Requests from database
 if ($facultyId) {
     try {
         // Get current term first (or latest term)
@@ -73,8 +74,46 @@ if ($facultyId) {
             elseif ($rating >= 3.0) $ratingLabel = 'Satisfactory';
             else $ratingLabel = 'Needs Improvement';
         }
+
+        // Fetch the 5 most recent leave requests for this faculty member
+        // (Adjust table name 'leave_requests' and column names if they differ in your database schema)
+        $leaveStmt = $pdo->prepare("
+            SELECT leave_type, start_date, end_date, status, created_at 
+            FROM faculty_db.leave_requests 
+            WHERE faculty_id = :faculty_id 
+            ORDER BY created_at DESC 
+            LIMIT 5
+        ");
+        $leaveStmt->execute([':faculty_id' => $facultyId]);
+        $rawLeaves = $leaveStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rawLeaves as $lr) {
+            $status = $lr['status'] ?? 'Pending';
+            $badgeClass = 'badge-status-pending';
+            
+            if (strcasecmp($status, 'Approved') === 0) {
+                $badgeClass = 'badge-status-approved';
+            } elseif (strcasecmp($status, 'Rejected') === 0) {
+                $badgeClass = 'badge-status-rejected';
+            } elseif (strcasecmp($status, 'Returned') === 0) {
+                $badgeClass = 'badge-status-returned';
+            }
+
+            // Format date range nicely
+            $startDate = date('M d, Y', strtotime($lr['start_date']));
+            $endDate = !empty($lr['end_date']) && $lr['end_date'] !== $lr['start_date'] ? date('M d, Y', strtotime($lr['end_date'])) : '';
+            $dateFormatted = $endDate ? strtoupper($startDate . ' - ' . $endDate) : strtoupper($startDate);
+
+            $leaveRequests[] = [
+                'date' => $dateFormatted,
+                'type' => $lr['leave_type'] ?? 'Leave',
+                'status' => $status,
+                'badge' => $badgeClass
+            ];
+        }
+
     } catch (Exception $e) {
-        error_log('Dashboard metrics fetch error: ' . $e->getMessage());
+        error_log('Dashboard data fetch error: ' . $e->getMessage());
     }
 }
 
@@ -156,7 +195,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <h6 class="fw-bold text-dark mb-0">
                     <i class="far fa-clock text-primary me-2"></i>Today's Schedule
                 </h6>
-                <span class="badge custom-badge bg-secondary-subtle text-dark border fw-medium">August 1, 2025</span>
+                <span class="badge custom-badge bg-secondary-subtle text-dark border fw-medium"><?= date('F j, Y') ?></span>
             </div>
             <div class="card-body p-4 text-center text-muted">
                 <i class="fas fa-calendar-times fs-3 mb-2 text-secondary"></i>
@@ -176,12 +215,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="card-body p-0 custom-scrollbar" style="max-height: 300px; overflow-y: auto;">
                 <ul class="list-group list-group-flush">
-                    <?php
-                    $leaveRequests = [
-                        ['date' => 'AUG 21 - 22, 2026', 'type' => 'Sick Leave', 'status' => 'Approved', 'badge' => 'badge-status-approved'],
-                        ['date' => 'SEP 10, 2026', 'type' => 'Vacation Leave', 'status' => 'Pending', 'badge' => 'badge-status-pending']
-                    ];
-                    if (empty($leaveRequests)): ?>
+                    <?php if (empty($leaveRequests)): ?>
                         <li class="list-group-item text-center text-muted py-4">No leave requests found.</li>
                     <?php else: foreach ($leaveRequests as $lr): ?>
                         <li class="list-group-item d-flex align-items-center justify-content-between py-3 px-3">
@@ -190,11 +224,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     <i class="fas fa-plane"></i>
                                 </div>
                                 <div>
-                                    <h6 class="mb-0 fw-semibold text-dark small"><?= $lr['type'] ?></h6>
-                                    <small class="text-secondary d-block"><?= $lr['date'] ?></small>
+                                    <h6 class="mb-0 fw-semibold text-dark small"><?= htmlspecialchars($lr['type']) ?></h6>
+                                    <small class="text-secondary d-block"><?= htmlspecialchars($lr['date']) ?></small>
                                 </div>
                             </div>
-                            <span class="badge <?= $lr['badge'] ?> px-3 py-2 fw-semibold rounded-pill"><?= $lr['status'] ?></span>
+                            <span class="badge <?= $lr['badge'] ?> px-3 py-2 fw-semibold rounded-pill"><?= htmlspecialchars($lr['status']) ?></span>
                         </li>
                     <?php endforeach; endif; ?>
                 </ul>
@@ -221,8 +255,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <?php
                     $notifications = [
                         ['title' => 'Schedule Change', 'msg' => 'CS301 schedule changed to Room 302', 'time' => '1h ago'],
-                        ['title' => 'Leave Approved', 'msg' => 'Your sick leave request for Aug 21-22 has been approved', 'time' => '2h ago'],
-                        ['title' => 'Performance Update', 'msg' => 'Your evaluation for 2nd Semester 2025 is available', 'time' => '1d ago']
+                        ['title' => 'Leave Approved', 'msg' => 'Your recent leave request status has been updated', 'time' => '2h ago'],
+                        ['title' => 'Performance Update', 'msg' => 'Your evaluation summary is available', 'time' => '1d ago']
                     ];
                     foreach ($notifications as $n): ?>
                         <li class="list-group-item p-3 border-bottom">

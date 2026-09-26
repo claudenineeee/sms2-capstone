@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 
-// Parse DATABASE_URL or MYSQL_URL if provided by host (e.g. HostForge, Railway, Heroku)
-$databaseUrl = sms2_env('DATABASE_URL', sms2_env('MYSQL_URL'));
+$hasExplicitSms2Database = sms2_env('SMS2_DB_HOST') !== null;
+$databaseUrl = $hasExplicitSms2Database ? null : sms2_env('DATABASE_URL', sms2_env('MYSQL_URL'));
 $dbUrlParts = [];
 if (!empty($databaseUrl)) {
     $parsed = parse_url($databaseUrl);

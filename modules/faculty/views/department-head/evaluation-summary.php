@@ -3,82 +3,69 @@
  * SMS 2 - Evaluation Summary
  * Module: Faculty Management
  *
- * IMPORTANT: Shows ONLY faculty from the logged-in Dept Head's department.
- * If the dept head's department cannot be resolved, the list will be EMPTY
- * (never falls back to showing all departments).
+ * Shows ONLY faculty belonging to the logged-in Department Head's department.
  */
 require_once __DIR__ . '/../../../../config/config.php';
+require_once ROOT_PATH . '/includes/authentication.php';
+requireAuth();
 
 /* ------------------------------------------------------------------
- | Establish Database Connection
+ | 1. Establish Database Connection
  * ------------------------------------------------------------------ */
-if (!isset($pdo) || !$pdo) {
-    $pdo = $conn ?? $db ?? null;
-}
+require_once __DIR__ . '/../../config/database.php';
+$pdo = facultyDb();
 
 if (!$pdo) {
-    try {
-        $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
-        $dbName = defined('DB_NAME') ? DB_NAME : 'faculty_db';
-        $dbUser = defined('DB_USER') ? DB_USER : 'root';
-        $dbPass = defined('DB_PASS') ? DB_PASS : '';
-
-        $pdo = new PDO("mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4", $dbUser, $dbPass, [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-    } catch (PDOException $e) {
-        die('Database connection failed: ' . htmlspecialchars($e->getMessage()));
-    }
+    http_response_code(503);
+    die('Faculty database is currently unavailable. Please try again later.');
 }
 
 /* ------------------------------------------------------------------
- | 1. Identify Dept Head's Department
- |
- | faculty_profiles.designated_department stores the department CODE
- | (e.g. 'BSIT', 'BS CRIM', 'BSBA'). The dept head row in your DB is:
- |   id = 34, user_id = 149, designated_department = 'BSIT'
- |
- | Session may store user_id (149) OR id (34) OR faculty_id string.
- | We try all three to be bulletproof.
+ | 2. Identify the department assigned to the logged-in account.
+ |    users.id is linked to faculty_profiles.user_id; email is used only
+ |    as a fallback for legacy profiles without that link.
  * ------------------------------------------------------------------ */
-$currentUserId = $_SESSION['user_id'] ?? $_SESSION['id'] ?? 0;
+$currentUserId = (int) ($_SESSION['user_id'] ?? 0);
+$sessionEmail  = $_SESSION['user_email'] ?? $_SESSION['email'] ?? null;
 $deptHeadDept  = null;
 
 if ($currentUserId) {
     try {
-        // Try user_id first (external auth id), then profile id, then via faculty_no
         $stmt = $pdo->prepare("
             SELECT designated_department
             FROM faculty_profiles
             WHERE user_id = :uid
-               OR id = :pid
             LIMIT 1
         ");
-        $stmt->execute([
-            'uid' => $currentUserId,
-            'pid' => $currentUserId,
-        ]);
-        $row = $stmt->fetch();
-        if ($row && !empty(trim($row['designated_department'] ?? ''))) {
-            $deptHeadDept = trim($row['designated_department']);
-        }
+        $stmt->execute(['uid' => $currentUserId]);
+        $deptHeadDept = trim((string) ($stmt->fetchColumn() ?: ''));
     } catch (PDOException $e) {
         error_log('[EvalSummary] Dept lookup failed: ' . $e->getMessage());
     }
 }
 
-// Fallback: session may carry the department directly
-if (empty($deptHeadDept)) {
-    $deptHeadDept = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? '');
+if (empty($deptHeadDept) && $sessionEmail) {
+    try {
+        $stmt = $pdo->prepare(" 
+            SELECT designated_department
+            FROM faculty_profiles
+            WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email))
+            LIMIT 1
+        ");
+        $stmt->execute(['email' => $sessionEmail]);
+        $deptHeadDept = trim((string) ($stmt->fetchColumn() ?: ''));
+    } catch (PDOException $e) {
+        error_log('[EvalSummary] Dept email lookup failed: ' . $e->getMessage());
+    }
 }
 
-// If session gave us a full department NAME, map it to the CODE.
-// faculty_profiles.designated_department expects the CODE.
+$departmentName = $deptHeadDept;
+
+// Resolve the canonical code and name so profiles storing either form are included.
 if (!empty($deptHeadDept)) {
     try {
         $stmt = $pdo->prepare("
-            SELECT code
+            SELECT code, name
             FROM departments
             WHERE LOWER(TRIM(name)) = LOWER(TRIM(:d))
                OR LOWER(TRIM(code)) = LOWER(TRIM(:d))
@@ -88,59 +75,48 @@ if (!empty($deptHeadDept)) {
         $row = $stmt->fetch();
         if ($row && !empty($row['code'])) {
             $deptHeadDept = trim($row['code']);
+            $departmentName = trim($row['name'] ?? $departmentName);
         }
     } catch (PDOException $e) {
-        // Non-fatal
+        // Non-fatal; continue with what we have
     }
 }
 
-// Debug — remove after verifying
-error_log('[EvalSummary] user_id=' . $currentUserId . ' resolved dept=[' . $deptHeadDept . ']');
-
 /* ------------------------------------------------------------------
- | 2. Fetch Faculty Members from the SAME Department Only
- |
- | faculty_profiles.id is NOT the same identifier as faculty.faculty_id.
- | The evaluations.faculty_id column is a FK into faculty.faculty_id,
- | so all evaluation lookups use the bridged "real_faculty_id" via email
- | match (preferred) or faculty_no match.
- *
- | STRICT rule: only faculty whose designated_department EQUALS the dept
- | head's department appear. No fallback to "all departments".
+ | 3. Fetch Faculty Members from the SAME Department Only
  * ------------------------------------------------------------------ */
 $facultyMembers = [];
 
 if (!empty($deptHeadDept)) {
-    $stmt = $pdo->prepare("
+    $facultyQuerySql = "
         SELECT fp.id,
-               fp.faculty_id          AS profile_faculty_no,
+               fp.faculty_id            AS profile_faculty_no,
                fp.first_name,
                fp.last_name,
                fp.designated_department,
                fp.position,
                fp.email,
-               f.faculty_id           AS real_faculty_id
+               f.faculty_id             AS real_faculty_id
         FROM faculty_profiles fp
-        LEFT JOIN faculty f
-               ON (fp.email IS NOT NULL AND fp.email <> '' AND f.email = fp.email)
-               OR (f.faculty_no = fp.faculty_id)
-        WHERE LOWER(TRIM(fp.designated_department)) = LOWER(TRIM(:dept))
-        GROUP BY fp.id
+        LEFT JOIN faculty f ON f.faculty_id = (
+            SELECT f2.faculty_id
+            FROM faculty f2
+            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+               OR f2.faculty_no = fp.faculty_id
+            ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+            LIMIT 1
+        )
+        WHERE LOWER(TRIM(fp.designated_department)) = LOWER(TRIM(:dept_code))
+           OR LOWER(TRIM(fp.designated_department)) = LOWER(TRIM(:dept_name))
         ORDER BY fp.last_name ASC, fp.first_name ASC
-    ");
-    $stmt->execute(['dept' => $deptHeadDept]);
-    $facultyMembers = $stmt->fetchAll();
+    ";
 
-    // Debug — remove after verifying
-    $deptsSeen = [];
-    foreach ($facultyMembers as $fm) {
-        $d = $fm['designated_department'] ?? 'NULL';
-        $deptsSeen[$d] = ($deptsSeen[$d] ?? 0) + 1;
-    }
-    error_log('[EvalSummary] faculty rows=' . count($facultyMembers) . ' depts=' . json_encode($deptsSeen));
-} else {
-    error_log('[EvalSummary] No department resolved — faculty list will be empty.');
-    $facultyMembers = [];
+    $stmt = $pdo->prepare($facultyQuerySql);
+    $stmt->execute([
+        'dept_code' => $deptHeadDept,
+        'dept_name' => $departmentName,
+    ]);
+    $facultyMembers = $stmt->fetchAll();
 }
 
 /* ------------------------------------------------------------------
@@ -157,8 +133,7 @@ function getRatingLabel($score) {
 }
 
 /* ------------------------------------------------------------------
- | 3. Compute Weighted Evaluation Ratings per Faculty
- |    Weighted Formula: 50% Student + 30% Peer + 20% Dept Head
+ | 4. Compute 60/40 Weighted Evaluation Ratings per Faculty
  * ------------------------------------------------------------------ */
 $performanceDB = [];
 
@@ -209,14 +184,14 @@ foreach ($facultyMembers as $fac) {
         $headAvg    = 0; $headCount    = 0;
     }
 
-    // Weighted composite — renormalize so missing sources don't drag score down
+    // Weighted composite (Student 50 / Peer 30 / DeptHead 20)
     $weightedSources = [
         ['avg' => $studentAvg, 'count' => $studentCount, 'weight' => 0.50],
         ['avg' => $peerAvg,    'count' => $peerCount,    'weight' => 0.30],
         ['avg' => $headAvg,    'count' => $headCount,    'weight' => 0.20],
     ];
-    $weightedSum = 0;
-    $weightTotal = 0;
+    $weightedSum   = 0;
+    $weightTotal   = 0;
     foreach ($weightedSources as $src) {
         if ($src['count'] > 0) {
             $weightedSum += $src['avg'] * $src['weight'];
@@ -305,7 +280,7 @@ foreach ($facultyMembers as $fac) {
 }
 
 /* ------------------------------------------------------------------
- | 4. Department-Wide Overview Stats
+ | 5. Department-Wide Overview Stats
  * ------------------------------------------------------------------ */
 $totalFacultyCount = count($performanceDB);
 $deptOverallScores = [];
@@ -922,7 +897,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     function renderPaginationControls() {
-        const totalPages     = Math.ceil(filteredCards.length / itemsPerPage) || 1;
+        const totalPages   = Math.ceil(filteredCards.length / itemsPerPage) || 1;
         const paginationList = document.getElementById('paginationList');
         paginationList.innerHTML = '';
 
