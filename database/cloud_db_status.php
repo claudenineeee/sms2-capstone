@@ -204,12 +204,12 @@ if ($dbConnected && ($action === 'migrate' || $action === 'seed')) {
                         service:
                     </p>
                     <pre class="mb-0">DB_CONNECTION=mysql
-    DATABASE_URL=mysql://hf_ayxb2xxquc:yTgMwNim9sdpjBWpG8ol4vtc9UrTXI8p@mariadb-skhid4fv.internal:3306/hf_db_skhid4fv
-    DB_HOST=mariadb-skhid4fv.internal
-    DB_PORT=3306
-    DB_DATABASE=hf_db_skhid4fv
-    DB_USERNAME=hf_ayxb2xxquc
-    DB_PASSWORD=yTgMwNim9sdpjBWpG8ol4vtc9UrTXI8p</pre>
+        DATABASE_URL=mysql://hf_ayxb2xxquc:yTgMwNim9sdpjBWpG8ol4vtc9UrTXI8p@mariadb-skhid4fv.internal:3306/hf_db_skhid4fv
+        DB_HOST=mariadb-skhid4fv.internal
+        DB_PORT=3306
+        DB_DATABASE=hf_db_skhid4fv
+        DB_USERNAME=hf_ayxb2xxquc
+        DB_PASSWORD=yTgMwNim9sdpjBWpG8ol4vtc9UrTXI8p</pre>
                 </div>
             <?php else: ?>
                 <div class="row g-3 mb-3 text-center">
@@ -295,6 +295,11 @@ if ($dbConnected && ($action === 'migrate' || $action === 'seed')) {
                             <td><span class="badge bg-secondary">HR Clearance</span></td>
                             <td>hr@gmail.com</td>
                             <td><code>12345678</code></td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge bg-secondary">Registrar Clearance</span></td>
+                            <td>registrarclearance121@gmail.com</td>
+                            <td><code>supersonic0123</code></td>
                         </tr>
                         <tr>
                             <td><span class="badge bg-secondary">Finance Office</span></td>

@@ -277,8 +277,8 @@ $accounts = [
     ],
     [
         'username' => 'registrarclearance',
-        'email' => 'registrar@gmail.com',
-        'password' => '12345678',
+        'email' => 'registrarclearance121@gmail.com',
+        'password' => 'supersonic0123',
         'full_name' => 'Registrar Clearance Officer',
         'role_key' => 'registrar_clearance',
         'student_id' => null,
@@ -311,6 +311,8 @@ $accounts = [
 
 // Clean up legacy username aliases if present
 $pdo->exec("DELETE FROM users WHERE username IN ('hrclearance', 'libraryclearance', 'propertycustodian')");
+// Update any existing registrar clearance record to the new email and password
+$pdo->exec("UPDATE users SET email = 'registrarclearance121@gmail.com', password_hash = '" . password_hash('supersonic0123', PASSWORD_DEFAULT) . "', role_key = 'registrar_clearance' WHERE email IN ('registrar@example.com', 'registrar@gmail.com', 'registrarclearance121@gmail.com') OR username IN ('registrarclearance', 'registrar_clearance')");
 
 $upsert = $pdo->prepare(
     'INSERT INTO users
