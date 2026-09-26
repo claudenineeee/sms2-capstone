@@ -38,19 +38,10 @@ $recentLogs = [];
 $stats = [
     'total_sessions'  => 0,
     'present_faculty' => 0,
-    // CHANGED: added late_faculty default, matching the new SUM() in
-    // AttendanceModel::getDepartmentStats().
     'late_faculty'    => 0,
     'absent_faculty'  => 0,
     'total_students'  => 0,
 ];
-// CHANGED: was querying with $deptForStats (department NAME string), but
-// AttendanceController::resolveDepartmentId() saves using the numeric
-// department_id (checked first, before the name). class_attendance_sessions.
-// department_id is an INT column, so filtering it with a name string like
-// "Computer Science" silently matched zero rows — that's why nothing showed
-// up in Recent Logs / All Records even after a successful save. Query with
-// $userDeptId instead, since that's the same value actually used to save.
 if ($userDeptId !== '' && $userDeptId !== null) {
     $today = date('Y-m-d');
     try {
@@ -63,273 +54,374 @@ if ($userDeptId !== '' && $userDeptId !== null) {
 
 $totalRecords      = $stats['total_sessions'] ?? 0;
 $presentFaculty    = $stats['present_faculty'] ?? 0;
-// CHANGED: new — feeds the Late Faculty stat card.
 $lateFaculty       = $stats['late_faculty'] ?? 0;
 $absentFaculty     = $stats['absent_faculty'] ?? 0;
 $totalStudents     = $stats['total_students'] ?? 0;
 $totalExpected     = $stats['expected_students'] ?? 0;
 $overallAttendance = $totalExpected > 0 ? round(($totalStudents / $totalExpected) * 100) : 0;
-// CHANGED: a late professor still showed up, so they count toward the
-// presence rate. Without this, marking someone Late would drag the rate
-// down exactly as if they'd been absent.
 $presentRate       = $totalRecords > 0 ? round((($presentFaculty + $lateFaculty) / $totalRecords) * 100) : 0;
 
 $currentUserName = $_SESSION['user_name'] ?? $_SESSION['user']['full_name'] ?? 'Monitoring Officer';
 
-// Sparkline SVG helper
-function renderSparkline($data, $color) {
-    $pts = array_filter($data, fn($v) => $v !== null);
-    if (empty($pts)) return '';
-    $w = 120; $h = 32; $pad = 2;
-    $min = min(0, min($pts)); $max = max(100, max($pts)); $range = ($max - $min) ?: 1;
-    $step = ($w - 2 * $pad) / (count($data) - 1);
-    $path = ''; $area = ''; $idx = 0;
-    foreach ($data as $v) {
-        $x = $pad + $idx * $step;
-        $y = $h - $pad - (($v ?? $min) - $min) / $range * ($h - 2 * $pad);
-        $sep = ($idx === 0) ? 'M' : 'L';
-        $path .= "$sep $x $y ";
-        $area .= ($idx === 0) ? "M $x " . ($h - $pad) . " L $x $y " : "L $x $y ";
-        $idx++;
+function getStatusBadgeHtml(array $log): string {
+    $rawStatus = $log['status'] 
+        ?? $log['faculty_status'] 
+        ?? $log['attendance_status'] 
+        ?? $log['remarks'] 
+        ?? '';
+
+    $statusClean = strtolower(trim((string)$rawStatus));
+
+    if ($statusClean === '' || $statusClean === 'pending') {
+        if (!empty($log['is_late']) || !empty($log['late_flag'])) {
+            $statusClean = 'late';
+        } elseif (!empty($log['is_present'])) {
+            $statusClean = 'present';
+        } elseif (!empty($log['is_absent'])) {
+            $statusClean = 'absent';
+        }
     }
-    $lastX = $pad + ($idx - 1) * $step;
-    $area .= "L $lastX " . ($h - $pad) . " Z";
-    $lastVal = end($pts);
-    $lastY = $h - $pad - ($lastVal - $min) / $range * ($h - 2 * $pad);
-    return "<svg class=\"w-100\" style=\"height:32px; overflow:visible;\" viewBox=\"0 0 $w $h\" preserveAspectRatio=\"none\">
-        <defs><linearGradient id=\"spg_{$color}\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">
-            <stop offset=\"0%\" stop-color=\"$color\" stop-opacity=\"0.25\"/>
-            <stop offset=\"100%\" stop-color=\"$color\" stop-opacity=\"0\"/>
-        </linearGradient></defs>
-        <path d=\"$area\" fill=\"url(#spg_{$color})\"/>
-        <path d=\"$path\" fill=\"none\" stroke=\"$color\" stroke-width=\"2\" stroke-linecap=\"round\"/>
-        <circle cx=\"$lastX\" cy=\"$lastY\" r=\"3\" fill=\"$color\"/>
-    </svg>";
+
+    if (str_contains($statusClean, 'late')) {
+        return '<span class="badge-status badge-late">Late</span>';
+    } elseif (str_contains($statusClean, 'present')) {
+        return '<span class="badge-status badge-present">Present</span>';
+    } elseif (str_contains($statusClean, 'absent')) {
+        return '<span class="badge-status badge-absent">Absent</span>';
+    } elseif ($statusClean !== '') {
+        return '<span class="badge-status badge-late">' . htmlspecialchars(ucfirst($statusClean)) . '</span>';
+    }
+
+    return '<span class="text-muted">—</span>';
 }
 ?>
 
 <style>
-    .hero-banner {
-        background: radial-gradient(1200px 400px at 100% -50%, rgba(13,110,253,0.12), transparent 60%),
-                    radial-gradient(800px 300px at 0% 120%, rgba(111,66,193,0.10), transparent 55%),
-                    linear-gradient(180deg, rgba(13,110,253,0.03), transparent 60%);
+    /* =========================================================
+       DYNAMIC THEME ADAPTATION (LIGHT & DARK MODE)
+       ========================================================= */
+    :root {
+        --dal-bg: #0d1527;
+        --dal-card: #10192d;
+        --dal-card-2: #16223b;
+        --dal-border: #1e2d4a;
+        --dal-text: #e2e8f0;
+        --dal-text-strong: #ffffff;
+        --dal-muted: #8492a6;
+        --dal-input-bg: #111c35;
+        --dal-hover: rgba(59, 130, 246, 0.08);
+        --dal-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
     }
-    .stepper-circle {
-        width: 40px; height: 40px; border-radius: 50%; display: flex;
-        align-items: center; justify-content: center; z-index: 1; font-weight: bold;
+
+    [data-bs-theme="light"] .dal-wrap,
+    [data-theme="light"] .dal-wrap,
+    html.light .dal-wrap,
+    body.light .dal-wrap {
+        --dal-bg: #f8fafc !important;
+        --dal-card: #ffffff !important;
+        --dal-card-2: #f1f5f9 !important;
+        --dal-border: #e2e8f0 !important;
+        --dal-text: #334155 !important;
+        --dal-text-strong: #0f172a !important;
+        --dal-muted: #64748b !important;
+        --dal-input-bg: #f8fafc !important;
+        --dal-hover: rgba(59, 130, 246, 0.05) !important;
+        --dal-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
     }
-    .stepper-step {
-        cursor: pointer;
-        transition: transform 0.15s ease-in-out;
+
+    [data-bs-theme="dark"] .dal-wrap,
+    [data-theme="dark"] .dal-wrap,
+    html.dark .dal-wrap,
+    body.dark .dal-wrap {
+        --dal-bg: #0d1527 !important;
+        --dal-card: #10192d !important;
+        --dal-card-2: #16223b !important;
+        --dal-border: #1e2d4a !important;
+        --dal-text: #e2e8f0 !important;
+        --dal-text-strong: #ffffff !important;
+        --dal-muted: #8492a6 !important;
+        --dal-input-bg: #111c35 !important;
+        --dal-hover: rgba(59, 130, 246, 0.08) !important;
+        --dal-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
     }
-    .stepper-step:hover .stepper-circle {
-        border-color: var(--bs-primary) !important;
-        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.2);
+
+    .dal-wrap {
+        padding: 1.5rem 1.25rem;
+        background-color: transparent !important;
     }
-    .stepper-step:not(:last-child)::after {
-        content: ''; position: absolute; top: 20px; left: 50%; width: 100%; height: 2px;
-        background-color: var(--bs-border-color); z-index: 0;
+
+    .dashboard-header { padding: 0.5rem 0 1rem 0; }
+    .dashboard-header .header-icon { font-size: 1.6rem; color: #3b82f6; line-height: 1; margin-top: 0.15rem; }
+    .dashboard-header h1 { font-size: 1.4rem; font-weight: 700; color: var(--dal-text-strong) !important; }
+    .dashboard-header .subtitle { font-size: 0.825rem; font-weight: 500; margin-top: 0.1rem; color: var(--dal-muted) !important; }
+    .dashboard-header .subtitle .date-highlight { font-weight: 600; color: var(--dal-text-strong) !important; }
+    .dashboard-header .description { font-size: 0.825rem; margin-top: 0.25rem; color: var(--dal-muted) !important; }
+
+    .dashboard-header button.btn-header {
+        background-color: var(--dal-card-2) !important; 
+        border: 1px solid var(--dal-border) !important;
+        color: var(--dal-text-strong) !important;
+        font-size: 0.75rem !important; 
+        font-weight: 600 !important;
+        padding: 0.4rem 0.85rem !important; 
+        border-radius: 0.4rem !important;
+        transition: all 0.2s ease !important;
     }
-    .stepper-step.active .stepper-circle { background-color: var(--bs-primary); color: #fff; }
-    .stepper-step.completed .stepper-circle { background-color: var(--bs-success); color: #fff; }
-    .sig-canvas-wrap { height: 260px; border: 2px dashed var(--bs-border-color); background: var(--bs-body-bg); }
-    .workflow-panel.d-none { display: none !important; }
-    .swimlane-col { border-top: 3px solid var(--bs-primary); }
-    .swimlane-col.alt { border-top-color: var(--bs-success); }
-    .node-card { transition: all 0.2s ease-in-out; opacity: 0.5; }
-    .node-card.active { opacity: 1; border-color: var(--bs-primary) !important; box-shadow: var(--bs-box-shadow-sm); }
-    .node-card.done { opacity: 0.85; border-color: var(--bs-success) !important; }
-    /* CHANGED: bg-body-tertiary is a semi-transparent tint in this theme —
-       fine for a surface sitting normally in the page flow, but this
-       dropdown floats (position:absolute) ABOVE other page content, so a
-       translucent background let that content show straight through.
-       Switched to var(--bs-body-bg), the fully solid canvas color your
-       actual opaque cards use, applied to both the container and each
-       item so there's no gap where anything bleeds through. */
+    .dashboard-header button.btn-header:hover {
+        background-color: var(--dal-hover) !important;
+        border-color: #3b82f6 !important;
+        color: #3b82f6 !important;
+    }
+
+    .card-dark, .stat-card-dark {
+        background-color: var(--dal-card) !important;
+        border: 1px solid var(--dal-border) !important;
+        border-radius: 0.5rem;
+        color: var(--dal-text) !important;
+        box-shadow: var(--dal-shadow) !important;
+    }
+    .stat-card-dark .stat-icon-bg {
+        width: 42px; height: 42px; border-radius: 0.5rem;
+        display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+    }
+
+    .card-dark-inner {
+        background-color: var(--dal-card-2) !important;
+        border: 1px solid var(--dal-border) !important;
+        color: var(--dal-text) !important;
+    }
+
+    .form-dark, .form-dark[readonly], .form-dark:disabled {
+        background-color: var(--dal-input-bg) !important;
+        border: 1px solid var(--dal-border) !important;
+        color: var(--dal-text-strong) !important;
+        font-size: 0.85rem !important;
+    }
+    .form-dark:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+    }
+    .form-dark::placeholder { color: var(--dal-muted) !important; }
+
     #faculty_dropdown_list {
-        background-color: var(--bs-body-bg) !important;
-        border: 1px solid var(--bs-border-color);
+        background-color: var(--dal-card) !important;
+        border: 1px solid var(--dal-border) !important;
+        border-radius: 0.375rem;
+        box-shadow: var(--dal-shadow) !important;
     }
     #faculty_dropdown_list .faculty-option {
-        background-color: var(--bs-body-bg);
-        color: var(--bs-body-color);
-        border-color: var(--bs-border-color);
+        background-color: transparent !important;
+        color: var(--dal-text) !important;
+        border-bottom: 1px solid var(--dal-border) !important;
+        padding: 0.45rem 0.75rem !important;
+        font-size: 0.8rem !important;
     }
-    #faculty_dropdown_list .faculty-option:hover,
-    #faculty_dropdown_list .faculty-option:focus,
-    #faculty_dropdown_list .faculty-option:active {
-        background-color: var(--bs-primary);
-        color: #fff;
+    #faculty_dropdown_list .faculty-option:hover {
+        background-color: var(--dal-card-2) !important;
+        color: #3b82f6 !important;
     }
+    .faculty-pos-tag { font-size: 0.725rem; color: var(--dal-muted); }
+
+    .table.table-dark-custom thead,
+    .table.table-dark-custom thead tr,
+    .table.table-dark-custom thead tr th,
+    .table.table-dark-custom th {
+        background-color: var(--dal-card-2) !important;
+        color: var(--dal-muted) !important;
+        border-bottom: 1px solid var(--dal-border) !important;
+        font-size: 0.725rem !important;
+        text-transform: uppercase !important;
+    }
+    .table.table-dark-custom tbody td {
+        background-color: transparent !important;
+        border-bottom: 1px solid var(--dal-border) !important;
+        color: var(--dal-text) !important;
+    }
+    .table.table-dark-custom tbody tr:hover td {
+        background-color: var(--dal-hover) !important;
+    }
+
+    .stepper-circle {
+        width: 32px; height: 32px; border-radius: 50%; 
+        display: flex; align-items: center; justify-content: center; 
+        font-weight: 700; font-size: 0.85rem;
+        background-color: var(--dal-card-2);
+        color: var(--dal-muted);
+        border: 2px solid var(--dal-card);
+    }
+    .stepper-step { position: relative; }
+    .stepper-step:not(:last-child)::after {
+        content: ''; position: absolute; top: 16px; left: 50%; width: 100%; height: 2px;
+        background-color: var(--dal-border); z-index: 1;
+    }
+    .stepper-step.active .stepper-circle { background-color: #2563eb !important; color: #fff !important; }
+    .stepper-step.completed .stepper-circle { background-color: #10b981 !important; color: #fff !important; }
+    .stepper-step.completed:not(:last-child)::after { background-color: #10b981 !important; }
+    .stepper-step small { color: var(--dal-text); }
+
+    .sig-canvas-wrap { 
+        height: 220px; border: 2px dashed var(--dal-border); 
+        background: var(--dal-input-bg); border-radius: 0.5rem;
+    }
+
+    .badge-status {
+        display: inline-block; padding: 0.25rem 0.6rem;
+        font-size: 0.75rem; font-weight: 600; border-radius: 0.375rem; text-align: center;
+    }
+    .badge-present { background-color: rgba(16, 185, 129, 0.18) !important; color: #34d399 !important; }
+    .badge-late { background-color: rgba(245, 158, 11, 0.18) !important; color: #fbbf24 !important; }
+    .badge-absent { background-color: rgba(239, 68, 68, 0.18) !important; color: #f87171 !important; }
+    .workflow-panel.d-none { display: none !important; }
 </style>
 
-<div class="container-fluid py-3">
-
-    <!-- Page Hero Header -->
-    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 hero-banner">
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+<div class="dal-wrap">
+    <div class="dashboard-header d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+        <div class="d-flex align-items-start gap-3">
+            <div class="header-icon"><i class="fas fa-chalkboard-teacher"></i></div>
             <div>
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle">
-                        <i class="fas fa-circle text-primary me-1" style="font-size:0.5rem;"></i> Live Monitoring Console
-                    </span>
-                    <span class="badge rounded-pill bg-purple-subtle text-purple border border-purple-subtle" style="background:#f3e8ff; color:#7e22ce;">
-                        <i class="fas fa-calendar-day me-1"></i> <?= date('l, F j, Y') ?>
-                    </span>
-                </div>
-                <h2 class="h3 fw-bold mb-1">
-                    <i class="fas fa-chalkboard-teacher me-2 text-primary"></i>Daily Attendance Log
-                </h2>
-                <p class="text-muted mb-0 small">End-to-end room check workflow with dual-role validation — Monitoring Officer, Professor, and Mayor of the Class.</p>
+                <h1 class="mb-0">Daily Attendance Log</h1>
+                <div class="subtitle">Live room inspections · Today: <span class="date-highlight"><?= date('F j, Y') ?></span></div>
+                <p class="description mb-0">Track real-time faculty presence, student headcount, and unattended room incidents.</p>
             </div>
-            <div class="d-flex flex-column align-items-end gap-2">
-                <span class="badge bg-body-tertiary text-dark border font-monospace" id="liveClock"><?= date('h:i:s A') ?></span>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-3" data-bs-toggle="modal" data-bs-target="#recordsModal">
-                        <i class="fas fa-table me-1"></i> All Records
-                    </button>
-                    <button type="button" id="btnResetWorkflow" class="btn btn-outline-danger btn-sm rounded-3 d-none">
-                        <i class="fas fa-rotate-left me-1"></i> Reset
-                    </button>
-                    <button type="button" id="btnNewRoomCheck" class="btn btn-primary btn-sm rounded-3 shadow-sm">
-                        <i class="fas fa-bolt me-1"></i> Start Room Check
-                    </button>
-                </div>
-            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-header" data-bs-toggle="modal" data-bs-target="#recordsModal">
+                <i class="fas fa-table me-1"></i> All Records
+            </button>
+            <button type="button" id="btnResetWorkflow" class="btn btn-header d-none">
+                <i class="fas fa-rotate-left me-1"></i> Reset
+            </button>
+            <button type="button" id="btnNewRoomCheck" class="btn btn-header">
+                <i class="fas fa-bolt me-1"></i> Start Room Check
+            </button>
         </div>
     </div>
 
-    <!-- Stat Cards -->
     <!-- Stat Cards -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-sm-6 col-xl">
-            <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100 bg-white">
-                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
-                <div class="card-body d-flex align-items-center ps-4">
-                    <div class="stat-icon me-3 text-primary fs-4"><i class="fas fa-clipboard-check"></i></div>
+            <div class="stat-card-dark p-3 h-100 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon-bg me-3" style="background-color: rgba(59, 130, 246, 0.15); color: #60a5fa;">
+                        <i class="fas fa-clipboard-check"></i>
+                    </div>
                     <div>
-                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Room Checks</h6>
-                        <h4 class="mb-0 fw-bold" id="statTotal"><?= htmlspecialchars($totalRecords); ?></h4>
-                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>Today's sessions</small>
+                        <div class="text-uppercase fw-bold" style="font-size: 0.675rem; color: var(--dal-muted); letter-spacing: 0.05em;">Today's Checks</div>
+                        <h3 class="mb-0 fw-bold" id="statTotal"><?= htmlspecialchars($totalRecords); ?></h3>
+                        <div class="mt-1" style="font-size: 0.75rem; color: #34d399;"><i class="fas fa-arrow-trend-up me-1"></i>Live today</div>
                     </div>
                 </div>
-            </section>
+            </div>
         </div>
 
         <div class="col-12 col-sm-6 col-xl">
-            <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100 bg-white">
-                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #198754; z-index: 1;"></div>
-                <div class="card-body d-flex align-items-center ps-4">
-                    <div class="stat-icon me-3 text-success fs-4"><i class="fas fa-user-check"></i></div>
+            <div class="stat-card-dark p-3 h-100 position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important;">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon-bg me-3" style="background-color: rgba(16, 185, 129, 0.15); color: #34d399;">
+                        <i class="fas fa-user-check"></i>
+                    </div>
                     <div>
-                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Present Faculty</h6>
-                        <h4 class="mb-0 fw-bold" id="statPresent"><?= htmlspecialchars($presentFaculty); ?></h4>
-                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-check me-1"></i>Presence rate: <?= htmlspecialchars($presentRate); ?>%</small>
+                        <div class="text-uppercase fw-bold" style="font-size: 0.675rem; color: var(--dal-muted); letter-spacing: 0.05em;">Faculty Presence</div>
+                        <h3 class="mb-0 fw-bold" id="statPresent"><?= htmlspecialchars($presentRate); ?>%</h3>
+                        <div class="mt-1" style="font-size: 0.75rem; color: #34d399;"><i class="fas fa-check me-1"></i><?= htmlspecialchars($presentFaculty); ?> present</div>
                     </div>
                 </div>
-            </section>
-        </div>
-
-        <!-- CHANGED: new stat card for Late. All five cards in this row were
-             switched from col-xl-3 to col-xl so they share the width evenly
-             now that there are five instead of four. -->
-        <div class="col-12 col-sm-6 col-xl">
-            <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100 bg-white">
-                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ffc107; z-index: 1;"></div>
-                <div class="card-body d-flex align-items-center ps-4">
-                    <div class="stat-icon me-3 text-warning fs-4"><i class="fas fa-user-clock"></i></div>
-                    <div>
-                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Late Faculty</h6>
-                        <h4 class="mb-0 fw-bold" id="statLate"><?= htmlspecialchars($lateFaculty); ?></h4>
-                        <small class="text-warning fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-clock me-1"></i>Late arrivals</small>
-                    </div>
-                </div>
-            </section>
+            </div>
         </div>
 
         <div class="col-12 col-sm-6 col-xl">
-            <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100 bg-white">
-                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #dc3545; z-index: 1;"></div>
-                <div class="card-body d-flex align-items-center ps-4">
-                    <div class="stat-icon me-3 text-danger fs-4"><i class="fas fa-user-times"></i></div>
+            <div class="stat-card-dark p-3 h-100 position-relative overflow-hidden" style="border-left: 3px solid #f59e0b !important;">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon-bg me-3" style="background-color: rgba(245, 158, 11, 0.15); color: #fbbf24;">
+                        <i class="fas fa-user-clock"></i>
+                    </div>
                     <div>
-                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Absent Faculty</h6>
-                        <h4 class="mb-0 fw-bold" id="statAbsent"><?= htmlspecialchars($absentFaculty); ?></h4>
-                        <small class="text-danger fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-triangle-exclamation me-1"></i>Unattended slots</small>
+                        <div class="text-uppercase fw-bold" style="font-size: 0.675rem; color: var(--dal-muted); letter-spacing: 0.05em;">Late Faculty</div>
+                        <h3 class="mb-0 fw-bold" id="statLate"><?= htmlspecialchars($lateFaculty); ?></h3>
+                        <div class="mt-1" style="font-size: 0.75rem; color: #fbbf24;"><i class="fas fa-clock me-1"></i>Late arrivals</div>
                     </div>
                 </div>
-            </section>
+            </div>
         </div>
 
         <div class="col-12 col-sm-6 col-xl">
-            <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100 bg-white">
-                <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0dcaf0; z-index: 1;"></div>
-                <div class="card-body d-flex align-items-center ps-4">
-                    <div class="stat-icon me-3 text-info fs-4"><i class="fas fa-users"></i></div>
+            <div class="stat-card-dark p-3 h-100 position-relative overflow-hidden" style="border-left: 3px solid #ef4444 !important;">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon-bg me-3" style="background-color: rgba(239, 68, 68, 0.15); color: #f87171;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
                     <div>
-                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Student Attendance</h6>
-                        <h4 class="mb-0 fw-bold" id="statRate"><?= htmlspecialchars($overallAttendance); ?>%</h4>
-                        <small class="text-info fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-user-check me-1"></i><?= htmlspecialchars($totalStudents); ?> / <?= htmlspecialchars($totalExpected); ?> Present</small>
+                        <div class="text-uppercase fw-bold" style="font-size: 0.675rem; color: var(--dal-muted); letter-spacing: 0.05em;">Unattended Rooms</div>
+                        <h3 class="mb-0 fw-bold" id="statAbsent"><?= htmlspecialchars($absentFaculty); ?></h3>
+                        <div class="mt-1" style="font-size: 0.75rem; color: #fbbf24;"><i class="fas fa-triangle-exclamation me-1"></i>Requires action</div>
                     </div>
                 </div>
-            </section>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl">
+            <div class="stat-card-dark p-3 h-100 position-relative overflow-hidden" style="border-left: 3px solid #06b6d4 !important;">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon-bg me-3" style="background-color: rgba(6, 182, 212, 0.15); color: #22d3ee;">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <div class="text-uppercase fw-bold" style="font-size: 0.675rem; color: var(--dal-muted); letter-spacing: 0.05em;">Student Attendance</div>
+                        <h3 class="mb-0 fw-bold" id="statRate"><?= htmlspecialchars($overallAttendance); ?>%</h3>
+                        <div class="mt-1" style="font-size: 0.75rem; color: #60a5fa;"><i class="fas fa-user-check me-1"></i><?= htmlspecialchars($totalStudents); ?> / <?= htmlspecialchars($totalExpected); ?> Present</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Workflow Map & Stepper -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center p-3">
+    <!-- Workflow Map Container -->
+    <div class="card-dark p-3 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-                <span class="text-uppercase text-muted fw-bold fs-7">Workflow Map</span>
-                <h5 class="mb-0 fw-bold">Dual-lane attendance monitoring cycle</h5>
+                <span class="text-uppercase fw-bold fs-7 opacity-75">Workflow Map</span>
+                <h6 class="mb-0 fw-bold">Dual-lane attendance monitoring cycle</h6>
             </div>
-            <span class="badge bg-primary-subtle text-primary"><i class="fas fa-diagram-project me-1"></i> State-driven</span>
+            <span class="badge" style="background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">
+                <i class="fas fa-diagram-project me-1"></i> State-driven
+            </span>
         </div>
-
-        <div class="p-3 border-bottom">
+        <div class="pt-2 pb-3 border-top border-bottom" style="border-color: var(--dal-border) !important;">
             <div class="d-flex justify-content-between position-relative" id="stepperTrack"></div>
         </div>
-
-        <div class="card-body p-3 bg-body-tertiary">
-            
-        </div>
     </div>
 
-    <!-- Active Stage & Recent Logs -->
+    <!-- Active Stage & Recent Logs Split -->
     <div class="row g-4 mb-4">
         <div class="col-lg-7">
-            <div class="card border-0 shadow-sm rounded-4 p-4 h-100" id="workflowStage">
-
+            <div class="card-dark p-4 h-100" id="workflowStage">
                 <!-- STEP 1: Start Room Check -->
                 <div class="workflow-panel" data-panel="START_ROOM_CHECK">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="fw-bold mb-0"><i class="fas fa-door-open me-2 text-primary"></i>Initiate Room Check</h4>
-                        <span class="badge bg-primary-subtle text-primary">Step 1 of 4</span>
+                        <h5 class="fw-bold mb-0"><i class="fas fa-door-open me-2 text-primary"></i>Initiate Room Check</h5>
+                        <span class="badge" style="background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">Step 1 of 4</span>
                     </div>
                     <form id="startRoomCheckForm">
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold fs-7" for="faculty_search">Faculty / Professor</label>
-                                <!-- CHANGED: replaced the native <select> (which just dumped every
-                                     faculty member into one long native dropdown) with a searchable
-                                     text input + custom filtered list below it. Only ~5 rows show at
-                                     once (capped height on #faculty_dropdown_list), with the rest
-                                     reachable by scrolling. The original <select> is kept below,
-                                     hidden, purely so the existing JS (facultySelect.value /
-                                     .options[selectedIndex].text used at submit time) keeps working
-                                     without any changes there. -->
                                 <div class="position-relative">
-                                    <input type="text" id="faculty_search" class="form-control" placeholder="Search instructor..." autocomplete="off">
-                                    <div id="faculty_dropdown_list" class="list-group shadow-sm" style="display:none; position:absolute; width:100%; z-index:1050; max-height:210px; overflow-y:auto;">
+                                    <input type="text" id="faculty_search" class="form-control form-dark" placeholder="Search instructor..." autocomplete="off">
+                                    <div id="faculty_dropdown_list" class="list-group" style="display:none; position:absolute; width:100%; z-index:1050; max-height:180px; overflow-y:auto;">
                                         <?php foreach ($facultyList as $faculty): ?>
                                             <?php
-                                                $fullName = htmlspecialchars(($faculty['last_name'] ?? '') . ', ' . ($faculty['first_name'] ?? ''));
-                                                $pos = !empty($faculty['position']) ? ' (' . htmlspecialchars($faculty['position']) . ')' : '';
-                                                $facId = htmlspecialchars($faculty['id'] ?? '');
+                                                $nameOnly = htmlspecialchars(($faculty['last_name'] ?? '') . ', ' . ($faculty['first_name'] ?? ''));
+                                                $posText  = !empty($faculty['position']) ? htmlspecialchars($faculty['position']) : 'Faculty Professor';
+                                                $fullVal  = $nameOnly . ' (' . $posText . ')';
+                                                $facId    = htmlspecialchars($faculty['id'] ?? $faculty['faculty_id'] ?? '');
                                             ?>
-                                            <button type="button" class="list-group-item list-group-item-action faculty-option py-2" data-id="<?= $facId ?>" data-name="<?= $fullName . $pos ?>"><?= $fullName . $pos ?></button>
+                                            <button type="button" class="list-group-item list-group-item-action faculty-option" data-id="<?= $facId ?>" data-name="<?= $fullVal ?>">
+                                                <span><?= $nameOnly ?></span>
+                                                <span class="faculty-pos-tag">(<?= $posText ?>)</span>
+                                            </button>
                                         <?php endforeach; ?>
-                                        <div id="faculty_no_match" class="list-group-item text-muted small d-none">No matching faculty found.</div>
+                                        <div id="faculty_no_match" class="list-group-item bg-transparent text-muted small p-2 d-none">No matching faculty found.</div>
                                     </div>
                                 </div>
                                 <select name="faculty_id" id="faculty_select" class="d-none">
@@ -338,7 +430,7 @@ function renderSparkline($data, $color) {
                                         <?php
                                             $fullName = htmlspecialchars(($faculty['last_name'] ?? '') . ', ' . ($faculty['first_name'] ?? ''));
                                             $pos = !empty($faculty['position']) ? ' (' . htmlspecialchars($faculty['position']) . ')' : '';
-                                            $facId = htmlspecialchars($faculty['id'] ?? '');
+                                            $facId = htmlspecialchars($faculty['id'] ?? $faculty['faculty_id'] ?? '');
                                         ?>
                                         <option value="<?= $facId ?>"><?= $fullName . $pos ?></option>
                                     <?php endforeach; ?>
@@ -346,29 +438,27 @@ function renderSparkline($data, $color) {
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-semibold fs-7" for="form_room">Room</label>
-                                <input type="text" id="form_room" class="form-control" placeholder="e.g. 403-B" required>
+                                <input type="text" id="form_room" class="form-control form-dark" placeholder="e.g. 403-B" required>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-semibold fs-7" for="form_time">Time Slot</label>
-                                <input type="text" id="form_time" class="form-control" value="<?= date('h:i A') ?>" required>
+                                <input type="text" id="form_time" class="form-control form-dark" value="<?= date('h:i A') ?>" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold fs-7" for="form_subject">Subject Code</label>
-                                <input type="text" id="form_subject" class="form-control" placeholder="e.g. SIA-201" required>
+                                <input type="text" id="form_subject" class="form-control form-dark" placeholder="e.g. SIA-201" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold fs-7" for="form_expected">Expected Enrollees</label>
-                                <input type="number" id="form_expected" class="form-control" placeholder="e.g. 45" min="0" value="0">
+                                <input type="number" id="form_expected" class="form-control form-dark" placeholder="e.g. 45" min="0" value="0">
                             </div>
                             <div class="col-12">
                                 <label class="form-label fw-semibold fs-7" for="form_officer">Monitoring Officer</label>
-                                <input type="text" id="form_officer" class="form-control" value="<?= htmlspecialchars($currentUserName) ?>" readonly>
+                                <input type="text" id="form_officer" class="form-control form-dark" value="<?= htmlspecialchars($currentUserName) ?>" readonly>
                             </div>
                         </div>
-                        <div class="d-flex justify-content-end mt-4 pt-2 border-top">
-                            <button type="submit" class="btn btn-primary rounded-3 px-4">
-                                <i class="fas fa-play me-2"></i>Begin Monitoring Session
-                            </button>
+                        <div class="d-flex justify-content-end mt-4 pt-3 border-top" style="border-color: var(--dal-border) !important;">
+                            <button type="submit" class="btn btn-primary rounded-2 px-4"><i class="fas fa-play me-2"></i>Begin Monitoring Session</button>
                         </div>
                     </form>
                 </div>
@@ -376,32 +466,27 @@ function renderSparkline($data, $color) {
                 <!-- STEP 2: PRESENCE CHECK -->
                 <div class="workflow-panel d-none" data-panel="PRESENCE_CHECK">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="fw-bold mb-0"><i class="fas fa-question-circle me-2 text-primary"></i>Presence Check</h4>
-                        <span class="badge bg-secondary-subtle text-secondary" id="pc_session_id"></span>
+                        <h5 class="fw-bold mb-0"><i class="fas fa-question-circle me-2 text-primary"></i>Presence Check</h5>
+                        <span class="badge bg-secondary" id="pc_session_id"></span>
                     </div>
-                    <p class="text-muted">Is <strong id="pc_faculty_name">Professor</strong> present for <strong id="pc_subject"></strong> in <strong id="pc_room"></strong>?</p>
+                    <p>Is <strong id="pc_faculty_name">Professor</strong> present for <strong id="pc_subject"></strong> in <strong id="pc_room"></strong>?</p>
                     <div class="row g-3 my-3">
-                        <!-- CHANGED: was two columns (Present / Absent). Added a third
-                             "Professor Late" branch. Late routes to the SAME professor
-                             signature step as Present — the professor IS physically
-                             there to sign, and the class still has a headcount; only
-                             the recorded status differs. -->
                         <div class="col-md-4">
-                            <button type="button" class="btn btn-outline-success w-100 p-3 text-start btn-branch" data-branch="PRESENT">
+                            <button type="button" class="btn w-100 p-3 text-start btn-branch" data-branch="PRESENT" style="background-color: var(--dal-card-2); border: 1px solid #10b981; color: #34d399;">
                                 <div class="fw-bold fs-6 mb-1"><i class="fas fa-user-check me-2"></i>Professor Present</div>
-                                <small class="text-muted d-block">Proceed to Professor Digital Signature.</small>
+                                <small class="opacity-75 d-block">Proceed to Professor Signature.</small>
                             </button>
                         </div>
                         <div class="col-md-4">
-                            <button type="button" class="btn btn-outline-warning w-100 p-3 text-start btn-branch" data-branch="LATE">
+                            <button type="button" class="btn w-100 p-3 text-start btn-branch" data-branch="LATE" style="background-color: var(--dal-card-2); border: 1px solid #f59e0b; color: #fbbf24;">
                                 <div class="fw-bold fs-6 mb-1"><i class="fas fa-user-clock me-2"></i>Professor Late</div>
-                                <small class="text-muted d-block">Arrived late — still proceeds to Professor Signature.</small>
+                                <small class="opacity-75 d-block">Arrived late.</small>
                             </button>
                         </div>
                         <div class="col-md-4">
-                            <button type="button" class="btn btn-outline-danger w-100 p-3 text-start btn-branch" data-branch="ABSENT">
+                            <button type="button" class="btn w-100 p-3 text-start btn-branch" data-branch="ABSENT" style="background-color: var(--dal-card-2); border: 1px solid #ef4444; color: #f87171;">
                                 <div class="fw-bold fs-6 mb-1"><i class="fas fa-user-times me-2"></i>Professor Absent</div>
-                                <small class="text-muted d-block">Flag absent & request Class Mayor Signature.</small>
+                                <small class="opacity-75 d-block">Flag absent & Mayor signature.</small>
                             </button>
                         </div>
                     </div>
@@ -410,25 +495,25 @@ function renderSparkline($data, $color) {
                 <!-- STEP 3A: PROF SIGNATURE -->
                 <div class="workflow-panel d-none" data-panel="PROF_SIGNATURE">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="fw-bold mb-0 text-success"><i class="fas fa-file-signature me-2"></i>Professor Signature</h4>
+                        <h5 class="fw-bold mb-0" style="color: #34d399;"><i class="fas fa-file-signature me-2"></i>Professor Signature</h5>
                         <div class="d-flex align-items-center gap-2">
-                            <label for="profSigColor" class="small text-muted mb-0">Pen color</label>
-                            <input type="color" id="profSigColor" value="#22c55e" style="width:36px; height:32px; border:none; border-radius:6px; cursor:pointer; background:transparent;">
+                            <label for="profSigColor" class="small mb-0">Pen color</label>
+                            <input type="color" id="profSigColor" value="#34d399" style="width:36px; height:32px; border:none; border-radius:6px; cursor:pointer; background:transparent;">
                         </div>
                     </div>
                     <div class="row g-3">
                         <div class="col-md-8">
-                            <div class="sig-canvas-wrap rounded-3 position-relative">
+                            <div class="sig-canvas-wrap position-relative">
                                 <canvas id="profSignatureCanvas" style="width:100%; height:100%; touch-action:none; cursor:crosshair;"></canvas>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mt-3">
-                                <button type="button" id="prof_sig_clear" class="btn btn-light btn-sm"><i class="fas fa-eraser me-1"></i>Clear</button>
-                                <button type="button" id="prof_sig_save" class="btn btn-success rounded-3"><i class="fas fa-check me-2"></i>Validate Signature</button>
+                                <button type="button" id="prof_sig_clear" class="btn btn-outline-secondary btn-sm"><i class="fas fa-eraser me-1"></i>Clear</button>
+                                <button type="button" id="prof_sig_save" class="btn btn-success rounded-2"><i class="fas fa-check me-2"></i>Validate</button>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="bg-body-tertiary p-3 rounded-3 h-100">
-                                <h6 class="fw-bold fs-7 text-uppercase text-muted">Session Details</h6>
+                            <div class="card-dark-inner p-3 rounded-2 h-100">
+                                <h6 class="fw-bold fs-7 text-uppercase opacity-75">Session Details</h6>
                                 <p class="mb-1 fs-7"><strong>Prof:</strong> <span id="ps_prof"></span></p>
                                 <p class="mb-1 fs-7"><strong>Subject:</strong> <span id="ps_subj"></span></p>
                             </div>
@@ -439,26 +524,28 @@ function renderSparkline($data, $color) {
                 <!-- STEP 3B: MAYOR SIGNATURE -->
                 <div class="workflow-panel d-none" data-panel="MAYOR_SIGNATURE">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="fw-bold mb-0 text-warning"><i class="fas fa-file-signature me-2"></i>Mayor Signature</h4>
+                        <h5 class="fw-bold mb-0" style="color: #fbbf24;"><i class="fas fa-file-signature me-2"></i>Mayor Signature</h5>
                         <div class="d-flex align-items-center gap-2">
-                            <label for="mayorSigColor" class="small text-muted mb-0">Pen color</label>
-                            <input type="color" id="mayorSigColor" value="#f59e0b" style="width:36px; height:32px; border:none; border-radius:6px; cursor:pointer; background:transparent;">
+                            <label for="mayorSigColor" class="small mb-0">Pen color</label>
+                            <input type="color" id="mayorSigColor" value="#fbbf24" style="width:36px; height:32px; border:none; border-radius:6px; cursor:pointer; background:transparent;">
                         </div>
                     </div>
-                    <div class="alert alert-warning fs-7 py-2"><i class="fas fa-exclamation-triangle me-2"></i>Professor marked absent. Class Mayor signature required.</div>
+                    <div class="alert fs-7 py-2" style="background-color: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #fbbf24;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Professor marked absent. Class Mayor signature required.
+                    </div>
                     <div class="row g-3">
                         <div class="col-md-8">
-                            <div class="sig-canvas-wrap rounded-3 position-relative">
+                            <div class="sig-canvas-wrap position-relative">
                                 <canvas id="mayorSignatureCanvas" style="width:100%; height:100%; touch-action:none; cursor:crosshair;"></canvas>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mt-3">
-                                <button type="button" id="mayor_sig_clear" class="btn btn-light btn-sm"><i class="fas fa-eraser me-1"></i>Clear</button>
-                                <button type="button" id="mayor_sig_save" class="btn btn-warning rounded-3"><i class="fas fa-check me-2"></i>Validate Signature</button>
+                                <button type="button" id="mayor_sig_clear" class="btn btn-outline-secondary btn-sm"><i class="fas fa-eraser me-1"></i>Clear</button>
+                                <button type="button" id="mayor_sig_save" class="btn btn-warning rounded-2"><i class="fas fa-check me-2"></i>Validate</button>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="bg-body-tertiary p-3 rounded-3 h-100">
-                                <h6 class="fw-bold fs-7 text-uppercase text-muted">Session Details</h6>
+                            <div class="card-dark-inner p-3 rounded-2 h-100">
+                                <h6 class="fw-bold fs-7 text-uppercase opacity-75">Session Details</h6>
                                 <p class="mb-1 fs-7"><strong>Absent Prof:</strong> <span id="ms_prof"></span></p>
                                 <p class="mb-1 fs-7"><strong>Room/Time:</strong> <span id="ms_rt"></span></p>
                             </div>
@@ -468,29 +555,29 @@ function renderSparkline($data, $color) {
 
                 <!-- STEP 4: STUDENT COUNT -->
                 <div class="workflow-panel d-none" data-panel="STUDENT_COUNT">
-                    <h4 class="fw-bold mb-3"><i class="fas fa-users me-2 text-purple"></i>Record Student Headcount</h4>
+                    <h5 class="fw-bold mb-3"><i class="fas fa-users me-2 text-info"></i>Record Student Headcount</h5>
                     <div class="row g-3">
                         <div class="col-md-7">
-                            <div class="card border p-3 text-center rounded-3 mb-3">
-                                <label class="form-label text-muted fw-bold fs-7">Present Headcount</label>
+                            <div class="card-dark-inner p-3 text-center rounded-2 mb-3">
+                                <label class="form-label fw-bold fs-7 opacity-75">Present Headcount</label>
                                 <div class="d-flex justify-content-center align-items-center gap-3 my-2">
                                     <button type="button" class="btn btn-outline-secondary btn-lg" id="countMinus"><i class="fas fa-minus"></i></button>
-                                    <input type="number" id="studentCount" class="form-control form-control-lg text-center font-monospace fw-bold fs-2" style="max-width: 140px;" value="0" min="0">
+                                    <input type="number" id="studentCount" class="form-control form-dark text-center font-monospace fw-bold fs-2" style="max-width: 140px;" value="0" min="0">
                                     <button type="button" class="btn btn-outline-secondary btn-lg" id="countPlus"><i class="fas fa-plus"></i></button>
                                 </div>
-                                <div class="d-flex justify-content-between fs-7 text-muted mt-3">
+                                <div class="d-flex justify-content-between fs-7 mt-3">
                                     <span>Expected: <strong id="sc_expected">0</strong></span>
-                                    <span>Rate: <strong class="text-primary" id="sc_rate">0%</strong></span>
+                                    <span>Rate: <strong style="color: #60a5fa;" id="sc_rate">0%</strong></span>
                                 </div>
-                                <div class="progress mt-2" style="height: 8px;">
+                                <div class="progress mt-2" style="height: 6px; background-color: var(--dal-border);">
                                     <div class="progress-bar bg-primary" id="sc_progress" style="width: 0%;"></div>
                                 </div>
                             </div>
-                            <button type="button" id="saveStudentCountBtn" class="btn btn-primary w-100 rounded-3"><i class="fas fa-database me-2"></i>Finalize Session</button>
+                            <button type="button" id="saveStudentCountBtn" class="btn btn-primary w-100 rounded-2"><i class="fas fa-database me-2"></i>Finalize Session</button>
                         </div>
                         <div class="col-md-5">
-                            <div class="bg-body-tertiary p-3 rounded-3 h-100">
-                                <h6 class="fw-bold fs-7 text-uppercase text-muted">Summary</h6>
+                            <div class="card-dark-inner p-3 rounded-2 h-100">
+                                <h6 class="fw-bold fs-7 text-uppercase opacity-75">Summary</h6>
                                 <p class="mb-1 fs-7"><strong>Faculty:</strong> <span id="sc_faculty"></span></p>
                                 <p class="mb-1 fs-7"><strong>Status:</strong> <span id="sc_status"></span></p>
                                 <p class="mb-1 fs-7"><strong>Subject:</strong> <span id="sc_subject"></span></p>
@@ -503,60 +590,43 @@ function renderSparkline($data, $color) {
                 <!-- STEP 5: COMPLETE -->
                 <div class="workflow-panel d-none text-center py-4" data-panel="COMPLETE">
                     <div class="text-success mb-3"><i class="fas fa-check-circle fa-4x"></i></div>
-                    <h3 class="fw-bold mb-1">Session Saved Successfully</h3>
-                    <p class="text-muted mb-4">All validation entries have been logged to the attendance database.</p>
+                    <h4 class="fw-bold mb-1">Session Saved Successfully</h4>
+                    <p class="mb-4 opacity-75">All validation entries have been logged to the attendance database.</p>
                     <div class="d-flex justify-content-center gap-2">
-                        <button type="button" id="btnNextSession" class="btn btn-primary rounded-3"><i class="fas fa-plus-circle me-1"></i> New Room Check</button>
-                        <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-toggle="modal" data-bs-target="#recordsModal"><i class="fas fa-table me-1"></i> View Records</button>
+                        <button type="button" id="btnNextSession" class="btn btn-primary rounded-2"><i class="fas fa-plus-circle me-1"></i> New Room Check</button>
+                        <button type="button" class="btn btn-outline-secondary rounded-2" data-bs-toggle="modal" data-bs-target="#recordsModal"><i class="fas fa-table me-1"></i> View Records</button>
                     </div>
                 </div>
-
             </div>
         </div>
 
         <!-- Recent Logs Table Sidebar -->
         <div class="col-lg-5">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center p-3">
-                    <h5 class="fw-bold mb-0 fs-6"><i class="fas fa-history text-primary me-2"></i>Recent Logs</h5>
-                    <span class="badge bg-primary-subtle text-primary"><span id="logCount"><?= count($recentLogs) ?></span> records</span>
+            <div class="card-dark h-100">
+                <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="border-color: var(--dal-border) !important;">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-history text-primary me-2"></i>Recent Inspection Log</h6>
+                    <button class="btn btn-sm btn-header" data-bs-toggle="modal" data-bs-target="#recordsModal">View All <i class="fas fa-chevron-right ms-1"></i></button>
                 </div>
-                <div class="card-body p-0 table-responsive">
-                    <table class="table table-hover align-middle mb-0 fs-7">
-                        <thead class="table-light">
+                <div class="table-responsive">
+                    <table class="table table-dark-custom align-middle mb-0 fs-7">
+                        <thead>
                             <tr>
                                 <th>Faculty</th>
+                                <th>Room</th>
+                                <th>Subject</th>
                                 <th>Status</th>
-                                <th>Room/Subj</th>
-                                <th class="text-end">Rate</th>
                             </tr>
                         </thead>
                         <tbody id="logsTableBody">
                             <?php if (empty($recentLogs)): ?>
-                                <tr><td colspan="4" class="text-center text-muted py-4">No sessions recorded yet.</td></tr>
+                                <tr><td colspan="4" class="text-center opacity-75 py-4">No sessions recorded yet.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($recentLogs as $log): ?>
-                                    <?php
-                                        // CHANGED: was a two-way Present/else ternary, so a
-                                        // 'Late' status would have wrongly rendered red.
-                                        // Late now gets its own amber badge.
-                                        $logStatus = $log['status'] ?? '';
-                                        if ($logStatus === 'Present') {
-                                            $badgeClass = 'bg-success-subtle text-success';
-                                        } elseif ($logStatus === 'Late') {
-                                            $badgeClass = 'bg-warning-subtle text-warning';
-                                        } else {
-                                            $badgeClass = 'bg-danger-subtle text-danger';
-                                        }
-                                        $rate = !empty($log['attending_students']) && !empty($log['expected_students'])
-                                            ? round(($log['attending_students'] / $log['expected_students']) * 100)
-                                            : '—';
-                                    ?>
                                     <tr>
-                                        <td class="fw-bold"><?= htmlspecialchars($log['faculty_name'] ?? '') ?></td>
-                                        <td><span class="badge <?= $badgeClass ?>"><?= htmlspecialchars($log['status'] ?? '') ?></span></td>
-                                        <td><?= htmlspecialchars(($log['room_code'] ?? 'N/A') . ' / ' . ($log['subject_code'] ?? '')) ?></td>
-                                        <td class="text-end fw-bold text-primary"><?= is_numeric($rate) ? $rate . '%' : $rate ?></td>
+                                        <td class="fw-semibold"><?= htmlspecialchars($log['faculty_name'] ?? '') ?></td>
+                                        <td><span class="badge" style="background-color: var(--dal-card-2); color: var(--dal-text); border: 1px solid var(--dal-border);"><?= htmlspecialchars($log['room_code'] ?? 'N/A') ?></span></td>
+                                        <td><?= htmlspecialchars($log['subject_code'] ?? '') ?></td>
+                                        <td><?= getStatusBadgeHtml($log) ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -566,36 +636,41 @@ function renderSparkline($data, $color) {
             </div>
         </div>
     </div>
-
 </div>
 
 <!-- Records Modal -->
 <div class="modal fade" id="recordsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-header border-bottom-0">
+        <div class="modal-content card-dark border-0">
+            <div class="modal-header border-bottom" style="border-color: var(--dal-border) !important;">
                 <h5 class="modal-title fw-bold"><i class="fas fa-table text-primary me-2"></i>Attendance & Performance Ledgers</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0">
-                <ul class="nav nav-tabs px-3" role="tablist">
+                <ul class="nav nav-tabs px-3 pt-2 border-bottom" style="border-color: var(--dal-border) !important;" role="tablist">
                     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabAttendance">Attendance Logs</button></li>
-                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPerformance">Faculty Performance</button></li>
+                    <li class="nav-item"><button class="nav-link text-muted" data-bs-toggle="tab" data-bs-target="#tabPerformance">Faculty Performance</button></li>
                 </ul>
                 <div class="tab-content p-3">
                     <div class="tab-pane fade show active" id="tabAttendance">
-                        <table class="table table-striped align-middle fs-7 mb-0">
+                        <table class="table table-dark-custom align-middle fs-7 mb-0">
                             <thead>
-                                <tr><th>Faculty</th><th>Status</th><th>Room</th><th>Subject</th><th>Headcount</th></tr>
+                                <tr>
+                                    <th>Faculty</th>
+                                    <th>Status</th>
+                                    <th>Room</th>
+                                    <th>Subject</th>
+                                    <th>Headcount</th>
+                                </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($recentLogs)): ?>
-                                    <tr><td colspan="5" class="text-center text-muted">No records found.</td></tr>
+                                    <tr><td colspan="5" class="text-center opacity-75">No records found.</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($recentLogs as $log): ?>
                                         <tr>
                                             <td><?= htmlspecialchars($log['faculty_name'] ?? '') ?></td>
-                                            <td><?= htmlspecialchars($log['status'] ?? '') ?></td>
+                                            <td><?= getStatusBadgeHtml($log) ?></td>
                                             <td><?= htmlspecialchars($log['room_code'] ?? 'N/A') ?></td>
                                             <td><?= htmlspecialchars($log['subject_code'] ?? '') ?></td>
                                             <td><?= htmlspecialchars((string) ($log['attending_students'] ?? '')) ?></td>
@@ -606,12 +681,18 @@ function renderSparkline($data, $color) {
                         </table>
                     </div>
                     <div class="tab-pane fade" id="tabPerformance">
-                        <table class="table table-striped align-middle fs-7 mb-0">
+                        <table class="table table-dark-custom align-middle fs-7 mb-0">
                             <thead>
-                                <tr><th>Faculty</th><th>Sessions</th><th>Present</th><th>Absent</th><th>Presence %</th></tr>
+                                <tr>
+                                    <th>Faculty</th>
+                                    <th>Sessions</th>
+                                    <th>Present</th>
+                                    <th>Absent</th>
+                                    <th>Presence %</th>
+                                </tr>
                             </thead>
                             <tbody>
-                                <tr><td colspan="5" class="text-center text-muted">Performance summary not yet available.</td></tr>
+                                <tr><td colspan="5" class="text-center opacity-75">Performance summary not yet available.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -626,7 +707,6 @@ function renderSparkline($data, $color) {
 <script>
 (function() {
     'use strict';
-
     let currentStep = 'START_ROOM_CHECK';
     let sessionData = {};
     let activeCanvasId = null;
@@ -639,33 +719,20 @@ function renderSparkline($data, $color) {
         { key: 'COMPLETE',         label: 'Complete',    icon: 'fa-check-double' }
     ];
 
-    setInterval(() => {
-        const clock = document.getElementById('liveClock');
-        if (clock) clock.textContent = new Date().toLocaleTimeString();
-    }, 1000);
-
-function renderStepper() {
+    function renderStepper() {
         const track = document.getElementById('stepperTrack');
         if (!track) return;
-
         track.innerHTML = STEPS.map((s, idx) => {
             const isDone = STEPS.findIndex(x => x.key === currentStep) > idx;
             const isActive = s.key === currentStep || (currentStep.includes('SIGNATURE') && s.key === 'SIGNATURE');
             const stateClass = isDone ? 'completed' : (isActive ? 'active' : '');
-            
             return `
-                <div class="stepper-step text-center flex-fill position-relative ${stateClass}" data-step-key="${s.key}">
+                <div class="stepper-step text-center flex-fill ${stateClass}" data-step-key="${s.key}">
                     <div class="stepper-circle mx-auto mb-1">${idx + 1}</div>
-                    <small class="fw-semibold text-muted d-block fs-7">${s.label}</small>
+                    <small class="fw-semibold d-block fs-7" style="opacity: ${isActive || isDone ? '1' : '0.6'};">${s.label}</small>
                 </div>
             `;
         }).join('');
-
-        document.querySelectorAll('.node-card').forEach(card => {
-            card.classList.remove('active', 'done');
-            const target = card.dataset.stepLane;
-            if (target === currentStep) card.classList.add('active');
-        });
     }
 
     function switchPanel(panelKey) {
@@ -676,25 +743,19 @@ function renderStepper() {
         renderStepper();
     }
 
-    document.getElementById('btnNewRoomCheck')?.addEventListener('click', resetAll);
+    document.getElementById('btnNewRoomCheck')?.addEventListener('click', () => window.location.reload());
+    document.getElementById('btnResetWorkflow')?.addEventListener('click', () => window.location.reload());
+    document.getElementById('btnNextSession')?.addEventListener('click', () => window.location.reload());
 
-    // Step 1 Submit
     document.getElementById('startRoomCheckForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        
         const facultySelect = document.getElementById('faculty_select');
-
-        // CHANGED: the native <select>'s "required" attribute used to catch
-        // an empty selection automatically. Since it's now hidden (search
-        // input replaced it visually), validate manually instead.
         if (!facultySelect.value) {
             alert('Please select a faculty member from the list.');
             document.getElementById('faculty_search').focus();
             return;
         }
-
         const expectedInput = document.getElementById('form_expected');
-
         sessionData = {
             facultyId: facultySelect.value,
             faculty: facultySelect.options[facultySelect.selectedIndex].text,
@@ -709,26 +770,16 @@ function renderStepper() {
             presentCount: 0,
             signature: null
         };
-
         document.getElementById('pc_faculty_name').textContent = sessionData.faculty;
         document.getElementById('pc_subject').textContent = sessionData.subject;
         document.getElementById('pc_room').textContent = sessionData.room;
-
         switchPanel('PRESENCE_CHECK');
     });
 
-    // Branch Choice
     document.querySelectorAll('.btn-branch').forEach(btn => {
         btn.addEventListener('click', function() {
             const branch = this.dataset.branch;
-            // CHANGED: was a two-way Present/Absent ternary. Now maps three
-            // branches to their status values.
-            sessionData.status = (branch === 'PRESENT') ? 'Present'
-                               : (branch === 'LATE')    ? 'Late'
-                               : 'Absent';
-
-            // CHANGED: LATE follows the same path as PRESENT (professor is
-            // there and signs); only ABSENT diverts to the Class Mayor.
+            sessionData.status = (branch === 'PRESENT') ? 'Present' : (branch === 'LATE') ? 'Late' : 'Absent';
             if (branch === 'PRESENT' || branch === 'LATE') {
                 document.getElementById('ps_prof').textContent = sessionData.faculty;
                 document.getElementById('ps_subj').textContent = sessionData.subject;
@@ -743,7 +794,6 @@ function renderStepper() {
         });
     });
 
-    // Signature canvas — shared drawing logic, works for either canvas, with live color picking
     let canvasCtx = null;
     function initCanvas(id, color) {
         activeCanvasId = id;
@@ -752,7 +802,7 @@ function renderStepper() {
         canvas.width = canvas.parentElement.clientWidth;
         canvas.height = canvas.parentElement.clientHeight;
         const ctx = canvas.getContext('2d');
-        ctx.strokeStyle = color || '#000';
+        ctx.strokeStyle = color || '#34d399';
         ctx.lineWidth = 2.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -775,12 +825,8 @@ function renderStepper() {
         };
     }
 
-    document.getElementById('profSigColor')?.addEventListener('input', function () {
-        if (canvasCtx && activeCanvasId === 'profSignatureCanvas') canvasCtx.strokeStyle = this.value;
-    });
-    document.getElementById('mayorSigColor')?.addEventListener('input', function () {
-        if (canvasCtx && activeCanvasId === 'mayorSignatureCanvas') canvasCtx.strokeStyle = this.value;
-    });
+    document.getElementById('profSigColor')?.addEventListener('input', function() { if (canvasCtx && activeCanvasId === 'profSignatureCanvas') canvasCtx.strokeStyle = this.value; });
+    document.getElementById('mayorSigColor')?.addEventListener('input', function() { if (canvasCtx && activeCanvasId === 'mayorSignatureCanvas') canvasCtx.strokeStyle = this.value; });
 
     document.getElementById('prof_sig_clear')?.addEventListener('click', () => initCanvas('profSignatureCanvas', document.getElementById('profSigColor').value));
     document.getElementById('mayor_sig_clear')?.addEventListener('click', () => initCanvas('mayorSignatureCanvas', document.getElementById('mayorSigColor').value));
@@ -790,14 +836,8 @@ function renderStepper() {
         sessionData.signature = canvas ? canvas.toDataURL('image/png') : null;
     }
 
-    document.getElementById('prof_sig_save')?.addEventListener('click', function () {
-        captureSignature('profSignatureCanvas');
-        proceedToHeadcount();
-    });
-    document.getElementById('mayor_sig_save')?.addEventListener('click', function () {
-        captureSignature('mayorSignatureCanvas');
-        proceedToHeadcount();
-    });
+    document.getElementById('prof_sig_save')?.addEventListener('click', () => { captureSignature('profSignatureCanvas'); proceedToHeadcount(); });
+    document.getElementById('mayor_sig_save')?.addEventListener('click', () => { captureSignature('mayorSignatureCanvas'); proceedToHeadcount(); });
 
     function proceedToHeadcount() {
         document.getElementById('sc_faculty').textContent = sessionData.faculty;
@@ -808,7 +848,6 @@ function renderStepper() {
         switchPanel('STUDENT_COUNT');
     }
 
-    // Headcount Counter
     const studentInput = document.getElementById('studentCount');
     document.getElementById('countMinus')?.addEventListener('click', () => updateCount(-1));
     document.getElementById('countPlus')?.addEventListener('click', () => updateCount(1));
@@ -819,18 +858,15 @@ function renderStepper() {
         if (val < 0) val = 0;
         studentInput.value = val;
         sessionData.presentCount = val;
-
         const rate = sessionData.expected > 0 ? Math.round((val / sessionData.expected) * 100) : 0;
         document.getElementById('sc_rate').textContent = `${rate}%`;
         document.getElementById('sc_progress').style.width = `${Math.min(rate, 100)}%`;
     }
 
-    // Final Save — routes directly through AttendanceController
     document.getElementById('saveStudentCountBtn')?.addEventListener('click', async function(e) {
         e.preventDefault();
         const btn = this;
         btn.disabled = true;
-
         try {
             const res = await fetch('<?= BASE_URL ?>/modules/faculty/controllers/AttendanceController.php?action=store', {
                 method: 'POST',
@@ -848,112 +884,30 @@ function renderStepper() {
                     department: sessionData.department
                 }),
             });
-
             const json = await res.json();
-
             if (!res.ok || !json.success) {
-                alert('Failed to save attendance: ' + (json.message || 'Server returned status ' + res.status));
+                alert('Failed to save attendance: ' + (json.message || 'Server error'));
                 btn.disabled = false;
                 return;
             }
-
-            addRecentLogRow(sessionData);
-
             switchPanel('COMPLETE');
             document.getElementById('btnResetWorkflow').classList.remove('d-none');
         } catch (err) {
-            console.error('Fetch Error:', err);
             alert('API Communication Error: ' + err.message);
-        } finally {
             btn.disabled = false;
         }
     });
 
-    document.getElementById('btnNextSession')?.addEventListener('click', resetAll);
-    document.getElementById('btnResetWorkflow')?.addEventListener('click', resetAll);
-
-    function resetAll() {
-        // CHANGED: was just switching panels client-side, which left Recent
-        // Logs / stats / All Records showing stale data (they're rendered
-        // server-side on page load) until a manual browser refresh. Reload
-        // instead so the just-saved session shows up immediately once the
-        // user is done looking at the completion screen.
-        window.location.reload();
-    }
-
-    // NEW: reflects the just-saved session in Recent Logs + stat cards
-    // immediately, using data already held in sessionData — no extra
-    // server round-trip. resetAll()'s reload still reconciles everything
-    // with the DB once the officer starts their next room check.
-    function addRecentLogRow(data) {
-        const tbody = document.getElementById('logsTableBody');
-        if (!tbody) return;
-
-        // Clear the "No sessions recorded yet." placeholder row, if present.
-        if (tbody.children.length === 1 && tbody.children[0].querySelector('td[colspan]')) {
-            tbody.innerHTML = '';
-        }
-
-        const facultyName = (data.faculty || '').replace(/\s*\([^)]*\)\s*$/, ''); // strip " (Position)" suffix
-        // CHANGED: was a binary isPresent check, so 'Late' fell into the
-        // Absent bucket — wrong badge colour AND it incremented the Absent
-        // stat. Now tracked as its own status.
-        const isPresent = data.status === 'Present';
-        const isLate    = data.status === 'Late';
-        const badgeClass = isPresent ? 'bg-success-subtle text-success'
-                         : isLate    ? 'bg-warning-subtle text-warning'
-                         : 'bg-danger-subtle text-danger';
-        const rate = (data.expected > 0)
-            ? Math.round((data.presentCount / data.expected) * 100) + '%'
-            : '—';
-
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td class="fw-bold">${escapeHtml(facultyName)}</td>
-            <td><span class="badge ${badgeClass}">${escapeHtml(data.status)}</span></td>
-            <td>${escapeHtml(data.room || 'N/A')} / ${escapeHtml(data.subject || '')}</td>
-            <td class="text-end fw-bold text-primary">${rate}</td>
-        `;
-        tbody.prepend(row);
-
-        const statTotal = document.getElementById('statTotal');
-        const statPresent = document.getElementById('statPresent');
-        const statLate = document.getElementById('statLate');
-        const statAbsent = document.getElementById('statAbsent');
-        const logCount = document.getElementById('logCount');
-
-        if (statTotal) statTotal.textContent = (parseInt(statTotal.textContent) || 0) + 1;
-        if (isPresent && statPresent) statPresent.textContent = (parseInt(statPresent.textContent) || 0) + 1;
-        // CHANGED: Late increments its own counter; only a true Absent bumps Absent.
-        if (isLate && statLate) statLate.textContent = (parseInt(statLate.textContent) || 0) + 1;
-        if (!isPresent && !isLate && statAbsent) statAbsent.textContent = (parseInt(statAbsent.textContent) || 0) + 1;
-        if (logCount) logCount.textContent = (parseInt(logCount.textContent) || 0) + 1;
-    }
-
-    function escapeHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str ?? '';
-        return div.innerHTML;
-    }
-
-    // CHANGED: new — powers the searchable Faculty / Professor field.
-    // Filters the visible list live as the officer types, and keeps the
-    // hidden #faculty_select in sync (setting .value also updates its
-    // selectedIndex natively, so the existing submit-handler code that reads
-    // facultySelect.options[facultySelect.selectedIndex].text needs no
-    // changes).
     (function initFacultySearch() {
         const searchInput = document.getElementById('faculty_search');
         const dropdownList = document.getElementById('faculty_dropdown_list');
         const noMatch = document.getElementById('faculty_no_match');
         const hiddenSelect = document.getElementById('faculty_select');
         if (!searchInput || !dropdownList || !hiddenSelect) return;
-
         const options = Array.from(dropdownList.querySelectorAll('.faculty-option'));
 
         function openDropdown() { dropdownList.style.display = 'block'; }
         function closeDropdown() { dropdownList.style.display = 'none'; }
-
         function filterList() {
             const term = searchInput.value.trim().toLowerCase();
             let anyVisible = false;
@@ -965,30 +919,17 @@ function renderStepper() {
             if (noMatch) noMatch.classList.toggle('d-none', anyVisible);
         }
 
-        searchInput.addEventListener('focus', function() {
-            filterList();
-            openDropdown();
-        });
-        searchInput.addEventListener('input', function() {
-            // Typing again means the previous confirmed selection no longer
-            // necessarily matches what's shown — clear it until they pick again.
-            hiddenSelect.value = '';
-            filterList();
-            openDropdown();
-        });
-
-        options.forEach(function(opt) {
-            opt.addEventListener('click', function() {
+        searchInput.addEventListener('focus', () => { filterList(); openDropdown(); });
+        searchInput.addEventListener('input', () => { hiddenSelect.value = ''; filterList(); openDropdown(); });
+        options.forEach(opt => {
+            opt.addEventListener('click', () => {
                 hiddenSelect.value = opt.dataset.id;
                 searchInput.value = opt.dataset.name;
                 closeDropdown();
             });
         });
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('#faculty_search') && !e.target.closest('#faculty_dropdown_list')) {
-                closeDropdown();
-            }
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#faculty_search') && !e.target.closest('#faculty_dropdown_list')) closeDropdown();
         });
     })();
 

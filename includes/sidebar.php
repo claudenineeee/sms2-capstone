@@ -132,7 +132,7 @@ $facultyDeanNavGroups = [
         ['slug' => 'teaching-history', 'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php', 'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
     ],
     'Subject & Attendance' => [
-        ['slug' => 'subject-load-tracker', 'href' => BASE_URL . '/modules/faculty/views/dean/subject-load-tracker.php', 'icon' => 'fa-book-open', 'label' => 'Subject Load Tracker'],
+        // CHANGED: Subject Load Tracker moved to Secretary — entry removed from Dean
         ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-monitoring.php', 'icon' => 'fa-user-check', 'label' => 'Attendance Monitoring'],
     ],
     'Leave' => [
@@ -166,7 +166,7 @@ $facultyDepartmentHeadNavGroups = [
     ],
     'Clearance & Reports' => [
         ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
-        ['slug' => 'reports', 'href' => BASE_URL . '/modules/faculty/views/department-head/reports.php', 'icon' => 'fa-file-alt', 'label' => 'Reports'],
+        // CHANGED: Reports entry removed per request
     ],
 ];
 
@@ -178,6 +178,8 @@ $facultySecretaryNavGroups = [
     ],
     'Monitoring' => [
         ['slug' => 'assignment-monitoring', 'href' => BASE_URL . '/modules/faculty/views/secretary/assignment-monitoring.php', 'icon' => 'fa-tasks', 'label' => 'Assignment Monitoring'],
+        // CHANGED: Subject Load Tracker added here (moved over from Dean)
+        ['slug' => 'subject-load-tracker', 'href' => BASE_URL . '/modules/faculty/views/secretary/subject-load-tracker.php', 'icon' => 'fa-book-open', 'label' => 'Subject Load Tracker'],
     ],
     'Leave & Reports' => [
         ['slug' => 'leave-request-screening', 'href' => BASE_URL . '/modules/faculty/views/secretary/leave-request-screening.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Request'],
