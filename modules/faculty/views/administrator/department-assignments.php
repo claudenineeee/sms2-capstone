@@ -16,11 +16,14 @@ $breadcrumbs = [
     ['label' => 'Assignments', 'url' => null],
 ];
 
-$formError = '';
+$formError   = '';
 $formSuccess = '';
 
 if (isset($_GET['success'])) {
     $formSuccess = (string) $_GET['success'];
+}
+if (isset($_GET['error'])) {
+    $formError = (string) $_GET['error'];
 }
 
 $departments = [];
@@ -45,7 +48,7 @@ try {
 
         if ($action === 'reassign_head') {
 
-            $deptId = (int) ($_POST['department_id'] ?? 0);
+            $deptId        = (int) ($_POST['department_id'] ?? 0);
             $headProfileId = (int) ($_POST['head_profile_id'] ?? 0);
 
             if ($deptId <= 0) {
@@ -60,9 +63,62 @@ try {
                 throw new InvalidArgumentException('Department not found.');
             }
 
+            /*
+             * Gather the current head(s) of THIS department.
+             * If the choice is "no head" (0) and there is exactly one current
+             * head, refuse — the user would be leaving the department
+             * permanently without a head through a single click.
+             */
+            $currentHeadsStmt = $pdo->prepare("
+                SELECT id, CONCAT_WS(' ', first_name, last_name) AS name
+                FROM faculty_db.faculty_profiles
+                WHERE position = 'Department Head' AND designated_department = :code
+            ");
+            $currentHeadsStmt->execute([':code' => $deptCode]);
+            $currentHeads = $currentHeadsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($headProfileId === 0 && count($currentHeads) === 1) {
+                // Unassigning the sole head — disallow.
+                $redirectUrl = strtok($_SERVER['REQUEST_URI'], '?');
+                header('Location: ' . $redirectUrl . '?error=' . urlencode(
+                    'Cannot unassign the only Department Head. Assign a replacement first.'
+                ));
+                exit;
+            }
+
             if ($headProfileId > 0) {
-                // Assign this profile as the head of the chosen department.
-                // They are moved OUT of whichever department they previously headed.
+                /*
+                 * If they already head this exact department, this is a
+                 * no-op — treat it as success without touching the DB.
+                 */
+                $alreadyStmt = $pdo->prepare("
+                    SELECT id
+                    FROM faculty_db.faculty_profiles
+                    WHERE id = :id AND position = 'Department Head' AND designated_department = :code
+                    LIMIT 1
+                ");
+                $alreadyStmt->execute([':id' => $headProfileId, ':code' => $deptCode]);
+
+                if ($alreadyStmt->fetchColumn()) {
+                    $redirectUrl = strtok($_SERVER['REQUEST_URI'], '?');
+                    header('Location: ' . $redirectUrl . '?success=' . urlencode('No change needed — that Department Head is already assigned here.'));
+                    exit;
+                }
+
+                // Otherwise: verify the profile exists and is a Department Head.
+                $verifyStmt = $pdo->prepare("
+                    SELECT id FROM faculty_db.faculty_profiles
+                    WHERE id = :id AND position = 'Department Head'
+                    LIMIT 1
+                ");
+                $verifyStmt->execute([':id' => $headProfileId]);
+                if (!$verifyStmt->fetchColumn()) {
+                    $redirectUrl = strtok($_SERVER['REQUEST_URI'], '?');
+                    header('Location: ' . $redirectUrl . '?error=' . urlencode('That profile could not be assigned (not found or not a Department Head).'));
+                    exit;
+                }
+
+                // Move them to this department.
                 $update = $pdo->prepare("
                     UPDATE faculty_profiles
                     SET designated_department = :code
@@ -70,14 +126,10 @@ try {
                 ");
                 $update->execute([':code' => $deptCode, ':id' => $headProfileId]);
 
-                if ($update->rowCount() === 0) {
-                    throw new RuntimeException('That profile could not be assigned (not found or not a Department Head).');
-                }
-
                 $redirectMessage = 'Department Head reassigned successfully.';
             } else {
-                // "-- No Head Assigned --" selected: clear whoever currently
-                // heads this department back to unassigned.
+                // "No Head Assigned" chosen — only reachable if there were
+                // 0 or 2+ current heads (single head is blocked above).
                 $clear = $pdo->prepare("
                     UPDATE faculty_profiles
                     SET designated_department = NULL
@@ -95,7 +147,7 @@ try {
 
         if ($action === 'update_dean_assignments') {
 
-            $deanProfileId = (int) ($_POST['dean_profile_id'] ?? 0);
+            $deanProfileId   = (int) ($_POST['dean_profile_id'] ?? 0);
             $selectedDeptIds = array_filter(array_map('intval', (array) ($_POST['department_ids'] ?? [])));
 
             if ($deanProfileId <= 0) {
@@ -110,10 +162,15 @@ try {
 
             $pdo->beginTransaction();
 
+<<<<<<< HEAD
             // Replace the full assignment set for this Dean: remove all,
             // then re-add exactly what was checked. Simpler and safer than
             // diffing, and this table is small per Dean.
             $delete = $pdo->prepare("DELETE FROM faculty_profile_department_assignments WHERE faculty_profile_id = :id");
+=======
+            // Replace the full assignment set for this Dean.
+            $delete = $pdo->prepare("DELETE FROM faculty_db.faculty_profile_department_assignments WHERE faculty_profile_id = :id");
+>>>>>>> d0c7a8d (fixing of stupid bugs)
             $delete->execute([':id' => $deanProfileId]);
 
             if (!empty($selectedDeptIds)) {
@@ -125,9 +182,14 @@ try {
                     $insert->execute([':profile_id' => $deanProfileId, ':dept_id' => $deptId]);
                 }
 
+<<<<<<< HEAD
                 // Keep designated_department (the "primary" department) in
                 // sync too, defaulting to the first checked department.
                 $deptCodeStmt = $pdo->prepare("SELECT code FROM departments WHERE department_id = :id LIMIT 1");
+=======
+                // Keep designated_department in sync with the first checked department.
+                $deptCodeStmt = $pdo->prepare("SELECT code FROM faculty_db.departments WHERE department_id = :id LIMIT 1");
+>>>>>>> d0c7a8d (fixing of stupid bugs)
                 $deptCodeStmt->execute([':id' => $selectedDeptIds[0]]);
                 $primaryCode = $deptCodeStmt->fetchColumn();
 
@@ -206,6 +268,20 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
+<style>
+    .toast-container { z-index: 1080; }
+</style>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="liveToast" class="toast align-items-center border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2" id="toastMessageBody"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
         <h1 class="h3 fw-bold mb-1 text-body">
@@ -215,18 +291,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <p class="text-body-secondary mb-0">Add, configure, and manage academic departments and degree programs across campus.</p>
     </div>
 </div>
-
-<?php if ($formError !== ''): ?>
-    <div class="alert alert-danger rounded-3 mb-4" role="alert">
-        <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($formError, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
-
-<?php if ($formSuccess !== ''): ?>
-    <div class="alert alert-success rounded-3 mb-4" role="alert">
-        <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($formSuccess, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
 
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-body-tertiary fw-bold text-body py-3 border-bottom">
@@ -246,6 +310,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <?php
                         $heads = $headsByDept[$dept['code']] ?? [];
                         $currentHead = $heads[0] ?? null;
+                        $headCount   = count($heads);
+
+                        // Only lock the Reassign button when the department
+                        // has exactly one head — otherwise the "no head" option
+                        // and re-shuffling are both meaningful.
+                        $lockReassign = ($headCount === 1);
                     ?>
                     <tr>
                         <td class="fw-bold ps-3">
@@ -255,16 +325,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <td>
                             <?php if ($currentHead): ?>
                                 <span class="text-body fw-semibold"><?= htmlspecialchars($currentHead['name'], ENT_QUOTES, 'UTF-8') ?></span>
-                                <?php if (count($heads) > 1): ?>
+                                <?php if ($headCount > 1): ?>
                                     <?php 
-                                        $headsJson = htmlspecialchars(json_encode($heads), ENT_QUOTES, 'UTF-8');
+                                        $headsJson    = htmlspecialchars(json_encode($heads), ENT_QUOTES, 'UTF-8');
                                         $deptCodeJson = htmlspecialchars(json_encode($dept['code']), ENT_QUOTES, 'UTF-8');
-                                        $deptId = (int) $dept['department_id'];
+                                        $deptId       = (int) $dept['department_id'];
                                     ?>
                                     <button type="button" 
                                             class="btn btn-sm btn-warning fw-bold border-0 shadow-sm ms-2 py-0 px-2"
                                             onclick="openMultipleHeadsModal(<?= $deptId ?>, <?= $deptCodeJson ?>, <?= $headsJson ?>)">
-                                        <i class="fas fa-layer-group me-1"></i>+<?= count($heads) - 1 ?> more
+                                        <i class="fas fa-layer-group me-1"></i>+<?= $headCount - 1 ?> more
                                     </button>
                                 <?php endif; ?>
                             <?php else: ?>
@@ -272,10 +342,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-end pe-3">
-                            <button type="button" class="btn btn-sm btn-outline-primary"
-                                    onclick="openHeadModal(<?= (int) $dept['department_id'] ?>, '<?= htmlspecialchars(addslashes($dept['code']), ENT_QUOTES, 'UTF-8') ?>', <?= $currentHead ? (int) $currentHead['id'] : 0 ?>)">
-                                <i class="fas fa-user-edit me-1"></i>Reassign
-                            </button>
+                            <?php if ($lockReassign): ?>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        disabled
+                                        title="Only one Department Head is assigned. Add another before reassigning.">
+                                    <i class="fas fa-lock me-1"></i>Locked
+                                </button>
+                            <?php else: ?>
+                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                        onclick="openHeadModal(<?= (int) $dept['department_id'] ?>, '<?= htmlspecialchars(addslashes($dept['code']), ENT_QUOTES, 'UTF-8') ?>', <?= $currentHead ? (int) $currentHead['id'] : 0 ?>)">
+                                    <i class="fas fa-user-edit me-1"></i>Reassign
+                                </button>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -432,6 +511,29 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <script>
+function showAssignmentToast(message, type) {
+    if (!message) return;
+    const toastEl   = document.getElementById('liveToast');
+    const toastBody = document.getElementById('toastMessageBody');
+    const closeBtn  = toastEl.querySelector('.btn-close');
+
+    toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
+    toastEl.style.backgroundColor = (type === 'danger' || type === 'error')
+        ? '#842029'
+        : (type === 'warning' ? '#664d03' : '#0f5132');
+
+    closeBtn.classList.remove('btn-close-white');
+    closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+
+    const iconClass = (type === 'danger' || type === 'error')
+        ? 'fas fa-exclamation-circle'
+        : (type === 'warning' ? 'fas fa-triangle-exclamation' : 'fas fa-check-circle');
+
+    toastBody.innerHTML = `<i class="${iconClass} fs-5 text-white"></i> <span class="text-white">${message}</span>`;
+
+    new bootstrap.Toast(toastEl, { delay: 5000 }).show();
+}
+
 function openHeadModal(deptId, deptLabel, currentHeadId) {
     document.getElementById('hm-dept-id').value = deptId;
     document.getElementById('hm-dept-label').textContent = deptLabel;
@@ -465,13 +567,11 @@ function openMultipleHeadsModal(deptId, deptCode, headsList) {
 }
 
 function switchModalToReassign(deptId, deptCode, headId) {
-    // Hide list modal, then open reassign modal pre-selecting this specific head
     const multModalEl = document.getElementById('multipleHeadsModal');
     const multModal = bootstrap.Modal.getInstance(multModalEl);
     if (multModal) {
         multModal.hide();
     }
-    
     openHeadModal(deptId, deptCode, headId);
 }
 
@@ -491,6 +591,13 @@ document.addEventListener('DOMContentLoaded', function () {
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+
+    // Fire PHP-driven messages as toasts
+    const phpError   = <?= json_encode($formError) ?>;
+    const phpSuccess = <?= json_encode($formSuccess) ?>;
+
+    if (phpError)        showAssignmentToast(phpError,   'danger');
+    else if (phpSuccess) showAssignmentToast(phpSuccess, 'success');
 });
 </script>
 
