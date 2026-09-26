@@ -218,7 +218,7 @@ $facultyTeacherNavGroups = [
                     'view' => 'agreement',
                     'href' => BASE_URL . '/modules/faculty/views/faculty/my-clearance.php?view=agreement#agreement',
                     'icon' => 'fa-file-contract',
-                    'label' => 'Clearance Agreement Form',
+                    'label' => 'Clearance Form',
                 ],
                 [
                     'slug' => 'clearance-portal',
@@ -531,7 +531,7 @@ $facultyScheduleOfficerNavGroups = [
                     <?php endforeach; ?>
                 <?php endforeach; ?>
 
-            <!-- REGISTRAR CLEARANCE -->
+                <!-- REGISTRAR CLEARANCE -->
             <?php elseif (in_array($roleKey, ['registrar_clearance', 'registrar'], true)): ?>
                 <?php foreach ($facultyRegistrarClearance as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
@@ -554,7 +554,7 @@ $facultyScheduleOfficerNavGroups = [
                     <?php endforeach; ?>
                 <?php endforeach; ?>
 
-            <!-- FINANCE CLEARANCE -->
+                <!-- FINANCE CLEARANCE -->
             <?php elseif (in_array($roleKey, ['finance', 'finance_office'], true)): ?>
                 <?php foreach ($facultyFinanceClearance as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
@@ -577,7 +577,7 @@ $facultyScheduleOfficerNavGroups = [
                     <?php endforeach; ?>
                 <?php endforeach; ?>
 
-            <!-- PROPERTY CLEARANCE -->
+                <!-- PROPERTY CLEARANCE -->
             <?php elseif (in_array($roleKey, ['property_custodian_office', 'property_custodian', 'property'], true)): ?>
                 <?php foreach ($facultyPropertyClearance as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
@@ -600,7 +600,7 @@ $facultyScheduleOfficerNavGroups = [
                     <?php endforeach; ?>
                 <?php endforeach; ?>
 
-            <!-- LIBRARY CLEARANCE -->
+                <!-- LIBRARY CLEARANCE -->
             <?php elseif (in_array($roleKey, ['library_clearance', 'library'], true)): ?>
                 <?php foreach ($facultyLibraryClearance as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">

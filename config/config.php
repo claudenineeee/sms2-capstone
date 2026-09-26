@@ -28,14 +28,51 @@ if (is_readable($sms2LocalConfig)) {
     require_once $sms2LocalConfig;
 }
 
+// Optional .env loader for local development or container deployment
+$sms2EnvCandidates = [
+    ROOT_PATH . '/.env',
+    ROOT_PATH . '/modules/faculty/hostforge_db/primary-db (2).env',
+    __DIR__ . '/.env',
+];
+foreach ($sms2EnvCandidates as $sms2Candidate) {
+    if (is_readable($sms2Candidate)) {
+        $sms2Lines = @file($sms2Candidate, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($sms2Lines !== false) {
+            foreach ($sms2Lines as $sms2Line) {
+                $sms2Line = trim($sms2Line);
+                if ($sms2Line === '' || str_starts_with($sms2Line, '#')) {
+                    continue;
+                }
+                if (str_contains($sms2Line, '=')) {
+                    [$k, $v] = explode('=', $sms2Line, 2);
+                    $k = trim($k);
+                    $v = trim($v, " \t\n\r\0\x0B\"'");
+                    if (!isset($_SERVER[$k]) && !isset($_ENV[$k]) && getenv($k) === false) {
+                        putenv("{$k}={$v}");
+                        $_ENV[$k] = $v;
+                        $_SERVER[$k] = $v;
+                    }
+                }
+            }
+        }
+        break;
+    }
+}
+
 if (!function_exists('sms2_env')) {
     function sms2_env(string $key, ?string $default = null): ?string
     {
         $value = getenv($key);
-        if ($value === false || $value === '') {
-            return $default;
+        if ($value !== false && $value !== '') {
+            return (string) $value;
         }
-        return $value;
+        if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+            return (string) $_ENV[$key];
+        }
+        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+            return (string) $_SERVER[$key];
+        }
+        return $default;
     }
 }
 

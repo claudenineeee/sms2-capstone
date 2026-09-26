@@ -1098,7 +1098,7 @@ CREATE TABLE `leave_requests` (
   `id` int(10) UNSIGNED NOT NULL,
   `request_ref` varchar(20) NOT NULL,
   `faculty_id` int(10) UNSIGNED NOT NULL,
-  `leave_type` enum('Vacation Leave','Sick Leave','Emergency Leave','Study Leave') NOT NULL,
+  `leave_type` varchar(100) NOT NULL,
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `total_days` int(10) UNSIGNED NOT NULL,
@@ -2002,6 +2002,143 @@ ALTER TABLE `teaching_load_requests`
 ALTER TABLE `teaching_load_request_items`
   ADD CONSTRAINT `fk_load_items_request` FOREIGN KEY (`load_request_id`) REFERENCES `teaching_load_requests` (`load_request_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_load_items_schedule` FOREIGN KEY (`class_schedule_id`) REFERENCES `class_schedules` (`class_schedule_id`) ON DELETE CASCADE;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `clearance_signatures`
+--
+
+CREATE TABLE `clearance_signatures` (
+  `signature_id` int(10) UNSIGNED NOT NULL,
+  `clearance_id` int(10) UNSIGNED NOT NULL,
+  `faculty_id` int(10) UNSIGNED NOT NULL,
+  `office` varchar(100) NOT NULL,
+  `office_key` varchar(50) NOT NULL,
+  `signatory_type` enum('faculty','department_head','office_signatory','dean','admin') NOT NULL DEFAULT 'office_signatory',
+  `approval_ref` varchar(50) DEFAULT NULL,
+  `signer_user_id` int(10) UNSIGNED DEFAULT NULL,
+  `signer_name` varchar(150) NOT NULL,
+  `signer_role` varchar(100) NOT NULL,
+  `signature_data` longtext NOT NULL,
+  `remarks` text DEFAULT NULL,
+  `status` varchar(50) NOT NULL DEFAULT 'Signed',
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` text DEFAULT NULL,
+  `signed_at` datetime NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `clearance_office_approvals`
+--
+
+CREATE TABLE `clearance_office_approvals` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `clearance_id` int(10) UNSIGNED NOT NULL,
+  `faculty_id` int(10) UNSIGNED NOT NULL,
+  `office` varchar(50) NOT NULL,
+  `approval_ref` varchar(50) NOT NULL,
+  `approver_user_id` int(10) UNSIGNED NOT NULL,
+  `approver_name` varchar(150) NOT NULL,
+  `approver_role` varchar(100) NOT NULL,
+  `status` varchar(50) NOT NULL DEFAULT 'Approved',
+  `remarks` text DEFAULT NULL,
+  `signature_data` longtext DEFAULT NULL,
+  `approved_at` datetime NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `clearance_approval_history`
+--
+
+CREATE TABLE `clearance_approval_history` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `clearance_id` int(10) UNSIGNED NOT NULL,
+  `requirement_id` int(10) UNSIGNED DEFAULT NULL,
+  `office` varchar(50) NOT NULL,
+  `action` varchar(50) NOT NULL,
+  `performed_by_id` int(10) UNSIGNED DEFAULT NULL,
+  `performed_by_name` varchar(150) NOT NULL,
+  `performed_by_role` varchar(100) NOT NULL,
+  `remarks` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Indexes for table `clearance_signatures`
+--
+ALTER TABLE `clearance_signatures`
+  ADD PRIMARY KEY (`signature_id`),
+  ADD UNIQUE KEY `uk_clearance_office_sig` (`clearance_id`, `office_key`),
+  ADD KEY `idx_sig_faculty` (`faculty_id`),
+  ADD KEY `idx_sig_clearance` (`clearance_id`),
+  ADD KEY `idx_sig_signer` (`signer_user_id`),
+  ADD KEY `idx_sig_ref` (`approval_ref`),
+  ADD KEY `idx_sig_date` (`signed_at`);
+
+--
+-- Indexes for table `clearance_office_approvals`
+--
+ALTER TABLE `clearance_office_approvals`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_clearance_office` (`clearance_id`, `office`),
+  ADD KEY `idx_approval_faculty` (`faculty_id`),
+  ADD KEY `idx_approval_ref` (`approval_ref`);
+
+--
+-- Indexes for table `clearance_approval_history`
+--
+ALTER TABLE `clearance_approval_history`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_hist_clearance` (`clearance_id`),
+  ADD KEY `idx_hist_office` (`office`),
+  ADD KEY `idx_hist_created` (`created_at`);
+
+--
+-- AUTO_INCREMENT for table `clearance_signatures`
+--
+ALTER TABLE `clearance_signatures`
+  MODIFY `signature_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `clearance_office_approvals`
+--
+ALTER TABLE `clearance_office_approvals`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `clearance_approval_history`
+--
+ALTER TABLE `clearance_approval_history`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- Constraints for table `clearance_signatures`
+--
+ALTER TABLE `clearance_signatures`
+  ADD CONSTRAINT `fk_clearance_signatures_clearance` FOREIGN KEY (`clearance_id`) REFERENCES `clearance_requests` (`clearance_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_clearance_signatures_faculty` FOREIGN KEY (`faculty_id`) REFERENCES `faculty` (`faculty_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `clearance_office_approvals`
+--
+ALTER TABLE `clearance_office_approvals`
+  ADD CONSTRAINT `fk_office_approvals_clearance` FOREIGN KEY (`clearance_id`) REFERENCES `clearance_requests` (`clearance_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_office_approvals_faculty` FOREIGN KEY (`faculty_id`) REFERENCES `faculty` (`faculty_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `clearance_approval_history`
+--
+ALTER TABLE `clearance_approval_history`
+  ADD CONSTRAINT `fk_approval_hist_clearance` FOREIGN KEY (`clearance_id`) REFERENCES `clearance_requests` (`clearance_id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

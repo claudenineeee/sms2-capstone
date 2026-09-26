@@ -39,17 +39,18 @@ $ACADEMIC_YEAR = '2026-2027';
 function balanceLabel(string $key): string
 {
     return match ($key) {
-        'sick_leave'     => 'Sick Leave',
+        'sick_leave' => 'Sick Leave',
         'vacation_leave' => 'Vacation Leave',
-        'emergency'      => 'Emergency Leave',
-        'maternity'      => 'Maternity Leave',
-        'paternity'      => 'Paternity Leave',
-        'magna_carta'    => 'Magna Carta Leave',
-        'vawc'           => 'VAWC Leave',
-        'sabbatical'     => 'Sabbatical Leave',
+        'emergency' => 'Emergency Leave',
+        'maternity' => 'Maternity Leave',
+        'paternity' => 'Paternity Leave',
+        'magna_carta' => 'Magna Carta Leave',
+        'vawc' => 'VAWC Leave',
+        'sabbatical' => 'Sabbatical Leave',
         'admin_vacation' => 'Academic/Vacation Leave',
-        'admin_special'  => 'Special Leave Privileges',
-        default          => $key,
+        'admin_special' => 'Special Leave Privileges',
+        'study_leave' => 'Study Leave',
+        default => $key,
     };
 }
 
@@ -69,13 +70,15 @@ function balanceColumnKeys(): array
         'sabbatical',
         'admin_vacation',
         'admin_special',
+        'study_leave',
     ];
 }
 
 /**
  * Email helper — unchanged.
  */
-function sendLeaveStatusEmail($toEmail, $toName, $subject, $statusMessage, $details = [], $status = '') {
+function sendLeaveStatusEmail($toEmail, $toName, $subject, $statusMessage, $details = [], $status = '')
+{
     if (empty($toEmail) || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
         return false;
     }
@@ -98,12 +101,12 @@ function sendLeaveStatusEmail($toEmail, $toName, $subject, $statusMessage, $deta
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
     try {
         $mail->isSMTP();
-        $mail->Host       = defined('SMTP_HOST') ? SMTP_HOST : 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = defined('SMTP_USER') ? SMTP_USER : 'jcespejo002@gmail.com';
-        $mail->Password   = defined('SMTP_PASS') ? SMTP_PASS : 'cshwohpgllkqdtga';
+        $mail->Host = defined('SMTP_HOST') ? SMTP_HOST : 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = defined('SMTP_USER') ? SMTP_USER : 'jcespejo002@gmail.com';
+        $mail->Password = defined('SMTP_PASS') ? SMTP_PASS : 'cshwohpgllkqdtga';
         $mail->SMTPSecure = defined('SMTP_SECURE') ? SMTP_SECURE : PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = defined('SMTP_PORT') ? SMTP_PORT : 587;
+        $mail->Port = defined('SMTP_PORT') ? SMTP_PORT : 587;
 
         $mail->setFrom($mail->Username, 'Bestlink College No-Reply');
         $mail->addAddress($toEmail, $toName);
@@ -111,7 +114,7 @@ function sendLeaveStatusEmail($toEmail, $toName, $subject, $statusMessage, $deta
         $mail->isHTML(true);
         $mail->Subject = $subject;
 
-        $logoUrl  = defined('BASE_URL') ? rtrim(BASE_URL, '/') . '/images/bestlink.png' : '';
+        $logoUrl = defined('BASE_URL') ? rtrim(BASE_URL, '/') . '/images/bestlink.png' : '';
         $logoHtml = $logoUrl !== '' ? "<img src='" . htmlspecialchars($logoUrl) . "' width='40' height='40' alt='Bestlink College of the Philippines' style='display:block; width:40px; height:40px; border-radius:6px;'>" : '';
 
         $body = "
@@ -231,11 +234,11 @@ try {
         $action = trim((string) ($_POST['action'] ?? ''));
         $requestId = (int) ($_POST['request_id'] ?? 0);
 
-        if ($action !== 'save_signature_data' && $requestId <= 0) {
+        if ($requestId <= 0) {
             throw new RuntimeException('Invalid leave request.');
         }
 
-        if (!in_array($action, ['approve', 'reject', 'notify_faculty', 'delete_document', 'save_signature_data'], true)) {
+        if (!in_array($action, ['approve', 'reject', 'notify_faculty', 'delete_document'], true)) {
             throw new RuntimeException('Invalid leave request action.');
         }
 
@@ -291,7 +294,7 @@ try {
                         VALUES (:uid, :sig, NOW())
                     ");
                     $insProf->execute([
-                        ':uid' => $approverId, 
+                        ':uid' => $approverId,
                         ':sig' => $relativeSignaturePath
                     ]);
                 } else {
@@ -301,8 +304,8 @@ try {
                         WHERE user_id = :uid1 OR id = :uid2
                     ");
                     $updSig->execute([
-                        ':sig'  => $relativeSignaturePath, 
-                        ':uid1' => $approverId, 
+                        ':sig' => $relativeSignaturePath,
+                        ':uid1' => $approverId,
                         ':uid2' => $approverId
                     ]);
                 }
@@ -375,16 +378,6 @@ try {
         $columnStmt->execute();
         $hasApproverComment = (int) $columnStmt->fetchColumn() > 0;
 
-        $sigColumnStmt = $pdo->prepare("
-            SELECT COUNT(*)
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = 'faculty_db'
-              AND TABLE_NAME = 'leave_requests'
-              AND COLUMN_NAME = 'approver_signature'
-        ");
-        $sigColumnStmt->execute();
-        $hasApproverSignatureCol = (int) $sigColumnStmt->fetchColumn() > 0;
-
         $notificationColumnStmt = $pdo->prepare("
             SELECT COLUMN_NAME
             FROM information_schema.COLUMNS
@@ -402,48 +395,20 @@ try {
         $leaveType = $request['leave_type'] ?? 'Leave';
 
         if ($action === 'approve') {
-            $sigStmt = $pdo->prepare("
-                SELECT signature 
-                FROM faculty_db.faculty_profiles 
-                WHERE user_id = :uid1 OR id = :uid2
-                LIMIT 1
+            $stmt = $pdo->prepare("
+                UPDATE faculty_db.leave_requests
+                SET
+                    status = 'Approved',
+                    approver_id = :approver_id,
+                    approver_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = :id
+                  AND LOWER(status) IN ('pending', 'document_required')
             ");
-            $sigStmt->execute([':uid1' => $approverId, ':uid2' => $approverId]);
-            $approverSignaturePath = $sigStmt->fetchColumn() ?: '';
-
-            if ($hasApproverSignatureCol) {
-                $stmt = $pdo->prepare("
-                    UPDATE faculty_db.leave_requests
-                    SET
-                        status = 'Approved',
-                        approver_id = :approver_id,
-                        approver_at = NOW(),
-                        approver_signature = :signature,
-                        updated_at = NOW()
-                    WHERE id = :id
-                      AND LOWER(status) IN ('pending', 'document_required')
-                ");
-                $stmt->execute([
-                    ':approver_id' => $approverId,
-                    ':signature'   => $approverSignaturePath,
-                    ':id'          => $requestId
-                ]);
-            } else {
-                $stmt = $pdo->prepare("
-                    UPDATE faculty_db.leave_requests
-                    SET
-                        status = 'Approved',
-                        approver_id = :approver_id,
-                        approver_at = NOW(),
-                        updated_at = NOW()
-                    WHERE id = :id
-                      AND LOWER(status) IN ('pending', 'document_required')
-                ");
-                $stmt->execute([
-                    ':approver_id' => $approverId,
-                    ':id'          => $requestId
-                ]);
-            }
+            $stmt->execute([
+                ':approver_id' => $approverId,
+                ':id' => $requestId
+            ]);
 
             if ($stmt->rowCount() === 0) {
                 throw new RuntimeException('The leave request could not be approved.');
@@ -477,7 +442,7 @@ try {
             if ($notificationColumn) {
                 $updateFields[] = "$notificationColumn = 1";
             }
-            
+
             $stmt = $pdo->prepare("
                 UPDATE faculty_db.leave_requests
                 SET " . implode(', ', $updateFields) . "
@@ -495,7 +460,7 @@ try {
             if ($notificationColumn) {
                 $updateFields[] = "$notificationColumn = 1";
             }
-            
+
             $stmt = $pdo->prepare("
                 UPDATE faculty_db.leave_requests
                 SET " . implode(', ', $updateFields) . "
@@ -511,29 +476,29 @@ try {
                 "approver_id = :approver_id",
                 "approver_at = NOW()"
             ];
-            
+
             if ($hasApproverComment) {
                 $updateFields[] = "approver_comment = :comment";
             }
-            
+
             $updateFields[] = "updated_at = NOW()";
-            
+
             if ($notificationColumn) {
                 $updateFields[] = "$notificationColumn = 1";
             }
-            
+
             $stmt = $pdo->prepare("
                 UPDATE faculty_db.leave_requests
                 SET " . implode(', ', $updateFields) . "
                 WHERE id = :id
                   AND LOWER(status) IN ('pending', 'document_required')
             ");
-            
+
             $params = [':approver_id' => $approverId, ':id' => $requestId];
             if ($hasApproverComment) {
                 $params[':comment'] = $comment;
             }
-            
+
             $stmt->execute($params);
 
             if (!empty($facultyEmail)) {
@@ -591,7 +556,7 @@ try {
     $balanceStmt->execute([':yr' => $ACADEMIC_YEAR]);
     $allBalances = [];
     foreach ($balanceStmt->fetchAll(PDO::FETCH_ASSOC) as $b) {
-        $allBalances[(int)$b['faculty_id']] = $b;
+        $allBalances[(int) $b['faculty_id']] = $b;
     }
 
     $sql = "SELECT lr.*,
@@ -621,17 +586,18 @@ try {
         if ($fKey <= 0) {
             $fKey = (int) ($req['faculty_profile_id'] ?? 0);
         }
-        if ($fKey <= 0) continue;
+        if ($fKey <= 0)
+            continue;
 
         if (!isset($facultyGroupedRequests[$fKey])) {
             $facultyGroupedRequests[$fKey] = [
-                'faculty_profile_id'  => (int) ($req['faculty_profile_id'] ?? 0),
-                'faculty_record_id'   => $fKey,
-                'faculty_name'        => $req['faculty_name'] ?? 'Unknown Faculty',
-                'faculty_identifier'  => $req['faculty_identifier'] ?? '',
-                'department'          => $req['department'] ?? 'Faculty Department',
-                'requests'            => [],
-                'balance'             => $allBalances[$fKey] ?? null,
+                'faculty_profile_id' => (int) ($req['faculty_profile_id'] ?? 0),
+                'faculty_record_id' => $fKey,
+                'faculty_name' => $req['faculty_name'] ?? 'Unknown Faculty',
+                'faculty_identifier' => $req['faculty_identifier'] ?? '',
+                'department' => $req['department'] ?? 'Faculty Department',
+                'requests' => [],
+                'balance' => $allBalances[$fKey] ?? null,
             ];
         }
         $facultyGroupedRequests[$fKey]['requests'][] = $req;
@@ -647,52 +613,112 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
 
 <style>
-#rejectModal { z-index: 1060 !important; }
-.table th, .table td { white-space: nowrap !important; }
-#signatureCanvas { cursor: crosshair; background-color: #fff; touch-action: none; }
+    #rejectModal {
+        z-index: 1060 !important;
+    }
 
-.modal.show { background-color: rgba(0, 0, 0, 0.4); }
-#confirmActionModal { z-index: 1060 !important; }
-.modal-backdrop + .modal-backdrop { z-index: 1055 !important; }
+    .table th,
+    .table td {
+        white-space: nowrap !important;
+    }
 
-.balance-mini {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.28rem 0.65rem;
-    font-size: 0.72rem;
-    font-weight: 650;
-    border-radius: 6px;
-    line-height: 1;
-    border: 1px solid;
-}
-.balance-mini.ok     { background: rgba(16,185,129,0.12); color: #059669; border-color: rgba(16,185,129,0.3); }
-.balance-mini.low    { background: rgba(245,158,11,0.15); color: #d97706; border-color: rgba(245,158,11,0.3); }
-.balance-mini.danger { background: rgba(239,68,68,0.15); color: #dc2626; border-color: rgba(239,68,68,0.3); }
-.balance-mini.none   { background: rgba(148,163,184,0.15); color: #64748b; border-color: rgba(148,163,184,0.25); }
+    #signatureCanvas {
+        cursor: crosshair;
+        background-color: #fff;
+        touch-action: none;
+    }
 
-[data-bs-theme="dark"] .balance-mini.ok,
-body.dark-mode .balance-mini.ok     { background: rgba(16,185,129,0.22); color: #34d399; border-color: rgba(52,211,153,0.35); }
-[data-bs-theme="dark"] .balance-mini.low,
-body.dark-mode .balance-mini.low    { background: rgba(245,158,11,0.22); color: #fbbf24; border-color: rgba(251,191,36,0.35); }
-[data-bs-theme="dark"] .balance-mini.danger,
-body.dark-mode .balance-mini.danger { background: rgba(239,68,68,0.22); color: #f87171; border-color: rgba(248,113,113,0.35); }
-[data-bs-theme="dark"] .balance-mini.none,
-body.dark-mode .balance-mini.none   { background: rgba(148,163,184,0.20); color: #94a3b8; border-color: rgba(148,163,184,0.3); }
+    .modal.show {
+        background-color: rgba(0, 0, 0, 0.4);
+    }
+
+    #confirmActionModal {
+        z-index: 1060 !important;
+    }
+
+    .modal-backdrop+.modal-backdrop {
+        z-index: 1055 !important;
+    }
+
+    .balance-mini {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.28rem 0.65rem;
+        font-size: 0.72rem;
+        font-weight: 650;
+        border-radius: 6px;
+        line-height: 1;
+        border: 1px solid;
+    }
+
+    .balance-mini.ok {
+        background: rgba(16, 185, 129, 0.12);
+        color: #059669;
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .balance-mini.low {
+        background: rgba(245, 158, 11, 0.15);
+        color: #d97706;
+        border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .balance-mini.danger {
+        background: rgba(239, 68, 68, 0.15);
+        color: #dc2626;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .balance-mini.none {
+        background: rgba(148, 163, 184, 0.15);
+        color: #64748b;
+        border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    [data-bs-theme="dark"] .balance-mini.ok,
+    body.dark-mode .balance-mini.ok {
+        background: rgba(16, 185, 129, 0.22);
+        color: #34d399;
+        border-color: rgba(52, 211, 153, 0.35);
+    }
+
+    [data-bs-theme="dark"] .balance-mini.low,
+    body.dark-mode .balance-mini.low {
+        background: rgba(245, 158, 11, 0.22);
+        color: #fbbf24;
+        border-color: rgba(251, 191, 36, 0.35);
+    }
+
+    [data-bs-theme="dark"] .balance-mini.danger,
+    body.dark-mode .balance-mini.danger {
+        background: rgba(239, 68, 68, 0.22);
+        color: #f87171;
+        border-color: rgba(248, 113, 113, 0.35);
+    }
+
+    [data-bs-theme="dark"] .balance-mini.none,
+    body.dark-mode .balance-mini.none {
+        background: rgba(148, 163, 184, 0.20);
+        color: #94a3b8;
+        border-color: rgba(148, 163, 184, 0.3);
+    }
 </style>
 
-<?php 
+<?php
 if (function_exists('renderBreadcrumbs')) {
-    renderBreadcrumbs($breadcrumbs); 
-} 
+    renderBreadcrumbs($breadcrumbs);
+}
 ?>
 
 <!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
-    <div id="actionToast" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+    <div id="actionToast" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive"
+        aria-atomic="true">
         <div class="d-flex">
             <div class="toast-body fw-semibold" id="toastMessage"></div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+                aria-label="Close"></button>
         </div>
     </div>
 </div>
@@ -706,38 +732,6 @@ if (function_exists('renderBreadcrumbs')) {
         <p class="text-body-secondary mb-0 small">
             Review and approve or reject submitted leave requests grouped by faculty account
         </p>
-    </div>
-    <div>
-        <button type="button" class="btn btn-outline-primary btn-sm fw-bold shadow-sm" onclick="openSignaturePadModal()">
-            <i class="fas fa-signature me-1"></i> Edit / Draw Custom Signature
-        </button>
-    </div>
-</div>
-
-<!-- Signature Pad Modal -->
-<div class="modal fade" id="signaturePadModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header border-bottom py-3">
-                <h5 class="modal-title fw-bold text-dark">
-                    <i class="fas fa-signature text-primary me-2"></i> Draw Your Digital Signature
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body text-center p-4">
-                <p class="text-muted small mb-3">Draw your signature in the box below using your mouse or touchscreen. This will replace any default static image signature.</p>
-                <div class="border border-dark rounded bg-light d-inline-block p-1">
-                    <canvas id="signatureCanvas" width="400" height="180" class="rounded"></canvas>
-                </div>
-                <div class="mt-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" onclick="clearSignatureCanvas()">Clear Pad</button>
-                </div>
-            </div>
-            <div class="modal-footer border-top bg-light justify-content-between">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary btn-sm fw-bold px-4" onclick="saveDrawnSignature()">Save Signature</button>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -755,7 +749,8 @@ if (function_exists('renderBreadcrumbs')) {
                 <p class="mb-0 text-muted" id="confirmModalBody">Are you sure you want to proceed?</p>
             </div>
             <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary px-3"
+                    data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-sm btn-success px-3" id="confirmModalSubmitBtn">
                     <i class="fas fa-check me-1"></i> Yes, submit
                 </button>
@@ -769,7 +764,8 @@ if (function_exists('renderBreadcrumbs')) {
     <!-- Pending Requests — Amber -->
     <div class="col-12 col-sm-6 col-xl-3">
         <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
-            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #f59e0b; z-index: 1;"></div>
+            <div class="position-absolute top-0 start-0 h-100"
+                style="width: 4px; background-color: #f59e0b; z-index: 1;"></div>
             <div class="card-body d-flex align-items-center ps-4">
                 <div class="stat-icon me-3 fs-4" style="color: #f59e0b;">
                     <i class="fas fa-clock"></i>
@@ -782,7 +778,9 @@ if (function_exists('renderBreadcrumbs')) {
                     </small>
                 </div>
             </div>
-            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Pending">
+            <a href="#"
+                class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Pending">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -791,7 +789,8 @@ if (function_exists('renderBreadcrumbs')) {
     <!-- Approved — Green -->
     <div class="col-12 col-sm-6 col-xl-3">
         <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
-            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #10b981; z-index: 1;"></div>
+            <div class="position-absolute top-0 start-0 h-100"
+                style="width: 4px; background-color: #10b981; z-index: 1;"></div>
             <div class="card-body d-flex align-items-center ps-4">
                 <div class="stat-icon me-3 fs-4" style="color: #10b981;">
                     <i class="fas fa-check-circle"></i>
@@ -804,7 +803,9 @@ if (function_exists('renderBreadcrumbs')) {
                     </small>
                 </div>
             </div>
-            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Approved">
+            <a href="#"
+                class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Approved">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -813,7 +814,8 @@ if (function_exists('renderBreadcrumbs')) {
     <!-- Rejected — Red -->
     <div class="col-12 col-sm-6 col-xl-3">
         <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
-            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ff4d4d; z-index: 1;"></div>
+            <div class="position-absolute top-0 start-0 h-100"
+                style="width: 4px; background-color: #ff4d4d; z-index: 1;"></div>
             <div class="card-body d-flex align-items-center ps-4">
                 <div class="stat-icon me-3 fs-4" style="color: #ff4d4d;">
                     <i class="fas fa-times-circle"></i>
@@ -826,7 +828,9 @@ if (function_exists('renderBreadcrumbs')) {
                     </small>
                 </div>
             </div>
-            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Rejected">
+            <a href="#"
+                class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Rejected">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -835,7 +839,8 @@ if (function_exists('renderBreadcrumbs')) {
     <!-- Total Requests — Blue -->
     <div class="col-12 col-sm-6 col-xl-3">
         <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
-            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+            <div class="position-absolute top-0 start-0 h-100"
+                style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
             <div class="card-body d-flex align-items-center ps-4">
                 <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
                     <i class="fas fa-file-signature"></i>
@@ -848,7 +853,9 @@ if (function_exists('renderBreadcrumbs')) {
                     </small>
                 </div>
             </div>
-            <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View All">
+            <a href="#"
+                class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                style="width: 24px; height: 24px; font-size: 0.7rem;" title="View All">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
@@ -857,7 +864,7 @@ if (function_exists('renderBreadcrumbs')) {
 
 <?php if ($formSuccess !== ''): ?>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             showToast(<?= json_encode($formSuccess) ?>, 'success');
         });
     </script>
@@ -865,7 +872,7 @@ if (function_exists('renderBreadcrumbs')) {
 
 <?php if ($formError !== ''): ?>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             showToast(<?= json_encode($formError) ?>, 'danger');
         });
     </script>
@@ -873,12 +880,14 @@ if (function_exists('renderBreadcrumbs')) {
 
 <!-- Faculty Leave Accounts Table Card -->
 <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body-tertiary py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div
+        class="card-header bg-body-tertiary py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h6 class="mb-0 fw-bold text-body">
             <i class="fas fa-list-check text-primary me-2"></i> Faculty Leave Accounts
         </h6>
         <div style="width: 280px;">
-            <input type="search" id="tableSearchInput" class="form-control form-control-sm" placeholder="Search faculty name or reference...">
+            <input type="search" id="tableSearchInput" class="form-control form-control-sm"
+                placeholder="Search faculty name or reference...">
         </div>
     </div>
     <div class="card-body p-0">
@@ -886,7 +895,8 @@ if (function_exists('renderBreadcrumbs')) {
             <table class="table align-middle table-hover mb-0" id="leaveRequestsTable">
                 <thead class="table-light border-bottom small text-uppercase fw-bold text-body-secondary text-nowrap">
                     <tr>
-                        <th class="ps-3 py-3" style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
+                        <th class="ps-3 py-3" style="width: 40px;"><input type="checkbox" class="form-check-input"
+                                id="selectAll"></th>
                         <th class="py-3">Faculty Member</th>
                         <th class="py-3 text-center">Total Requests</th>
                         <th class="py-3 text-center">Pending Review</th>
@@ -894,63 +904,76 @@ if (function_exists('renderBreadcrumbs')) {
                     </tr>
                 </thead>
                 <tbody class="text-body">
-                <?php if (empty($facultyGroupedRequests)): ?>
-                    <tr>
-                        <td colspan="5" class="text-center text-body-secondary py-5">
-                            <i class="fas fa-inbox fs-3 d-block mb-2 text-body-tertiary"></i>
-                            <span>No leave requests found.</span>
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($facultyGroupedRequests as $fId => $group): ?>
-                        <?php
-                        $facultyName = $group['faculty_name'];
-                        $requests = $group['requests'];
-                        $totalFacultyRequests = count($requests);
-                        $pendingFacultyRequests = 0;
-                        $allRefs = [];
-
-                        foreach ($requests as $r) {
-                            $stRaw = strtolower(trim($r['status'] ?? 'pending'));
-                            if ($stRaw === 'pending') $pendingFacultyRequests++;
-                            $allRefs[] = strtolower($r['request_ref'] ?? ('lr-' . $r['id']));
-                        }
-
-                        $encodedGroup = htmlspecialchars(json_encode($group, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
-                        ?>
-                        <tr class="align-middle faculty-row" 
-                            data-name="<?= htmlspecialchars(strtolower($facultyName), ENT_QUOTES, 'UTF-8') ?>" 
-                            data-refs="<?= htmlspecialchars(implode(' ', $allRefs), ENT_QUOTES, 'UTF-8') ?>">
-
-                            <td class="ps-3 py-3"><input type="checkbox" class="form-check-input row-select" value="<?= $fId ?>"></td>
-                            <td class="py-3">
-                                <div class="d-flex align-items-center">
-                                    <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-2 fw-bold flex-shrink-0" style="width: 36px; height: 36px;">
-                                        <?= htmlspecialchars(strtoupper(substr($facultyName, 0, 1)), ENT_QUOTES, 'UTF-8') ?>
-                                    </div>
-                                    <div>
-                                        <strong class="text-body-emphasis d-block text-nowrap"><?= htmlspecialchars($facultyName, ENT_QUOTES, 'UTF-8') ?></strong>
-                                        <small class="d-block text-body-secondary font-monospace text-nowrap">ID: <?= htmlspecialchars($group['faculty_identifier'] ?: $fId, ENT_QUOTES, 'UTF-8') ?></small>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="py-3 text-center"><span class="fw-bold text-body bg-body-tertiary border rounded px-2 py-1"><?= $totalFacultyRequests ?></span></td>
-                            <td class="py-3 text-center">
-                                <?php if ($pendingFacultyRequests > 0): ?>
-                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-3 py-1 fw-bold"><?= $pendingFacultyRequests ?> Pending</span>
-                                <?php else: ?>
-                                    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle rounded-pill px-3 py-1 fw-bold">All Processed</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="text-end pe-3 py-3 text-nowrap">
-                                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2" onclick='showFacultyRequestsModal(<?= $encodedGroup ?>)'>
-                                    <i class="fas fa-eye text-white"></i>
-                                    <span>View Leave Profile</span>
-                                </button>
+                    <?php if (empty($facultyGroupedRequests)): ?>
+                        <tr>
+                            <td colspan="5" class="text-center text-body-secondary py-5">
+                                <i class="fas fa-inbox fs-3 d-block mb-2 text-body-tertiary"></i>
+                                <span>No leave requests found.</span>
                             </td>
                         </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                    <?php else: ?>
+                        <?php foreach ($facultyGroupedRequests as $fId => $group): ?>
+                            <?php
+                            $facultyName = $group['faculty_name'];
+                            $requests = $group['requests'];
+                            $totalFacultyRequests = count($requests);
+                            $pendingFacultyRequests = 0;
+                            $allRefs = [];
+
+                            foreach ($requests as $r) {
+                                $stRaw = strtolower(trim($r['status'] ?? 'pending'));
+                                if ($stRaw === 'pending')
+                                    $pendingFacultyRequests++;
+                                $allRefs[] = strtolower($r['request_ref'] ?? ('lr-' . $r['id']));
+                            }
+
+                            $encodedGroup = htmlspecialchars(json_encode($group, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
+                            ?>
+                            <tr class="align-middle faculty-row"
+                                data-name="<?= htmlspecialchars(strtolower($facultyName), ENT_QUOTES, 'UTF-8') ?>"
+                                data-refs="<?= htmlspecialchars(implode(' ', $allRefs), ENT_QUOTES, 'UTF-8') ?>">
+
+                                <td class="ps-3 py-3"><input type="checkbox" class="form-check-input row-select"
+                                        value="<?= $fId ?>"></td>
+                                <td class="py-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-2 fw-bold flex-shrink-0"
+                                            style="width: 36px; height: 36px;">
+                                            <?= htmlspecialchars(strtoupper(substr($facultyName, 0, 1)), ENT_QUOTES, 'UTF-8') ?>
+                                        </div>
+                                        <div>
+                                            <strong
+                                                class="text-body-emphasis d-block text-nowrap"><?= htmlspecialchars($facultyName, ENT_QUOTES, 'UTF-8') ?></strong>
+                                            <small class="d-block text-body-secondary font-monospace text-nowrap">ID:
+                                                <?= htmlspecialchars($group['faculty_identifier'] ?: $fId, ENT_QUOTES, 'UTF-8') ?></small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-3 text-center"><span
+                                        class="fw-bold text-body bg-body-tertiary border rounded px-2 py-1"><?= $totalFacultyRequests ?></span>
+                                </td>
+                                <td class="py-3 text-center">
+                                    <?php if ($pendingFacultyRequests > 0): ?>
+                                        <span
+                                            class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-3 py-1 fw-bold"><?= $pendingFacultyRequests ?>
+                                            Pending</span>
+                                    <?php else: ?>
+                                        <span
+                                            class="badge bg-success-subtle text-success-emphasis border border-success-subtle rounded-pill px-3 py-1 fw-bold">All
+                                            Processed</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-end pe-3 py-3 text-nowrap">
+                                    <button type="button"
+                                        class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2"
+                                        onclick='showFacultyRequestsModal(<?= $encodedGroup ?>)'>
+                                        <i class="fas fa-eye text-white"></i>
+                                        <span>View Leave Profile</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -962,7 +985,8 @@ if (function_exists('renderBreadcrumbs')) {
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">
             <div class="modal-header border-bottom py-3">
-                <h5 class="modal-title fw-bold text-body mb-0">Leave Requests: <span id="modal-faculty-title-name">-</span></h5>
+                <h5 class="modal-title fw-bold text-body mb-0">Leave Requests: <span
+                        id="modal-faculty-title-name">-</span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
@@ -999,263 +1023,193 @@ if (function_exists('renderBreadcrumbs')) {
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header border-bottom py-3">
-                <h5 class="modal-title fw-bold text-danger mb-0"><i class="fas fa-exclamation-triangle me-2"></i> Reject Leave Request</h5>
+                <h5 class="modal-title fw-bold text-danger mb-0"><i class="fas fa-exclamation-triangle me-2"></i> Reject
+                    Leave Request</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <label for="reject-reason" class="form-label fw-semibold small">Reason for Rejection <span class="text-danger">*</span></label>
+                <label for="reject-reason" class="form-label fw-semibold small">Reason for Rejection <span
+                        class="text-danger">*</span></label>
                 <textarea id="reject-reason" class="form-control" rows="4" placeholder="Enter reason..."></textarea>
             </div>
             <div class="modal-footer border-top bg-body-tertiary">
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger btn-sm" onclick="promptRejectConfirmation()">Continue to Confirm</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="promptRejectConfirmation()">Continue to
+                    Confirm</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-const BASE_URL = <?= json_encode(rtrim(BASE_URL, '/')) ?>;
-const ACADEMIC_YEAR = <?= json_encode($ACADEMIC_YEAR) ?>;
+    const BASE_URL = <?= json_encode(rtrim(BASE_URL, '/')) ?>;
+    const ACADEMIC_YEAR = <?= json_encode($ACADEMIC_YEAR) ?>;
 
-/* Ordered balance column keys, matching the current faculty_db.leave_balances schema */
-const BALANCE_KEYS = [
-    'sick_leave', 'vacation_leave', 'emergency',
-    'maternity', 'paternity',
-    'magna_carta', 'vawc', 'sabbatical',
-    'admin_vacation', 'admin_special'
-];
+    /* Ordered balance column keys, matching the current faculty_db.leave_balances schema */
+    const BALANCE_KEYS = [
+        'sick_leave', 'vacation_leave', 'emergency',
+        'maternity', 'paternity',
+        'magna_carta', 'vawc', 'sabbatical',
+        'admin_vacation', 'admin_special', 'study_leave'
+    ];
 
-const BALANCE_LABELS = {
-    sick_leave:     'Sick Leave',
-    vacation_leave: 'Vacation Leave',
-    emergency:      'Emergency Leave',
-    maternity:      'Maternity Leave',
-    paternity:      'Paternity Leave',
-    magna_carta:    'Magna Carta Leave',
-    vawc:           'VAWC Leave',
-    sabbatical:     'Sabbatical Leave',
-    admin_vacation: 'Academic/Vacation Leave',
-    admin_special:  'Special Leave Privileges'
-};
+    const BALANCE_LABELS = {
+        sick_leave: 'Sick Leave',
+        vacation_leave: 'Vacation Leave',
+        emergency: 'Emergency Leave',
+        maternity: 'Maternity Leave',
+        paternity: 'Paternity Leave',
+        magna_carta: 'Magna Carta Leave',
+        vawc: 'VAWC Leave',
+        sabbatical: 'Sabbatical Leave',
+        admin_vacation: 'Academic/Vacation Leave',
+        admin_special: 'Special Leave Privileges',
+        study_leave: 'Study Leave'
+    };
 
-let pendingActionData = { action: '', id: '', comment: '' };
+    let pendingActionData = { action: '', id: '', comment: '' };
 
-function submitAction(action, id, comment = '') {
-    if (!id) return;
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = window.location.href;
-    form.style.display = 'none';
+    function submitAction(action, id, comment = '') {
+        if (!id) return;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.href;
+        form.style.display = 'none';
 
-    const actionInput = document.createElement('input');
-    actionInput.type = 'hidden';
-    actionInput.name = 'action';
-    actionInput.value = action;
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = action;
 
-    const idInput = document.createElement('input');
-    idInput.type = 'hidden';
-    idInput.name = 'request_id';
-    idInput.value = id;
+        const idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'request_id';
+        idInput.value = id;
 
-    form.appendChild(actionInput);
-    form.appendChild(idInput);
+        form.appendChild(actionInput);
+        form.appendChild(idInput);
 
-    if (comment !== '') {
-        const commentInput = document.createElement('input');
-        commentInput.type = 'hidden';
-        commentInput.name = 'comment';
-        commentInput.value = comment;
-        form.appendChild(commentInput);
+        if (comment !== '') {
+            const commentInput = document.createElement('input');
+            commentInput.type = 'hidden';
+            commentInput.name = 'comment';
+            commentInput.value = comment;
+            form.appendChild(commentInput);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
     }
 
-    document.body.appendChild(form);
-    form.submit();
-}
-
-document.getElementById('confirmModalSubmitBtn').addEventListener('click', function() {
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmActionModal')).hide();
-    submitAction(pendingActionData.action, pendingActionData.id, pendingActionData.comment);
-});
-
-function openConfirmModal(action, id, message, btnClass, btnIconText) {
-    pendingActionData = { action, id, comment: '' };
-    document.getElementById('confirmModalBody').textContent = message;
-    
-    const submitBtn = document.getElementById('confirmModalSubmitBtn');
-    submitBtn.className = `btn btn-sm ${btnClass} px-3`;
-    submitBtn.innerHTML = `<i class="fas ${btnIconText} me-1"></i> Yes, submit`;
-
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmActionModal')).show();
-}
-
-function approveRequest(id) {
-    if (!id) return;
-    openConfirmModal('approve', id, 'Are you sure you want to approve this leave request and notify the faculty via email?', 'btn-success', 'fa-check');
-}
-
-// Canvas Signature Logic
-let canvas, ctx, isDrawing = false;
-function openSignaturePadModal() {
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('signaturePadModal')).show();
-    setTimeout(() => {
-        canvas = document.getElementById('signatureCanvas');
-        ctx = canvas.getContext('2d');
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-        clearSignatureCanvas();
-
-        canvas.onmousedown = startDrawing;
-        canvas.onmousemove = draw;
-        canvas.onmouseup = stopDrawing;
-        canvas.onmouseleave = stopDrawing;
-
-        canvas.ontouchstart = (e) => { e.preventDefault(); startDrawing(e.touches[0]); };
-        canvas.ontouchmove = (e) => { e.preventDefault(); draw(e.touches[0]); };
-        canvas.ontouchend = (e) => { e.preventDefault(); stopDrawing(); };
-    }, 200);
-}
-
-function startDrawing(e) {
-    isDrawing = true;
-    const rect = canvas.getBoundingClientRect();
-    ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-}
-
-function draw(e) {
-    if (!isDrawing) return;
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-    ctx.stroke();
-}
-
-function stopDrawing() {
-    isDrawing = false;
-}
-
-function clearSignatureCanvas() {
-    if (!ctx) return;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
-
-function saveDrawnSignature() {
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-
-    const formData = new URLSearchParams();
-    formData.append('action', 'save_signature_data');
-    formData.append('signature_data', dataUrl);
-
-    fetch(window.location.href, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString()
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            showToast('Custom signature saved successfully!', 'success');
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('signaturePadModal')).hide();
-        } else {
-            showToast(data.message || 'Signature is not existing.', 'danger');
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        showToast('Signature is not existing or profile error occurred.', 'danger');
+    document.getElementById('confirmModalSubmitBtn').addEventListener('click', function () {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmActionModal')).hide();
+        submitAction(pendingActionData.action, pendingActionData.id, pendingActionData.comment);
     });
-}
 
-function showToast(message, type = 'success') {
-    const toastEl = document.getElementById('actionToast');
-    const toastMessage = document.getElementById('toastMessage');
-    
-    toastMessage.textContent = message;
-    
-    toastEl.className = 'toast align-items-center text-white border-0 shadow';
-    if (type === 'success') {
-        toastEl.classList.add('bg-success');
-    } else if (type === 'danger' || type === 'error') {
-        toastEl.classList.add('bg-danger');
-    } else if (type === 'warning') {
-        toastEl.classList.add('bg-warning', 'text-dark');
-    } else {
-        toastEl.classList.add('bg-primary');
+    function openConfirmModal(action, id, message, btnClass, btnIconText) {
+        pendingActionData = { action, id, comment: '' };
+        document.getElementById('confirmModalBody').textContent = message;
+
+        const submitBtn = document.getElementById('confirmModalSubmitBtn');
+        submitBtn.className = `btn btn-sm ${btnClass} px-3`;
+        submitBtn.innerHTML = `<i class="fas ${btnIconText} me-1"></i> Yes, submit`;
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmActionModal')).show();
     }
-    
-    const bsToast = new bootstrap.Toast(toastEl, { delay: 4000 });
-    bsToast.show();
-}
 
-// Live Search Filter
-document.getElementById('tableSearchInput').addEventListener('input', function() {
-    const query = this.value.toLowerCase().trim();
-    const rows = document.querySelectorAll('#leaveRequestsTable .faculty-row');
+    function approveRequest(id) {
+        if (!id) return;
+        openConfirmModal('approve', id, 'Are you sure you want to approve this leave request and notify the faculty via email?', 'btn-success', 'fa-check');
+    }
 
-    rows.forEach(row => {
-        const name = row.getAttribute('data-name') || '';
-        const refs = row.getAttribute('data-refs') || '';
-        if (name.includes(query) || refs.includes(query)) {
-            row.style.display = '';
+
+
+    function showToast(message, type = 'success') {
+        const toastEl = document.getElementById('actionToast');
+        const toastMessage = document.getElementById('toastMessage');
+
+        toastMessage.textContent = message;
+
+        toastEl.className = 'toast align-items-center text-white border-0 shadow';
+        if (type === 'success') {
+            toastEl.classList.add('bg-success');
+        } else if (type === 'danger' || type === 'error') {
+            toastEl.classList.add('bg-danger');
+        } else if (type === 'warning') {
+            toastEl.classList.add('bg-warning', 'text-dark');
         } else {
-            row.style.display = 'none';
+            toastEl.classList.add('bg-primary');
         }
+
+        const bsToast = new bootstrap.Toast(toastEl, { delay: 4000 });
+        bsToast.show();
+    }
+
+    // Live Search Filter
+    document.getElementById('tableSearchInput').addEventListener('input', function () {
+        const query = this.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#leaveRequestsTable .faculty-row');
+
+        rows.forEach(row => {
+            const name = row.getAttribute('data-name') || '';
+            const refs = row.getAttribute('data-refs') || '';
+            if (name.includes(query) || refs.includes(query)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
     });
-});
 
-/**
- * Renders a leave-balance grid inside the modal for the selected faculty.
- */
-function renderBalanceGrid(balance) {
-    const grid = document.getElementById('modal-balance-grid');
-    grid.innerHTML = '';
+    /**
+     * Renders a leave-balance grid inside the modal for the selected faculty.
+     */
+    function renderBalanceGrid(balance) {
+        const grid = document.getElementById('modal-balance-grid');
+        grid.innerHTML = '';
 
-    if (!balance) {
-        grid.innerHTML = `
+        if (!balance) {
+            grid.innerHTML = `
             <div class="col-12">
                 <div class="alert alert-secondary small mb-0">
                     <i class="fas fa-info-circle me-1"></i>
                     No leave balance record found for this faculty for ${ACADEMIC_YEAR}.
                 </div>
             </div>`;
-        return;
-    }
+            return;
+        }
 
-    const activeCols = BALANCE_KEYS.filter(k => {
-        const total = parseInt(balance[k + '_total'] ?? 0, 10);
-        return total > 0;
-    });
+        const activeCols = BALANCE_KEYS.filter(k => {
+            const total = parseInt(balance[k + '_total'] ?? 0, 10);
+            return total > 0;
+        });
 
-    if (activeCols.length === 0) {
-        grid.innerHTML = `
+        if (activeCols.length === 0) {
+            grid.innerHTML = `
             <div class="col-12">
                 <div class="alert alert-secondary small mb-0">
                     <i class="fas fa-info-circle me-1"></i>
                     No active leave categories for this faculty.
                 </div>
             </div>`;
-        return;
-    }
+            return;
+        }
 
-    activeCols.forEach(key => {
-        const total = parseInt(balance[key + '_total'] ?? 0, 10);
-        const used  = parseInt(balance[key + '_used']  ?? 0, 10);
-        const bal   = Math.max(0, total - used);
-        const pct   = total > 0 ? Math.round((used / total) * 100) : 0;
+        activeCols.forEach(key => {
+            const total = parseInt(balance[key + '_total'] ?? 0, 10);
+            const used = parseInt(balance[key + '_used'] ?? 0, 10);
+            const bal = Math.max(0, total - used);
+            const pct = total > 0 ? Math.round((used / total) * 100) : 0;
 
-        let cls = 'ok';
-        if (bal <= 0)           cls = 'danger';
-        else if (bal <= 2)      cls = 'low';
-        if (pct >= 75)          cls = 'danger';
-        else if (pct >= 40)     cls = cls === 'ok' ? 'low' : cls;
+            let cls = 'ok';
+            if (bal <= 0) cls = 'danger';
+            else if (bal <= 2) cls = 'low';
+            if (pct >= 75) cls = 'danger';
+            else if (pct >= 40) cls = cls === 'ok' ? 'low' : cls;
 
-        const card = document.createElement('div');
-        card.className = 'col-12 col-sm-6 col-lg-4';
-        card.innerHTML = `
+            const card = document.createElement('div');
+            card.className = 'col-12 col-sm-6 col-lg-4';
+            card.innerHTML = `
             <div class="border rounded p-2 bg-body-tertiary h-100">
                 <div class="d-flex justify-content-between align-items-baseline mb-1">
                     <small class="fw-semibold text-body-secondary text-truncate" style="max-width: 60%;" title="${BALANCE_LABELS[key]}">
@@ -1271,36 +1225,36 @@ function renderBalanceGrid(balance) {
                     ${used} used · ${bal} left
                 </small>
             </div>`;
-        grid.appendChild(card);
-    });
-}
+            grid.appendChild(card);
+        });
+    }
 
-function showFacultyRequestsModal(group) {
-    document.getElementById('modal-faculty-title-name').textContent = group.faculty_name;
+    function showFacultyRequestsModal(group) {
+        document.getElementById('modal-faculty-title-name').textContent = group.faculty_name;
 
-    renderBalanceGrid(group.balance || null);
+        renderBalanceGrid(group.balance || null);
 
-    const tbody = document.getElementById('modal-requests-tbody');
-    tbody.innerHTML = '';
+        const tbody = document.getElementById('modal-requests-tbody');
+        tbody.innerHTML = '';
 
-    if (!group.requests || group.requests.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">No requests found.</td></tr>`;
-    } else {
-        group.requests.forEach(req => {
-            const reqId = req.id;
-            const ref = req.request_ref || ('LR-' + reqId);
-            const statusRaw = (req.status || 'pending').toLowerCase().replace(/\s+/g, '_');
+        if (!group.requests || group.requests.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">No requests found.</td></tr>`;
+        } else {
+            group.requests.forEach(req => {
+                const reqId = req.id;
+                const ref = req.request_ref || ('LR-' + reqId);
+                const statusRaw = (req.status || 'pending').toLowerCase().replace(/\s+/g, '_');
 
-            const statusClass = {
-                pending: 'bg-warning-subtle text-warning-emphasis',
-                approved: 'bg-success-subtle text-success-emphasis',
-                rejected: 'bg-danger-subtle text-danger-emphasis',
-                document_required: 'bg-info-subtle text-info-emphasis',
-                returned: 'bg-danger-subtle text-danger-emphasis'
-            }[statusRaw] || 'bg-secondary-subtle text-secondary-emphasis';
+                const statusClass = {
+                    pending: 'bg-warning-subtle text-warning-emphasis',
+                    approved: 'bg-success-subtle text-success-emphasis',
+                    rejected: 'bg-danger-subtle text-danger-emphasis',
+                    document_required: 'bg-info-subtle text-info-emphasis',
+                    returned: 'bg-danger-subtle text-danger-emphasis'
+                }[statusRaw] || 'bg-secondary-subtle text-secondary-emphasis';
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
                 <td><strong class="font-monospace text-body">${ref}</strong><br><small class="text-muted">${req.created_at || ''}</small></td>
                 <td><span class="badge bg-primary bg-opacity-10 text-info">${req.leave_type}</span></td>
                 <td><span class="badge bg-light text-dark">${req.days} day(s)</span></td>
@@ -1313,49 +1267,49 @@ function showFacultyRequestsModal(group) {
                     ` : '<span class="text-muted small">—</span>'}
                 </td>
             `;
-            tbody.appendChild(tr);
-        });
-    }
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('facultyRequestsModal')).show();
-}
-
-function rejectRequest(id) {
-    if (!id) return;
-    
-    const facultyModal = bootstrap.Modal.getInstance(document.getElementById('facultyRequestsModal'));
-    if (facultyModal) {
-        facultyModal.hide();
+                tbody.appendChild(tr);
+            });
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('facultyRequestsModal')).show();
     }
 
-    document.getElementById('rejectModal').dataset.requestId = id;
-    document.getElementById('reject-reason').value = '';
-    
-    setTimeout(() => {
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectModal')).show();
-    }, 150);
-}
+    function rejectRequest(id) {
+        if (!id) return;
 
-function promptRejectConfirmation() {
-    const rejectModalEl = document.getElementById('rejectModal');
-    const id = rejectModalEl.dataset.requestId;
-    const reason = document.getElementById('reject-reason').value.trim();
-    
-    if (!id || !reason) {
-        alert('Please provide a reason for rejection.');
-        return;
+        const facultyModal = bootstrap.Modal.getInstance(document.getElementById('facultyRequestsModal'));
+        if (facultyModal) {
+            facultyModal.hide();
+        }
+
+        document.getElementById('rejectModal').dataset.requestId = id;
+        document.getElementById('reject-reason').value = '';
+
+        setTimeout(() => {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectModal')).show();
+        }, 150);
     }
 
-    bootstrap.Modal.getOrCreateInstance(rejectModalEl).hide();
-    
-    pendingActionData = { action: 'reject', id: id, comment: reason };
-    document.getElementById('confirmModalBody').textContent = 'Are you sure you want to reject this leave request and notify the faculty via email?';
-    
-    const submitBtn = document.getElementById('confirmModalSubmitBtn');
-    submitBtn.className = 'btn btn-sm btn-danger px-3';
-    submitBtn.innerHTML = '<i class="fas fa-times me-1"></i> Yes, reject';
+    function promptRejectConfirmation() {
+        const rejectModalEl = document.getElementById('rejectModal');
+        const id = rejectModalEl.dataset.requestId;
+        const reason = document.getElementById('reject-reason').value.trim();
 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmActionModal')).show();
-}
+        if (!id || !reason) {
+            alert('Please provide a reason for rejection.');
+            return;
+        }
+
+        bootstrap.Modal.getOrCreateInstance(rejectModalEl).hide();
+
+        pendingActionData = { action: 'reject', id: id, comment: reason };
+        document.getElementById('confirmModalBody').textContent = 'Are you sure you want to reject this leave request and notify the faculty via email?';
+
+        const submitBtn = document.getElementById('confirmModalSubmitBtn');
+        submitBtn.className = 'btn btn-sm btn-danger px-3';
+        submitBtn.innerHTML = '<i class="fas fa-times me-1"></i> Yes, reject';
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmActionModal')).show();
+    }
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
