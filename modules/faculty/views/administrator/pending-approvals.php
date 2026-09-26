@@ -29,8 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->beginTransaction();
 
                 if ($action === 'approve') {
-                    // 1. Fetch first_name, last_name, and email directly from faculty_db.faculty_profiles
-                    $profileStmt = $pdo->prepare("SELECT first_name, last_name, email FROM faculty_db.faculty_profiles WHERE user_id = :user_id");
+                    // 1. Fetch first_name, last_name, and email directly for the specific owner/user being approved
+                    $profileStmt = $pdo->prepare("SELECT first_name, last_name, email FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
                     $profileStmt->execute([':user_id' => $userId]);
                     $profileData = $profileStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -39,17 +39,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $facultyEmail = trim($profileData['email'] ?? '');
                     $fullName   = trim($firstName . ' ' . $lastName);
 
-                    // Fallback: If faculty profile missing name or email, check sms2_db
+                    // Fallback: If faculty profile missing name or email, check sms2_db.users for this specific user
                     if ($lastName === '' || $facultyEmail === '') {
-                        $userStmt = $pdo->prepare("SELECT full_name, email FROM sms2_db.users WHERE id = :user_id");
+                        $userStmt = $pdo->prepare("SELECT full_name, email FROM sms2_db.users WHERE id = :user_id LIMIT 1");
                         $userStmt->execute([':user_id' => $userId]);
                         $userData = $userStmt->fetch(PDO::FETCH_ASSOC);
                         
-                        if ($fullName === '') {
-                            $fullName = trim($userData['full_name'] ?? '');
-                        }
-                        if ($facultyEmail === '') {
-                            $facultyEmail = trim($userData['email'] ?? '');
+                        if ($userData) {
+                            if ($fullName === '') {
+                                $fullName = trim($userData['full_name'] ?? '');
+                            }
+                            if ($facultyEmail === '') {
+                                $facultyEmail = trim($userData['email'] ?? '');
+                            }
                         }
                         $nameParts = array_filter(explode(' ', $fullName));
                         $lastName = !empty($nameParts) ? end($nameParts) : 'User';
@@ -85,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $fp = $fullProfileStmt->fetch(PDO::FETCH_ASSOC);
 
                         if ($fp) {
-                            $emailParam = !empty($fp['email']) ? $fp['email'] : null;
+                            $emailParam = !empty($facultyEmail) ? $facultyEmail : (!empty($fp['email']) ? $fp['email'] : null);
 
                             $checkFacultyStmt = $pdo->prepare("
                                 SELECT faculty_id FROM faculty_db.faculty
@@ -146,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $pdo->commit();
 
-                    // 6. Send notification email using PHPMailer
+                    // 6. Send notification email securely to the exact owner's email address using PHPMailer
                     if (!empty($facultyEmail)) {
                         require_once __DIR__ . '/../../../../includes/Exception.php';
                         require_once __DIR__ . '/../../../../includes/PHPMailer.php';
@@ -164,22 +166,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
                             $mail->Port       = 587;
 
-                            // Recipients
+                            // Recipients - explicitly addressed to the owner
                             $mail->setFrom('jcespejo002@gmail.com', 'Bestlink College No-Reply');
                             $mail->addAddress($facultyEmail, $fullName);         
 
                             // Content
                             $mail->isHTML(true);
                             $mail->Subject = "Your Faculty Account Has Been Approved";
-                            $loginUrl = BASE_URL . "/login.php"; 
-                            // Logo is referenced by its live URL on your site, not attached/embedded.
-                            // Locally (e.g. XAMPP on localhost) mail clients can't reach it, so it
-                            // won't render in dev — once deployed to a real domain, it will load
-                            // normally like any other image, with nothing sent as a file attachment.
                             $logoUrl  = rtrim(BASE_URL, '/') . '/images/bestlink.png';
                             $logoHtml = "<img src='" . htmlspecialchars($logoUrl) . "' width='40' height='40' alt='Bestlink College of the Philippines' style='display:block; width:40px; height:40px; border-radius:6px;'>";
                             
-                            // Fully Responsive Mobile-Friendly Email HTML Template
                             $mail->Body = "
                             <!DOCTYPE html>
                             <html>
@@ -188,11 +184,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <meta name='viewport' content='width=device-width, initial-scale=1.0'>
                                 <title>Account Approved</title>
                                 <style>
-                                    /* Responsive resets */
-                                    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-                                    table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-                                    img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
-                                    
+                                    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; }
+                                    table { border-collapse: collapse; }
                                     @media screen and (max-width: 600px) {
                                         .email-container { width: 100% !important; }
                                         .content-padding { padding: 22px !important; }
@@ -203,46 +196,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #f4f4f4; padding: 24px 0;'>
                                     <tr>
                                         <td align='center'>
-                                            <!-- Email Wrapper Table -->
                                             <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='600' class='email-container' style='background-color: #121212; border-radius: 10px; overflow: hidden; border: 1px solid #333; width: 100%; max-width: 600px;'>
-
-                                                <!-- Brand accent strip -->
                                                 <tr>
                                                     <td style='background-color: #0077b3; height: 4px; line-height: 4px; font-size: 0;'>&nbsp;</td>
                                                 </tr>
-
-                                                <!-- Header: logo + college name + status label -->
                                                 <tr>
                                                     <td style='background-color: #0093dd; padding: 22px 25px;'>
                                                         <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
                                                             <tr>
                                                                 <td width='46' valign='middle' style='padding-right: 14px;'>{$logoHtml}</td>
                                                                 <td valign='middle'>
-                                                                    <div style='color: #ffffff; font-size: 15px; font-weight: 700; letter-spacing: 0.3px;'>BESTLINK COLLEGE OF THE PHILIPPINES</div>
-                                                                    <div style='color: rgba(255,255,255,0.75); font-size: 11px; font-weight: 600; letter-spacing: 1px; margin-top: 4px; text-transform: uppercase;'>Account Approved</div>
+                                                                    <div style='color: #ffffff; font-size: 15px; font-weight: 700;'>BESTLINK COLLEGE OF THE PHILIPPINES</div>
+                                                                    <div style='color: rgba(255,255,255,0.75); font-size: 11px; font-weight: 600; margin-top: 4px; text-transform: uppercase;'>Account Approved</div>
                                                                 </td>
                                                             </tr>
                                                         </table>
                                                     </td>
                                                 </tr>
-
-                                                <!-- Content Body -->
                                                 <tr>
                                                     <td class='content-padding' style='padding: 32px; color: #e0e0e0; font-size: 14px; line-height: 1.65;'>
-                                                        <p style='margin: 0 0 16px 0;'>Hello Mr. " . htmlspecialchars($lastName) . ",</p>
-                                                        <p style='margin: 0 0 22px 0;'>An account has been created for you. Use the secure credentials below to log in and change your password immediately.</p>
+                                                        <p style='margin: 0 0 16px 0;'>Hello " . htmlspecialchars($fullName) . ",</p>
+                                                        <p style='margin: 0 0 22px 0;'>Your faculty account has been approved. Use the secure credentials below to log in and update your password.</p>
                                                         
-                                                        <!-- Credentials Box Table for responsiveness -->
                                                         <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color: #1e1e1e; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 22px;'>
                                                             <tr>
                                                                 <td style='padding: 18px 20px;'>
                                                                     <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
                                                                         <tr>
-                                                                            <td width='95' style='color: #9a9a9a; font-weight: 600; font-size: 12.5px; letter-spacing: 0.2px; padding-bottom: 10px; vertical-align: top;'>Username</td>
+                                                                            <td width='95' style='color: #9a9a9a; font-weight: 600; font-size: 12.5px; padding-bottom: 10px; vertical-align: top;'>Username</td>
                                                                             <td style='color: #ffffff; font-family: monospace; font-size: 14px; font-weight: bold; padding-bottom: 10px; word-break: break-all;'>" . htmlspecialchars($facultyEmail) . "</td>
                                                                         </tr>
                                                                         <tr>
-                                                                            <td width='95' style='color: #9a9a9a; font-weight: 600; font-size: 12.5px; letter-spacing: 0.2px; vertical-align: top;'>Password</td>
+                                                                            <td width='95' style='color: #9a9a9a; font-weight: 600; font-size: 12.5px; vertical-align: top;'>Password</td>
                                                                             <td style='color: #ffffff; font-family: monospace; font-size: 14px; font-weight: bold; word-break: break-all;'>" . htmlspecialchars($defaultPassword) . "</td>
                                                                         </tr>
                                                                     </table>
@@ -250,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                             </tr>
                                                         </table>
                                                         
-                                                        <p style='margin: 0 0 22px 0; color: #9a9a9a; font-size: 12.5px;'>For security reasons, this is a temporary password and you will be asked to update it upon your first login. Please do not share this email with others.</p>
+                                                        <p style='margin: 0 0 22px 0; color: #9a9a9a; font-size: 12.5px;'>For security reasons, this is a temporary password and you will be asked to update it upon your first login.</p>
                                                         
                                                         <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>
                                                             <tr>
@@ -262,11 +247,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         </table>
                                                     </td>
                                                 </tr>
-
-                                                <!-- Footer -->
                                                 <tr>
                                                     <td style='background-color: #0a0a0a; padding: 14px 25px; text-align: center;'>
-                                                        <span style='color: #6b6b6b; font-size: 11px; letter-spacing: 0.3px;'>&copy; " . date('Y') . " Bestlink College of the Philippines &middot; Faculty Management System</span>
+                                                        <span style='color: #6b6b6b; font-size: 11px;'>&copy; " . date('Y') . " Bestlink College of the Philippines &middot; Faculty Management System</span>
                                                     </td>
                                                 </tr>
                                             </table>
@@ -278,14 +261,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ";
 
                             $mail->send();
-                            // Professional toast-style alert message hiding the raw password string
-                            $message = "Account successfully approved and login credentials securely emailed to " . htmlspecialchars($facultyEmail) . ".";
+                            $message = "Account successfully approved and credentials successfully emailed to owner: " . htmlspecialchars($facultyEmail) . ".";
                             $messageType = "success";
                         } catch (Exception $e) {
                             error_log("PHPMailer Error: " . $mail->ErrorInfo);
-                            $message = "Account approved, but email failed to send. Mailer Error: " . htmlspecialchars($mail->ErrorInfo);
+                            $message = "Account approved, but email delivery to " . htmlspecialchars($facultyEmail) . " failed. Mailer Error: " . htmlspecialchars($mail->ErrorInfo);
                             $messageType = "warning";
                         }
+                    } else {
+                        $message = "Account approved successfully, but no valid email address was found on record for this owner.";
+                        $messageType = "warning";
                     }
 
                 } elseif ($action === 'reject') {
@@ -366,7 +351,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- Alert Messages (Professional Toast-style Banner) -->
+    <!-- Alert Messages Banner -->
     <?php if ($message !== ''): ?>
         <div class="alert alert-<?= $messageType ?> alert-dismissible fade show rounded-4 shadow-sm fs-7 border-0 ps-4 py-3 mb-4" role="alert" style="background-color: var(--bs-body-bg); border-left: 4px solid var(--bs-<?= $messageType === 'success' ? 'success' : ($messageType === 'warning' ? 'warning' : 'danger') ?>) !important; box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;">
             <div class="d-flex align-items-center">
@@ -398,9 +383,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </small>
                     </div>
                 </div>
-                <a href="#pendingTableBody" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Requests">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
             </section>
         </div>
 
@@ -418,9 +400,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </small>
                     </div>
                 </div>
-                <a href="#pendingTableBody" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Departments">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
             </section>
         </div>
 
@@ -438,9 +417,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </small>
                     </div>
                 </div>
-                <a href="#pendingTableBody" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Full-Time">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
             </section>
         </div>
 
@@ -458,9 +434,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </small>
                     </div>
                 </div>
-                <a href="#pendingTableBody" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Part-Time">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
             </section>
         </div>
     </div>
@@ -527,7 +500,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <td><span class="badge bg-warning-subtle text-warning border border-warning-subtle"><?= htmlspecialchars(ucfirst($row['employment_status'] ?? 'Pending')) ?></span></td>
                                 <td class="text-end text-sm-center">
                                     <div class="d-inline-flex gap-1 flex-wrap justify-content-end justify-content-sm-center">
-                                        <!-- Details / Inspect Button -->
                                         <button type="button" class="btn btn-sm btn-outline-info rounded-3 px-2" onclick="inspectRequest(this)"
                                             data-user-id="<?= (int)$row['auth_user_id'] ?>"
                                             data-faculty-id="<?= htmlspecialchars($row['faculty_id'] ?? '') ?>"
@@ -543,7 +515,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                             <i class="fas fa-eye"></i>
                                         </button>
 
-                                        <!-- Approve and Reject Trigger Buttons -->
                                         <button type="button" class="btn btn-sm btn-success rounded-3 fw-bold px-2" onclick="openActionModal('approve', '<?= (int)$row['auth_user_id'] ?>', '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>')" title="Approve">
                                             <i class="fas fa-check"></i><span class="d-none d-sm-inline ms-1"> Approve</span>
                                         </button>
@@ -558,6 +529,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <?php endif; ?>
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Floating Toast Container for Email Status Alerts -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="liveStatusToast" class="toast align-items-center text-bg-<?= $messageType === 'success' ? 'success' : ($messageType === 'warning' ? 'warning text-dark' : 'danger') ?> border-0 shadow-lg rounded-4" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body fs-7 fw-semibold py-3 px-3 d-flex align-items-center gap-2">
+                <i class="fas <?= $messageType === 'success' ? 'fa-check-circle fs-5' : ($messageType === 'warning' ? 'fa-exclamation-triangle fs-5' : 'fa-times-circle fs-5') ?>"></i>
+                <span id="toastMessageText"><?= htmlspecialchars($message) ?></span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
 </div>
@@ -652,6 +636,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <script>
+    // Automatically trigger Bootstrap Toast popup if a message is returned from server backend
+    document.addEventListener('DOMContentLoaded', function() {
+        const serverMessage = <?= json_encode($message) ?>;
+        if (serverMessage && serverMessage.trim() !== '') {
+            const toastEl = document.getElementById('liveStatusToast');
+            if (toastEl && window.bootstrap && bootstrap.Toast) {
+                const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+                toast.show();
+            }
+        }
+    });
+
     function filterPending() {
         const query = document.getElementById('pendingSearch').value.toLowerCase();
         const rows = document.querySelectorAll('#pendingTableBody tr');
@@ -693,7 +689,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         if (action === 'approve') {
             titleEl.textContent = 'Approve Account Request';
             iconEl.className = 'fas fa-user-check text-success';
-            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account, generate a temporary password, and securely email their credentials.`;
+            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account, generate a temporary password, and securely email the credentials to the owner.`;
             submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
             submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Yes, Approve';
         } else {
@@ -704,7 +700,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             submitBtn.innerHTML = '<i class="fas fa-times me-1"></i> Yes, Reject';
         }
 
-        // Hide review details modal if open
         const reviewModalEl = document.getElementById('reviewModal');
         if (reviewModalEl) {
             const reviewModal = bootstrap.Modal.getInstance(reviewModalEl);
@@ -713,7 +708,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             }
         }
 
-        // Show confirmation dialog modal
         const confirmModalEl = document.getElementById('actionConfirmModal');
         if (confirmModalEl && window.bootstrap && bootstrap.Modal) {
             bootstrap.Modal.getOrCreateInstance(confirmModalEl).show();

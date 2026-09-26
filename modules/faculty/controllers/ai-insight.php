@@ -242,7 +242,7 @@ Section 1 — Overall State:
 Describe the department's overall performance. Discuss the average score, how many faculty are rated above the 4.5 threshold, how many fall below 3.8, and what the distribution suggests. Also comment on the completeness of the evaluation data.
 
 Section 2 — Top and Bottom Performers:
-Name the top 3 faculty by name and score, and explain what distinguishes them. Then name the bottom 3 and clearly separate those who genuinely scored low from those whose scores are missing or incomplete. Do not treat missing data as poor performance.
+Name the top 3 faculty by name and score, and explain what distinguishes them. Then name the botxatom 3 and clearly separate those who genuinely scored low from those whose scores are missing or incomplete. Do not treat missing data as poor performance.
 
 Section 3 — Key Concern and Recommendation:
 Identify the single most important issue this period (missing evaluations, low scores, data quality, etc.). Then give 4 concrete recommendations with clear next steps for the department head.
