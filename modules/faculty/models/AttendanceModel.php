@@ -16,9 +16,6 @@ class AttendanceModel {
         }
     }
 
-    /**
-     * Ensure active PDO instance before running queries
-     */
     private function ensureDb() {
         if (!$this->db) {
             if (function_exists('db') && db() instanceof \PDO) {
@@ -31,16 +28,8 @@ class AttendanceModel {
         }
     }
 
-    // Fetch faculty members strictly in the officer's/head's department
     public function getFacultyByDepartment($deptId) {
         $this->ensureDb();
-        // CHANGED: was reusing :deptId twice in the SQL but binding it only
-        // once. database.php sets PDO::ATTR_EMULATE_PREPARES => false
-        // (native prepares), which does NOT allow a named placeholder to
-        // repeat — each occurrence needs its own bound value, or MySQL
-        // throws "SQLSTATE[HY093]: Invalid parameter number". This bug
-        // existed from the start; it just was never actually called until
-        // attendance-summary.php started using this method directly.
         $sql = "SELECT id, faculty_id, first_name, last_name, position 
                 FROM faculty_db.faculty_profiles 
                 WHERE (LOWER(designated_department) = LOWER(:deptId1) OR designated_department = :deptId2)
@@ -52,14 +41,8 @@ class AttendanceModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Fetch departmental attendance logs for today
     public function getTodayLogs($deptId, $date) {
         $this->ensureDb();
-        // CHANGED: class_attendance_sessions, rooms, and subjects all live in
-        // faculty_db (confirmed against faculty_db.sql), same as
-        // faculty_profiles below — but they were missing the prefix, so PHP
-        // was looking for them in the PDO's default database (sms2_db)
-        // instead, which caused "Base table or view not found".
         $stmt = $this->db->prepare("
             SELECT 
                 cas.session_id,
@@ -79,19 +62,30 @@ class AttendanceModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // CHANGED: new — powers the Reports & Analytics page's "Past Attendance
-    // Logs" panel. Returns a faculty member's real saved sessions
-    // (class_attendance_sessions) within a date range, joined to their
-    // actual subject/room codes. faculty_id here is faculty_profiles.id —
-    // the same value class_attendance_sessions.faculty_id already stores.
-    // CHANGED: new — batched version of getSessionsForFaculty() for pages
-    // that need MANY faculty at once (the Department Head's attendance
-    // summary). The per-faculty method issued one query per person per
-    // period; with ~29 faculty that was 100+ round trips on a single page
-    // load. This pulls the whole department's sessions in ONE query and
-    // lets the caller bucket them in PHP.
-    // Returns rows keyed nothing special — each row carries faculty_id so
-    // the caller can group by it.
+    /**
+     * Fetch past attendance logs for a specific faculty member (Used by Reports & Analytics page)
+     */
+    public function getLogsByFaculty($facultyProfileId) {
+        $this->ensureDb();
+        $stmt = $this->db->prepare("
+            SELECT 
+                cas.session_id AS id,
+                cas.session_date AS date,
+                cas.created_at,
+                cas.status,
+                cas.attending_students,
+                COALESCE(s.code, 'N/A') AS subject_code,
+                COALESCE(r.room_code, 'N/A') AS room_code
+            FROM faculty_db.class_attendance_sessions cas
+            LEFT JOIN faculty_db.subjects s ON cas.subject_id = s.subject_id
+            LEFT JOIN faculty_db.rooms r ON cas.room_id = r.room_id
+            WHERE cas.faculty_id = :faculty_id
+            ORDER BY cas.session_date DESC, cas.created_at DESC
+        ");
+        $stmt->execute([':faculty_id' => (int)$facultyProfileId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function getSessionsForFacultyIds(array $facultyProfileIds, $startDate, $endDate) {
         $this->ensureDb();
         $ids = array_values(array_filter(array_map('intval', $facultyProfileIds)));
@@ -99,7 +93,6 @@ class AttendanceModel {
             return [];
         }
 
-        // Build a placeholder list (?,?,?) — IN () can't be bound as one param.
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $sql = "
             SELECT 
@@ -122,44 +115,14 @@ class AttendanceModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function getSessionsForFaculty($facultyProfileId, $startDate, $endDate) {
-        $this->ensureDb();
-        $stmt = $this->db->prepare("
-            SELECT 
-                cas.session_id,
-                cas.session_date,
-                s.code AS subject_code,
-                r.room_code,
-                cas.status,
-                cas.attending_students
-            FROM faculty_db.class_attendance_sessions cas
-            LEFT JOIN faculty_db.subjects s ON cas.subject_id = s.subject_id
-            LEFT JOIN faculty_db.rooms r ON cas.room_id = r.room_id
-            WHERE cas.faculty_id = :faculty_id
-              AND cas.session_date BETWEEN :start_date AND :end_date
-            ORDER BY cas.session_date DESC, cas.created_at DESC
-        ");
-        $stmt->execute([
-            ':faculty_id' => $facultyProfileId,
-            ':start_date' => $startDate,
-            ':end_date'   => $endDate,
-        ]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    // Calculate daily statistics for the department
     public function getDepartmentStats($deptId, $date) {
         $this->ensureDb();
-        // CHANGED: prefixed with faculty_db., same reason as getTodayLogs() above.
         $stmt = $this->db->prepare("
             SELECT 
                 COUNT(session_id) AS total_sessions,
-                SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) AS present_faculty,
-                -- CHANGED: new — counts sessions marked Late, so the
-                -- monitoring officer's dashboard can show them separately
-                -- instead of lumping them in with Absent.
-                SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) AS late_faculty,
-                SUM(CASE WHEN status = 'Absent' THEN 1 ELSE 0 END) AS absent_faculty,
+                SUM(CASE WHEN LOWER(status) = 'present' THEN 1 ELSE 0 END) AS present_faculty,
+                SUM(CASE WHEN LOWER(status) = 'late' THEN 1 ELSE 0 END) AS late_faculty,
+                SUM(CASE WHEN LOWER(status) = 'absent' THEN 1 ELSE 0 END) AS absent_faculty,
                 SUM(attending_students) AS total_students
             FROM faculty_db.class_attendance_sessions
             WHERE department_id = :dept_id AND session_date = :session_date
@@ -168,14 +131,11 @@ class AttendanceModel {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    // CHANGED: new — resolves a typed subject code (e.g. "SIA-201") to a real
-    // subjects.subject_id, creating the subject row if it doesn't exist yet.
-    // subjects.code has a UNIQUE key, so this is safe to call repeatedly.
     public function getOrCreateSubjectId($code, $deptId = null) {
         $this->ensureDb();
         $code = trim((string) $code);
         if ($code === '') {
-            return 1; // falls back to the GEN-001 placeholder subject
+            return 1;
         }
 
         $stmt = $this->db->prepare("SELECT subject_id FROM faculty_db.subjects WHERE code = :code LIMIT 1");
@@ -192,20 +152,16 @@ class AttendanceModel {
         $insert->execute([
             ':dept_id' => is_numeric($deptId) ? (int) $deptId : null,
             ':code'    => $code,
-            ':title'   => $code, // no separate title field on the quick-entry form, so code doubles as title
+            ':title'   => $code,
         ]);
         return (int) $this->db->lastInsertId();
     }
 
-    // CHANGED: new — resolves a typed room code (e.g. "403-B") to a real
-    // rooms.room_id, creating the room row if it doesn't exist yet.
-    // rooms has a UNIQUE key on (campus_id, room_code), so this is safe to
-    // call repeatedly.
     public function getOrCreateRoomId($roomCode, $campusId) {
         $this->ensureDb();
         $roomCode = trim((string) $roomCode);
         if ($roomCode === '') {
-            return null; // room_id is nullable — no room typed, no room saved
+            return null;
         }
 
         $stmt = $this->db->prepare("
@@ -227,19 +183,6 @@ class AttendanceModel {
         return (int) $this->db->lastInsertId();
     }
 
-    // CHANGED: new — this is the permanent fix for the recurring
-    // "fk_sessions_faculty" foreign key errors. class_attendance_sessions
-    // requires a row in `faculty`, but your faculty dropdown is built from
-    // `faculty_profiles` — a separate table that the rest of the system
-    // doesn't keep in sync automatically. Instead of relying on manually
-    // re-running a SQL backfill every time someone new gets approved, this
-    // creates the missing `faculty` row automatically, right when it's
-    // needed, before the attendance INSERT runs.
-    //
-    // Matches ONLY on faculty_id (the real primary key = faculty_profiles.id)
-    // — never on faculty_no — so a duplicate faculty_profiles.faculty_id
-    // business code (e.g. two people both having 'FAC-2026-0006') can never
-    // cause this to silently update the wrong person's row.
     public function getOrCreateFacultyRecord($facultyProfileId) {
         $this->ensureDb();
         $facultyProfileId = (int) $facultyProfileId;
@@ -247,14 +190,14 @@ class AttendanceModel {
         $check = $this->db->prepare("SELECT faculty_id FROM faculty_db.faculty WHERE faculty_id = :id LIMIT 1");
         $check->execute([':id' => $facultyProfileId]);
         if ($check->fetchColumn()) {
-            return $facultyProfileId; // already synced, nothing to do
+            return $facultyProfileId;
         }
 
         $profile = $this->db->prepare("SELECT * FROM faculty_db.faculty_profiles WHERE id = :id LIMIT 1");
         $profile->execute([':id' => $facultyProfileId]);
         $fp = $profile->fetch(PDO::FETCH_ASSOC);
         if (!$fp) {
-            return null; // no such profile at all — let the caller handle this
+            return null;
         }
 
         $dept = $this->db->prepare("SELECT department_id FROM faculty_db.departments WHERE code = :code LIMIT 1");
@@ -264,7 +207,6 @@ class AttendanceModel {
         $position = ($fp['position'] ?? '') === 'Faculty Secretary' ? 'Faculty Secretary' : 'Faculty Professor';
         $contractualEnd = (!empty($fp['contractual_end_date']) && $fp['contractual_end_date'] !== '0000-00-00')
             ? $fp['contractual_end_date'] : null;
-        // Guaranteed-unique even if faculty_profiles.faculty_id is duplicated elsewhere.
         $facultyNo = ($fp['faculty_id'] ?: 'FAC') . '-P' . $facultyProfileId;
 
         $insert = $this->db->prepare("
@@ -305,20 +247,14 @@ class AttendanceModel {
         return $facultyProfileId;
     }
 
-    // Save attendance session into database
     public function saveSession($data) {
         $this->ensureDb();
 
         try {
             $this->db->beginTransaction();
 
-            // CHANGED: prefixed with faculty_db. — this INSERT was the direct
-            // cause of "Table 'sms2_db.class_attendance_sessions' doesn't exist".
-            // The table is real, it just lives in faculty_db.
-            // CHANGED: added room_id to both the column list and VALUES —
-            // it was missing entirely before, so every session saved with
-            // room_id defaulting to NULL ("N/A" in Recent Logs) no matter
-            // what room was typed in the form.
+            $statusNormalized = ucfirst(strtolower(trim($data['status'])));
+
             $stmt = $this->db->prepare("
                 INSERT INTO faculty_db.class_attendance_sessions 
                 (department_id, campus_id, faculty_id, subject_id, room_id, session_date, time_slot, attending_students, secretary_verifier_name, status)
@@ -334,21 +270,9 @@ class AttendanceModel {
                 ':time_slot'          => $data['time_slot'],
                 ':attending_students' => $data['attending_students'],
                 ':verifier'           => $data['verifier_name'],
-                ':status'             => $data['status']
+                ':status'             => $statusNormalized
             ]);
 
-            // CHANGED: prefixed with faculty_db. — attendance_records lives here too.
-            //
-            // CHANGED: was a plain INSERT, now an upsert (ON DUPLICATE KEY UPDATE).
-            // attendance_records has a UNIQUE KEY on (faculty_id, attendance_date) —
-            // it's meant to be ONE daily summary row per faculty, not one row per
-            // session. A plain INSERT broke the moment the same faculty got a
-            // second room check on the same day (error 1062, key
-            // uq_attendance_faculty_date). Per-session history is NOT lost —
-            // that's what class_attendance_sessions is for (no unique constraint,
-            // every session gets its own row, and that's what feeds "Recent Logs" /
-            // "All Records"). This table just keeps getting overwritten with
-            // whatever the most recent session's status/signature was that day.
             $stmt2 = $this->db->prepare("
                 INSERT INTO faculty_db.attendance_records 
                 (faculty_id, campus_id, attendance_date, status, signature_data, recorded_by_external_id)
@@ -363,7 +287,7 @@ class AttendanceModel {
                 ':faculty_id'       => $data['faculty_id'],
                 ':campus_id'        => $data['campus_id'],
                 ':attendance_date'  => $data['session_date'],
-                ':status'           => $data['status'],
+                ':status'           => $statusNormalized,
                 ':signature'        => $data['signature'] ?? null,
                 ':recorded_by'      => $data['user_id']
             ]);

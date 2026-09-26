@@ -59,11 +59,13 @@ function getFacultyDatabaseConnection(): PDO
 /**
  * Safe helper — returns null instead of throwing (for optional features).
  */
-function facultyDb(): ?PDO
-{
-    try {
-        return getFacultyDatabaseConnection();
-    } catch (Throwable $e) {
-        return null;
+if (!function_exists('facultyDb')) {
+    function facultyDb(): ?PDO
+    {
+        try {
+            return getFacultyDatabaseConnection();
+        } catch (Throwable $e) {
+            return null;
+        }
     }
 }

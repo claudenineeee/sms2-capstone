@@ -720,14 +720,58 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
 
                     <div class="row g-3 mb-3">
-                        <div class="col-6">
-                            <label for="hired_date" class="form-label text-muted small fw-bold">Hired Date</label>
-                            <input type="date" id="hired_date" name="hired_date" class="form-control bg-body border-secondary-subtle text-body" required>
+                        <!-- Hired Date: Month / Day / Year -->
+                        <div class="col-12 col-md-6">
+                            <label for="hiredMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-check text-primary me-1"></i> Hired Date
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="hiredMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <input type="number" id="hiredDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31" required>
+                                <input type="number" id="hiredYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2030" required>
+                            </div>
+                            <input type="hidden" id="hired_date" name="hired_date" required>
                         </div>
 
-                        <div class="col-6" id="contractualEndCol">
-                            <label for="contractual_end" class="form-label text-muted small fw-bold">Contractual End Date</label>
-                            <input type="date" id="contractual_end" name="contractual_end" class="form-control bg-body border-secondary-subtle text-body">
+                        <!-- Contractual End Date: Month / Day / Year -->
+                        <div class="col-12 col-md-6" id="contractualEndCol">
+                            <label for="contractMonthSelect" class="form-label text-muted small fw-bold mb-1">
+                                <i class="fas fa-calendar-xmark text-primary me-1"></i> Contractual End Date
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <select id="contractMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;">
+                                    <option value="" disabled selected hidden>Month</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <input type="number" id="contractDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31">
+                                <input type="number" id="contractYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2030">
+                            </div>
+                            <input type="hidden" id="contractual_end" name="contractual_end">
                         </div>
                     </div>
 
@@ -804,9 +848,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const hiddenBirthdateInput = document.getElementById('birthdate');
     const ageInput = document.getElementById('addAge');
 
+    // Modern Hired Date Segment Inputs
+    const hiredMonthSel = document.getElementById('hiredMonthSelect');
+    const hiredDayInp = document.getElementById('hiredDayInput');
+    const hiredYearInp = document.getElementById('hiredYearInput');
+    const hiddenHiredDateInput = document.getElementById('hired_date');
+
+    // Modern Contractual End Date Segment Inputs
+    const contractMonthSel = document.getElementById('contractMonthSelect');
+    const contractDayInp = document.getElementById('contractDayInput');
+    const contractYearInp = document.getElementById('contractYearInput');
+    const hiddenContractInput = document.getElementById('contractual_end');
+
     const employmentStatus = document.getElementById('employmentStatus');
     const contractualEndCol = document.getElementById('contractualEndCol');
-    const contractualEnd = document.getElementById('contractual_end');
 
     // Real-Time Birthdate Syncing and Age Calculation
     function syncBirthdateAndAge() {
@@ -843,13 +898,64 @@ document.addEventListener('DOMContentLoaded', () => {
         ageInput.value = age >= 0 ? age : '';
     }
 
+    // --- Hired Date: sync segments into hidden input ---
+    function syncHiredDate() {
+        const m = hiredMonthSel.value;
+        const d = parseInt(hiredDayInp.value, 10);
+        const y = parseInt(hiredYearInp.value, 10);
+
+        if (!m || isNaN(d) || isNaN(y) || y < 1900 || y > 2030) {
+            hiddenHiredDateInput.value = '';
+            return;
+        }
+
+        const formatted = `${y}-${m}-${String(d).padStart(2, '0')}`;
+        const parsed = new Date(formatted);
+        if (isNaN(parsed.getTime())) {
+            hiddenHiredDateInput.value = '';
+            return;
+        }
+
+        hiddenHiredDateInput.value = formatted;
+    }
+
+    // --- Contractual End Date: sync segments into hidden input ---
+    function syncContractualEnd() {
+        const m = contractMonthSel.value;
+        const d = parseInt(contractDayInp.value, 10);
+        const y = parseInt(contractYearInp.value, 10);
+
+        if (!m || isNaN(d) || isNaN(y) || y < 1900 || y > 2030) {
+            hiddenContractInput.value = '';
+            return;
+        }
+
+        const formatted = `${y}-${m}-${String(d).padStart(2, '0')}`;
+        const parsed = new Date(formatted);
+        if (isNaN(parsed.getTime())) {
+            hiddenContractInput.value = '';
+            return;
+        }
+
+        hiddenContractInput.value = formatted;
+    }
+
+    // --- Toggle Contractual End group based on employment status ---
     function updateContractualEnd() {
         const isRegular = employmentStatus.value === 'regular';
         contractualEndCol.style.display = isRegular ? 'none' : '';
-        contractualEnd.required = !isRegular;
+
+        // Toggle 'required' on all three segment inputs
+        [contractMonthSel, contractDayInp, contractYearInp].forEach(el => {
+            if (el) el.required = !isRegular;
+        });
 
         if (isRegular) {
-            contractualEnd.value = '';
+            // Clear everything when switching to regular
+            contractMonthSel.value = '';
+            contractDayInp.value = '';
+            contractYearInp.value = '';
+            hiddenContractInput.value = '';
         }
     }
 
@@ -950,6 +1056,16 @@ document.addEventListener('DOMContentLoaded', () => {
     birthMonthSel.addEventListener('change', syncBirthdateAndAge);
     birthDayInp.addEventListener('input', syncBirthdateAndAge);
     birthYearInp.addEventListener('input', syncBirthdateAndAge);
+
+    // Attach event listeners for Segmented Hired Date Input
+    hiredMonthSel.addEventListener('change', syncHiredDate);
+    hiredDayInp.addEventListener('input', syncHiredDate);
+    hiredYearInp.addEventListener('input', syncHiredDate);
+
+    // Attach event listeners for Segmented Contractual End Input
+    contractMonthSel.addEventListener('change', syncContractualEnd);
+    contractDayInp.addEventListener('input', syncContractualEnd);
+    contractYearInp.addEventListener('input', syncContractualEnd);
 
     employmentStatus.addEventListener('change', updateContractualEnd);
 
