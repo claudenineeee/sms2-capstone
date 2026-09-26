@@ -272,12 +272,26 @@ class FacultyController
             $email            = strtolower(trim((string) ($_POST['email'] ?? '')));
             $designatedDept   = trim((string) ($_POST['designated_department'] ?? ''));
             $position         = trim((string) ($_POST['position'] ?? 'Department Head'));
+            $academicRank     = trim((string) ($_POST['academic_rank'] ?? ''));
+            $tier             = trim((string) ($_POST['tier'] ?? ''));
             $hiredDate        = trim((string) ($_POST['hired_date'] ?? ''));
             $contractualEnd   = trim((string) ($_POST['contractual_end'] ?? ''));
             $employmentStatus = trim((string) ($_POST['employment_status'] ?? 'regular'));
 
             if ($firstName === '' || $lastName === '' || $birthdate === '' || $sex === '' || $email === '' || $designatedDept === '' || $hiredDate === '' || $employmentStatus === '') {
                 throw new InvalidArgumentException('Please fill in all required fields.');
+            }
+
+            if ($academicRank === '') {
+                throw new InvalidArgumentException('Please select the Academic Rank.');
+            }
+
+            if ($tier === '') {
+                throw new InvalidArgumentException('Please select the Tier.');
+            }
+
+            if (function_exists('isValidAcademicRankTier') && !isValidAcademicRankTier($academicRank, $tier)) {
+                throw new InvalidArgumentException('The selected Tier does not match the selected Academic Rank.');
             }
 
             $mainPdo = function_exists('db') ? db() : null;
@@ -305,6 +319,8 @@ class FacultyController
                 'email'                 => $email,
                 'designated_department' => $designatedDept,
                 'position'              => $position,
+                'academic_rank'         => $academicRank,
+                'tier'                  => $tier,
                 'hired_date'            => $hiredDate,
                 'contractual_end'       => $contractualEnd,
                 'employment_status'     => $employmentStatus,
@@ -396,12 +412,26 @@ class FacultyController
             $email            = strtolower(trim((string) ($_POST['email'] ?? '')));
             $departmentIds    = array_filter(array_map('intval', (array) ($_POST['department_ids'] ?? [])));
             $position         = trim((string) ($_POST['position'] ?? 'Dean'));
+            $academicRank     = trim((string) ($_POST['academic_rank'] ?? ''));
+            $tier             = trim((string) ($_POST['tier'] ?? ''));
             $hiredDate        = trim((string) ($_POST['hired_date'] ?? ''));
             $contractualEnd   = trim((string) ($_POST['contractual_end'] ?? ''));
             $employmentStatus = trim((string) ($_POST['employment_status'] ?? 'regular'));
 
             if ($firstName === '' || $lastName === '' || $birthdate === '' || $sex === '' || $email === '' || empty($departmentIds) || $hiredDate === '' || $employmentStatus === '') {
                 throw new InvalidArgumentException('Please fill in all required fields and select at least one department.');
+            }
+
+            if ($academicRank === '') {
+                throw new InvalidArgumentException('Please select the Academic Rank.');
+            }
+
+            if ($tier === '') {
+                throw new InvalidArgumentException('Please select the Tier.');
+            }
+
+            if (function_exists('isValidAcademicRankTier') && !isValidAcademicRankTier($academicRank, $tier)) {
+                throw new InvalidArgumentException('The selected Tier does not match the selected Academic Rank.');
             }
 
             $mainPdo = function_exists('db') ? db() : null;
@@ -442,6 +472,8 @@ class FacultyController
                 'email'                 => $email,
                 'designated_department' => $primaryDeptCode,
                 'position'              => $position,
+                'academic_rank'         => $academicRank,
+                'tier'                  => $tier,
                 'hired_date'            => $hiredDate,
                 'contractual_end'       => $contractualEnd,
                 'employment_status'     => $employmentStatus,
