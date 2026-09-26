@@ -73,20 +73,12 @@ class LeaveBalance
     private function seed(int $facultyId, string $academicYear): array
     {
         $f = $this->pdo->prepare("
-<<<<<<< HEAD
-            SELECT COALESCE(fp.sex, f.sex)              AS sex,
-                   COALESCE(fp.position, f.position)    AS position,
-                   COALESCE(fp.hired_date, f.hired_date) AS hired_date
-            FROM faculty f
-            LEFT JOIN faculty_profiles fp ON fp.email = f.email
-=======
             SELECT COALESCE(fp.sex, f.sex)               AS sex,
                    COALESCE(fp.position, f.position)     AS position,
                    COALESCE(fp.hired_date, f.hired_date) AS hired_date,
                    COALESCE(fp.is_solo_parent, 0)        AS is_solo_parent
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.email = f.email
->>>>>>> d0c7a8d (fixing of stupid bugs)
+            FROM faculty f
+            LEFT JOIN faculty_profiles fp ON fp.email = f.email
             WHERE f.faculty_id = :fid
             LIMIT 1
         ");
@@ -246,39 +238,23 @@ try {
     } else {
         $userData = [];
         try {
-            $userStmt = $pdo->prepare("SELECT username, email FROM sms2_db.users WHERE id = :id LIMIT 1");
+            $userStmt = $pdo->prepare("SELECT username, email FROM users WHERE id = :id LIMIT 1");
             $userStmt->execute([':id' => $userId]);
             $userData = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) {
-            error_log('[leave-request] sms2_db.users lookup failed: ' . $e->getMessage());
+            try {
+                $userStmt = $pdo->prepare("SELECT username, email FROM sms2_db.users WHERE id = :id LIMIT 1");
+                $userStmt->execute([':id' => $userId]);
+                $userData = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            } catch (Throwable $e2) {
+                error_log('[leave-request] users lookup failed: ' . $e2->getMessage());
+            }
         }
 
-<<<<<<< HEAD
-        $stmt = $pdo->prepare("SELECT faculty_id FROM faculty WHERE email = :email LIMIT 1");
-        $stmt->execute([':email' => $userEmail]);
-        $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
-
-        if ($facultyProfileId <= 0 && $userEmail !== '') {
-            try {
-                $facultyNo = 'FAC-' . date('Y') . '-' . str_pad((string) $userId, 4, '0', STR_PAD_LEFT);
-                $firstName = $userData['username'] ?? 'Faculty';
-                $insertFaculty = $pdo->prepare("
-                    INSERT INTO faculty (faculty_no, first_name, last_name, email, department_id, position)
-                    VALUES (:faculty_no, :first_name, 'Member', :email, 1, 'Faculty Professor')
-                ");
-                $insertFaculty->execute([
-                    ':faculty_no' => $facultyNo,
-                    ':first_name' => $firstName,
-                    ':email' => $userEmail,
-                ]);
-                $facultyProfileId = (int) $pdo->lastInsertId();
-            } catch (Exception $ex) {
-                $formError = 'Your account is not linked to a faculty record and auto-creation failed: ' . $ex->getMessage();
-=======
         $userEmail = trim((string) ($userData['email'] ?? ($_SESSION['email'] ?? '')));
 
         if ($userEmail !== '') {
-            $stmt = $pdo->prepare("SELECT faculty_id FROM faculty_db.faculty WHERE email = :email LIMIT 1");
+            $stmt = $pdo->prepare("SELECT faculty_id FROM faculty WHERE email = :email LIMIT 1");
             $stmt->execute([':email' => $userEmail]);
             $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
 
@@ -287,7 +263,7 @@ try {
                     $facultyNo = 'FAC-' . date('Y') . '-' . str_pad((string) $userId, 4, '0', STR_PAD_LEFT);
                     $firstName = $userData['username'] ?? ($_SESSION['username'] ?? 'Faculty');
                     $insertFaculty = $pdo->prepare("
-                        INSERT INTO faculty_db.faculty (faculty_no, first_name, last_name, email, department_id, position)
+                        INSERT INTO faculty (faculty_no, first_name, last_name, email, department_id, position)
                         VALUES (:faculty_no, :first_name, 'Member', :email, 1, 'Faculty Professor')
                     ");
                     $insertFaculty->execute([
@@ -299,7 +275,6 @@ try {
                 } catch (Exception $ex) {
                     $formError = 'Your account is not linked to a faculty record and auto-creation failed: ' . $ex->getMessage();
                 }
->>>>>>> d0c7a8d (fixing of stupid bugs)
             }
         } else {
             $formError = 'Your account has no email on record. Please contact the administrator.';
