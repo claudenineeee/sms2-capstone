@@ -43,7 +43,7 @@ if ($userDepartment === '') {
             if ($pdo) {
                 $stmtUser = $pdo->prepare("
                     SELECT designated_department, department
-                    FROM faculty_db.faculty_profiles
+                    FROM faculty_profiles
                     WHERE user_id = :uid
                        OR (:email1 IS NOT NULL AND email = :email2)
                     LIMIT 1

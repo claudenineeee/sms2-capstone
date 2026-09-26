@@ -35,7 +35,7 @@ try {
     $restrictedDeptCode = null;
 
     if ($restrictedDeptId !== null && $restrictedDeptId > 0) {
-        $deptCodeStmt = $pdo->prepare("SELECT code FROM faculty_db.departments WHERE department_id = :id LIMIT 1");
+        $deptCodeStmt = $pdo->prepare("SELECT code FROM departments WHERE department_id = :id LIMIT 1");
         $deptCodeStmt->execute([':id' => $restrictedDeptId]);
         $restrictedDeptCode = $deptCodeStmt->fetchColumn() ?: null;
     }
@@ -60,7 +60,7 @@ try {
 
             // Insert matching table columns precisely (report_name, report_type, created_at)
             $logStmt = $pdo->prepare("
-                INSERT INTO faculty_db.generated_reports (report_name, report_type, created_at)
+                INSERT INTO generated_reports (report_name, report_type, created_at)
                 VALUES (:name, :type, NOW())
             ");
 
@@ -76,7 +76,7 @@ try {
         } elseif ($action === 'delete_report') {
             $reportId = (int) ($_POST['report_id'] ?? 0);
             if ($reportId > 0) {
-                $delStmt = $pdo->prepare("DELETE FROM faculty_db.generated_reports WHERE report_id = :id LIMIT 1");
+                $delStmt = $pdo->prepare("DELETE FROM generated_reports WHERE report_id = :id LIMIT 1");
                 $delStmt->execute([':id' => $reportId]);
             }
             $redirectUrl = strtok($_SERVER['REQUEST_URI'], '?');
@@ -110,7 +110,7 @@ try {
     $whereClause = !empty($where) ? ' WHERE ' . implode(' AND ', $where) : '';
 
     // Total records count
-    $countSql = "SELECT COUNT(*) FROM faculty_db.generated_reports" . $whereClause;
+    $countSql = "SELECT COUNT(*) FROM generated_reports" . $whereClause;
     $countStmt = $pdo->prepare($countSql);
     foreach ($params as $k => $v) {
         $countStmt->bindValue($k, $v, PDO::PARAM_STR);
@@ -124,7 +124,7 @@ try {
     $offset = ($page - 1) * $limit;
 
     // Fetch reports history
-    $sql = "SELECT * FROM faculty_db.generated_reports" . $whereClause . " ORDER BY report_id DESC LIMIT :limit OFFSET :offset";
+    $sql = "SELECT * FROM generated_reports" . $whereClause . " ORDER BY report_id DESC LIMIT :limit OFFSET :offset";
     $stmt = $pdo->prepare($sql);
     foreach ($params as $k => $v) {
         $stmt->bindValue($k, $v, PDO::PARAM_STR);

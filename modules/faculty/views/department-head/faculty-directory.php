@@ -68,7 +68,7 @@ function getDepartmentHeadDepartment(): array
         if ($userId !== null) {
             $stmt = $pdo->prepare("
                 SELECT designated_department
-                FROM faculty_db.faculty_profiles
+                FROM faculty_profiles
                 WHERE user_id = :user_id
                 LIMIT 1
             ");
@@ -79,7 +79,7 @@ function getDepartmentHeadDepartment(): array
         if ((empty($row) || empty($row['designated_department'])) && $userEmail !== '') {
             $stmt = $pdo->prepare("
                 SELECT designated_department
-                FROM faculty_db.faculty_profiles
+                FROM faculty_profiles
                 WHERE email = :email
                 LIMIT 1
             ");

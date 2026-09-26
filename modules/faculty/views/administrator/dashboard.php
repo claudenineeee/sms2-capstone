@@ -11,30 +11,30 @@ requireAuth();
 $pdo = db();
 
 // 1. Fetch Dashboard Metrics
-$totalFaculty = (int)$pdo->query("SELECT COUNT(*) FROM faculty_db.faculty_profiles")->fetchColumn();
+$totalFaculty = (int)$pdo->query("SELECT COUNT(*) FROM faculty_profiles")->fetchColumn();
 
 $pendingApprovals = (int)$pdo->query("
     SELECT COUNT(*) 
-    FROM faculty_db.faculty_profiles fp
+    FROM faculty_profiles fp
     JOIN sms2_db.users u ON fp.user_id = u.id
     WHERE u.status = 'pending_approval' OR fp.profile_status = 'Pending Approval'
 ")->fetchColumn();
 
 $activeFaculty = (int)$pdo->query("
     SELECT COUNT(*) 
-    FROM faculty_db.faculty_profiles 
+    FROM faculty_profiles 
     WHERE LOWER(employment_status) = 'active' OR LOWER(employment_status) = 'regular'
 ")->fetchColumn();
 
 $departmentHeads = (int)$pdo->query("
     SELECT COUNT(*) 
-    FROM faculty_db.faculty_profiles 
+    FROM faculty_profiles 
     WHERE LOWER(position) LIKE '%head%'
 ")->fetchColumn();
 
 $inactiveFaculty = (int)$pdo->query("
     SELECT COUNT(*) 
-    FROM faculty_db.faculty_profiles 
+    FROM faculty_profiles 
     WHERE LOWER(profile_status) = 'inactive'
 ")->fetchColumn();
 
@@ -42,7 +42,7 @@ $inactiveFaculty = (int)$pdo->query("
 // Chart 1: Department Distribution Top 5
 $deptStmt = $pdo->query("
     SELECT designated_department AS dept, COUNT(*) as count 
-    FROM faculty_db.faculty_profiles 
+    FROM faculty_profiles 
     WHERE designated_department IS NOT NULL AND designated_department != ''
     GROUP BY designated_department 
     ORDER BY count DESC 
@@ -54,14 +54,14 @@ $deptLabels = array_column($deptData, 'dept');
 $deptCounts = array_column($deptData, 'count');
 
 // Chart 2: Status Breakdown
-$regularCount = (int)$pdo->query("SELECT COUNT(*) FROM faculty_db.faculty_profiles WHERE LOWER(employment_status) IN ('regular', 'full-time')")->fetchColumn();
-$partTimeCount = (int)$pdo->query("SELECT COUNT(*) FROM faculty_db.faculty_profiles WHERE LOWER(employment_status) IN ('part-time', 'contract')")->fetchColumn();
+$regularCount = (int)$pdo->query("SELECT COUNT(*) FROM faculty_profiles WHERE LOWER(employment_status) IN ('regular', 'full-time')")->fetchColumn();
+$partTimeCount = (int)$pdo->query("SELECT COUNT(*) FROM faculty_profiles WHERE LOWER(employment_status) IN ('part-time', 'contract')")->fetchColumn();
 $otherCount = max(0, $totalFaculty - ($regularCount + $partTimeCount));
 
 // 3. Fetch Recent Pending Requests
 $stmtPending = $pdo->query("
     SELECT fp.*, u.status AS account_status, u.id AS auth_user_id
-    FROM faculty_db.faculty_profiles fp
+    FROM faculty_profiles fp
     JOIN sms2_db.users u ON fp.user_id = u.id
     WHERE u.status = 'pending_approval' OR fp.profile_status = 'Pending Approval'
     ORDER BY fp.created_at DESC

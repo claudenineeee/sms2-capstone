@@ -25,7 +25,7 @@ $facultyName = 'Faculty';
 
 // Fetch faculty_id and name from faculty_profiles
 try {
-    $stmt = $pdo->prepare("SELECT fp.id, fp.faculty_id, fp.first_name, fp.last_name FROM faculty_db.faculty_profiles fp WHERE fp.user_id = :user_id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT fp.id, fp.faculty_id, fp.first_name, fp.last_name FROM faculty_profiles fp WHERE fp.user_id = :user_id LIMIT 1");
     $stmt->execute([':user_id' => $currentUserId]);
     $profileData = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -47,21 +47,21 @@ $ratingLabel = 'No Rating';
 if ($facultyId) {
     try {
         // Get current term first (or latest term)
-        $termStmt = $pdo->prepare("SELECT term_id FROM faculty_db.academic_terms WHERE status = 'Active' LIMIT 1");
+        $termStmt = $pdo->prepare("SELECT term_id FROM academic_terms WHERE status = 'Active' LIMIT 1");
         $termStmt->execute();
         $termData = $termStmt->fetch(PDO::FETCH_ASSOC);
         $currentTermId = $termData['term_id'] ?? null;
         
         if ($currentTermId) {
             // Fetch teaching load for current term
-            $loadStmt = $pdo->prepare("SELECT total_units FROM faculty_db.teaching_load_history WHERE faculty_id = :faculty_id AND term_id = :term_id LIMIT 1");
+            $loadStmt = $pdo->prepare("SELECT total_units FROM teaching_load_history WHERE faculty_id = :faculty_id AND term_id = :term_id LIMIT 1");
             $loadStmt->execute([':faculty_id' => $facultyId, ':term_id' => $currentTermId]);
             $loadData = $loadStmt->fetch(PDO::FETCH_ASSOC);
             $teachingLoad = $loadData ? (int)$loadData['total_units'] : 0;
         }
         
         // Fetch average rating from evaluations
-        $ratingStmt = $pdo->prepare("SELECT AVG(composite_score) as avg_rating FROM faculty_db.evaluations WHERE faculty_id = :faculty_id AND composite_score IS NOT NULL");
+        $ratingStmt = $pdo->prepare("SELECT AVG(composite_score) as avg_rating FROM evaluations WHERE faculty_id = :faculty_id AND composite_score IS NOT NULL");
         $ratingStmt->execute([':faculty_id' => $facultyId]);
         $ratingData = $ratingStmt->fetch(PDO::FETCH_ASSOC);
         

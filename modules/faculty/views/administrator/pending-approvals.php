@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($action === 'approve') {
                     // 1. Fetch first_name, last_name, and email directly for the specific owner/user being approved
-                    $profileStmt = $pdo->prepare("SELECT first_name, last_name, email FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
+                    $profileStmt = $pdo->prepare("SELECT first_name, last_name, email FROM faculty_profiles WHERE user_id = :user_id LIMIT 1");
                     $profileStmt->execute([':user_id' => $userId]);
                     $profileData = $profileStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -77,12 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
 
                     // 4. Activate faculty profile
-                    $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Active', request_status = 'approved' WHERE user_id = :user_id");
+                    $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Active', request_status = 'approved' WHERE user_id = :user_id");
                     $stmt2->execute([':user_id' => $userId]);
 
-                    // 5. Ensure a bridging faculty_db.faculty record exists.
+                    // 5. Ensure a bridging faculty record exists.
                     try {
-                        $fullProfileStmt = $pdo->prepare("SELECT * FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
+                        $fullProfileStmt = $pdo->prepare("SELECT * FROM faculty_profiles WHERE user_id = :user_id LIMIT 1");
                         $fullProfileStmt->execute([':user_id' => $userId]);
                         $fp = $fullProfileStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $emailParam = !empty($facultyEmail) ? $facultyEmail : (!empty($fp['email']) ? $fp['email'] : null);
 
                             $checkFacultyStmt = $pdo->prepare("
-                                SELECT faculty_id FROM faculty_db.faculty
+                                SELECT faculty_id FROM faculty
                                 WHERE (:email_check IS NOT NULL AND email = :email_val)
                                    OR faculty_no = :faculty_no
                                 LIMIT 1
@@ -105,13 +105,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             if (!$existingFacultyId) {
                                 $departmentId = null;
                                 if (!empty($fp['designated_department'])) {
-                                    $deptIdStmt = $pdo->prepare("SELECT department_id FROM faculty_db.departments WHERE code = :code LIMIT 1");
+                                    $deptIdStmt = $pdo->prepare("SELECT department_id FROM departments WHERE code = :code LIMIT 1");
                                     $deptIdStmt->execute([':code' => $fp['designated_department']]);
                                     $departmentId = $deptIdStmt->fetchColumn() ?: null;
                                 }
 
                                 $insertFacultyStmt = $pdo->prepare("
-                                    INSERT INTO faculty_db.faculty (
+                                    INSERT INTO faculty (
                                         faculty_no, external_user_id, first_name, middle_name, last_name, suffix,
                                         birthdate, sex, phone, email, department_id, position,
                                         academic_rank, employment_status, profile_status, overall_rating,
@@ -277,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'rejected' WHERE id = :user_id");
                     $stmt1->execute([':user_id' => $userId]);
 
-                    $stmt2 = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET profile_status = 'Rejected', request_status = 'rejected' WHERE user_id = :user_id");
+                    $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Rejected', request_status = 'rejected' WHERE user_id = :user_id");
                     $stmt2->execute([':user_id' => $userId]);
 
                     $pdo->commit();
@@ -299,7 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Load pending accounts
 $stmt = $pdo->query("
     SELECT fp.*, u.status AS account_status, u.id AS auth_user_id
-    FROM faculty_db.faculty_profiles fp
+    FROM faculty_profiles fp
     JOIN sms2_db.users u ON fp.user_id = u.id
     WHERE u.status = 'pending_approval' OR fp.profile_status = 'Pending Approval'
     ORDER BY fp.created_at DESC

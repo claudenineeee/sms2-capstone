@@ -55,7 +55,7 @@ function balanceLabel(string $key): string
 }
 
 /**
- * Ordered list of balance column prefixes as stored in faculty_db.leave_balances.
+ * Ordered list of balance column prefixes as stored in leave_balances.
  */
 function balanceColumnKeys(): array
 {
@@ -284,13 +284,13 @@ try {
 
                 $relativeSignaturePath = 'uploads/signatures/' . $fileName;
 
-                $checkProf = $pdo->prepare("SELECT id FROM faculty_db.faculty_profiles WHERE user_id = :uid1 OR id = :uid2 LIMIT 1");
+                $checkProf = $pdo->prepare("SELECT id FROM faculty_profiles WHERE user_id = :uid1 OR id = :uid2 LIMIT 1");
                 $checkProf->execute([':uid1' => $approverId, ':uid2' => $approverId]);
                 $exists = $checkProf->fetchColumn();
 
                 if (!$exists) {
                     $insProf = $pdo->prepare("
-                        INSERT INTO faculty_db.faculty_profiles (user_id, signature, created_at) 
+                        INSERT INTO faculty_profiles (user_id, signature, created_at) 
                         VALUES (:uid, :sig, NOW())
                     ");
                     $insProf->execute([
@@ -299,7 +299,7 @@ try {
                     ]);
                 } else {
                     $updSig = $pdo->prepare("
-                        UPDATE faculty_db.faculty_profiles 
+                        UPDATE faculty_profiles 
                         SET signature = :sig 
                         WHERE user_id = :uid1 OR id = :uid2
                     ");
@@ -325,10 +325,10 @@ try {
                    COALESCE(fp.user_id,    fp2.user_id)    AS profile_user_id,
                    COALESCE(u.email, fp.email, fp2.email)  AS faculty_email,
                    f.faculty_id AS faculty_record_id
-            FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty f       ON f.faculty_id = lr.faculty_id
-            LEFT JOIN faculty_db.faculty_profiles fp  ON fp.email = f.email
-            LEFT JOIN faculty_db.faculty_profiles fp2 ON fp2.id = lr.faculty_id
+            FROM leave_requests lr
+            LEFT JOIN faculty f       ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_profiles fp  ON fp.email = f.email
+            LEFT JOIN faculty_profiles fp2 ON fp2.id = lr.faculty_id
             LEFT JOIN sms2_db.users u ON u.id = COALESCE(fp.user_id, fp2.user_id)
             WHERE lr.id = :id
             LIMIT 1
@@ -396,7 +396,7 @@ try {
 
         if ($action === 'approve') {
             $stmt = $pdo->prepare("
-                UPDATE faculty_db.leave_requests
+                UPDATE leave_requests
                 SET
                     status = 'Approved',
                     approver_id = :approver_id,
@@ -444,7 +444,7 @@ try {
             }
 
             $stmt = $pdo->prepare("
-                UPDATE faculty_db.leave_requests
+                UPDATE leave_requests
                 SET " . implode(', ', $updateFields) . "
                 WHERE id = :id
                   AND LOWER(status) IN ('pending', 'approved', 'document_required', 'rejected')
@@ -462,7 +462,7 @@ try {
             }
 
             $stmt = $pdo->prepare("
-                UPDATE faculty_db.leave_requests
+                UPDATE leave_requests
                 SET " . implode(', ', $updateFields) . "
                 WHERE id = :id
                   AND LOWER(status) IN ('approved', 'document_required', 'pending')
@@ -488,7 +488,7 @@ try {
             }
 
             $stmt = $pdo->prepare("
-                UPDATE faculty_db.leave_requests
+                UPDATE leave_requests
                 SET " . implode(', ', $updateFields) . "
                 WHERE id = :id
                   AND LOWER(status) IN ('pending', 'document_required')
@@ -533,7 +533,7 @@ try {
         $formSuccess = trim((string) $_GET['success']);
     }
 
-    $countStmt = $pdo->prepare("SELECT LOWER(status) AS status, COUNT(*) AS cnt FROM faculty_db.leave_requests GROUP BY LOWER(status)");
+    $countStmt = $pdo->prepare("SELECT LOWER(status) AS status, COUNT(*) AS cnt FROM leave_requests GROUP BY LOWER(status)");
     $countStmt->execute();
     $counts = [];
 
@@ -550,7 +550,7 @@ try {
 
     $balanceStmt = $pdo->prepare("
         SELECT lb.*
-        FROM faculty_db.leave_balances lb
+        FROM leave_balances lb
         WHERE lb.academic_year = :yr
     ");
     $balanceStmt->execute([':yr' => $ACADEMIC_YEAR]);
@@ -570,10 +570,10 @@ try {
                    'Faculty Department' AS department,
                    DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
                    f.faculty_id AS faculty_record_id
-            FROM faculty_db.leave_requests lr
-            LEFT JOIN faculty_db.faculty f       ON f.faculty_id = lr.faculty_id
-            LEFT JOIN faculty_db.faculty_profiles fp  ON fp.email = f.email
-            LEFT JOIN faculty_db.faculty_profiles fp2 ON fp2.id = lr.faculty_id
+            FROM leave_requests lr
+            LEFT JOIN faculty f       ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_profiles fp  ON fp.email = f.email
+            LEFT JOIN faculty_profiles fp2 ON fp2.id = lr.faculty_id
             WHERE lr.screening_status = 'Screened'
             ORDER BY lr.created_at DESC";
 
@@ -1045,7 +1045,7 @@ if (function_exists('renderBreadcrumbs')) {
     const BASE_URL = <?= json_encode(rtrim(BASE_URL, '/')) ?>;
     const ACADEMIC_YEAR = <?= json_encode($ACADEMIC_YEAR) ?>;
 
-    /* Ordered balance column keys, matching the current faculty_db.leave_balances schema */
+    /* Ordered balance column keys, matching the current leave_balances schema */
     const BALANCE_KEYS = [
         'sick_leave', 'vacation_leave', 'emergency',
         'maternity', 'paternity',

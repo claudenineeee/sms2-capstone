@@ -19,7 +19,7 @@ $deptHeadDept  = null;
 
 if ($currentUserId) {
     try {
-        $stmt = db()->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
+        $stmt = db()->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
         $stmt->execute(['uid' => $currentUserId, 'id' => $currentUserId]);
         $row = $stmt->fetch();
         if ($row) {
@@ -35,7 +35,7 @@ if (empty($deptHeadDept)) {
 }
 
 // CHANGED: removed the dead $deptId lookup that used to sit here. It
-// queried faculty_db.departments to resolve a numeric department_id, but
+// queried departments to resolve a numeric department_id, but
 // that variable was never actually used anywhere on this page — every
 // query below works off faculty IDs, not department_id.
 

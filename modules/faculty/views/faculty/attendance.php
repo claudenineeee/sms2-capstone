@@ -42,7 +42,7 @@ else {
         try {
             // We assume there is a connection to the database available
             // We query faculty_profiles to find the matching profile ID using the system user_id
-            $stmt = db()->prepare("SELECT id FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
+            $stmt = db()->prepare("SELECT id FROM faculty_profiles WHERE user_id = :user_id LIMIT 1");
             $stmt->execute([':user_id' => $systemUserId]);
             $currentFacultyId = $stmt->fetchColumn();
         } catch (Throwable $e) {

@@ -43,7 +43,7 @@ class FacultyModel {
         $this->ensureDb();
         $stmt = $this->db->prepare("
             SELECT *, designated_department AS designated_dept 
-            FROM faculty_db.faculty_profiles 
+            FROM faculty_profiles 
             WHERE LOWER(TRIM(designated_department)) = LOWER(TRIM(:dept))
               AND (request_status IS NULL OR request_status = 'approved')
             ORDER BY last_name ASC, first_name ASC
@@ -59,7 +59,7 @@ class FacultyModel {
         $this->ensureDb();
         $stmt = $this->db->prepare("
             SELECT *, designated_department AS designated_dept 
-            FROM faculty_db.faculty_profiles 
+            FROM faculty_profiles 
             WHERE user_id = :user_id 
             LIMIT 1
         ");
@@ -75,7 +75,7 @@ class FacultyModel {
         $this->ensureDb();
         $stmt = $this->db->prepare("
             SELECT *, designated_department AS designated_dept 
-            FROM faculty_db.faculty_profiles 
+            FROM faculty_profiles 
             WHERE id = :id OR faculty_id = :id 
             LIMIT 1
         ");
@@ -91,7 +91,7 @@ class FacultyModel {
         $this->ensureDb();
         $stmt = $this->db->query("
             SELECT *, designated_department AS designated_dept 
-            FROM faculty_db.faculty_profiles 
+            FROM faculty_profiles 
             ORDER BY last_name ASC, first_name ASC
         ");
         return $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
@@ -109,7 +109,7 @@ class FacultyModel {
 
         $stmt = $this->db->prepare("
             SELECT *, designated_department AS designated_dept 
-            FROM faculty_db.faculty_profiles 
+            FROM faculty_profiles 
             WHERE LOWER(TRIM(designated_department)) = LOWER(TRIM(:dept))
                OR designated_department = :dept
             ORDER BY last_name ASC, first_name ASC
@@ -127,7 +127,7 @@ class FacultyModel {
 
         if (!empty($data['id'])) {
             $stmt = $this->db->prepare("
-                UPDATE faculty_db.faculty_profiles SET
+                UPDATE faculty_profiles SET
                     first_name = :first_name,
                     middle_name = :middle_name,
                     last_name = :last_name,
@@ -162,7 +162,7 @@ class FacultyModel {
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO faculty_db.faculty_profiles (
+            INSERT INTO faculty_profiles (
                 faculty_id, first_name, middle_name, last_name, suffix,
                 sex, birthdate, phone, email, designated_department, position,
                 profile_status, request_status, user_id
@@ -215,7 +215,7 @@ class FacultyModel {
         };
 
         $stmt = $pdo->prepare("
-            UPDATE faculty_db.faculty_profiles SET
+            UPDATE faculty_profiles SET
                 first_name = :first_name,
                 middle_name = :middle_name,
                 last_name = :last_name,
@@ -278,16 +278,16 @@ class FacultyModel {
                 AVG(CASE WHEN e.source_type = 'Student'  THEN e.composite_score END) AS student_score,
                 AVG(CASE WHEN e.source_type = 'Peer'     THEN e.composite_score END) AS peer_score,
                 AVG(CASE WHEN e.source_type = 'DeptHead' THEN e.composite_score END) AS teaching_score
-            FROM faculty_db.faculty_profiles fp
-            LEFT JOIN faculty_db.faculty f ON f.faculty_id = (
+            FROM faculty_profiles fp
+            LEFT JOIN faculty f ON f.faculty_id = (
                 SELECT f2.faculty_id
-                FROM faculty_db.faculty f2
+                FROM faculty f2
                 WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
                    OR f2.faculty_no = fp.faculty_id
                 ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
                 LIMIT 1
             )
-            LEFT JOIN faculty_db.evaluations e ON e.faculty_id = f.faculty_id
+            LEFT JOIN evaluations e ON e.faculty_id = f.faculty_id
         ";
 
         if (!(empty($deptId) || $deptId === '1' || $deptId === 1)) {

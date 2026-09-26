@@ -387,7 +387,7 @@ class FacultyController
      * Process Dean registration POST request. A Dean can oversee multiple
      * departments — same account-creation flow as handleAddDepartmentHead(),
      * plus a loop that records every selected department into
-     * faculty_db.faculty_profile_department_assignments.
+     * faculty_profile_department_assignments.
      * See migration_add_dean_support_v2.sql for that table's definition.
      */
     public function handleAddDean(): ?array
@@ -446,7 +446,7 @@ class FacultyController
 
             // Resolve department_id -> code (e.g. 1 -> 'BSIT') for the
             // primary designated_department stored on the profile itself.
-            $deptStmt = $facPdo->prepare("SELECT department_id, code FROM faculty_db.departments WHERE department_id IN (" . implode(',', array_fill(0, count($departmentIds), '?')) . ")");
+            $deptStmt = $facPdo->prepare("SELECT department_id, code FROM departments WHERE department_id IN (" . implode(',', array_fill(0, count($departmentIds), '?')) . ")");
             $deptStmt->execute($departmentIds);
             $deptRows = $deptStmt->fetchAll(PDO::FETCH_KEY_PAIR); // [department_id => code]
 
@@ -507,7 +507,7 @@ class FacultyController
 
             // Record every selected department in the pivot table.
             $pivotStmt = $facPdo->prepare("
-                INSERT INTO faculty_db.faculty_profile_department_assignments (faculty_profile_id, department_id)
+                INSERT INTO faculty_profile_department_assignments (faculty_profile_id, department_id)
                 VALUES (:profile_id, :dept_id)
             ");
             foreach ($departmentIds as $deptId) {

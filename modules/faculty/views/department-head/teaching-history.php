@@ -34,7 +34,7 @@ $deptHeadDept  = null;
 
 if ($currentUserId) {
     try {
-        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
+        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
         $stmt->execute(['uid' => $currentUserId, 'id' => $currentUserId]);
         $row = $stmt->fetch();
         if ($row) {
@@ -56,8 +56,8 @@ $facultyQuerySql = "
     SELECT fp.id, fp.faculty_id AS profile_faculty_no, fp.first_name, fp.last_name,
            fp.designated_department, fp.position, fp.email,
            f.faculty_id AS real_faculty_id
-    FROM faculty_db.faculty_profiles fp
-    LEFT JOIN faculty_db.faculty f ON f.faculty_id = fp.id
+    FROM faculty_profiles fp
+    LEFT JOIN faculty f ON f.faculty_id = fp.id
 ";
 
 if (!empty($deptHeadDept)) {
@@ -88,7 +88,7 @@ foreach ($facultyMembers as $fac) {
         try {
             $stmtHistory = $pdo->prepare("
                 SELECT academic_year, semester, subject_code, subject_title, units, section, status, created_at
-                FROM faculty_db.teaching_load_history
+                FROM teaching_load_history
                 WHERE faculty_id = :fac_id
                 ORDER BY academic_year DESC, semester DESC, created_at DESC
             ");
@@ -103,7 +103,7 @@ foreach ($facultyMembers as $fac) {
         try {
             $stmtHistoryAlt = $pdo->prepare("
                 SELECT academic_year, semester, subject_code, subject_title, units, section, status, created_at
-                FROM faculty_db.teaching_load_history
+                FROM teaching_load_history
                 WHERE faculty_id = :fac_id_str OR faculty_no = :fac_no
                 ORDER BY academic_year DESC, semester DESC, created_at DESC
             ");
