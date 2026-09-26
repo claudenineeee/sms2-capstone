@@ -9,11 +9,11 @@ function facultyClearanceRequirementDefinitions(): array
 {
     return [
         ['Academic Clearance', 'Grade sheets, class records, syllabus, attendance/DTR, pending student academic concerns.'],
-        ['Department Clearance', 'Department reports, assigned duties, committee responsibilities, Department Head verification.'],
         ['Library Clearance', 'No unreturned books/materials, library accountabilities cleared.'],
-        ['Property Clearance', 'School equipment returned, ID/keys/other issued institutional property returned.'],
         ['Financial Clearance', 'No outstanding financial obligations, cash advances/accountabilities settled.'],
+        ['Property Clearance', 'School equipment returned, ID/keys/other issued institutional property returned.'],
         ['HR Clearance', 'Required HR documents submitted, contract/employment records, final HR verification.'],
+        ['Department Clearance', 'Department reports, assigned duties, committee responsibilities, Department Head verification.'],
     ];
 }
 
@@ -33,17 +33,6 @@ function facultyClearanceSections(): array
                 'Pending student academic concerns resolved',
             ],
         ],
-        'Department Clearance' => [
-            'name' => 'Department Clearance',
-            'office' => 'Department Head / Dean',
-            'icon' => 'fa-building-columns',
-            'description' => 'Department reports, assigned duties, committee responsibilities.',
-            'items' => [
-                'Departmental reports submitted',
-                'Assigned department duties completed',
-                'Committee responsibilities fulfilled',
-            ],
-        ],
         'Library Clearance' => [
             'name' => 'Library Clearance',
             'office' => 'University / College Library',
@@ -53,17 +42,6 @@ function facultyClearanceSections(): array
                 'No unreturned books, journals, or media',
                 'No outstanding library fines or accountabilities',
                 'Borrower status verified & cleared in library system',
-            ],
-        ],
-        'Property Clearance' => [
-            'name' => 'Property Clearance',
-            'office' => 'Property & Custodian Office',
-            'icon' => 'fa-boxes-stacked',
-            'description' => 'School equipment returned, ID/keys/other issued institutional property returned.',
-            'items' => [
-                'School-issued laptop & equipment returned/accounted for',
-                'Facility keys, laboratory tools & apparatus returned',
-                'Property accountability & gate passes cleared',
             ],
         ],
         'Financial Clearance' => [
@@ -77,6 +55,17 @@ function facultyClearanceSections(): array
                 'Official statement of account cleared',
             ],
         ],
+        'Property Clearance' => [
+            'name' => 'Property Clearance',
+            'office' => 'Property & Custodian Office',
+            'icon' => 'fa-boxes-stacked',
+            'description' => 'School equipment returned, ID/keys/other issued institutional property returned.',
+            'items' => [
+                'School-issued laptop & equipment returned/accounted for',
+                'Facility keys, laboratory tools & apparatus returned',
+                'Property accountability & gate passes cleared',
+            ],
+        ],
         'HR Clearance' => [
             'name' => 'HR Clearance',
             'office' => 'Human Resources (HR)',
@@ -88,7 +77,23 @@ function facultyClearanceSections(): array
                 'Final HR sign-off and administrative clearance',
             ],
         ],
+        'Department Clearance' => [
+            'name' => 'Department Clearance',
+            'office' => 'Department Head / Dean',
+            'icon' => 'fa-building-columns',
+            'description' => 'Department reports, assigned duties, committee responsibilities.',
+            'items' => [
+                'Departmental reports submitted',
+                'Assigned department duties completed',
+                'Committee responsibilities fulfilled',
+            ],
+        ],
     ];
+}
+
+function facultyClearanceRequirements(): array
+{
+    return facultyClearanceSections();
 }
 
 function facultyClearanceRequirementNames(): array
@@ -139,6 +144,8 @@ function facultyClearanceOffices(PDO $db): array
         // Table or column already adjusted
     }
 
+    facultyClearanceEnsureDigitalApprovalSchema($db);
+
     $insert = $db->prepare('INSERT INTO clearance_offices (name, description, sequence_order) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE sequence_order = VALUES(sequence_order), description = VALUES(description)');
     foreach ($definitions as $index => [$name, $desc]) {
         try {
@@ -160,7 +167,499 @@ function facultyClearanceOffices(PDO $db): array
     }
     unset($r);
 
+    $orderMap = array_flip($names);
+    usort($rows, static function ($a, $b) use ($orderMap) {
+        $ordA = $orderMap[$a['name']] ?? 999;
+        $ordB = $orderMap[$b['name']] ?? 999;
+        return $ordA <=> $ordB;
+    });
+
     return $rows;
+}
+
+function facultyClearanceEnsureDigitalApprovalSchema(PDO $db): void
+{
+    static $ensured = false;
+    if ($ensured || $db->inTransaction()) {
+        return;
+    }
+    $ensured = true;
+
+    try {
+        // 1. Table for official office-level digital approvals / sign-offs
+        $db->exec("CREATE TABLE IF NOT EXISTS `clearance_office_approvals` (
+            `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+            `clearance_id` int(10) unsigned NOT NULL,
+            `faculty_id` int(10) unsigned NOT NULL,
+            `office` varchar(50) NOT NULL,
+            `approval_ref` varchar(50) NOT NULL,
+            `approver_user_id` int(10) unsigned NOT NULL,
+            `approver_name` varchar(150) NOT NULL,
+            `approver_role` varchar(100) NOT NULL,
+            `status` varchar(50) NOT NULL DEFAULT 'Approved',
+            `remarks` text NULL,
+            `signature_data` LONGTEXT NULL,
+            `approved_at` datetime NOT NULL,
+            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uk_clearance_office` (`clearance_id`, `office`),
+            KEY `idx_approval_faculty` (`faculty_id`),
+            KEY `idx_approval_ref` (`approval_ref`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
+
+        // Extend clearance_office_approvals with signature_data if missing
+        $approvalCols = $db->query("SHOW COLUMNS FROM clearance_office_approvals")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('signature_data', $approvalCols, true)) {
+            $db->exec("ALTER TABLE clearance_office_approvals ADD COLUMN signature_data LONGTEXT NULL AFTER remarks");
+        }
+
+        // 2. Table for persistent digital clearance signatures across dept head, clearance-portal, and faculty declaration
+        $db->exec("CREATE TABLE IF NOT EXISTS `clearance_signatures` (
+            `signature_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+            `clearance_id` int(10) unsigned NOT NULL,
+            `faculty_id` int(10) unsigned NOT NULL,
+            `office` varchar(100) NOT NULL,
+            `office_key` varchar(50) NOT NULL,
+            `signatory_type` enum('faculty','department_head','office_signatory','dean','admin') NOT NULL DEFAULT 'office_signatory',
+            `approval_ref` varchar(50) DEFAULT NULL,
+            `signer_user_id` int(10) unsigned DEFAULT NULL,
+            `signer_name` varchar(150) NOT NULL,
+            `signer_role` varchar(100) NOT NULL,
+            `signature_data` longtext NOT NULL,
+            `remarks` text DEFAULT NULL,
+            `status` varchar(50) NOT NULL DEFAULT 'Signed',
+            `ip_address` varchar(45) DEFAULT NULL,
+            `user_agent` text DEFAULT NULL,
+            `signed_at` datetime NOT NULL,
+            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`signature_id`),
+            UNIQUE KEY `uk_clearance_office_sig` (`clearance_id`, `office_key`),
+            KEY `idx_sig_faculty` (`faculty_id`),
+            KEY `idx_sig_clearance` (`clearance_id`),
+            KEY `idx_sig_signer` (`signer_user_id`),
+            KEY `idx_sig_ref` (`approval_ref`),
+            KEY `idx_sig_date` (`signed_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
+
+        // Sync existing signatures from clearance_office_approvals into clearance_signatures
+        try {
+            $existingOa = $db->query("SELECT coa.*, cr.faculty_id AS req_faculty_id 
+                FROM clearance_office_approvals coa 
+                LEFT JOIN clearance_requests cr ON cr.clearance_id = coa.clearance_id
+                WHERE coa.signature_data IS NOT NULL AND coa.signature_data != ''")->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($existingOa)) {
+                $syncStmt = $db->prepare("INSERT INTO clearance_signatures
+                    (clearance_id, faculty_id, office, office_key, signatory_type, approval_ref, signer_user_id, signer_name, signer_role, signature_data, remarks, status, signed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        signature_data = VALUES(signature_data),
+                        approval_ref = VALUES(approval_ref),
+                        signer_name = VALUES(signer_name),
+                        signer_role = VALUES(signer_role),
+                        signed_at = VALUES(signed_at)");
+                foreach ($existingOa as $row) {
+                    $cId = (int) $row['clearance_id'];
+                    $fId = (int) ($row['faculty_id'] ?: ($row['req_faculty_id'] ?? 0));
+                    $off = (string) $row['office'];
+                    $offKey = facultyClearanceOfficeKey($off);
+                    $sigType = ($offKey === 'department' || in_array(strtolower((string) $row['approver_role']), ['dept_head', 'department_head'], true))
+                        ? 'department_head'
+                        : 'office_signatory';
+                    $syncStmt->execute([
+                        $cId,
+                        $fId,
+                        $off,
+                        $offKey,
+                        $sigType,
+                        $row['approval_ref'] ?? null,
+                        $row['approver_user_id'] ? (int) $row['approver_user_id'] : null,
+                        $row['approver_name'] ?? 'Authorized Officer',
+                        $row['approver_role'] ?? 'Signatory',
+                        $row['signature_data'],
+                        $row['remarks'] ?? null,
+                        $row['status'] ?? 'Approved',
+                        $row['approved_at'] ?? date('Y-m-d H:i:s'),
+                    ]);
+                }
+            }
+        } catch (Throwable $e) { /* ignore */
+        }
+
+        // Sync existing faculty signatures from clearance_requests into clearance_signatures
+        try {
+            $existingReqSigs = $db->query("SELECT cr.clearance_id, cr.faculty_id, cr.signature_data, cr.faculty_declaration, cr.form_submitted_at, cr.submitted_at, fp.first_name, fp.last_name, fp.user_id 
+                FROM clearance_requests cr
+                LEFT JOIN faculty_profiles fp ON fp.id = cr.faculty_id
+                WHERE cr.signature_data IS NOT NULL AND cr.signature_data != ''")->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($existingReqSigs)) {
+                $syncReqStmt = $db->prepare("INSERT INTO clearance_signatures
+                    (clearance_id, faculty_id, office, office_key, signatory_type, approval_ref, signer_user_id, signer_name, signer_role, signature_data, remarks, status, signed_at)
+                    VALUES (?, ?, 'Faculty Clearance Agreement', 'faculty', 'faculty', ?, ?, ?, 'faculty', ?, ?, 'Submitted', ?)
+                    ON DUPLICATE KEY UPDATE
+                        signature_data = VALUES(signature_data),
+                        signed_at = VALUES(signed_at)");
+                foreach ($existingReqSigs as $rSig) {
+                    $cId = (int) $rSig['clearance_id'];
+                    $fId = (int) $rSig['faculty_id'];
+                    $fName = trim(($rSig['first_name'] ?? '') . ' ' . ($rSig['last_name'] ?? '')) ?: 'Faculty Member';
+                    $fUserId = !empty($rSig['user_id']) ? (int) $rSig['user_id'] : null;
+                    $ref = 'FAC-' . date('Y') . '-' . sprintf('%05d', $cId);
+                    $sAt = $rSig['form_submitted_at'] ?? ($rSig['submitted_at'] ?? date('Y-m-d H:i:s'));
+                    $syncReqStmt->execute([
+                        $cId,
+                        $fId,
+                        $ref,
+                        $fUserId,
+                        $fName,
+                        $rSig['signature_data'],
+                        $rSig['faculty_declaration'] ?? 'Faculty Declaration and Agreement',
+                        $sAt
+                    ]);
+                }
+            }
+        } catch (Throwable $e) { /* ignore */
+        }
+
+        // 3. Table for persistent clearance audit trail / approval history
+        $db->exec("CREATE TABLE IF NOT EXISTS `clearance_approval_history` (
+            `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+            `clearance_id` int(10) unsigned NOT NULL,
+            `requirement_id` int(10) unsigned DEFAULT NULL,
+            `office` varchar(50) NOT NULL,
+            `action` varchar(50) NOT NULL,
+            `performed_by_id` int(10) unsigned DEFAULT NULL,
+            `performed_by_name` varchar(150) NOT NULL,
+            `performed_by_role` varchar(100) NOT NULL,
+            `remarks` text NULL,
+            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_hist_clearance` (`clearance_id`),
+            KEY `idx_hist_office` (`office`),
+            KEY `idx_hist_created` (`created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
+
+        // 3. Extend clearance_requests columns
+        $reqCols = $db->query("SHOW COLUMNS FROM clearance_requests")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('clearance_no', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN clearance_no VARCHAR(50) NULL AFTER clearance_id");
+            try {
+                $db->exec("ALTER TABLE clearance_requests ADD UNIQUE KEY `uk_clearance_no` (`clearance_no`)");
+            } catch (Throwable $e) {
+            }
+        }
+        if (!in_array('dh_verified', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN dh_verified TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('dh_verified_at', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN dh_verified_at DATETIME NULL");
+        }
+        if (!in_array('dh_verified_by', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN dh_verified_by INT(10) UNSIGNED NULL");
+        }
+        if (!in_array('dh_remarks', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN dh_remarks TEXT NULL");
+        }
+        if (!in_array('faculty_declared', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN faculty_declared TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('faculty_declared_at', $reqCols, true)) {
+            $db->exec("ALTER TABLE clearance_requests ADD COLUMN faculty_declared_at DATETIME NULL");
+        }
+
+        // 4. Backfill clearance_no for existing clearance_requests
+        $noRows = $db->query("SELECT cr.clearance_id, at.academic_year FROM clearance_requests cr LEFT JOIN academic_terms at ON at.term_id = cr.term_id WHERE cr.clearance_no IS NULL OR cr.clearance_no = '' LIMIT 100")->fetchAll();
+        if (!empty($noRows)) {
+            $updateNo = $db->prepare("UPDATE clearance_requests SET clearance_no = ? WHERE clearance_id = ?");
+            foreach ($noRows as $nr) {
+                $year = !empty($nr['academic_year']) ? substr((string) $nr['academic_year'], 0, 4) : date('Y');
+                $cNo = 'CLR-' . $year . '-' . str_pad((string) (int) $nr['clearance_id'], 5, '0', STR_PAD_LEFT);
+                $updateNo->execute([$cNo, (int) $nr['clearance_id']]);
+            }
+        }
+
+        // 5. Extend faculty_clearance_archives
+        $archCols = $db->query("SHOW COLUMNS FROM faculty_clearance_archives")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('clearance_no', $archCols, true)) {
+            $db->exec("ALTER TABLE faculty_clearance_archives ADD COLUMN clearance_no VARCHAR(50) NULL AFTER clearance_id");
+        }
+        if (!in_array('office_approvals_json', $archCols, true)) {
+            $db->exec("ALTER TABLE faculty_clearance_archives ADD COLUMN office_approvals_json LONGTEXT NULL");
+        }
+        if (!in_array('approval_history_json', $archCols, true)) {
+            $db->exec("ALTER TABLE faculty_clearance_archives ADD COLUMN approval_history_json LONGTEXT NULL");
+        }
+        if (!in_array('dh_verification_json', $archCols, true)) {
+            $db->exec("ALTER TABLE faculty_clearance_archives ADD COLUMN dh_verification_json LONGTEXT NULL");
+        }
+        if (!in_array('declaration_json', $archCols, true)) {
+            $db->exec("ALTER TABLE faculty_clearance_archives ADD COLUMN declaration_json LONGTEXT NULL");
+        }
+    } catch (Throwable $e) {
+        error_log('Digital approval schema migration warning: ' . $e->getMessage());
+    }
+}
+
+function facultyClearanceOfficeKey(string $name): string
+{
+    $n = strtolower(trim($name));
+    if (str_contains($n, 'academic') || str_contains($n, 'registrar'))
+        return 'academic';
+    if (str_contains($n, 'library'))
+        return 'library';
+    if (str_contains($n, 'property') || str_contains($n, 'custodian'))
+        return 'property';
+    if (str_contains($n, 'finan') || str_contains($n, 'accounting'))
+        return 'financial';
+    if (str_contains($n, 'hr') || str_contains($n, 'human'))
+        return 'hr';
+    if (str_contains($n, 'department') || str_contains($n, 'head') || str_contains($n, 'dean'))
+        return 'department';
+    return 'other';
+}
+
+function facultyClearanceOfficePrefix(string $officeKey): string
+{
+    return match ($officeKey) {
+        'academic' => 'ACAD',
+        'library' => 'LIB',
+        'property' => 'PROP',
+        'financial' => 'FIN',
+        'hr' => 'HR',
+        'department' => 'DH',
+        default => 'CLR',
+    };
+}
+
+function facultyClearanceGenerateApprovalRef(string $officeName, int $clearanceId, int $approvalId = 0): string
+{
+    $key = facultyClearanceOfficeKey($officeName);
+    $prefix = facultyClearanceOfficePrefix($key);
+    $year = date('Y');
+    $seq = $approvalId > 0 ? $approvalId : $clearanceId;
+    return sprintf('%s-%s-%05d', $prefix, $year, $seq);
+}
+
+function facultyClearanceGenerateNo(int $clearanceId, ?string $academicYear = null): string
+{
+    $year = !empty($academicYear) ? substr((string) $academicYear, 0, 4) : date('Y');
+    return sprintf('CLR-%s-%05d', $year, $clearanceId);
+}
+
+function facultyClearanceRecordOfficeApproval(
+    PDO $db,
+    int $clearanceId,
+    int $facultyId,
+    string $office,
+    int $approverUserId,
+    string $approverName,
+    string $approverRole,
+    string $status = 'Approved',
+    ?string $remarks = null,
+    ?string $approvalRef = null,
+    ?string $signatureData = null
+): array {
+    facultyClearanceEnsureDigitalApprovalSchema($db);
+
+    if (empty($approvalRef)) {
+        $approvalRef = facultyClearanceGenerateApprovalRef($office, $clearanceId);
+    }
+
+    $stmt = $db->prepare("INSERT INTO clearance_office_approvals
+        (clearance_id, faculty_id, office, approval_ref, approver_user_id, approver_name, approver_role, status, remarks, signature_data, approved_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE
+            approval_ref = VALUES(approval_ref),
+            approver_user_id = VALUES(approver_user_id),
+            approver_name = VALUES(approver_name),
+            approver_role = VALUES(approver_role),
+            status = VALUES(status),
+            remarks = VALUES(remarks),
+            signature_data = VALUES(signature_data),
+            approved_at = NOW()");
+    $stmt->execute([
+        $clearanceId,
+        $facultyId,
+        $office,
+        $approvalRef,
+        $approverUserId,
+        $approverName,
+        $approverRole,
+        $status,
+        $remarks,
+        $signatureData,
+    ]);
+
+    // Also record into dedicated clearance_signatures table if signature is provided
+    if (!empty($signatureData)) {
+        $officeKey = facultyClearanceOfficeKey($office);
+        $sigType = ($officeKey === 'department' || in_array(strtolower($approverRole), ['dept_head', 'department_head'], true))
+            ? 'department_head'
+            : 'office_signatory';
+        facultyClearanceRecordSignature(
+            $db,
+            $clearanceId,
+            $facultyId,
+            $office,
+            $approverUserId,
+            $approverName,
+            $approverRole,
+            $signatureData,
+            $sigType,
+            $approvalRef,
+            $status,
+            $remarks
+        );
+    }
+
+    // Fetch the updated row
+    $fetch = $db->prepare("SELECT * FROM clearance_office_approvals WHERE clearance_id = ? AND office = ? LIMIT 1");
+    $fetch->execute([$clearanceId, $office]);
+    return $fetch->fetch(PDO::FETCH_ASSOC) ?: [
+        'clearance_id' => $clearanceId,
+        'office' => $office,
+        'approval_ref' => $approvalRef,
+        'approver_name' => $approverName,
+        'approver_role' => $approverRole,
+        'status' => $status,
+        'approved_at' => date('Y-m-d H:i:s'),
+    ];
+}
+
+function facultyClearanceRecordSignature(
+    PDO $db,
+    int $clearanceId,
+    int $facultyId,
+    string $office,
+    int $signerUserId,
+    string $signerName,
+    string $signerRole,
+    string $signatureData,
+    string $signatoryType = 'office_signatory',
+    ?string $approvalRef = null,
+    string $status = 'Signed',
+    ?string $remarks = null,
+    ?string $ipAddress = null,
+    ?string $userAgent = null
+): array {
+    facultyClearanceEnsureDigitalApprovalSchema($db);
+
+    $officeKey = facultyClearanceOfficeKey($office);
+    if (empty($approvalRef)) {
+        $approvalRef = facultyClearanceGenerateApprovalRef($office, $clearanceId);
+    }
+    if ($ipAddress === null && !empty($_SERVER['REMOTE_ADDR'])) {
+        $ipAddress = substr((string) $_SERVER['REMOTE_ADDR'], 0, 45);
+    }
+    if ($userAgent === null && !empty($_SERVER['HTTP_USER_AGENT'])) {
+        $userAgent = substr((string) $_SERVER['HTTP_USER_AGENT'], 0, 500);
+    }
+
+    try {
+        $stmt = $db->prepare("INSERT INTO clearance_signatures
+            (clearance_id, faculty_id, office, office_key, signatory_type, approval_ref, signer_user_id, signer_name, signer_role, signature_data, remarks, status, ip_address, user_agent, signed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+                office = VALUES(office),
+                signatory_type = VALUES(signatory_type),
+                approval_ref = VALUES(approval_ref),
+                signer_user_id = VALUES(signer_user_id),
+                signer_name = VALUES(signer_name),
+                signer_role = VALUES(signer_role),
+                signature_data = VALUES(signature_data),
+                remarks = VALUES(remarks),
+                status = VALUES(status),
+                ip_address = VALUES(ip_address),
+                user_agent = VALUES(user_agent),
+                signed_at = NOW(),
+                updated_at = NOW()");
+        $stmt->execute([
+            $clearanceId,
+            $facultyId,
+            $office,
+            $officeKey,
+            $signatoryType,
+            $approvalRef,
+            $signerUserId > 0 ? $signerUserId : null,
+            $signerName,
+            $signerRole,
+            $signatureData,
+            $remarks,
+            $status,
+            $ipAddress,
+            $userAgent
+        ]);
+
+        $fetch = $db->prepare("SELECT * FROM clearance_signatures WHERE clearance_id = ? AND office_key = ? LIMIT 1");
+        $fetch->execute([$clearanceId, $officeKey]);
+        return $fetch->fetch(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('Failed to record clearance signature: ' . $e->getMessage());
+        return [];
+    }
+}
+
+function facultyClearanceLogHistory(
+    PDO $db,
+    int $clearanceId,
+    ?int $requirementId,
+    string $office,
+    string $action,
+    ?int $userId,
+    string $userName,
+    string $userRole,
+    ?string $remarks = null
+): void {
+    facultyClearanceEnsureDigitalApprovalSchema($db);
+    try {
+        $stmt = $db->prepare("INSERT INTO clearance_approval_history
+            (clearance_id, requirement_id, office, action, performed_by_id, performed_by_name, performed_by_role, remarks, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->execute([
+            $clearanceId,
+            $requirementId,
+            $office,
+            $action,
+            $userId,
+            $userName,
+            $userRole,
+            $remarks,
+        ]);
+    } catch (Throwable $e) {
+        error_log('Clearance history log error: ' . $e->getMessage());
+    }
+}
+
+function facultyClearanceGetOfficeApprovals(PDO $db, int $clearanceId): array
+{
+    facultyClearanceEnsureDigitalApprovalSchema($db);
+    try {
+        $stmt = $db->prepare("SELECT * FROM clearance_office_approvals WHERE clearance_id = ? ORDER BY approved_at ASC");
+        $stmt->execute([$clearanceId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $keyed = [];
+        foreach ($rows as $r) {
+            $keyed[$r['office']] = $r;
+            $officeKey = facultyClearanceOfficeKey($r['office']);
+            $keyed[$officeKey] = $r;
+        }
+        return $keyed;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function facultyClearanceGetApprovalHistory(PDO $db, int $clearanceId): array
+{
+    facultyClearanceEnsureDigitalApprovalSchema($db);
+    try {
+        $stmt = $db->prepare("SELECT * FROM clearance_approval_history WHERE clearance_id = ? ORDER BY created_at ASC, id ASC");
+        $stmt->execute([$clearanceId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
 }
 
 function facultyClearanceProfile(PDO $db, int $userId): ?array
@@ -314,13 +813,148 @@ function facultyClearanceRequest(PDO $db, int $facultyId, ?int $termId = null): 
     $request['approved_items'] = $approved;
     $request['submitted_items'] = $submitted;
     $request['progress'] = $total > 0 ? (int) round(($approved / $total) * 100) : 0;
+
+    // Ensure Clearance No
+    if (empty($request['clearance_no'])) {
+        $cNo = facultyClearanceGenerateNo($clearanceId, $request['academic_year'] ?? null);
+        try {
+            $db->prepare('UPDATE clearance_requests SET clearance_no = ? WHERE clearance_id = ?')->execute([$cNo, $clearanceId]);
+            $request['clearance_no'] = $cNo;
+        } catch (Throwable $e) {
+        }
+    }
+
+    // Attach digital approval records and persistent history
+    $request['office_approvals'] = facultyClearanceGetOfficeApprovals($db, $clearanceId);
+    $request['approval_history'] = facultyClearanceGetApprovalHistory($db, $clearanceId);
+
     return $request;
+}
+
+function facultyClearanceSequentialStages(): array
+{
+    return [
+        'Academic Clearance',
+        'Library Clearance',
+        'Financial Clearance',
+        'Property Clearance',
+        'HR Clearance',
+        'Department Clearance',
+    ];
+}
+
+function facultyClearanceStageProgression(?array $request): array
+{
+    $order = facultyClearanceSequentialStages();
+    $stages = [];
+
+    $itemByName = [];
+    if (!empty($request['items'])) {
+        foreach ($request['items'] as $it) {
+            $name = (string) ($it['name'] ?? ($it['requirement_name'] ?? ''));
+            if ($name !== '') {
+                $itemByName[$name] = $it;
+            }
+        }
+    }
+
+    $formSubmitted = !empty($request['form_submitted']);
+    $formStatus = (string) ($request['form_status'] ?? '');
+    $formApproved = ($formSubmitted && $formStatus === 'Approved');
+
+    // Step 1 (Academic Clearance) unlocks only after Clearance Form is approved
+    $prevCleared = $formApproved;
+    $prevOfficeName = 'Clearance Form';
+
+    foreach ($order as $idx => $name) {
+        $item = $itemByName[$name] ?? null;
+        $status = (string) ($item['status'] ?? 'Missing');
+        $statusNorm = strtolower(trim($status));
+        $hasFile = !empty($item['file_path']) || !empty($item['file_name']) || !empty($item['original_name']);
+        $isCleared = in_array($statusNorm, ['cleared', 'approved'], true);
+        $hasDeficiency = in_array($statusNorm, ['denied', 'hold', 'rejected', 'with deficiency', 'with_deficiency', 'on hold', 'on_hold'], true);
+
+        if (!$hasDeficiency && !empty($item['remarks'])) {
+            if (preg_match('/<!--SCOPE_STATE:(.*?)-->/s', (string) $item['remarks'], $mScope)) {
+                $sc = json_decode($mScope[1], true);
+                if (!empty($sc['failed'])) {
+                    $hasDeficiency = true;
+                }
+            }
+        }
+
+        $isUnlocked = $prevCleared;
+        $lockReason = '';
+        if (!$isUnlocked) {
+            $state = 'locked';
+            if (!$formApproved) {
+                $lockReason = 'Awaiting Department Head approval of Clearance Form to unlock this step.';
+            } else {
+                $lockReason = 'Complete the previous clearance to unlock this step.';
+            }
+        } else {
+            if ($isCleared) {
+                $state = 'cleared';
+            } elseif ($hasDeficiency) {
+                $state = 'with_issue';
+            } elseif ($hasFile || in_array($statusNorm, ['pending review', 'pending verification', 'under verification', 'submitted'], true)) {
+                $state = 'in_progress';
+            } else {
+                $state = 'ready';
+            }
+        }
+
+        $stages[$name] = [
+            'step' => $idx + 1,
+            'name' => $name,
+            'office_id' => (int) ($item['clearance_office_id'] ?? ($item['office_id'] ?? 0)),
+            'item_id' => (int) ($item['clearance_item_id'] ?? ($item['id'] ?? 0)),
+            'is_unlocked' => $isUnlocked,
+            'state' => $state,
+            'lock_reason' => $lockReason,
+            'status' => $status,
+            'is_cleared' => $isCleared,
+            'has_deficiency' => $hasDeficiency,
+            'has_file' => $hasFile,
+            'file_name' => $item['file_name'] ?? ($item['original_name'] ?? null),
+            'remarks' => $item['remarks'] ?? null,
+            'cleared_at' => $item['cleared_at'] ?? null,
+        ];
+
+        // Next stage unlocks only if current stage is Cleared
+        $prevCleared = $isCleared;
+        $prevOfficeName = $name;
+    }
+
+    return $stages;
+}
+
+function facultyClearanceIsOfficeUnlocked(?array $request, string|int $officeIdentifier): bool
+{
+    $progression = facultyClearanceStageProgression($request);
+    if (is_string($officeIdentifier) && isset($progression[$officeIdentifier])) {
+        return (bool) $progression[$officeIdentifier]['is_unlocked'];
+    }
+    foreach ($progression as $st) {
+        if ($st['office_id'] > 0 && $st['office_id'] === (int) $officeIdentifier) {
+            return (bool) $st['is_unlocked'];
+        }
+        if (strcasecmp($st['name'], (string) $officeIdentifier) === 0) {
+            return (bool) $st['is_unlocked'];
+        }
+    }
+    return false;
 }
 
 function facultyClearanceStatus(?array $request): string
 {
     if (!$request || empty($request['items'])) {
         return 'Not Submitted';
+    }
+
+    $overallStatus = (string) ($request['overall_status'] ?? '');
+    if ($overallStatus === 'Completed') {
+        return 'Completed';
     }
 
     $items = $request['items'] ?? [];
@@ -335,20 +969,9 @@ function facultyClearanceStatus(?array $request): string
     $hasUploads = count(array_filter($items, static fn($it) => !empty($it['file_path']) || in_array($it['status'] ?? '', ['Pending Review', 'Under Verification', 'Cleared', 'Approved'], true))) > 0;
     $formSubmitted = !empty($request['form_submitted']);
 
-    // 1. All office requirements cleared — declaration still goes to Department Head
+    // 1. All 6 office requirements cleared => Clearance completed!
     if ($clearedCount >= 6 && $clearedCount >= $totalCount) {
-        $hasSignature = !empty($request['signature_data']);
-        $overall = (string) ($request['overall_status'] ?? '');
-        if ($hasSignature && in_array($overall, ['For Department Head Approval', 'For Final Approval'], true)) {
-            return 'For Department Head Approval';
-        }
-        if ($hasSignature && $overall === 'Cleared') {
-            return 'Cleared';
-        }
-        if (!$hasSignature) {
-            return 'For Final Approval';
-        }
-        return 'Cleared';
+        return 'Completed';
     }
 
     // 2. Deficiency if any office flagged issue
@@ -357,14 +980,13 @@ function facultyClearanceStatus(?array $request): string
     }
 
     $formStatus = (string) ($request['form_status'] ?? '');
-    $overallStatus = (string) ($request['overall_status'] ?? '');
 
     // 3. If Department Head has rejected/returned the agreement form
     if ($formStatus === 'Rejected') {
         return 'Action Required';
     }
 
-    // 4. If agreement form is approved by Department Head, clearance is under verification by offices
+    // 4. If agreement form is approved by Department Head, clearance is under verification
     if ($formStatus === 'Approved') {
         if ($clearedCount >= 5) {
             return 'For Final Approval';
@@ -420,6 +1042,7 @@ function facultyClearanceJson(?array $request): array
 {
     return [
         'clearance_id' => $request ? (int) $request['clearance_id'] : null,
+        'clearance_no' => $request['clearance_no'] ?? null,
         'intent_type' => $request['intent_type'] ?? 'renewal',
         'form_submitted' => !empty($request['form_submitted']),
         'form_submitted_at' => $request['form_submitted_at'] ?? null,
@@ -429,15 +1052,24 @@ function facultyClearanceJson(?array $request): array
         'form_remarks' => $request['form_remarks'] ?? null,
         'faculty_declaration' => $request['faculty_declaration'] ?? null,
         'signature_data' => $request['signature_data'] ?? null,
+        'dh_verified' => !empty($request['dh_verified']),
+        'dh_verified_at' => $request['dh_verified_at'] ?? null,
+        'dh_verified_by' => $request['dh_verified_by'] ?? null,
+        'dh_remarks' => $request['dh_remarks'] ?? null,
+        'faculty_declared' => !empty($request['faculty_declared']),
+        'faculty_declared_at' => $request['faculty_declared_at'] ?? null,
+        'office_approvals' => $request['office_approvals'] ?? [],
+        'approval_history' => $request['approval_history'] ?? [],
         'overall_status' => $request['overall_status'] ?? null,
         'status' => facultyClearanceStatus($request),
+        'stages' => facultyClearanceStageProgression($request),
         'progress' => (int) ($request['progress'] ?? 0),
         'submitted_items' => (int) ($request['submitted_items'] ?? 0),
         'approved_items' => (int) ($request['approved_items'] ?? 0),
         'total_items' => (int) ($request['total_items'] ?? 6),
         'submitted_at' => $request['submitted_at'] ?? null,
         'updated_at' => $request['updated_at'] ?? null,
-        'items' => array_map(static function (array $item): array {
+        'items' => array_values(array_map(static function (array $item): array {
             return [
                 'id' => (int) $item['clearance_item_id'],
                 'office_id' => (int) $item['clearance_office_id'],
@@ -450,7 +1082,7 @@ function facultyClearanceJson(?array $request): array
                 'remarks' => $item['remarks'],
                 'cleared_at' => $item['cleared_at'],
             ];
-        }, $request['items'] ?? []),
+        }, $request['items'] ?? [])),
     ];
 }
 
@@ -465,39 +1097,67 @@ function facultyClearanceRecalculate(PDO $db, int $clearanceId): void
         $insertItem->execute([$clearanceId, (int) $office['clearance_office_id']]);
     }
 
+    // Fetch clearance request details including verification & declaration flags
+    $reqStmt = $db->prepare('SELECT * FROM clearance_requests WHERE clearance_id = ? LIMIT 1');
+    $reqStmt->execute([$clearanceId]);
+    $req = $reqStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$req) {
+        return;
+    }
+
+    // Fetch all items
     $placeholders = implode(',', array_fill(0, count($allowedNames), '?'));
-    $stmt = $db->prepare('SELECT ci.status FROM clearance_items ci JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id WHERE ci.clearance_id = ? AND co.name IN (' . $placeholders . ')');
+    $stmt = $db->prepare('SELECT ci.status, co.name FROM clearance_items ci JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id WHERE ci.clearance_id = ? AND co.name IN (' . $placeholders . ')');
     $stmt->execute(array_merge([$clearanceId], $allowedNames));
-    $statuses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $itemRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $hasDeficiency = in_array('Hold', $statuses, true)
-        || in_array('Denied', $statuses, true)
-        || in_array('With Deficiency', $statuses, true)
-        || in_array('On Hold', $statuses, true);
+    // Fetch office approvals
+    $officeApprovals = facultyClearanceGetOfficeApprovals($db, $clearanceId);
 
-    $clearedCount  = count(array_filter($statuses, static fn($s) => in_array($s, ['Cleared', 'Approved'], true)));
-    $totalCount    = count($statuses); // actual rows in DB for this clearance (may be 1–6)
-    $maxOffices    = count($allowedNames); // 6 defined clearance offices
+    // All 6 offices in sequential order
+    $sixOfficeNames = facultyClearanceSequentialStages();
 
-    // All items that exist are cleared → promote to Cleared
-    if ($totalCount > 0 && $clearedCount >= $totalCount) {
-        $overall = 'Cleared';
+    $hasActionRequired = false;
+    $hasDeficiency = false;
+    $approvedCount = 0;
+
+    foreach ($itemRows as $row) {
+        $st = $row['status'] ?? '';
+        $name = $row['name'] ?? '';
+        $officeKey = facultyClearanceOfficeKey($name);
+
+        if ($st === 'Action Required') {
+            $hasActionRequired = true;
+        } elseif (in_array($st, ['Hold', 'Denied', 'With Deficiency', 'On Hold'], true)) {
+            $hasDeficiency = true;
+        }
+
+        // Check if office is approved either by item status or by digital approval sign-off
+        $isOfficeApproved = in_array($st, ['Cleared', 'Approved'], true) || (!empty($officeApprovals[$officeKey]) && $officeApprovals[$officeKey]['status'] === 'Approved');
+
+        if (in_array($name, $sixOfficeNames, true) && $isOfficeApproved) {
+            $approvedCount++;
+        }
+    }
+
+    $allSixOfficesApproved = ($approvedCount >= count($sixOfficeNames));
+
+    if ($hasActionRequired) {
+        $overall = 'Action Required';
     } elseif ($hasDeficiency) {
         $overall = 'With Deficiency';
-    } elseif ($maxOffices > 0 && $clearedCount >= (int) round($maxOffices * 5 / 6)) {
-        // 5 of 6 offices cleared → For Final Approval
-        $overall = 'For Final Approval';
-    } elseif ($maxOffices > 0 && $clearedCount >= (int) round($maxOffices * 4 / 6)) {
-        // 4 of 6 offices cleared → For Department Head Approval
-        $overall = 'For Department Head Approval';
+    } elseif ($allSixOfficesApproved) {
+        $overall = 'Completed';
+    } elseif ($approvedCount > 0) {
+        $overall = 'Under Review';
     } else {
-        $overall = 'Under Verification';
+        $overall = 'In Progress';
     }
 
     $update = $db->prepare('UPDATE clearance_requests SET overall_status = ? WHERE clearance_id = ?');
     $update->execute([$overall, $clearanceId]);
 
-    if ($overall === 'Cleared') {
+    if ($overall === 'Completed' || $overall === 'Cleared') {
         facultyClearanceArchiveRecord($db, $clearanceId);
     }
 }
@@ -506,38 +1166,7 @@ function facultyClearanceRecalculate(PDO $db, int $clearanceId): void
 function facultyClearanceArchiveRecord(PDO $db, int $clearanceId): void
 {
     try {
-        $db->exec("CREATE TABLE IF NOT EXISTS `faculty_clearance_archives` (
-          `archive_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-          `clearance_id` int(10) unsigned NOT NULL,
-          `faculty_id` int(10) unsigned NOT NULL,
-          `term_id` int(10) unsigned NOT NULL,
-          `profile_id` int(10) unsigned DEFAULT NULL,
-          `faculty_no` varchar(50) DEFAULT NULL,
-          `first_name` varchar(100) DEFAULT NULL,
-          `middle_name` varchar(100) DEFAULT NULL,
-          `last_name` varchar(100) DEFAULT NULL,
-          `suffix` varchar(20) DEFAULT NULL,
-          `email` varchar(150) DEFAULT NULL,
-          `phone` varchar(50) DEFAULT NULL,
-          `designated_department` varchar(100) DEFAULT NULL,
-          `position` varchar(100) DEFAULT NULL,
-          `academic_rank` varchar(100) DEFAULT NULL,
-          `tier` varchar(50) DEFAULT NULL,
-          `employment_status` varchar(50) DEFAULT NULL,
-          `contractual_end` date DEFAULT NULL,
-          `academic_year` varchar(20) DEFAULT NULL,
-          `semester` varchar(50) DEFAULT NULL,
-          `intent_type` varchar(50) DEFAULT 'renewal',
-          `overall_status` varchar(50) DEFAULT 'Cleared',
-          `items_json` longtext DEFAULT NULL,
-          `submitted_at` datetime DEFAULT NULL,
-          `completed_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (`archive_id`),
-          KEY `idx_fca_faculty` (`faculty_id`),
-          KEY `idx_fca_term` (`term_id`),
-          KEY `idx_fca_clearance` (`clearance_id`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
+        facultyClearanceEnsureDigitalApprovalSchema($db);
 
         $stmt = $db->prepare('SELECT cr.*, at.academic_year, at.semester,
                                      f.faculty_no, fp.id AS profile_id, fp.first_name, fp.middle_name, fp.last_name, fp.suffix,
@@ -579,13 +1208,36 @@ function facultyClearanceArchiveRecord(PDO $db, int $clearanceId): void
 
         $itemsJson = json_encode($itemsList, JSON_UNESCAPED_SLASHES);
 
+        $officeApprovals = facultyClearanceGetOfficeApprovals($db, $clearanceId);
+        $approvalHistory = facultyClearanceGetApprovalHistory($db, $clearanceId);
+        $dhVerification = [
+            'verified' => !empty($rec['dh_verified']),
+            'verified_at' => $rec['dh_verified_at'] ?? null,
+            'verified_by' => $rec['dh_verified_by'] ?? null,
+            'remarks' => $rec['dh_remarks'] ?? null,
+        ];
+        $declarationData = [
+            'declared' => !empty($rec['faculty_declared']) || !empty($rec['signature_data']),
+            'declared_at' => $rec['faculty_declared_at'] ?? null,
+            'declaration_text' => $rec['faculty_declaration'] ?? null,
+            'signature_data' => $rec['signature_data'] ?? null,
+        ];
+
+        $officeApprovalsJson = json_encode($officeApprovals, JSON_UNESCAPED_SLASHES);
+        $approvalHistoryJson = json_encode($approvalHistory, JSON_UNESCAPED_SLASHES);
+        $dhVerificationJson = json_encode($dhVerification, JSON_UNESCAPED_SLASHES);
+        $declarationJson = json_encode($declarationData, JSON_UNESCAPED_SLASHES);
+        $clearanceNo = $rec['clearance_no'] ?? facultyClearanceGenerateNo($clearanceId, $rec['academic_year'] ?? null);
+
         $insert = $db->prepare('INSERT INTO faculty_clearance_archives
-            (clearance_id, faculty_id, term_id, profile_id, faculty_no, first_name, middle_name, last_name, suffix,
+            (clearance_id, clearance_no, faculty_id, term_id, profile_id, faculty_no, first_name, middle_name, last_name, suffix,
              email, phone, designated_department, position, academic_rank, tier, employment_status, contractual_end,
-             academic_year, semester, intent_type, overall_status, items_json, submitted_at, completed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "Cleared", ?, ?, NOW())');
+             academic_year, semester, intent_type, overall_status, items_json, office_approvals_json, approval_history_json,
+             dh_verification_json, declaration_json, submitted_at, completed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())');
         $insert->execute([
             $clearanceId,
+            $clearanceNo,
             (int) $rec['faculty_id'],
             (int) $rec['term_id'],
             !empty($rec['profile_id']) ? (int) $rec['profile_id'] : null,
@@ -605,8 +1257,13 @@ function facultyClearanceArchiveRecord(PDO $db, int $clearanceId): void
             $rec['academic_year'] ?? null,
             $rec['semester'] ?? null,
             $rec['intent_type'] ?? 'renewal',
-            $itemsJson,
-            $rec['submitted_at'] ?? date('Y-m-d H:i:s'),
+            'Completed',                              // overall_status
+            $itemsJson,                             // items_json
+            $officeApprovalsJson,
+            $approvalHistoryJson,
+            $dhVerificationJson,
+            $declarationJson,
+            $rec['submitted_at'] ?? date('Y-m-d H:i:s'), // submitted_at
         ]);
     } catch (Throwable $e) {
         error_log('facultyClearanceArchiveRecord error: ' . $e->getMessage());

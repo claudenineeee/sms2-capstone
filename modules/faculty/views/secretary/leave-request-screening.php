@@ -265,6 +265,7 @@ try {
                         WHEN 'Sabbatical Leave'        THEN lb.sabbatical_total       - lb.sabbatical_used
                         WHEN 'Academic/Vacation Leave' THEN lb.admin_vacation_total   - lb.admin_vacation_used
                         WHEN 'Special Leave Privileges' THEN lb.admin_special_total   - lb.admin_special_used
+                        WHEN 'Study Leave'             THEN lb.study_leave_total      - lb.study_leave_used
                         ELSE NULL
                     END) AS remaining_balance,
                     (CASE lr.leave_type
@@ -278,6 +279,7 @@ try {
                         WHEN 'Sabbatical Leave'        THEN lb.sabbatical_total
                         WHEN 'Academic/Vacation Leave' THEN lb.admin_vacation_total
                         WHEN 'Special Leave Privileges' THEN lb.admin_special_total
+                        WHEN 'Study Leave'             THEN lb.study_leave_total
                         ELSE NULL
                     END) AS total_balance
             $fromJoins

@@ -64,12 +64,12 @@ $cfHired = !empty($profile['hired_date']) && $profile['hired_date'] !== '0000-00
 $cfContractEnd = ($contractEnd && $contractEnd !== '0000-00-00')
     ? date('F d, Y', strtotime($contractEnd)) : 'Not set';
 $cfTerm = $term ? (string) ($term['term_label'] ?? ($term['name'] ?? ($term['semester'] . ' ' . $term['academic_year']))) : 'Current Term';
-$cfSY = $term ? (string) ($term['school_year'] ?? ($term['academic_year'] ?? (date('Y') . 'â€“' . (date('Y') + 1)))) : (date('Y') . 'â€“' . (date('Y') + 1));
+$cfSY = $term ? (string) ($term['school_year'] ?? ($term['academic_year'] ?? (date('Y') . '–' . (date('Y') + 1)))) : (date('Y') . '–' . (date('Y') + 1));
 $cfFormNo = 'CF-' . date('Y') . '-' . str_pad((string) (int) ($profile['id'] ?? 0), 4, '0', STR_PAD_LEFT);
 $cfDateSubmitted = $clearance && !empty($clearance['submitted_at'])
-    ? date('F d, Y', strtotime($clearance['submitted_at'])) : 'â€”';
+    ? date('F d, Y', strtotime($clearance['submitted_at'])) : '—';
 $cfFormSubmittedAt = $cfFormSubmitted && !empty($clearance['form_submitted_at'])
-    ? date('F d, Y', strtotime($clearance['form_submitted_at'])) : ($cfDateSubmitted !== 'â€”' ? $cfDateSubmitted : date('F d, Y'));
+    ? date('F d, Y', strtotime($clearance['form_submitted_at'])) : ($cfDateSubmitted !== '—' ? $cfDateSubmitted : date('F d, Y'));
 $cfSignatureData = $clearance['signature_data'] ?? null;
 $cfDeclarationText = $clearance['faculty_declaration'] ?? 'I hereby certify that I have completed and submitted the required documents and have returned any school propery, records, or other accountable items assigned to me.';
 $cfIntentType = (string) ($clearance['intent_type'] ?? 'renewal');
@@ -88,6 +88,73 @@ if ($status === 'Cleared') {
     $activeLifecycleStep = 3;
 } elseif ($cfFormSubmitted || $status === 'For Department Head Approval') {
     $activeLifecycleStep = 2;
+}
+
+// Digital Office Approvals & Signatures collection
+$clearanceId = (int) ($clearance['clearance_id'] ?? 0);
+$officeApprovalsList = [];
+$officeApprovalsKeyed = [];
+if ($db && $clearanceId > 0) {
+    facultyClearanceEnsureDigitalApprovalSchema($db);
+    try {
+        $oaStmt = $db->prepare("SELECT * FROM clearance_office_approvals WHERE clearance_id = ? ORDER BY approved_at ASC, id ASC");
+        $oaStmt->execute([$clearanceId]);
+        $officeApprovalsList = $oaStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($officeApprovalsList as $oa) {
+            $officeApprovalsKeyed[$oa['office']] = $oa;
+            $oaKey = facultyClearanceOfficeKey($oa['office']);
+            $officeApprovalsKeyed[$oaKey] = $oa;
+        }
+    } catch (Throwable $e) {
+        $officeApprovalsList = [];
+    }
+}
+
+$signatoryOfficesDef = [
+    'department' => [
+        'name' => 'Department Clearance',
+        'office' => 'Department Head / Dean',
+        'icon' => 'fa-building-columns',
+        'color' => 'primary',
+    ],
+    'academic' => [
+        'name' => 'Academic Clearance',
+        'office' => 'Registrar\'s Office',
+        'icon' => 'fa-graduation-cap',
+        'color' => 'info',
+    ],
+    'library' => [
+        'name' => 'Library Clearance',
+        'office' => 'Library & Learning Resource',
+        'icon' => 'fa-book-open',
+        'color' => 'secondary',
+    ],
+    'property' => [
+        'name' => 'Property Clearance',
+        'office' => 'Property & Custodian Office',
+        'icon' => 'fa-boxes-stacked',
+        'color' => 'warning',
+    ],
+    'financial' => [
+        'name' => 'Financial Clearance',
+        'office' => 'Finance & Accounting Office',
+        'icon' => 'fa-receipt',
+        'color' => 'success',
+    ],
+    'hr' => [
+        'name' => 'HR Clearance',
+        'office' => 'Human Resources (HR)',
+        'icon' => 'fa-user-check',
+        'color' => 'dark',
+    ],
+];
+
+$signedOfficesCount = 0;
+foreach ($signatoryOfficesDef as $sKey => $sDef) {
+    $approval = $officeApprovalsKeyed[$sKey] ?? ($officeApprovalsKeyed[$sDef['name']] ?? null);
+    if (!empty($approval['signature_data'])) {
+        $signedOfficesCount++;
+    }
 }
 ?>
 <style>
@@ -346,6 +413,10 @@ if ($status === 'Cleared') {
         color: #198754 !important;
     }
 
+    .office-card-header .clr-chip-ready {
+        color: #0d6efd !important;
+    }
+
     .office-card-header .clr-chip-review {
         color: #0d6efd !important;
     }
@@ -360,6 +431,11 @@ if ($status === 'Cleared') {
 
     .office-card-header .clr-chip-pending {
         color: #6c757d !important;
+    }
+
+    .office-card-header .clr-chip-locked {
+        color: #6c757d !important;
+        background: #f1f3f5 !important;
     }
 
     /* â”€â”€ Dark Mode Consistency (Matches the User's Dark Theme Banner) â”€â”€ */
@@ -415,6 +491,10 @@ if ($status === 'Cleared') {
         color: #34d399 !important;
     }
 
+    [data-theme="dark"] .office-card-header .clr-chip-ready {
+        color: #60a5fa !important;
+    }
+
     [data-theme="dark"] .office-card-header .clr-chip-review {
         color: #60a5fa !important;
     }
@@ -429,6 +509,11 @@ if ($status === 'Cleared') {
 
     [data-theme="dark"] .office-card-header .clr-chip-pending {
         color: #94a3b8 !important;
+    }
+
+    [data-theme="dark"] .office-card-header .clr-chip-locked {
+        color: #94a3b8 !important;
+        background-color: rgba(30, 41, 59, 0.9) !important;
     }
 
     [data-theme="dark"] .clr-flow-stepper {
@@ -545,6 +630,12 @@ if ($status === 'Cleared') {
         border: 1px solid rgba(25, 135, 84, .3);
     }
 
+    .clr-chip-ready {
+        background: rgba(13, 110, 253, .12);
+        color: #0d6efd;
+        border: 1px solid rgba(13, 110, 253, .3);
+    }
+
     .clr-chip-review {
         background: rgba(13, 202, 240, .12);
         color: #0aa2c0;
@@ -567,6 +658,70 @@ if ($status === 'Cleared') {
         background: rgba(108, 117, 125, .1);
         color: var(--bs-secondary-color);
         border: 1px solid rgba(108, 117, 125, .25);
+    }
+
+    .clr-chip-locked {
+        background: rgba(108, 117, 125, .15);
+        color: #6c757d;
+        border: 1px solid rgba(108, 117, 125, .3);
+    }
+
+    /* Sequential Unlocking & Locked Card Styles */
+    .office-card.office-card-locked {
+        opacity: 0.72;
+        border-color: #dee2e6 !important;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
+    }
+
+    .office-card.office-card-locked .office-card-header {
+        background: #6c757d !important;
+        background-color: #6c757d !important;
+    }
+
+    .office-card.office-card-locked .office-card-header .rounded-circle {
+        background-color: #e9ecef !important;
+        color: #6c757d !important;
+    }
+
+    .office-card.office-card-locked .office-card-header .rounded-circle i {
+        color: #6c757d !important;
+    }
+
+    .office-card.office-card-locked .office-upload-zone {
+        background-color: #f1f3f5 !important;
+        border-color: #ced4da !important;
+        cursor: not-allowed !important;
+        pointer-events: none;
+    }
+
+    .office-card.office-card-locked .office-checklist {
+        opacity: 0.65;
+    }
+
+    [data-theme="dark"] .office-card.office-card-locked {
+        opacity: 0.65;
+        background: rgba(18, 28, 52, 0.45) !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    [data-theme="dark"] .office-card.office-card-locked .office-card-header {
+        background: rgba(71, 85, 105, 0.4) !important;
+        background-color: rgba(71, 85, 105, 0.4) !important;
+    }
+
+    [data-theme="dark"] .office-card.office-card-locked .office-card-header .rounded-circle {
+        background-color: rgba(30, 41, 59, 0.8) !important;
+        color: #94a3b8 !important;
+    }
+
+    [data-theme="dark"] .office-card.office-card-locked .office-card-header .rounded-circle i {
+        color: #94a3b8 !important;
+    }
+
+    [data-theme="dark"] .office-card.office-card-locked .office-upload-zone {
+        background-color: rgba(15, 23, 42, 0.35) !important;
+        border-color: rgba(255, 255, 255, 0.06) !important;
     }
 
     /* â”€â”€ Remarks & Deficiency Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -604,6 +759,31 @@ if ($status === 'Cleared') {
         flex-wrap: wrap;
         gap: .75rem;
         background: var(--bs-tertiary-bg, rgba(0, 0, 0, .02));
+    }
+
+    /* Dark mode: suppress bright Bootstrap alert-success & body-tertiary panels */
+    [data-bs-theme="dark"] .clr-form-footer,
+    [data-theme="dark"] .clr-form-footer {
+        background: rgba(255, 255, 255, 0.04) !important;
+        border-top-color: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    [data-bs-theme="dark"] .alert.alert-success,
+    [data-theme="dark"] .alert.alert-success {
+        background-color: rgba(34, 197, 94, 0.12) !important;
+        border-color: rgba(34, 197, 94, 0.25) !important;
+        color: #86efac !important;
+    }
+
+    [data-bs-theme="dark"] .alert.alert-success strong,
+    [data-theme="dark"] .alert.alert-success strong {
+        color: #bbf7d0 !important;
+    }
+
+    [data-bs-theme="dark"] .p-3.bg-body-tertiary.rounded-3.border,
+    [data-theme="dark"] .p-3.bg-body-tertiary.rounded-3.border {
+        background-color: rgba(255, 255, 255, 0.04) !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
     }
 
     .btn-clr-primary {
@@ -785,11 +965,18 @@ if ($status === 'Cleared') {
         max-width: 100%;
     }
 
+    [data-bs-theme="dark"] .signature-pad-container,
+    [data-theme="dark"] .signature-pad-container {
+        background: #1e293b !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+    }
+
     .signature-pad-canvas {
         display: block;
         width: 100%;
         height: 140px;
         touch-action: none;
+        background: transparent;
     }
 
     .signature-baseline {
@@ -797,7 +984,7 @@ if ($status === 'Cleared') {
         bottom: 30px;
         left: 20px;
         right: 20px;
-        border-bottom: 1px dashed rgba(0, 0, 0, 0.2);
+        border-bottom: 1px dashed var(--bs-border-color);
         pointer-events: none;
     }
 
@@ -806,7 +993,7 @@ if ($status === 'Cleared') {
         bottom: 6px;
         left: 20px;
         font-size: 0.7rem;
-        color: #888;
+        color: var(--bs-secondary-color);
         pointer-events: none;
     }
 
@@ -817,7 +1004,7 @@ if ($status === 'Cleared') {
         display: block;
     }
 
-    /* â”€â”€ Clearance Agreement Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* â”€â”€ Clearance Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .clr-conduct-doc {
         background: var(--bs-body-bg);
         border: 1px solid var(--bs-border-color);
@@ -918,7 +1105,7 @@ if ($status === 'Cleared') {
     }
 
     .clr-conduct-list li::before {
-        content: "â€¢";
+        content: "";
         position: absolute;
         left: 0.5rem;
         top: -0.1rem;
@@ -987,7 +1174,7 @@ if ($status === 'Cleared') {
                 <span class="d-none d-md-inline small">Refresh</span>
             </button>
             <button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1"
-                onclick="confirmResetClearance()" title="Reset Status Tracker & Files">
+                onclick="confirmResetClearance()" title="Reset Status Tracker, Signatures & Files">
                 <i class="fas fa-rotate-left"></i>
                 <span class="d-none d-md-inline small">Reset</span>
             </button>
@@ -1136,7 +1323,7 @@ if ($status === 'Cleared') {
                                         <i class="fas fa-hourglass-half fs-5"></i>
                                     </div>
                                     <div>
-                                        <div class="fw-bold text-warning-emphasis">Clearance Form Submitted â€” Awaiting
+                                        <div class="fw-bold text-warning-emphasis">Clearance Form Submitted Awaiting
                                             Department Head Approval</div>
                                         <div class="small text-body-secondary">
                                             Submitted on <strong><?= facultyClearanceEsc($cfFormSubmittedAt) ?></strong> Â·
@@ -1240,7 +1427,7 @@ if ($status === 'Cleared') {
                 </div>
             </div>
 
-            <!-- â”€â”€ Clearance Agreement Form Gate Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+            <!-- â”€â”€ Clearance Form Gate Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
             <?php if (!$cfFormApproved): ?>
                 <?php if ($cfFormSubmitted && $cfFormStatus === 'Pending Review'): ?>
                     <div class="card border-0 shadow-sm overflow-hidden mb-4">
@@ -1396,7 +1583,9 @@ if ($status === 'Cleared') {
             </div>
 
             <div class="row g-3 mb-4">
-                <?php foreach ($offices as $index => $foff):
+                <?php
+                $sequentialProgression = facultyClearanceStageProgression($clearance);
+                foreach ($offices as $index => $foff):
                     $fOid = (int) $foff['clearance_office_id'];
                     $fName = (string) $foff['name'];
                     $meta = $sectionsMeta[$fName] ?? [
@@ -1407,29 +1596,47 @@ if ($status === 'Cleared') {
                         'items' => ['Accountabilities and obligations verified'],
                     ];
                     $fItem = $itemByOffice[$fOid] ?? null;
-                    $fStat = $fItem['status'] ?? 'Missing';
-                    $fStatN = strtolower(trim($fStat));
 
-                    $fChip = 'pending';
-                    $fChipIcon = 'fa-circle-dot';
-                    $fChipLabel = 'Pending Verification';
+                    $fProg = $sequentialProgression[$fName] ?? null;
+                    $fStageState = $fProg['state'] ?? 'locked';
+                    $isStageUnlocked = !empty($fProg['is_unlocked']);
+                    $fLockReason = $fProg['lock_reason'] ?? 'Complete the previous clearance to unlock this step.';
 
-                    if (in_array($fStatN, ['cleared', 'approved'], true)) {
+                    if ($fStageState === 'cleared') {
+                        $cardClass = 'office-card office-card-cleared';
                         $fChip = 'cleared';
                         $fChipIcon = 'fa-check-circle';
                         $fChipLabel = 'Cleared';
-                    } elseif (in_array($fStatN, ['denied', 'hold', 'rejected', 'with deficiency', 'with_deficiency'], true)) {
+                        $uploadBlocked = true;
+                        $uploadHint = 'This section has been cleared by the office.';
+                    } elseif ($fStageState === 'with_issue') {
+                        $cardClass = 'office-card office-card-deficiency';
                         $fChip = 'deficiency';
                         $fChipIcon = 'fa-exclamation-triangle';
-                        $fChipLabel = 'With Deficiency';
-                    } elseif (in_array($fStatN, ['on hold', 'on_hold'], true)) {
-                        $fChip = 'onhold';
-                        $fChipIcon = 'fa-pause-circle';
-                        $fChipLabel = 'On Hold';
-                    } elseif (in_array($fStatN, ['pending review', 'pending verification', 'under verification', 'submitted'], true)) {
+                        $fChipLabel = 'With Issue';
+                        $uploadBlocked = false;
+                        $uploadHint = 'Upload a new document to resolve flagged issue';
+                    } elseif ($fStageState === 'in_progress') {
+                        $cardClass = 'office-card office-card-progress';
                         $fChip = 'review';
                         $fChipIcon = 'fa-hourglass-half';
                         $fChipLabel = 'Under Verification';
+                        $uploadBlocked = true;
+                        $uploadHint = 'Document is under review by ' . facultyClearanceEsc($meta['office']);
+                    } elseif ($fStageState === 'ready') {
+                        $cardClass = 'office-card office-card-ready';
+                        $fChip = 'ready';
+                        $fChipIcon = 'fa-circle-dot';
+                        $fChipLabel = 'Ready for Verification';
+                        $uploadBlocked = false;
+                        $uploadHint = 'Upload supporting documents (PDF, max 10 MB)';
+                    } else { // locked
+                        $cardClass = 'office-card office-card-locked';
+                        $fChip = 'locked';
+                        $fChipIcon = 'fa-lock';
+                        $fChipLabel = 'Locked';
+                        $uploadBlocked = true;
+                        $uploadHint = $fLockReason ?: 'Complete the previous clearance to unlock this step.';
                     }
 
                     $fDate = $fItem ? (string) ($fItem['cleared_at'] ?? ($fItem['updated_at'] ?? '')) : '';
@@ -1448,19 +1655,11 @@ if ($status === 'Cleared') {
                     $fScopePassed = (is_array($fScopeState) && isset($fScopeState['passed']) && is_array($fScopeState['passed'])) ? $fScopePassed = $fScopeState['passed'] : [];
 
                     $fFileName = $fItem ? (string) ($fItem['original_name'] ?? basename((string) ($fItem['file_path'] ?? ''))) : '';
-
-                    // Upload is blocked when agreement is not approved by Dept Head OR under verification / cleared
-                    $uploadBlocked = (!$cfFormApproved) || in_array($fChip, ['review', 'cleared'], true);
-                    $uploadHint = match (true) {
-                        !$cfFormSubmitted => 'Submit the Clearance Form to begin the review workflow.',
-                        !$cfFormApproved => 'Awaiting Department Head endorsement on your Clearance Form.',
-                        $fChip === 'review' => 'Document is under review and cannot be replaced.',
-                        $fChip === 'cleared' => 'This section has been cleared by the office.',
-                        default => 'Upload supporting documents (PDF, max 10 MB)',
-                    };
+                    $hasScopeFailed = !empty($fScopeFailed);
                     ?>
                     <div class="col-12 col-md-6 col-lg-4">
-                        <div class="office-card" data-office-row-id="<?= $fOid ?>">
+                        <div class="<?= $cardClass ?>" data-office-row-id="<?= $fOid ?>" data-stage-state="<?= $fStageState ?>"
+                            data-office-name="<?= facultyClearanceEsc($fName) ?>">
                             <div
                                 class="office-card-header card-header bg-primary text-white py-3 d-flex align-items-center justify-content-between gap-3">
                                 <div class="d-flex align-items-center gap-3">
@@ -1514,18 +1713,28 @@ if ($status === 'Cleared') {
                                             }
                                             ?>
                                             <li
-                                                class="<?= $isFailed ? 'text-danger fw-semibold' : ($isPassed ? 'text-success' : '') ?>">
+                                                class="<?= $isFailed ? 'text-danger fw-semibold d-flex align-items-center justify-content-between gap-2' : ($isPassed ? 'text-success d-flex align-items-center gap-2' : 'd-flex align-items-center gap-2') ?>">
                                                 <?php if ($isFailed): ?>
-                                                    <i class="fas fa-times-circle text-danger flex-shrink-0"
-                                                        title="Flagged as Deficient"></i>
-                                                    <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                    <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                                        <i class="fas fa-times-circle text-danger flex-shrink-0"
+                                                            title="Flagged as Deficient"></i>
+                                                        <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                    </div>
+                                                    <span
+                                                        class="badge bg-danger-subtle text-danger border border-danger-subtle flex-shrink-0"
+                                                        style="font-size:0.68rem;">
+                                                        <i class="fas fa-file-arrow-up me-1"></i>Upload a new File
+                                                    </span>
                                                 <?php elseif ($isPassed): ?>
-                                                    <i class="fas fa-check-circle text-success flex-shrink-0" title="Complied"></i>
-                                                    <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <i class="fas fa-check-circle text-success flex-shrink-0" title="Complied"></i>
+                                                        <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                    </div>
                                                 <?php else: ?>
-                                                    <i
-                                                        class="fas fa-check-circle flex-shrink-0"></i>
-                                                    <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <i class="fas fa-check-circle flex-shrink-0"></i>
+                                                        <span class="flex-grow-1"><?= facultyClearanceEsc($chk) ?></span>
+                                                    </div>
                                                 <?php endif; ?>
                                             </li>
                                         <?php endforeach; ?>
@@ -1534,31 +1743,42 @@ if ($status === 'Cleared') {
 
                                 <!-- Remarks / Office Note box -->
                                 <div class="office-remarks-container">
-                                    <?php if ($fChip === 'onhold' && $fCleanRmk !== ''): ?>
-                                        <div class="office-onhold-box">
+                                    <?php if ($fChip === 'deficiency' && $fCleanRmk !== ''): ?>
+                                        <div class="office-deficiency-box mb-2">
+                                            <div class="fw-bold mb-1"><i class="fas fa-exclamation-triangle me-1"></i>Issue
+                                                Reported:</div>
+                                            <div><?= nl2br(facultyClearanceEsc($fCleanRmk)) ?></div>
+                                        </div>
+                                    <?php elseif ($fChip === 'onhold' && $fCleanRmk !== ''): ?>
+                                        <div class="office-onhold-box mb-2">
                                             <div class="fw-bold mb-1"><i class="fas fa-pause-circle me-1"></i>Office Note:</div>
                                             <div class="office-remarks-text"><?= nl2br(facultyClearanceEsc($fCleanRmk)) ?></div>
                                         </div>
                                     <?php elseif ($fChip === 'cleared' && $fDate !== ''): ?>
-                                        <div class="small text-success d-flex align-items-center gap-1">
+                                        <div class="small text-success d-flex align-items-center gap-1 mb-2">
                                             <i class="fas fa-badge-check"></i>
                                             <span>Cleared on <?= date('M j, Y', strtotime($fDate)) ?></span>
                                         </div>
+                                    <?php elseif ($fChip === 'locked'): ?>
+                                        <div class="small text-body-secondary d-flex align-items-center gap-1 mb-2">
+                                            <i class="fas fa-lock text-secondary opacity-75"></i>
+                                            <span>Sequential Step Locked</span>
+                                        </div>
                                     <?php else: ?>
-                                        <div class="small text-body-secondary d-flex align-items-center gap-1">
+                                        <div class="small text-body-secondary d-flex align-items-center gap-1 mb-2">
                                             <i class="fas fa-shield-halved text-secondary opacity-50"></i>
                                             <span>Verified directly by <?= facultyClearanceEsc($meta['office']) ?></span>
                                         </div>
                                     <?php endif; ?>
                                 </div>
 
-                                <!-- â”€â”€ Upload Zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+                                <!-- ── Upload Zone ────────────────────────────────────── -->
                                 <div class="office-upload-zone <?= $uploadBlocked ? 'upload-blocked' : '' ?>"
                                     id="uploadZone<?= $fOid ?>" data-office-id="<?= $fOid ?>"
                                     data-office-name="<?= facultyClearanceEsc($fName) ?>"
                                     data-blocked="<?= $uploadBlocked ? '1' : '0' ?>" <?= !$uploadBlocked ? 'ondragover="handleDragOver(event,this)" ondragleave="handleDragLeave(event,this)" ondrop="handleDrop(event,this)"' : '' ?>>
 
-                                    <?php if ($fFileName !== '' && !in_array($fChip, ['cleared'], true)): ?>
+                                    <?php if ($fFileName !== '' && !in_array($fChip, ['cleared', 'locked'], true)): ?>
                                         <!-- Existing uploaded file preview -->
                                         <div class="upload-file-preview" id="filePreview<?= $fOid ?>">
                                             <i class="fas fa-file-pdf text-danger me-1"></i>
@@ -1577,7 +1797,7 @@ if ($status === 'Cleared') {
                                                 <div class="text-start overflow-hidden">
                                                     <span class="d-block small fw-bold text-primary-emphasis text-truncate"
                                                         id="stagedFileName<?= $fOid ?>">file.pdf</span>
-                                                    <small class="text-body-secondary" style="font-size:0.72rem;">Attached Â·
+                                                    <small class="text-body-secondary" style="font-size:0.72rem;">Attached ·
                                                         Ready to submit</small>
                                                 </div>
                                             </div>
@@ -1589,22 +1809,32 @@ if ($status === 'Cleared') {
                                         </div>
                                     </div>
 
-                                    <div class="upload-zone-inner <?= $uploadBlocked ? 'opacity-50' : '' ?>"
-                                        id="zoneInner<?= $fOid ?>">
-                                        <i class="fas <?= !$cfFormSubmitted ? 'fa-lock text-secondary' : ($fChip === 'cleared' ? 'fa-lock text-success' : ($fChip === 'review' ? 'fa-clock text-info' : 'fa-cloud-arrow-up text-primary')) ?> mb-1"
-                                            style="font-size:1.5rem;"></i>
-                                        <div class="upload-hint-text"><?= htmlspecialchars($uploadHint) ?></div>
-                                        <?php if (!$uploadBlocked): ?>
-                                            <label class="btn-upload-choose" for="fileInput<?= $fOid ?>"
-                                                id="chooseLabel<?= $fOid ?>">
-                                                <i class="fas fa-folder-open me-1"></i>
-                                                <?= $fFileName !== '' ? 'Select New PDF' : 'Choose PDF' ?>
-                                            </label>
-                                            <input type="file" id="fileInput<?= $fOid ?>" class="office-file-input d-none"
-                                                accept=".pdf,application/pdf" data-office-id="<?= $fOid ?>"
-                                                onchange="handleFileSelected(this)">
-                                        <?php endif; ?>
-                                    </div>
+                                    <?php if ($fStageState === 'locked'): ?>
+                                        <div class="upload-zone-inner py-3 text-center" id="zoneInner<?= $fOid ?>">
+                                            <i class="fas fa-lock text-secondary mb-2" style="font-size:1.75rem;"></i>
+                                            <div class="fw-semibold text-secondary small mb-1">Clearance Step Locked</div>
+                                            <div class="upload-hint-text text-body-secondary small">
+                                                <?= facultyClearanceEsc($uploadHint) ?>
+                                            </div>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="upload-zone-inner <?= $uploadBlocked ? 'opacity-50' : '' ?>"
+                                            id="zoneInner<?= $fOid ?>">
+                                            <i class="fas <?= ($fChip === 'cleared' ? 'fa-check-circle text-success' : ($fChip === 'review' ? 'fa-clock text-info' : ($fChip === 'deficiency' ? 'fa-triangle-exclamation text-danger' : 'fa-cloud-arrow-up text-primary'))) ?> mb-1"
+                                                style="font-size:1.5rem;"></i>
+                                            <div class="upload-hint-text"><?= htmlspecialchars($uploadHint) ?></div>
+                                            <?php if (!$uploadBlocked): ?>
+                                                <label class="btn-upload-choose" for="fileInput<?= $fOid ?>"
+                                                    id="chooseLabel<?= $fOid ?>">
+                                                    <i class="fas fa-folder-open me-1"></i>
+                                                    <?= $hasScopeFailed ? 'Upload a new File' : ($fFileName !== '' ? 'Select New PDF' : 'Choose PDF') ?>
+                                                </label>
+                                                <input type="file" id="fileInput<?= $fOid ?>" class="office-file-input d-none"
+                                                    accept=".pdf,application/pdf" data-office-id="<?= $fOid ?>"
+                                                    onchange="handleFileSelected(this)">
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -1612,7 +1842,152 @@ if ($status === 'Cleared') {
                 <?php endforeach; ?>
             </div>
 
-            <!-- â”€â”€ Faculty Declaration & Digital Signature (Placed at the bottom) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+            <!-- Submit Attached Files Bar (Bottom of Clearance Verification Sections) -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4 d-none overflow-hidden" id="resubmitBar">
+                <div class="p-3 bg-primary-subtle border border-primary-subtle rounded-3">
+                    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="fas fa-file-arrow-up text-primary fs-4"></i>
+                            <div>
+                                <div class="fw-bold small text-primary-emphasis" id="resubmitText">0 file(s) attached for
+                                    submission</div>
+                                <small class="text-body-secondary">Click the button to upload and submit all attached
+                                    documents to the responsible offices.</small>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-primary fw-semibold px-4 py-2" id="btnResubmitClearance"
+                            onclick="submitClearanceForm()">
+                            <i class="fas fa-paper-plane me-1"></i> Submit Attached Files
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Office Clearance Signatures Panel ───────────────────────────── -->
+            <div class="card border-0 shadow-sm overflow-hidden mb-4" id="officeSignaturesPanel">
+                <div
+                    class="card-header bg-body-tertiary border-bottom py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+                            style="width:40px;height:40px;">
+                            <i class="fas fa-stamp fs-5"></i>
+                        </div>
+                        <div>
+                            <h5 class="fw-bold text-body-emphasis mb-0 fs-6">Office Clearance Signatures</h5>
+                            <div class="small text-body-secondary">Official digital sign-offs &amp; authorized
+                                representative signatures</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span
+                            class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1.5 rounded-pill fw-semibold"
+                            id="officeSignaturesCounter">
+                            <i class="fas fa-signature me-1"></i><?= $signedOfficesCount ?> of
+                            <?= count($signatoryOfficesDef) ?> Signed
+                        </span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 rounded-pill"
+                            onclick="refreshOfficeSignatures()" title="Refresh Signatures">
+                            <i class="fas fa-rotate me-1"></i>Refresh
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2.5 rounded-pill"
+                            onclick="confirmResetOfficeSignatures()" title="Reset Official Clearance Signatures">
+                            <i class="fas fa-rotate-left me-1"></i>Reset Signatures
+                        </button>
+                    </div>
+                </div>
+
+                <div class="p-3 p-md-4">
+                    <div class="row g-3" id="officeSignaturesGrid">
+                        <?php foreach ($signatoryOfficesDef as $sKey => $sDef):
+                            $approval = $officeApprovalsKeyed[$sKey] ?? ($officeApprovalsKeyed[$sDef['name']] ?? null);
+                            $hasSig = !empty($approval['signature_data']);
+                            $isApproved = !empty($approval['status']) && in_array($approval['status'], ['Approved', 'Cleared', 'Final Verified'], true);
+                            $appDate = !empty($approval['approved_at']) ? date('M d, Y · h:i A', strtotime($approval['approved_at'])) : null;
+                            ?>
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <div
+                                    class="card h-100 border rounded-3 overflow-hidden <?= $hasSig ? 'border-success-subtle shadow-sm bg-body' : 'border-dashed bg-body-tertiary bg-opacity-50' ?>">
+                                    <div
+                                        class="card-header py-2.5 px-3 d-flex align-items-center justify-content-between <?= $hasSig ? 'bg-success-subtle border-bottom border-success-subtle' : 'bg-body-secondary border-bottom' ?>">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="fas <?= $sDef['icon'] ?> text-<?= $sDef['color'] ?>"></i>
+                                            <span
+                                                class="fw-semibold text-body-emphasis small"><?= facultyClearanceEsc($sDef['name']) ?></span>
+                                        </div>
+                                        <?php if ($hasSig): ?>
+                                            <span class="badge bg-success text-white px-2 py-0.5" style="font-size:0.68rem;">
+                                                <i class="fas fa-check-circle me-1"></i>Signed
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-secondary-subtle text-body-secondary border px-2 py-0.5"
+                                                style="font-size:0.68rem;">
+                                                <i class="fas fa-hourglass-half me-1"></i>Pending
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="card-body p-3 d-flex flex-column justify-content-between">
+                                        <?php if ($hasSig): ?>
+                                            <div>
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <small class="text-body-secondary d-block"
+                                                            style="font-size:0.7rem; letter-spacing:0.03em;">APPROVED BY</small>
+                                                        <strong
+                                                            class="text-body-emphasis small d-block"><?= facultyClearanceEsc($approval['approver_name'] ?? 'Authorized Officer') ?></strong>
+                                                        <small class="text-body-secondary"
+                                                            style="font-size:0.72rem;"><?= facultyClearanceEsc($sDef['office']) ?></small>
+                                                    </div>
+                                                    <?php if (!empty($approval['approval_ref'])): ?>
+                                                        <span
+                                                            class="badge bg-body-tertiary text-body-secondary border font-monospace px-1.5 py-0.5"
+                                                            style="font-size:0.68rem;" title="Official Approval Reference">
+                                                            <?= facultyClearanceEsc($approval['approval_ref']) ?>
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </div>
+
+                                                <!-- Signature Display Pad -->
+                                                <div class="p-2 bg-white rounded-2 border text-center my-2 shadow-xs"
+                                                    style="min-height:85px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                                                    <img src="<?= facultyClearanceEsc($approval['signature_data']) ?>"
+                                                        alt="Signature of <?= facultyClearanceEsc($approval['approver_name'] ?? 'Officer') ?>"
+                                                        style="max-height:64px; max-width:100%; object-fit:contain;">
+                                                    <div class="w-100 border-top mt-1 pt-1 d-flex justify-content-between align-items-center text-muted"
+                                                        style="font-size:0.62rem;">
+                                                        <span>DIGITAL SIGNATURE</span>
+                                                        <span><?= $appDate ? facultyClearanceEsc($appDate) : '' ?></span>
+                                                    </div>
+                                                </div>
+
+                                                <?php if (!empty($approval['remarks'])): ?>
+                                                    <div class="small text-body-secondary bg-body-tertiary p-1.5 rounded border border-light-subtle fst-italic mt-1"
+                                                        style="font-size:0.72rem;">
+                                                        <i class="fas fa-quote-left text-muted me-1"
+                                                            style="font-size:0.65rem;"></i><?= facultyClearanceEsc($approval['remarks']) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="text-center py-4 my-auto">
+                                                <div class="rounded-circle bg-body-secondary text-body-tertiary d-flex align-items-center justify-content-center mx-auto mb-2"
+                                                    style="width:44px;height:44px;">
+                                                    <i class="fas fa-file-signature fs-5 opacity-50"></i>
+                                                </div>
+                                                <h6 class="text-body-secondary fw-semibold small mb-1">Awaiting Signature</h6>
+                                                <small class="text-body-tertiary d-block" style="font-size:0.72rem;">
+                                                    <?= facultyClearanceEsc($sDef['office']) ?>
+                                                </small>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Faculty Declaration & Digital Signature (Placed at the bottom) ──────────────────────── -->
             <div class="card border-0 shadow-sm overflow-hidden mb-4" id="facultyDeclarationCard">
                 <div
                     class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-3">
@@ -1631,7 +2006,7 @@ if ($status === 'Cleared') {
                         id="declarationBadge">
                         <i
                             class="fas <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'fa-check-circle' : 'fa-hourglass-half') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'fa-pen-clip' : 'fa-lock') ?> me-1"></i>
-                        <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'Signed' : 'Pending Department Head Review') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'Ready to Sign' : 'Locked â€” Pending Document Approvals') ?>
+                        <?= !empty($cfSignatureData) ? (($status === 'Cleared') ? 'Signed' : 'Pending Department Head Review') : (($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0) ? 'Ready to Sign' : 'Locked Pending Document Approvals') ?>
                     </span>
                 </div>
 
@@ -1669,6 +2044,15 @@ if ($status === 'Cleared') {
                                 <div class="small text-body-secondary mt-1">
                                     Form No: <strong><?= facultyClearanceEsc($cfFormNo) ?></strong>
                                 </div>
+                                <?php if ($status !== 'Cleared'): ?>
+                                    <div class="mt-2">
+                                        <button type="button"
+                                            class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
+                                            onclick="confirmResetFacultySignature()" title="Reset Declaration Signature">
+                                            <i class="fas fa-rotate-left"></i> Reset Signature
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php elseif ($cfApprovedCount >= $cfTotalCount && $cfTotalCount > 0): ?>
@@ -1706,7 +2090,7 @@ if ($status === 'Cleared') {
                                 </div>
 
                                 <div class="col-12 col-md-5">
-                                    <div class="p-3 bg-white rounded-3 border mb-3">
+                                    <div class="p-3 bg-body-tertiary rounded-3 border mb-3">
                                         <div class="small mb-2">
                                             <span class="text-body-secondary d-block">Date of Declaration:</span>
                                             <strong class="text-body-emphasis"><?= date('F d, Y') ?></strong>
@@ -1758,25 +2142,6 @@ if ($status === 'Cleared') {
             <?php if ($cfFormSubmitted): ?>
                 <!-- â”€â”€ Clearance Requirements Unified Submission Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
                 <div class="clr-card">
-                    <!-- Resubmit / Upload Bar when files are attached -->
-                    <div class="p-3 bg-primary-subtle border-bottom border-primary-subtle d-none" id="resubmitBar">
-                        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-                            <div class="d-flex align-items-center gap-2">
-                                <i class="fas fa-file-arrow-up text-primary fs-4"></i>
-                                <div>
-                                    <div class="fw-bold small text-primary-emphasis" id="resubmitText">0 file(s) attached for
-                                        submission</div>
-                                    <small class="text-body-secondary">Click the button to upload and submit all attached
-                                        documents to the responsible offices.</small>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-primary fw-semibold px-4 py-2" id="btnResubmitClearance"
-                                onclick="submitClearanceForm()">
-                                <i class="fas fa-paper-plane me-1"></i> Submit Attached Files
-                            </button>
-                        </div>
-                    </div>
-
                     <!-- Footer Bar -->
                     <div class="clr-form-footer">
                         <div class="d-flex align-items-center gap-2 text-success">
@@ -1900,7 +2265,8 @@ if ($status === 'Cleared') {
             </div>
             <div class="modal-body px-4 py-3">
                 <p class="text-body-secondary small mb-0">
-                    This will clear all uploaded documents, remove office review flags, and reset your status tracker
+                    This will clear all uploaded documents, official clearance signatures, remove office review flags,
+                    and reset your status tracker
                     back to <strong>Step 1: Faculty Submit (0%)</strong>.
                 </p>
             </div>
@@ -1917,9 +2283,197 @@ if ($status === 'Cleared') {
     </div>
 </div>
 
+<!-- Confirm Reset Office Signatures Modal -->
+<div class="modal fade" id="confirmResetOfficeSignaturesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-danger-subtle d-flex align-items-center justify-content-center flex-shrink-0"
+                        style="width:44px;height:44px;">
+                        <i class="fas fa-signature text-danger fs-5"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0">Reset Signatures?</h6>
+                        <small class="text-body-secondary">Official office sign-offs</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <p class="text-body-secondary small mb-0">
+                    This will clear all <strong>official clearance signatures</strong> and reset office approvals back
+                    to pending state.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0 px-4 pb-4 d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger flex-fill fw-semibold" id="confirmResetOfficeSignaturesBtn"
+                    onclick="executeResetOfficeSignatures()">
+                    <i class="fas fa-trash-alt me-1"></i> Yes, Reset
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Reset Faculty Signature Modal -->
+<div class="modal fade" id="confirmResetFacultySignatureModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-danger-subtle d-flex align-items-center justify-content-center flex-shrink-0"
+                        style="width:44px;height:44px;">
+                        <i class="fas fa-pen-fancy text-danger fs-5"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0">Reset Signature?</h6>
+                        <small class="text-body-secondary">Faculty Declaration</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <p class="text-body-secondary small mb-0">
+                    This will remove your submitted digital signature so you can re-sign your Faculty Declaration.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0 px-4 pb-4 d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger flex-fill fw-semibold" id="confirmResetFacultySignatureBtn"
+                    onclick="executeResetFacultySignature()">
+                    <i class="fas fa-trash-alt me-1"></i> Yes, Reset
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• SCRIPTS â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <script>
     const clearanceApi = '<?= BASE_URL ?>/modules/faculty/controllers/ClearanceController.php';
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, character => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#039;',
+            '"': '&quot;'
+        }[character]));
+    }
+
+    // ── Digital Office Signatures Dynamic Refresh ────────────────────────────
+    const CLEARANCE_RECORD_ID = <?= (int) $clearanceId ?>;
+    const SIGNATORY_OFFICES = <?= json_encode($signatoryOfficesDef) ?>;
+
+    async function refreshOfficeSignatures() {
+        if (!CLEARANCE_RECORD_ID) return;
+        const grid = document.getElementById('officeSignaturesGrid');
+        const counter = document.getElementById('officeSignaturesCounter');
+        try {
+            const resp = await fetch(`${clearanceApi}?action=get-office-signatures&clearance_id=${CLEARANCE_RECORD_ID}`);
+            const data = await resp.json();
+            if (!data.ok || !Array.isArray(data.signatures)) return;
+
+            const sigByOffice = {};
+            data.signatures.forEach(s => {
+                if (s.office) {
+                    sigByOffice[s.office] = s;
+                    const norm = s.office.toLowerCase();
+                    if (norm.includes('acad') || norm.includes('regist')) sigByOffice['academic'] = s;
+                    if (norm.includes('library')) sigByOffice['library'] = s;
+                    if (norm.includes('property') || norm.includes('custod')) sigByOffice['property'] = s;
+                    if (norm.includes('finan') || norm.includes('account')) sigByOffice['financial'] = s;
+                    if (norm.includes('hr') || norm.includes('human')) sigByOffice['hr'] = s;
+                    if (norm.includes('dept') || norm.includes('head') || norm.includes('dean')) sigByOffice['department'] = s;
+                }
+            });
+
+            let signedCount = 0;
+            const totalCount = Object.keys(SIGNATORY_OFFICES).length;
+
+            const html = Object.entries(SIGNATORY_OFFICES).map(([sKey, sDef]) => {
+                const sig = sigByOffice[sKey] || sigByOffice[sDef.name];
+                const hasSig = Boolean(sig && sig.signature_data);
+                if (hasSig) signedCount++;
+                const appDate = (sig && sig.approved_at)
+                    ? new Date(sig.approved_at.replace(' ', 'T')).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : '';
+
+                return `
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card h-100 border rounded-3 overflow-hidden ${hasSig ? 'border-success-subtle shadow-sm bg-body' : 'border-dashed bg-body-tertiary bg-opacity-50'}">
+                        <div class="card-header py-2.5 px-3 d-flex align-items-center justify-content-between ${hasSig ? 'bg-success-subtle border-bottom border-success-subtle' : 'bg-body-secondary border-bottom'}">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="fas ${sDef.icon} text-${sDef.color}"></i>
+                                <span class="fw-semibold text-body-emphasis small">${escapeHtml(sDef.name)}</span>
+                            </div>
+                            ${hasSig ? `
+                                <span class="badge bg-success text-white px-2 py-0.5" style="font-size:0.68rem;">
+                                    <i class="fas fa-check-circle me-1"></i>Signed
+                                </span>
+                            ` : `
+                                <span class="badge bg-secondary-subtle text-body-secondary border px-2 py-0.5" style="font-size:0.68rem;">
+                                    <i class="fas fa-hourglass-half me-1"></i>Pending
+                                </span>
+                            `}
+                        </div>
+                        <div class="card-body p-3 d-flex flex-column justify-content-between">
+                            ${hasSig ? `
+                                <div>
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <small class="text-body-secondary d-block" style="font-size:0.7rem; letter-spacing:0.03em;">APPROVED BY</small>
+                                            <strong class="text-body-emphasis small d-block">${escapeHtml(sig.approver_name || 'Authorized Officer')}</strong>
+                                            <small class="text-body-secondary" style="font-size:0.72rem;">${escapeHtml(sDef.office)}</small>
+                                        </div>
+                                        ${sig.approval_ref ? `
+                                            <span class="badge bg-body-tertiary text-body-secondary border font-monospace px-1.5 py-0.5" style="font-size:0.68rem;" title="Official Approval Reference">
+                                                ${escapeHtml(sig.approval_ref)}
+                                            </span>
+                                        ` : ''}
+                                    </div>
+
+                                    <div class="p-2 bg-white rounded-2 border text-center my-2 shadow-xs" style="min-height:85px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                                        <img src="${escapeHtml(sig.signature_data)}" alt="Signature" style="max-height:64px; max-width:100%; object-fit:contain;">
+                                        <div class="w-100 border-top mt-1 pt-1 d-flex justify-content-between align-items-center text-muted" style="font-size:0.62rem;">
+                                            <span>DIGITAL SIGNATURE</span>
+                                            <span>${escapeHtml(appDate)}</span>
+                                        </div>
+                                    </div>
+
+                                    ${sig.remarks ? `
+                                        <div class="small text-body-secondary bg-body-tertiary p-1.5 rounded border border-light-subtle fst-italic mt-1" style="font-size:0.72rem;">
+                                            <i class="fas fa-quote-left text-muted me-1" style="font-size:0.65rem;"></i>${escapeHtml(sig.remarks)}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            ` : `
+                                <div class="text-center py-4 my-auto">
+                                    <div class="rounded-circle bg-body-secondary text-body-tertiary d-flex align-items-center justify-content-center mx-auto mb-2" style="width:44px;height:44px;">
+                                        <i class="fas fa-file-signature fs-5 opacity-50"></i>
+                                    </div>
+                                    <h6 class="text-body-secondary fw-semibold small mb-1">Awaiting Signature</h6>
+                                    <small class="text-body-tertiary d-block" style="font-size:0.72rem;">${escapeHtml(sDef.office)}</small>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            if (grid) grid.innerHTML = html;
+            if (counter) counter.innerHTML = `<i class="fas fa-signature me-1"></i>${signedCount} of ${totalCount} Signed`;
+        } catch (e) {
+            console.warn('Could not refresh office signatures:', e);
+        }
+    }
 
     // â”€â”€ Dropdown Section View Switcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function switchClearanceView(view) {
@@ -2015,19 +2569,80 @@ if ($status === 'Cleared') {
         const modal = bootstrap.Modal.getInstance(document.getElementById('confirmResetModal'));
         modal?.hide();
         const btn = document.getElementById('confirmResetBtn');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resettingâ€¦'; }
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resetting…'; }
 
         try {
             const formData = new FormData();
             formData.append('action', 'reset-requirements');
+            if (typeof CLEARANCE_RECORD_ID !== 'undefined' && CLEARANCE_RECORD_ID) {
+                formData.append('clearance_id', String(CLEARANCE_RECORD_ID));
+            }
             const res = await fetch(clearanceApi, { method: 'POST', body: formData });
             const data = await res.json();
             if (!data.ok) throw new Error(data.error || 'Failed to reset clearance.');
-            showFacultyAlert(data.message || 'Clearance status tracker and files reset successfully!', 'success');
+            clearSignatureCanvas();
+            showFacultyAlert(data.message || 'Clearance status tracker, official signatures, and files reset successfully!', 'success');
             setTimeout(() => location.reload(), 700);
         } catch (err) {
             showFacultyAlert(err.message, 'danger');
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash-alt me-1"></i> Yes, Reset All'; }
+        }
+    }
+
+    function confirmResetOfficeSignatures() {
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmResetOfficeSignaturesModal'));
+        modal.show();
+    }
+
+    async function executeResetOfficeSignatures() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmResetOfficeSignaturesModal'));
+        modal?.hide();
+        const btn = document.getElementById('confirmResetOfficeSignaturesBtn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resetting…'; }
+
+        try {
+            const formData = new FormData();
+            formData.append('action', 'reset-office-signatures');
+            if (typeof CLEARANCE_RECORD_ID !== 'undefined' && CLEARANCE_RECORD_ID) {
+                formData.append('clearance_id', String(CLEARANCE_RECORD_ID));
+            }
+            const res = await fetch(clearanceApi, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to reset official clearance signatures.');
+            showFacultyAlert(data.message || 'Official clearance signatures have been reset successfully!', 'success');
+            await refreshOfficeSignatures();
+            setTimeout(() => location.reload(), 700);
+        } catch (err) {
+            showFacultyAlert(err.message, 'danger');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash-alt me-1"></i> Yes, Reset'; }
+        }
+    }
+
+    function confirmResetFacultySignature() {
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmResetFacultySignatureModal'));
+        modal.show();
+    }
+
+    async function executeResetFacultySignature() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmResetFacultySignatureModal'));
+        modal?.hide();
+        const btn = document.getElementById('confirmResetFacultySignatureBtn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Resetting…'; }
+
+        try {
+            const formData = new FormData();
+            formData.append('action', 'reset-faculty-signature');
+            if (typeof CLEARANCE_RECORD_ID !== 'undefined' && CLEARANCE_RECORD_ID) {
+                formData.append('clearance_id', String(CLEARANCE_RECORD_ID));
+            }
+            const res = await fetch(clearanceApi, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to reset faculty signature.');
+            showFacultyAlert(data.message || 'Faculty declaration signature reset successfully!', 'success');
+            setTimeout(() => location.reload(), 700);
+        } catch (err) {
+            showFacultyAlert(err.message, 'danger');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash-alt me-1"></i> Yes, Reset'; }
         }
     }
 
@@ -2073,7 +2688,10 @@ if ($status === 'Cleared') {
                 ctx.lineJoin = 'round';
                 ctx.lineCap = 'round';
                 ctx.lineWidth = 2.5;
-                ctx.strokeStyle = '#1a2e5a';
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark'
+                    || document.documentElement.classList.contains('dark-mode')
+                    || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !document.documentElement.hasAttribute('data-bs-theme'));
+                ctx.strokeStyle = isDark ? '#e2e8f0' : '#1e293b';
             }
         }
         resizeCanvas();
@@ -2103,6 +2721,10 @@ if ($status === 'Cleared') {
             if (!isDrawing) return;
             e.preventDefault();
             const pos = getPos(e);
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark'
+                || document.documentElement.classList.contains('dark-mode')
+                || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !document.documentElement.hasAttribute('data-bs-theme'));
+            ctx.strokeStyle = isDark ? '#e2e8f0' : '#1e293b';
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
             hasDrawnSignature = true;
@@ -2144,6 +2766,7 @@ if ($status === 'Cleared') {
         updateFormSubmitButtonState();
     });
 
+
     function updateFormSubmitButtonState() {
         const isAgreed = !!document.getElementById('cfFormAgreeCheck')?.checked;
         const btn = document.getElementById('btnSubmitClearanceFormOnly');
@@ -2162,7 +2785,7 @@ if ($status === 'Cleared') {
         const btn = document.getElementById('btnSubmitClearanceFormOnly');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting Agreementâ€¦';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting Agreement…';
         }
 
         try {
@@ -2172,7 +2795,7 @@ if ($status === 'Cleared') {
 
             const res = await fetch(clearanceApi, { method: 'POST', body: formData });
             const data = await res.json();
-            if (!data.ok) throw new Error(data.error || 'Failed to submit clearance agreement.');
+            if (!data.ok) throw new Error(data.error || 'Failed to submit clearance form.');
 
             showFacultyAlert(data.message || 'Clearance Form submitted successfully! It has been forwarded to your Department Head for review and endorsement.', 'success');
             setTimeout(() => location.reload(), 800);
@@ -2185,7 +2808,7 @@ if ($status === 'Cleared') {
         }
     }
 
-    // â”€â”€ Clearance Requirements File Staging & Declaration Check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Clearance Requirements File Staging & Declaration Check ─────────────────
     const pendingFiles = {}; // { [officeId]: File }
 
     document.getElementById('cfDeclareCheck')?.addEventListener('change', function () {
@@ -2214,7 +2837,7 @@ if ($status === 'Cleared') {
         const btn = document.getElementById('btnSubmitFacultyDeclaration');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting Declarationâ€¦';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting Declaration…';
         }
 
         try {
@@ -2240,17 +2863,11 @@ if ($status === 'Cleared') {
 
     function updateSubmitButtonState() {
         const count = Object.keys(pendingFiles).length;
-        const btn = document.getElementById('btnSubmitClearanceForm');
-        const btnLabel = document.getElementById('submitBtnLabel');
+        const btn = document.getElementById('btnResubmitClearance');
         const isDeclared = document.getElementById('cfDeclareCheck') ? document.getElementById('cfDeclareCheck').checked : true;
 
         if (btn) {
-            btn.disabled = (count === 0 && !hasDrawnSignature) || !isDeclared;
-            if (btnLabel) {
-                btnLabel.textContent = count > 0
-                    ? `Submit Clearance (${count} File${count > 1 ? 's' : ''} Attached)`
-                    : 'Submit Attached Documents';
-            }
+            btn.disabled = count === 0 || !isDeclared;
         }
 
         const resubmitBar = document.getElementById('resubmitBar');
@@ -2268,10 +2885,15 @@ if ($status === 'Cleared') {
     }
 
     function submitClearanceForm() {
+        const entries = Object.entries(pendingFiles);
+        if (entries.length === 0) {
+            showFacultyAlert('Please attach at least one PDF file before submitting.', 'warning');
+            return;
+        }
+
         const listEl = document.getElementById('modalAttachedList');
         const badgeEl = document.getElementById('modalAttachedBadge');
         const allOfficeCards = document.querySelectorAll('.office-card');
-        const entries = Object.entries(pendingFiles);
 
         if (badgeEl) badgeEl.textContent = `${entries.length} Document${entries.length !== 1 ? 's' : ''} Attached`;
 
@@ -2325,7 +2947,7 @@ if ($status === 'Cleared') {
         const modal = bootstrap.Modal.getInstance(document.getElementById('confirmClearanceFormModal'));
         modal?.hide();
         this.disabled = true;
-        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Uploading &amp; Submittingâ€¦';
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Uploading &amp; Submitting…';
 
         try {
             const formData = new FormData();
@@ -2353,6 +2975,8 @@ if ($status === 'Cleared') {
             this.innerHTML = '<i class="fas fa-check-circle me-1"></i>Yes, Confirm &amp; Submit';
         }
     });
+
+
 
     // â”€â”€ Workflow Stepper Dynamic Updater (4 steps â€” HR Final Approval removed) â”€â”€â”€â”€
     function updateLifecycleStepper(status, approvedItems = 0, totalItems = 6) {
@@ -2408,7 +3032,7 @@ if ($status === 'Cleared') {
         }
     }
 
-    // â”€â”€ Live Status Poller â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Live Status Poller ───────────────────────────────────────────────────
     async function pollFacultyClearanceStatus() {
         try {
             const res = await fetch(`${clearanceApi}?action=summary`);
@@ -2422,26 +3046,84 @@ if ($status === 'Cleared') {
                         const remarksBox = card.querySelector('.office-remarks-container');
                         const rawStatus = String(item.status || '').trim().toLowerCase();
 
+                        // Get stage progression state
+                        const stage = (data.clearance.stages && data.clearance.stages[item.name]) || null;
+                        const stageState = stage ? stage.state : 'locked';
+
+                        card.classList.remove('office-card-locked', 'office-card-ready', 'office-card-progress', 'office-card-cleared', 'office-card-deficiency');
+
                         let chipClass = 'pending';
                         let chipIcon = 'fa-circle-dot';
                         let labelText = 'Pending Verification';
 
-                        if (rawStatus === 'cleared' || rawStatus === 'approved') {
+                        const zone = card.querySelector('.office-upload-zone');
+                        const zoneInner = card.querySelector('.upload-zone-inner');
+
+                        if (stageState === 'cleared') {
+                            card.classList.add('office-card-cleared');
                             chipClass = 'cleared';
                             chipIcon = 'fa-check-circle';
                             labelText = 'Cleared';
-                        } else if (rawStatus === 'denied' || rawStatus === 'hold' || rawStatus === 'rejected' || rawStatus === 'with deficiency' || rawStatus === 'with_deficiency') {
+                            if (zone) {
+                                zone.classList.add('upload-blocked');
+                                zone.dataset.blocked = '1';
+                            }
+                        } else if (stageState === 'with_issue') {
+                            card.classList.add('office-card-deficiency');
                             chipClass = 'deficiency';
                             chipIcon = 'fa-exclamation-triangle';
-                            labelText = 'With Deficiency';
-                        } else if (rawStatus === 'on hold' || rawStatus === 'on_hold') {
-                            chipClass = 'onhold';
-                            chipIcon = 'fa-pause-circle';
-                            labelText = 'On Hold';
-                        } else if (rawStatus === 'pending review' || rawStatus === 'pending verification' || rawStatus === 'under verification' || rawStatus === 'submitted') {
+                            labelText = 'With Issue';
+                            if (zone) {
+                                zone.classList.remove('upload-blocked');
+                                zone.dataset.blocked = '0';
+                            }
+                        } else if (stageState === 'in_progress') {
+                            card.classList.add('office-card-progress');
                             chipClass = 'review';
                             chipIcon = 'fa-hourglass-half';
                             labelText = 'Under Verification';
+                            if (zone) {
+                                zone.classList.add('upload-blocked');
+                                zone.dataset.blocked = '1';
+                            }
+                        } else if (stageState === 'ready') {
+                            card.classList.add('office-card-ready');
+                            chipClass = 'ready';
+                            chipIcon = 'fa-circle-dot';
+                            labelText = 'Ready for Verification';
+                            if (zone) {
+                                zone.classList.remove('upload-blocked');
+                                zone.dataset.blocked = '0';
+                            }
+                            if (zoneInner && (!zoneInner.querySelector('.btn-upload-choose') || zoneInner.querySelector('.fa-lock'))) {
+                                zoneInner.innerHTML = `
+                                    <i class="fas fa-cloud-arrow-up text-primary mb-1" style="font-size:1.5rem;"></i>
+                                    <div class="upload-hint-text">Upload supporting documents (PDF, max 10 MB)</div>
+                                    <label class="btn-upload-choose" for="fileInput${item.office_id}" id="chooseLabel${item.office_id}">
+                                        <i class="fas fa-folder-open me-1"></i> Choose PDF
+                                    </label>
+                                    <input type="file" id="fileInput${item.office_id}" class="office-file-input d-none"
+                                        accept=".pdf,application/pdf" data-office-id="${item.office_id}"
+                                        onchange="handleFileSelected(this)">
+                                `;
+                            }
+                        } else { // locked
+                            card.classList.add('office-card-locked');
+                            chipClass = 'locked';
+                            chipIcon = 'fa-lock';
+                            labelText = 'Locked';
+                            if (zone) {
+                                zone.classList.add('upload-blocked');
+                                zone.dataset.blocked = '1';
+                            }
+                            if (zoneInner) {
+                                const lockMsg = (stage && stage.lock_reason) ? stage.lock_reason : 'Complete the previous clearance to unlock this step.';
+                                zoneInner.innerHTML = `
+                                    <i class="fas fa-lock text-secondary mb-2" style="font-size:1.75rem;"></i>
+                                    <div class="fw-semibold text-secondary small mb-1">Clearance Step Locked</div>
+                                    <div class="upload-hint-text text-body-secondary small">${escapeHtml(lockMsg)}</div>
+                                `;
+                            }
                         }
 
                         if (chip) {
@@ -2452,10 +3134,17 @@ if ($status === 'Cleared') {
                         if (chipLabel) chipLabel.textContent = labelText;
 
                         if (remarksBox) {
-                            if (chipClass === 'onhold' && item.remarks) {
+                            if (chipClass === 'deficiency' && item.remarks) {
+                                const cleanRmk = item.remarks.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '').replace(/<!--SCOPE_STATE:.*?-->/g, '').trim();
+                                    remarksBox.innerHTML = `
+                                    <div class="office-deficiency-box mb-2">
+                                        <div class="fw-bold mb-1"><i class="fas fa-exclamation-triangle me-1"></i>Issue Reported:</div>
+                                        <div>${escapeHtml(cleanRmk).replace(/\n/g, '<br>')}</div>
+                                    </div>`;
+                            } else if (chipClass === 'onhold' && item.remarks) {
                                 const cleanRmk = item.remarks.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '').replace(/<!--SCOPE_STATE:.*?-->/g, '').trim();
                                 remarksBox.innerHTML = `
-                                    <div class="office-onhold-box">
+                                    <div class="office-onhold-box mb-2">
                                         <div class="fw-bold mb-1"><i class="fas fa-pause-circle me-1"></i>Office Note:</div>
                                         <div class="office-remarks-text">${escapeHtml(cleanRmk).replace(/\n/g, '<br>')}</div>
                                     </div>`;
@@ -2463,15 +3152,21 @@ if ($status === 'Cleared') {
                                 const d = new Date(item.cleared_at.replace(' ', 'T'));
                                 const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                                 remarksBox.innerHTML = `
-                                    <div class="small text-success d-flex align-items-center gap-1">
+                                    <div class="small text-success d-flex align-items-center gap-1 mb-2">
                                         <i class="fas fa-badge-check"></i>
                                         <span>Cleared on ${dateStr}</span>
                                     </div>`;
+                            } else if (chipClass === 'locked') {
+                                remarksBox.innerHTML = `
+                                    <div class="small text-body-secondary d-flex align-items-center gap-1 mb-2">
+                                        <i class="fas fa-lock text-secondary opacity-75"></i>
+                                        <span>Sequential Step Locked</span>
+                                    </div>`;
                             } else {
                                 remarksBox.innerHTML = `
-                                    <div class="small text-body-secondary d-flex align-items-center gap-1">
+                                    <div class="small text-body-secondary d-flex align-items-center gap-1 mb-2">
                                         <i class="fas fa-shield-halved text-secondary opacity-50"></i>
-                                        <span>Verified directly by administrative office</span>
+                                        <span>Verified directly by responsible office</span>
                                     </div>`;
                             }
                         }
@@ -2499,16 +3194,28 @@ if ($status === 'Cleared') {
                             let icon = li.querySelector('i');
 
                             if (failedSet.has(text)) {
-                                li.className = 'text-danger fw-semibold';
+                                li.className = 'text-danger fw-semibold d-flex align-items-center justify-content-between gap-2';
                                 if (icon) icon.className = 'fas fa-times-circle text-danger flex-shrink-0';
+                                const badge = document.createElement('span');
+                                badge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle flex-shrink-0';
+                                badge.style.fontSize = '0.68rem';
+
+                                li.appendChild(badge);
                             } else if (passedSet.has(text) || chipClass === 'cleared') {
-                                li.className = 'text-success';
+                                li.className = 'text-success d-flex align-items-center gap-2';
                                 if (icon) icon.className = 'fas fa-check-circle text-success flex-shrink-0';
                             } else {
-                                li.className = '';
+                                li.className = 'd-flex align-items-center gap-2';
                                 if (icon) icon.className = 'fas fa-check-circle flex-shrink-0';
                             }
                         });
+
+                        const hintEl = card.querySelector('.upload-hint-text');
+                        const chooseLabel = card.querySelector('.btn-upload-choose');
+                        if (failedSet.size > 0) {
+                            if (hintEl) hintEl.innerHTML = '<span class="text-danger fw-semibold"></span>';
+                            if (chooseLabel) chooseLabel.innerHTML = '<i class="fas fa-folder-open me-1"></i>Upload a new File';
+                        }
                     }
                 });
 
@@ -2629,7 +3336,11 @@ if ($status === 'Cleared') {
         e.preventDefault();
         zone.classList.remove('dragover');
         const officeId = parseInt(zone.dataset.officeId, 10);
-        if (!officeId || zone.dataset.blocked === '1') return;
+        const card = zone.closest('.office-card');
+        if (!officeId || zone.dataset.blocked === '1' || (card && card.classList.contains('office-card-locked'))) {
+            showFacultyAlert('This clearance stage is locked. Complete the previous clearance first.', 'warning');
+            return;
+        }
         const files = e.dataTransfer?.files;
         if (!files || files.length === 0) return;
         const file = files[0];
@@ -2642,7 +3353,13 @@ if ($status === 'Cleared') {
 
     function handleFileSelected(input) {
         const officeId = parseInt(input.dataset.officeId, 10);
-        if (!officeId || !input.files || input.files.length === 0) return;
+        const card = input.closest('.office-card');
+        if (!officeId || (card && card.classList.contains('office-card-locked'))) {
+            showFacultyAlert('This clearance stage is locked. Complete the previous clearance first.', 'warning');
+            input.value = '';
+            return;
+        }
+        if (!input.files || input.files.length === 0) return;
         const file = input.files[0];
         if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
             showFacultyAlert('Only PDF files are allowed.', 'danger');
@@ -2653,6 +3370,11 @@ if ($status === 'Cleared') {
     }
 
     function stageFile(officeId, file) {
+        const card = document.querySelector(`[data-office-row-id="${officeId}"]`);
+        if (card && card.classList.contains('office-card-locked')) {
+            showFacultyAlert('This clearance stage is locked. Complete the previous clearance first.', 'warning');
+            return;
+        }
         pendingFiles[officeId] = file;
         const stagedBox = document.getElementById(`stagedBox${officeId}`);
         const stagedName = document.getElementById(`stagedFileName${officeId}`);
@@ -2708,7 +3430,7 @@ if ($status === 'Cleared') {
         .clr-conduct-para { font-size: 0.95rem; line-height: 1.8; margin-bottom: 1.15rem; color: #111; }
         .clr-conduct-list { list-style: none; padding-left: 0; margin-bottom: 1.5rem; }
         .clr-conduct-list li { position: relative; padding-left: 1.6rem; margin-bottom: 0.65rem; font-size: 0.92rem; line-height: 1.55; color: #111; }
-        .clr-conduct-list li::before { content: "â€¢"; position: absolute; left: 0.5rem; top: -0.1rem; color: #0d6efd; font-size: 1.25rem; font-weight: bold; }
+        .clr-conduct-list li::before { content: ""; position: absolute; left: 0.5rem; top: -0.1rem; color: #0d6efd; font-size: 1.25rem; font-weight: bold; }
         .clr-conduct-ack-box { background: rgba(13, 110, 253, 0.04); border: 1px solid rgba(13, 110, 253, 0.25); border-radius: 0.65rem; padding: 1rem 1.25rem; margin-top: 1.5rem; }
         .btn, .form-check-input, input[type="checkbox"], #cfAgreementSubmitBar, #cfAgreementPendingBanner, #cfAgreementStatusBanner, #btnSubmitFacultyDeclaration { display: none !important; }
     </style>

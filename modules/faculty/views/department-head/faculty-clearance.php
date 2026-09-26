@@ -23,6 +23,327 @@ require_once ROOT_PATH . '/includes/breadcrumbs.php';
 require_once ROOT_PATH . '/includes/layout-start.php';
 ?>
 <?php renderBreadcrumbs($breadcrumbs); ?>
+<style>
+    /* Scope of Verification Checklist in Review Modal */
+    .scope-verification-box {
+        min-width: 290px;
+    }
+
+    .scope-item {
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+        border: 1px solid var(--bs-border-color-translucent, #e9ecef);
+        background-color: var(--bs-body-bg, #ffffff);
+    }
+
+    .scope-item:hover {
+        background-color: var(--bs-tertiary-bg, #f8f9fa);
+        border-color: var(--bs-primary, #0d6efd);
+    }
+
+    .scope-item:active {
+        transform: scale(0.985);
+    }
+
+    .scope-item.is-passed {
+        background-color: rgba(25, 135, 84, 0.08) !important;
+        border-color: rgba(25, 135, 84, 0.3) !important;
+    }
+
+    .scope-item.is-failed {
+        background-color: rgba(220, 53, 69, 0.08) !important;
+        border-color: rgba(220, 53, 69, 0.3) !important;
+    }
+
+    /* Clearance Button Group (View / Download) */
+    .clearance-btn-group {
+        border: 1px solid #212529 !important;
+        border-radius: 6px !important;
+        background-color: #ffffff;
+    }
+
+    .clearance-btn-group a {
+        color: #212529 !important;
+        font-size: 0.8rem !important;
+        font-weight: 500 !important;
+        text-decoration: none !important;
+        padding: 0.25rem 0.85rem !important;
+        line-height: 1.4 !important;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .clearance-btn-group a:hover {
+        background-color: #f1f3f5 !important;
+    }
+
+    .clearance-btn-group a:first-child {
+        border-right: 1px solid #212529 !important;
+    }
+
+    /* Clearance Archive Table */
+    .clearance-table thead th {
+        letter-spacing: 0.03em;
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: #495057;
+        background-color: #ffffff;
+        border-bottom: 1px solid #dee2e6;
+        border-right: 1px solid #eef2f6;
+        padding-top: 0.85rem;
+        padding-bottom: 0.85rem;
+    }
+
+    .clearance-table thead th:last-child {
+        border-right: none;
+    }
+
+    .clearance-table tbody td {
+        padding-top: 0.95rem;
+        padding-bottom: 0.95rem;
+        vertical-align: middle;
+    }
+
+    /* Status Filter Chips (Light Mode) */
+    .clr-status-chip {
+        background-color: #f0f2f5;
+        color: #4b5563;
+        border: 1px solid #e2e6ea;
+        border-radius: 20px;
+        padding: 4px 14px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        white-space: nowrap;
+    }
+
+    .clr-status-chip:hover {
+        background-color: #e4e7eb;
+        color: #1f2937;
+    }
+
+    .clr-status-chip.active {
+        background-color: #1e2533;
+        color: #ffffff;
+        border-color: #1e2533;
+    }
+
+    .clr-status-chip .clr-chip-count {
+        border-radius: 20px;
+        padding: 1px 8px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        min-width: 20px;
+        text-align: center;
+        transition: all 0.15s ease-in-out;
+    }
+
+    .clr-status-chip.active .clr-chip-count {
+        background-color: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+    }
+
+    .clr-status-chip:not(.active) .badge-dark {
+        background-color: #e5e7eb;
+        color: #4b5563;
+    }
+
+    .clr-status-chip:not(.active) .badge-primary {
+        background-color: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .clr-status-chip:not(.active) .badge-danger {
+        background-color: #fee2e2;
+        color: #dc2626;
+    }
+
+    .clr-status-chip:not(.active) .badge-secondary {
+        background-color: #e5e7eb;
+        color: #6b7280;
+    }
+
+    /* Archive Detail Status Pills (Light Mode) */
+    .clr-pill-approved {
+        background-color: #e8f5e9;
+        border: 1px solid #b2dfdb;
+        color: #1e7e34;
+    }
+
+    .clr-pill-missing {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        color: #6c757d;
+    }
+
+    .clr-pill-denied {
+        background-color: #fdeded;
+        border: 1px solid #f5c2c7;
+        color: #dc3545;
+    }
+
+    /* ============================================================
+       Dark Mode Overrides
+       ============================================================ */
+    [data-theme="dark"] .clearance-btn-group,
+    [data-bs-theme="dark"] .clearance-btn-group {
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        background-color: rgba(255, 255, 255, 0.06) !important;
+    }
+
+    [data-theme="dark"] .clearance-btn-group a,
+    [data-bs-theme="dark"] .clearance-btn-group a {
+        color: #e2e8f0 !important;
+    }
+
+    [data-theme="dark"] .clearance-btn-group a:hover,
+    [data-bs-theme="dark"] .clearance-btn-group a:hover {
+        background-color: rgba(255, 255, 255, 0.14) !important;
+        color: #ffffff !important;
+    }
+
+    [data-theme="dark"] .clearance-btn-group a:first-child,
+    [data-bs-theme="dark"] .clearance-btn-group a:first-child {
+        border-right: 1px solid rgba(255, 255, 255, 0.22) !important;
+    }
+
+    [data-theme="dark"] .clearance-table thead th,
+    [data-bs-theme="dark"] .clearance-table thead th {
+        color: #94a3b8;
+        background-color: rgba(255, 255, 255, 0.04);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    [data-theme="dark"] .clearance-table tbody td,
+    [data-bs-theme="dark"] .clearance-table tbody td {
+        color: #cbd5e1;
+        border-bottom-color: rgba(255, 255, 255, 0.08);
+    }
+
+    [data-theme="dark"] .clr-status-chip,
+    [data-bs-theme="dark"] .clr-status-chip {
+        background-color: rgba(255, 255, 255, 0.06);
+        color: #cbd5e1;
+        border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    [data-theme="dark"] .clr-status-chip:hover,
+    [data-bs-theme="dark"] .clr-status-chip:hover {
+        background-color: rgba(255, 255, 255, 0.12);
+        color: #f8fafc;
+        border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    [data-theme="dark"] .clr-status-chip.active,
+    [data-bs-theme="dark"] .clr-status-chip.active {
+        background-color: #2563eb;
+        color: #ffffff;
+        border-color: #3b82f6;
+        box-shadow: 0 0 12px rgba(37, 99, 235, 0.35);
+    }
+
+    [data-theme="dark"] .clr-status-chip.active .clr-chip-count,
+    [data-bs-theme="dark"] .clr-status-chip.active .clr-chip-count {
+        background-color: rgba(255, 255, 255, 0.25);
+        color: #ffffff;
+    }
+
+    [data-theme="dark"] .clr-status-chip:not(.active) .badge-dark,
+    [data-bs-theme="dark"] .clr-status-chip:not(.active) .badge-dark {
+        background-color: rgba(255, 255, 255, 0.12);
+        color: #cbd5e1;
+    }
+
+    [data-theme="dark"] .clr-status-chip:not(.active) .badge-primary,
+    [data-bs-theme="dark"] .clr-status-chip:not(.active) .badge-primary {
+        background-color: rgba(59, 130, 246, 0.22);
+        color: #93c5fd;
+    }
+
+    [data-theme="dark"] .clr-status-chip:not(.active) .badge-danger,
+    [data-bs-theme="dark"] .clr-status-chip:not(.active) .badge-danger {
+        background-color: rgba(239, 68, 68, 0.22);
+        color: #fca5a5;
+    }
+
+    [data-theme="dark"] .clr-status-chip:not(.active) .badge-secondary,
+    [data-bs-theme="dark"] .clr-status-chip:not(.active) .badge-secondary {
+        background-color: rgba(148, 163, 184, 0.2);
+        color: #cbd5e1;
+    }
+
+    [data-theme="dark"] .clr-pill-approved,
+    [data-bs-theme="dark"] .clr-pill-approved {
+        background-color: rgba(34, 197, 94, 0.18) !important;
+        border-color: rgba(34, 197, 94, 0.35) !important;
+        color: #4ade80 !important;
+    }
+
+    [data-theme="dark"] .clr-pill-missing,
+    [data-bs-theme="dark"] .clr-pill-missing {
+        background-color: rgba(255, 255, 255, 0.08) !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+        color: #94a3b8 !important;
+    }
+
+    [data-theme="dark"] .clr-pill-denied,
+    [data-bs-theme="dark"] .clr-pill-denied {
+        background-color: rgba(239, 68, 68, 0.18) !important;
+        border-color: rgba(239, 68, 68, 0.35) !important;
+        color: #f87171 !important;
+    }
+
+    [data-theme="dark"] #archiveRequirementsBody {
+        background-color: transparent !important;
+    }
+
+    /* ============================================================
+       Review Modal Mockup Layout & Stepper Styles
+       ============================================================ */
+    .horizontal-clearance-stepper .stepper-circle {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.85rem;
+        flex-shrink: 0;
+    }
+
+    .horizontal-clearance-stepper .stepper-divider {
+        height: 2px;
+        background: var(--bs-border-color);
+        transition: background-color 0.2s ease;
+    }
+
+    /* Office Signature Pad (Light & Dark Mode) */
+    .office-sign-pad-wrap {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    #officeSignCanvas {
+        background: #f8fafc !important;
+    }
+
+    [data-theme="dark"] .office-sign-pad-wrap,
+    [data-bs-theme="dark"] .office-sign-pad-wrap {
+        background: #0f172a !important;
+        border-color: #334155 !important;
+    }
+
+    [data-theme="dark"] #officeSignCanvas,
+    [data-bs-theme="dark"] #officeSignCanvas {
+        background: #1e293b !important;
+    }
+</style>
 <div class="container-fluid p-3 p-md-4">
     <!-- Header Section -->
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
@@ -248,7 +569,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-1"
                                 onclick="resetArchiveFilters()" title="Reset Filters & Search">
                                 <i class="fas fa-rotate-left"></i>
-                                <span>Reset</span>
+                                <span></span>
                             </button>
                         </div>
                     </div>
@@ -274,6 +595,132 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     </table>
                 </div>
                 <div id="archivePagination"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CONFIRM SCOPE LOCK MODAL -->
+<div class="modal fade" id="confirmScopeLockModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+    data-bs-keyboard="false" style="z-index:1080">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:440px">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header py-3 bg-success-subtle border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0"
+                        style="width:38px;height:38px;font-size:1.1rem;">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-success-emphasis">Confirm &amp; Lock Scope</h6>
+                        <small class="text-body-secondary">This action is permanent and cannot be undone.</small>
+                    </div>
+                </div>
+                <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <input type="hidden" id="confirmScopeLockItemId" value="">
+                <div
+                    class="p-3 bg-warning-subtle border border-warning-subtle rounded-3 mb-3 d-flex gap-2 align-items-start">
+                    <i class="fas fa-triangle-exclamation text-warning mt-0.5 flex-shrink-0"></i>
+                    <div class="small text-warning-emphasis">
+                        <strong>Are you sure?</strong> Once locked, the Scope of Verification checklist for this
+                        requirement cannot be edited. Make sure all items are correctly marked before confirming.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top gap-2 flex-nowrap">
+                <button type="button" class="btn btn-outline-secondary flex-fill"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success flex-fill fw-semibold" id="btnConfirmScopeLock"
+                    onclick="executeScopeLock()">
+                    <i class="fas fa-lock me-1"></i>Confirm &amp; Lock
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DIGITAL OFFICE SIGNATURE MODAL -->
+<div class="modal fade" id="officeSignatureModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+    data-bs-keyboard="false" style="z-index:1085">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:540px">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header py-3 bg-primary-subtle border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center flex-shrink-0"
+                        style="width:38px;height:38px;font-size:1.1rem;">
+                        <i class="fas fa-signature"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-primary-emphasis">Department Head Digital Signature
+                            &amp; Approval</h6>
+                        <small class="text-body-secondary">Authorize and clear Department Clearance for the faculty
+                            member</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <input type="hidden" id="officeSignItemId" value="">
+
+                <div
+                    class="d-flex align-items-center justify-content-between p-2.5 rounded-3 bg-body-tertiary border mb-3">
+                    <div>
+                        <small class="text-muted d-block" style="font-size:0.7rem;">DEPARTMENT HEAD / DEAN</small>
+                        <strong class="text-body-emphasis small"
+                            id="officeSignApproverName"><?= htmlspecialchars($_SESSION['user_name'] ?? $_SESSION['name'] ?? 'Department Head') ?></strong>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted d-block" style="font-size:0.7rem;">CLEARANCE STAGE</small>
+                        <span class="badge bg-primary text-white" id="officeSignOfficeLabel">Department Clearance</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label small fw-semibold mb-0">
+                            <i class="fas fa-pen-fancy me-1 text-primary"></i>Draw Digital Signature <span
+                                class="text-danger">*</span>
+                        </label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                            style="font-size:0.72rem;" onclick="clearOfficeSignature()">
+                            <i class="fas fa-eraser me-1"></i>Clear
+                        </button>
+                    </div>
+                    <div class="border rounded-3 p-1 position-relative office-sign-pad-wrap"
+                        style="box-shadow:inset 0 1px 3px rgba(0,0,0,0.06);">
+                        <canvas id="officeSignCanvas" width="480" height="150" class="w-100"
+                            style="touch-action:none;cursor:crosshair;display:block;border-radius:4px;"></canvas>
+                        <div id="officeSignPlaceholder"
+                            class="position-absolute top-50 start-50 translate-middle text-muted small opacity-50"
+                            style="user-select:none;pointer-events:none;">
+                            <i class="fas fa-signature me-1"></i>Sign here using mouse or touch
+                        </div>
+                    </div>
+                    <small class="text-muted mt-1 d-block" style="font-size:0.7rem;">
+                        <i class="fas fa-shield-alt text-success me-1"></i>Your signature will be stored and permanently
+                        displayed on the faculty member's clearance records.
+                    </small>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold mb-1" for="officeSignRemarks">
+                        Approval Remarks / Notes <small class="text-muted fw-normal">(Optional)</small>
+                    </label>
+                    <input type="text" class="form-control form-control-sm" id="officeSignRemarks"
+                        placeholder="Approved and verified.">
+                </div>
+
+                <div id="officeSignAlert" class="alert alert-danger py-2 px-3 small d-none mb-0"></div>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top gap-2 flex-nowrap">
+                <button type="button" class="btn btn-outline-secondary flex-fill"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success flex-fill fw-semibold" id="btnSubmitOfficeSignature"
+                    onclick="submitOfficeSignature()">
+                    <i class="fas fa-check-circle me-1"></i>Sign &amp; Approve Clearance
+                </button>
             </div>
         </div>
     </div>
@@ -443,101 +890,360 @@ require_once ROOT_PATH . '/includes/layout-start.php';
 
 <!-- REVIEW MODAL FOR ACTIVE CLEARANCE -->
 <div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-primary text-white py-3">
-                <div>
-                    <h5 class="modal-title fw-bold" id="reviewTitle"><i class="fas fa-clipboard-check me-2"></i>Review
-                        Clearance</h5>
-                    <small class="text-white-50" id="reviewMeta"></small>
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 1240px;">
+        <div class="modal-content border-0 shadow-lg">
+            <!-- Modal Header / Navy Topbar -->
+            <div class="modal-header py-3 px-4 text-white d-flex align-items-center justify-content-between"
+                style="background: linear-gradient(135deg, #0b345f 0%, #0d2847 100%);">
+                <div class="d-flex align-items-center gap-2 flex-grow-1 min-w-0">
+                    <h5 class="modal-title fw-bold text-white mb-0" style="letter-spacing: -0.01em;">
+                    </h5>
+                    <div
+                        class="d-none d-sm-flex align-items-center gap-2 text-white-50 small bg-white bg-opacity-10 px-3 py-1 rounded-pill ms-2 flex-shrink-0">
+                        <i class="fas fa-circle-user text-white"></i>
+                        <span class="text-white fw-medium">Department Head Portal</span>
+                    </div>
                 </div>
-                <button class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button class="btn-close btn-close-white ms-3 flex-shrink-0" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
-            <div class="modal-body p-3 p-md-4">
-                <div id="reviewAlert" class="alert d-none mb-3"></div>
 
-                <!-- Faculty Contract & Status Summary Bar -->
-                <div class="card bg-body-tertiary border mb-4">
-                    <div class="card-body p-3">
-                        <div class="row g-3 text-body">
-                            <div class="col-12 col-md-4 border-end-md border-body-subtle">
-                                <small class="text-body-secondary d-block">Current Contract Expiry</small>
-                                <span class="fw-bold fs-6 text-body-emphasis" id="summaryContractExpiry">â€”</span>
-                                <small class="d-block" id="summaryDaysRemaining"></small>
+            <div class="modal-body p-3 p-md-4">
+                <!-- Top Section: Title & Top Summary Stats Card -->
+                <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-3">
+                    <div>
+                        <h4 class="fw-bold text-body-emphasis mb-1" id="reviewMainTitle">Faculty Clearance
+                        </h4>
+                        <p class="text-body-secondary small mb-0" id="reviewMainSubtitle">Complete all requirements and
+                            get the official office sign-off.</p>
+                        <!-- Preserved DOM IDs for JS backward compatibility -->
+                        <span class="d-none" id="reviewTitle"></span>
+                        <span class="d-none" id="reviewMeta"></span>
+                    </div>
+                    <!-- Stats Card (3 Segments) -->
+                    <div class="card bg-body border rounded-3 shadow-none p-3" style="min-width: 360px;">
+                        <div class="row g-3 align-items-center text-body">
+                            <div class="col-12 col-sm-5 border-end-sm border-body-subtle pe-sm-3">
+                                <div>
+                                    <small class="text-body-secondary d-block" style="font-size:0.73rem;">Current
+                                        Contract Expiry</small>
+                                    <span class="fw-bold text-body-emphasis small d-block"
+                                        id="summaryContractExpiry">—</span>
+                                    <small class="d-block" id="summaryDaysRemaining" style="font-size:0.7rem;"></small>
+                                </div>
                             </div>
-                            <div class="col-12 col-md-4 border-end-md border-body-subtle">
-                                <small class="text-body-secondary d-block mb-1">Employment Status</small>
+                            <div class="col-12 col-sm-3 border-end-sm border-body-subtle px-sm-2">
+                                <small class="text-body-secondary d-block mb-1" style="font-size:0.73rem;">Employment
+                                    Status</small>
                                 <span
-                                    class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"
-                                    id="summaryEmpStatus">â€”</span>
+                                    class="badge bg-warning-subtle text-dark border border-warning-subtle px-2.5 py-1 rounded-pill fw-semibold"
+                                    id="summaryEmpStatus" style="font-size:0.75rem;">Probationary</span>
                             </div>
-                            <div class="col-12 col-md-4">
-                                <small class="text-body-secondary d-block">Clearance Progress</small>
-                                <div class="d-flex align-items-center gap-2 mt-1">
-                                    <div class="progress flex-grow-1" style="height: 8px;">
-                                        <div class="progress-bar bg-success" id="summaryProgressBar" style="width: 0%">
-                                        </div>
+                            <div class="col-12 col-sm-4 ps-sm-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-body-secondary" style="font-size:0.73rem;">Clearance
+                                        Progress</small>
+                                    <span class="small fw-bold text-body-emphasis" id="summaryProgressText"
+                                        style="font-size:0.73rem;">0%</span>
+                                </div>
+                                <div class="progress mb-1" style="height: 6px;">
+                                    <div class="progress-bar bg-success" id="summaryProgressBar" style="width: 0%">
                                     </div>
-                                    <span class="small fw-semibold text-body-emphasis"
-                                        id="summaryProgressText">0%</span>
+                                </div>
+                                <small class="text-body-secondary d-block" id="summaryProgressSub"
+                                    style="font-size:0.7rem;">All requirements completed</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Horizontal Stepper (4 Steps) -->
+                <div class="horizontal-clearance-stepper mb-4 p-3 bg-body-tertiary rounded-3 border">
+                    <div class="d-flex align-items-center justify-content-between overflow-x-auto gap-2">
+                        <!-- Step 1 -->
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0" id="stepperStep1">
+                            <div class="stepper-circle bg-success text-white" id="stepperStep1Circle"><i
+                                    class="fas fa-check"></i></div>
+                            <div>
+                                <div class="fw-bold small text-body-emphasis" style="font-size:0.8rem;"
+                                    id="stepperStep1Title">Requirements Submission</div>
+                                <div class="text-body-secondary" style="font-size:0.72rem;" id="stepperStep1Date">
+                                    Completed
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stepper-divider flex-grow-1 mx-2" id="stepperLine1"
+                            style="min-width:24px;background:#198754;"></div>
+                        <!-- Step 2 -->
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0" id="stepperStep2">
+                            <div class="stepper-circle bg-success text-white" id="stepperStep2Circle"><i
+                                    class="fas fa-check"></i></div>
+                            <div>
+                                <div class="fw-bold small text-body-emphasis" style="font-size:0.8rem;"
+                                    id="stepperStep2Title">Requirement Review</div>
+                                <div class="text-body-secondary" style="font-size:0.72rem;" id="stepperStep2Sub">
+                                    Completed</div>
+                            </div>
+                        </div>
+                        <div class="stepper-divider flex-grow-1 mx-2" id="stepperLine2" style="min-width:24px;"></div>
+                        <!-- Step 3 (was Step 4) -->
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0" id="stepperStep4">
+                            <div class="stepper-circle bg-body-secondary text-body-secondary" id="stepperStep4Circle">3
+                            </div>
+                            <div>
+                                <div class="fw-semibold small text-body-secondary" style="font-size:0.8rem;"
+                                    id="stepperStep4Title">Completed</div>
+                                <div class="text-body-secondary" style="font-size:0.72rem;" id="stepperStep4Sub">Not yet
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <!-- Clearance Form Status & Review Card -->
-                <div class="card border mb-4 shadow-sm" id="agreementFormReviewCard">
-                    <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2">
-                        <span class="fw-bold small text-uppercase"><i
-                                class="fas fa-file-contract text-primary me-2"></i>Clearance Form</span>
-                        <span id="agreementFormStatusBadge"
-                            class="badge bg-secondary-subtle text-body-secondary border">Not Submitted</span>
-                    </div>
-                    <div class="card-body p-3" id="agreementFormReviewBody">
-                        <!-- Loaded dynamically in openReview() -->
+
+                <!-- Main Content Full-Width Grid -->
+                <div class="row g-4">
+                    <div class="col-12">
+                        <!-- Success Status Banner -->
+                        <div id="reviewSuccessBanner"
+                            class="alert alert-success d-flex align-items-center gap-3 p-3 rounded-3 border border-success-subtle mb-4">
+                            <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0"
+                                style="width:28px;height:28px;font-size:0.85rem;"><i class="fas fa-check"></i></div>
+                            <span class="fw-semibold small text-success-emphasis" id="reviewSuccessBannerText">All
+                                requirements have been cleared. Proceed to official office sign-off.</span>
+                        </div>
+
+                        <!-- System alerts (for inline notifications) -->
+                        <div id="reviewAlert" class="alert d-none mb-3"></div>
+
+                        <!-- Clearance Form Status & Review Card (Preserved) -->
+                        <div class="card border rounded-3 mb-4 shadow-sm" id="agreementFormReviewCard">
+                            <div
+                                class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2 px-3">
+                                <span class="fw-bold small text-uppercase"><i
+                                        class="fas fa-file-contract text-primary me-2"></i>Clearance Form</span>
+                                <span id="agreementFormStatusBadge"
+                                    class="badge bg-secondary-subtle text-body-secondary border">Not Submitted</span>
+                            </div>
+                            <div class="card-body p-3" id="agreementFormReviewBody">
+                                <!-- Loaded dynamically in openReview() -->
+                            </div>
+                        </div>
+
+                        <!-- Clearance Requirements Section -->
+                        <div class="card border-0 rounded-4 mb-4 shadow-sm overflow-hidden">
+                            <div class="card-header py-3 px-4 border-bottom d-flex align-items-center justify-content-between"
+                                style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-3 bg-primary text-white d-flex align-items-center justify-content-center flex-shrink-0"
+                                        style="width:32px;height:32px;font-size:0.9rem;">
+                                        <i class="fas fa-clipboard-list"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-0 text-body-emphasis" style="font-size:0.9rem;">Clearance
+                                            Requirements</h6>
+                                        <small class="text-body-secondary" style="font-size:0.72rem;">Review submitted
+                                            documents and verify scope items</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-0">
+                                <table class="table table-borderless align-top mb-0" style="table-layout:fixed;">
+                                    <colgroup>
+                                        <col style="width:220px;">
+                                        <col style="width:220px;">
+                                        <col style="width:160px;">
+                                        <col>
+                                    </colgroup>
+                                    <thead
+                                        style="background:rgba(var(--bs-primary-rgb),0.04);border-bottom:2px solid var(--bs-border-color);">
+                                        <tr>
+                                            <th class="ps-4 py-2.5 text-uppercase fw-semibold text-body-secondary"
+                                                style="font-size:0.68rem;letter-spacing:0.06em;"><i
+                                                    class="fas fa-folder-open me-1 text-primary opacity-75"></i>Requirement
+                                            </th>
+                                            <th class="py-2.5 text-uppercase fw-semibold text-body-secondary"
+                                                style="font-size:0.68rem;letter-spacing:0.06em;"><i
+                                                    class="fas fa-paperclip me-1 text-primary opacity-75"></i>File
+                                                Attachment</th>
+                                            <th class="py-2.5 text-uppercase fw-semibold text-body-secondary"
+                                                style="font-size:0.68rem;letter-spacing:0.06em;"><i
+                                                    class="fas fa-circle-dot me-1 text-primary opacity-75"></i>Status
+                                            </th>
+                                            <th class="pe-4 py-2.5 text-uppercase fw-semibold text-body-secondary"
+                                                style="font-size:0.68rem;letter-spacing:0.06em;min-width:290px;"><i
+                                                    class="fas fa-clipboard-check me-1 text-primary opacity-75"></i>Scope
+                                                of Verification</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reviewBody" class="text-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Faculty Declaration & Final Digital Signature Card (Preserved) -->
+                        <div class="card border rounded-3 mb-4 shadow-sm" id="facultyDeclarationReviewCard">
+                            <div
+                                class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2 px-3">
+                                <span class="fw-bold small text-uppercase"><i
+                                        class="fas fa-file-signature text-primary me-2"></i>Faculty Declaration &amp;
+                                    Digital Signature</span>
+                                <span id="declarationReviewBadge"
+                                    class="badge bg-secondary-subtle text-body-secondary border px-2 py-1">
+                                    <i class="fas fa-lock me-1"></i>Pending Document Approvals
+                                </span>
+                            </div>
+                            <div class="card-body p-3" id="declarationReviewBody">
+                                <!-- Loaded dynamically in openReview() -->
+                            </div>
+                        </div>
+                        <!-- Transaction Summary Card (Full Width) -->
+                        <div class="card border rounded-3 shadow-sm mb-4">
+                            <div
+                                class="card-header bg-body-tertiary py-2.5 px-3 border-bottom d-flex align-items-center gap-2">
+                                <i class="fas fa-receipt text-primary"></i>
+                                <h6 class="fw-bold mb-0 text-body-emphasis small text-uppercase">Transaction Summary
+                                </h6>
+                            </div>
+                            <div class="card-body py-2.5 px-3">
+                                <div class="row g-3 align-items-center">
+                                    <div class="col-6 col-md-auto pe-md-4 border-end">
+                                        <small class="text-body-secondary d-block"
+                                            style="font-size:0.72rem;">Transaction ID</small>
+                                        <span class="fw-bold text-body-emphasis small" id="reviewTxnId">—</span>
+                                    </div>
+                                    <div class="col-6 col-md-auto pe-md-4 border-end">
+                                        <small class="text-body-secondary d-block"
+                                            style="font-size:0.72rem;">Employee</small>
+                                        <span class="fw-bold text-body-emphasis small" id="reviewTxnEmployee">—</span>
+                                    </div>
+                                    <div class="col-6 col-md-auto pe-md-4 border-end">
+                                        <small class="text-body-secondary d-block"
+                                            style="font-size:0.72rem;">Position</small>
+                                        <span class="text-body-emphasis small" id="reviewTxnPosition">—</span>
+                                    </div>
+                                    <div class="col-6 col-md-auto pe-md-4 border-end">
+                                        <small class="text-body-secondary d-block" style="font-size:0.72rem;">Submitted
+                                            On</small>
+                                        <span class="text-body-emphasis small" id="reviewTxnSubmitted">—</span>
+                                    </div>
+                                    <div class="col-6 col-md-auto">
+                                        <small class="text-body-secondary d-block" style="font-size:0.72rem;">Last
+                                            Updated</small>
+                                        <span class="text-body-emphasis small" id="reviewTxnUpdated">—</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
                     </div>
                 </div>
-
-                <h6 class="fw-bold text-uppercase small text-body-secondary mb-3"><i
-                        class="fas fa-list-check me-1 text-primary"></i> Submitted Department Clearance Requirement</h6>
-                <div class="table-responsive mb-4">
-                    <table class="table table-hover align-middle border mb-0">
-                        <thead class="table-light small text-uppercase text-body-secondary">
-                            <tr>
-                                <th>Requirement</th>
-                                <th>File Attachment</th>
-                                <th>Status</th>
-                                <th>Remark</th>
-                                <th class="text-end">Review Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reviewBody" class="text-body"></tbody>
-                    </table>
-                </div>
-
-                <!-- Faculty Declaration & Final Digital Signature Card -->
-                <div class="card border mb-4 shadow-sm" id="facultyDeclarationReviewCard">
-                    <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2">
-                        <span class="fw-bold small text-uppercase"><i
-                                class="fas fa-file-signature text-primary me-2"></i>Faculty Declaration &amp; Digital
-                            Signature</span>
-                        <span id="declarationReviewBadge"
-                            class="badge bg-secondary-subtle text-body-secondary border px-2 py-1">
-                            <i class="fas fa-lock me-1"></i>Pending Document Approvals
-                        </span>
-                    </div>
-                    <div class="card-body p-3" id="declarationReviewBody">
-                        <!-- Loaded dynamically in openReview() -->
-                    </div>
-                </div>
-
             </div>
+
+            <!-- Modal Footer -->
             <div
                 class="modal-footer bg-body-tertiary border-top d-flex justify-content-between align-items-center gap-2">
                 <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-success fw-semibold px-4 d-none" id="btnConfirmDeclarationArchive"
+                <button type="button" class="btn btn-success fw-semibold px-4" id="btnConfirmDeclarationArchive"
                     onclick="confirmDeclarationAndArchive()">
                     <i class="fas fa-check me-1"></i> Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DH REQUEST REVISION MODAL -->
+<div class="modal fade" id="dhRequestRevisionModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+    data-bs-keyboard="false" style="z-index:1085">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header py-3 bg-danger-subtle border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center"
+                        style="width:38px;height:38px;font-size:1.1rem;">
+                        <i class="fas fa-rotate-left"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-danger-emphasis">Request Revision</h6>
+                        <small class="text-body-secondary">Send clearance back to faculty for correction</small>
+                    </div>
+                </div>
+                <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <div class="mb-3">
+                    <label for="dhRevisionRemarks" class="form-label small fw-semibold text-body-emphasis mb-1">Reason
+                        for Revision (Required):</label>
+                    <textarea id="dhRevisionRemarks" class="form-control" rows="3"
+                        placeholder="Explain specifically what needs to be corrected or resubmitted..."></textarea>
+                    <small class="text-body-secondary d-block mt-1">This remark will be sent to the faculty member and
+                        recorded in the audit trail.</small>
+                </div>
+                <div id="dhRevisionAlert" class="alert alert-danger d-none py-2 small mb-0"></div>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top gap-2">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger fw-semibold" id="btnConfirmDhRevision"
+                    onclick="executeDepartmentHeadRevision()">
+                    <i class="fas fa-rotate-left me-1"></i>Send Revision Request
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CONFIRM DH FINAL VERIFY MODAL -->
+<div class="modal fade" id="confirmDhVerifyModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+    data-bs-keyboard="false" style="z-index:1080">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:500px">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header py-3 bg-primary-subtle border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                        style="width:38px;height:38px;font-size:1.1rem;">
+                        <i class="fas fa-stamp"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-primary-emphasis">Finalize Clearance Verification</h6>
+                        <small class="text-body-secondary">Department Head electronic sign-off</small>
+                    </div>
+                </div>
+                <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <div class="p-3 bg-primary-subtle border border-primary-subtle rounded-3 mb-3">
+                    <div class="fw-semibold text-primary-emphasis mb-1"><i
+                            class="fas fa-shield-check me-1"></i>Department Head Sign-Off Statement</div>
+                    <div class="small text-body-secondary">By finalizing, I certify that I have confirmed all office
+                        clearances for <strong id="dhVerifyFacultyName"></strong> are complete, and this faculty member
+                        is cleared for official faculty clearance.</div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-sm-6">
+                        <div class="p-2 bg-body-tertiary rounded border">
+                            <small class="text-body-secondary d-block fw-semibold">Verified By</small>
+                            <span class="fw-bold text-body-emphasis small" id="dhVerifySignerName">—</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-2 bg-body-tertiary rounded border">
+                            <small class="text-body-secondary d-block fw-semibold">Timestamp</small>
+                            <span class="fw-bold text-body-emphasis small" id="dhVerifyTimestamp">—</span>
+                        </div>
+                    </div>
+                </div>
+                <label class="form-label small fw-semibold">Verification Remarks <span
+                        class="text-body-secondary fw-normal">(Optional)</span></label>
+                <textarea id="dhVerifyRemarks" class="form-control form-control-sm" rows="2"
+                    placeholder="e.g. All clearance requirements have been duly verified and approved."></textarea>
+            </div>
+            <div class="modal-footer bg-body-tertiary border-top d-flex gap-2 flex-nowrap">
+                <button type="button" class="btn btn-outline-secondary flex-fill"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary flex-fill fw-semibold" id="btnConfirmDhVerify"
+                    onclick="executeDhFinalVerify()">
+                    <i class="fas fa-stamp me-1"></i>Confirm &amp; Finalize
                 </button>
             </div>
         </div>
@@ -561,7 +1267,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 </div>
                 <h6 class="fw-bold text-body-emphasis mb-2">Are you sure you want to archive this clearance record?</h6>
                 <p class="text-body-secondary small mb-3">
-                    Faculty: <strong class="text-body-emphasis" id="archiveTargetFacultyName">â€”</strong>
+                    Faculty: <strong class="text-body-emphasis" id="archiveTargetFacultyName">-</strong>
                 </p>
                 <div class="alert alert-info border border-info-subtle py-2 px-3 small text-start mb-0">
                     <i class="fas fa-info-circle me-1"></i> Archiving saves a permanent record snapshot in the
@@ -598,11 +1304,11 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                             class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-bold mb-1">
                             <i class="fas fa-check-circle me-1"></i> Status: Clearance Completed &amp; Cleared
                         </span>
-                        <div class="small text-body-secondary mt-1" id="archiveModalTerm">Academic Term: â€”</div>
+                        <div class="small text-body-secondary mt-1" id="archiveModalTerm">Academic Term: -</div>
                     </div>
                     <div class="text-md-end">
                         <small class="text-body-secondary d-block">Completion Timestamp</small>
-                        <strong class="text-body-emphasis" id="archiveModalCompletedAt">â€”</strong>
+                        <strong class="text-body-emphasis" id="archiveModalCompletedAt">-</strong>
                     </div>
                 </div>
 
@@ -614,33 +1320,33 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     </div>
                     <div class="card-body p-3">
                         <div class="row g-3 text-body">
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Faculty Member</small>
-                                <strong class="text-body-emphasis" id="archiveFacultyName">â€”</strong>
+                                <strong class="text-body-emphasis" id="archiveFacultyName">-</strong>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Faculty ID No.</small>
-                                <span id="archiveFacultyNo">â€”</span>
+                                <span id="archiveFacultyNo">-</span>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Department</small>
-                                <span id="archiveDepartment">â€”</span>
+                                <span id="archiveDepartment">-</span>
                             </div>
                             <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Academic Rank</small>
-                                <span id="archiveRank">â€”</span>
+                                <span id="archiveRank">-</span>
                             </div>
                             <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Contract Expiration Date</small>
-                                <strong class="text-success" id="archiveContractEnd">â€”</strong>
+                                <strong class="text-success" id="archiveContractEnd">-</strong>
                             </div>
                             <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Employment Status</small>
-                                <span id="archiveEmpStatus">â€”</span>
+                                <span id="archiveEmpStatus">-</span>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-3">
+                            <div class="col-12 col-sm-6 col-md-4">
                                 <small class="text-body-secondary d-block">Contact Email</small>
-                                <span id="archiveEmail" class="small">â€”</span>
+                                <span id="archiveEmail" class="small">-</span>
                             </div>
                         </div>
                     </div>
@@ -649,19 +1355,19 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 <!-- Clearance Requirements Table -->
                 <h6 class="fw-bold text-uppercase small text-body-secondary mb-3"><i
                         class="fas fa-tasks me-1 text-success"></i> Approved Clearance Requirements</h6>
-                <div class="table-responsive mb-3">
-                    <table class="table table-hover align-middle border mb-0">
-                        <thead class="table-light small text-uppercase text-body-secondary">
+                <div class="table-responsive mb-3 border rounded-2 overflow-hidden">
+                    <table class="table clearance-table align-middle mb-0">
+                        <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Requirement</th>
-                                <th>Submitted File Attachment</th>
-                                <th>Status</th>
-                                <th>Reviewer Note</th>
-                                <th>Cleared Date</th>
+                                <th class="ps-3" style="width: 50px;">#</th>
+                                <th style="min-width: 190px;">REQUIREMENT</th>
+                                <th style="min-width: 290px;">SUBMITTED FILE ATTACHMENT</th>
+                                <th style="min-width: 140px;">STATUS</th>
+                                <th style="min-width: 220px;">REVIEWER NOTE</th>
+                                <th class="pe-3" style="min-width: 140px;">CLEARED DATE</th>
                             </tr>
                         </thead>
-                        <tbody id="archiveRequirementsBody" class="text-body"></tbody>
+                        <tbody id="archiveRequirementsBody"></tbody>
                     </table>
                 </div>
             </div>
@@ -794,18 +1500,32 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     }
 
     function renderStatusControls() {
-        let container = document.getElementById('statusControlsContainer');
+        const container = document.getElementById('statusControlsContainer');
         if (!container) return;
+
+        // [key, label, badgeColor] — badgeColor maps to badge-* classes
         const groups = [
-            ['all', 'All Active', 'secondary'],
-            ['pending', 'Pending Verification', 'info'],
+            ['all', 'All Active', 'dark'],
+            ['pending', 'Pending Verification', 'primary'],
             ['action', 'Denied / Resubmission', 'danger'],
             ['not-submitted', 'Not Submitted', 'secondary'],
         ];
-        container.innerHTML = `<div class="d-flex flex-wrap gap-2">` + groups.map(([key, label, tone]) => {
-            const count = key === 'all' ? trackingRows.length : trackingRows.filter(row => statusGroupFor(row) === key).length;
-            return `<button type="button" class="btn btn-sm btn-${tone} ${activeStatusGroup === key ? '' : 'opacity-75'}" onclick="selectStatusGroup('${key}')">${label} <span class="badge text-bg-light ms-1">${count}</span></button>`;
-        }).join('') + `</div>`;
+
+        container.innerHTML = `<div class="d-flex flex-wrap gap-2 align-items-center">` +
+            groups.map(([key, label, badgeColor]) => {
+                const count = key === 'all'
+                    ? trackingRows.length
+                    : trackingRows.filter(row => statusGroupFor(row) === key).length;
+                const isActive = activeStatusGroup === key;
+
+                return `<button type="button"
+                    class="clr-status-chip ${isActive ? 'active' : ''}"
+                    onclick="selectStatusGroup('${key}')">
+                    <span>${escapeHtml(label)}</span>
+                    <span class="clr-chip-count badge-${badgeColor}">${count}</span>
+                </button>`;
+            }).join('') +
+            `</div>`;
     }
 
     function selectStatusGroup(group) {
@@ -817,7 +1537,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
 
     function statusGroupFor(row) {
         const status = row.clearance?.status || 'Not Submitted';
-        if (status === 'Pending Verification' || status === 'Under Review' || status === 'Under Verification' || status === 'For Final Approval' || status === 'For Department Head Approval') return 'pending';
+        if (status === 'Pending Verification' || status === 'Under Review' || status === 'Locked' || status === 'For Final Approval' || status === 'For Department Head Approval') return 'pending';
         if (status === 'Action Required' || status === 'Resubmission' || status === 'With Deficiency') return 'action';
         if (status === 'Completed' || status === 'Approved' || status === 'Archived' || status === 'Cleared') return 'completed';
         return 'not-submitted';
@@ -847,26 +1567,46 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             body.innerHTML = visibleRows.map(row => {
                 try {
                     const c = row.clearance || { status: 'Not Submitted', progress: 0, approved_items: 0, total_items: 0 };
-                    const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
-                        ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                        : 'Not set';
-                    const tone = (c.status === 'Action Required' || c.status === 'With Deficiency') ? 'danger' : (c.status === 'Completed' || c.status === 'Cleared' ? 'success' : (c.status === 'Not Submitted' ? 'secondary' : (c.status === 'For Final Approval' || c.status === 'For Department Head Approval' ? 'warning' : 'info')));
+                    let expiry = 'Not set';
+                    if (row.contractual_end && row.contractual_end !== '0000-00-00') {
+                        try {
+                            const rawEnd = String(row.contractual_end).split(' ')[0];
+                            const eDate = new Date(`${rawEnd}T00:00:00`);
+                            if (!isNaN(eDate.getTime())) {
+                                expiry = eDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                            }
+                        } catch (_) { }
+                    }
+                    const cStatus = c.status || 'Not Submitted';
+                    const tone = (cStatus === 'Action Required' || cStatus === 'With Deficiency') ? 'danger' : ((cStatus === 'Completed' || cStatus === 'Cleared') ? 'success' : (cStatus === 'Not Submitted' ? 'secondary' : ((cStatus === 'For Final Approval' || cStatus === 'For Department Head Approval') ? 'warning' : 'info')));
 
-                    const deptItem = (c.items || []).find(it => it.name === 'Department Clearance');
+                    const itemsList = Array.isArray(c.items) ? c.items : (c.items && typeof c.items === 'object' ? Object.values(c.items) : []);
+                    const deptItem = itemsList.find(it => it && (it.name === 'Department Clearance' || it.office_name === 'Department Clearance'));
                     const isDeptCleared = deptItem && (deptItem.status === 'Cleared' || deptItem.status === 'Approved');
                     const deptProgress = isDeptCleared ? 100 : 0;
                     const deptApprovedCount = isDeptCleared ? 1 : 0;
-                    const deptTone = isDeptCleared ? 'success' : (deptItem && (deptItem.status === 'Denied' || deptItem.status === 'Hold' || deptItem.status === 'With Deficiency') ? 'danger' : (deptItem && deptItem.status === 'On Hold' ? 'warning' : (deptItem && deptItem.file_name ? 'info' : 'secondary')));
+                    const deptTone = isDeptCleared ? 'success' : (deptItem && (deptItem.status === 'Denied' || deptItem.status === 'Hold' || deptItem.status === 'With Deficiency') ? 'danger' : (deptItem && deptItem.file_name ? 'info' : 'secondary'));
 
                     const emp = row.employment_status || 'Probationary';
-                    const statusIcon = c.status === 'Completed' || c.status === 'Cleared' ? 'fa-check-circle' :
-                        (c.status === 'Action Required' || c.status === 'With Deficiency' ? 'fa-exclamation-circle' :
-                            (c.status === 'Not Submitted' ? 'fa-minus-circle' : 'fa-clock'));
+                    const statusIcon = (cStatus === 'Completed' || cStatus === 'Cleared') ? 'fa-check-circle' :
+                        ((cStatus === 'Action Required' || cStatus === 'With Deficiency') ? 'fa-exclamation-circle' :
+                            (cStatus === 'Not Submitted' ? 'fa-minus-circle' : 'fa-clock'));
 
-                    const statusBadge = `<span class="badge rounded-pill bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-3 py-1.5 fw-semibold" style="font-size: 0.75rem;"><i class="fas ${statusIcon} me-1.5"></i>${escapeHtml(c.status || 'Not Submitted')}</span>`;
+                    const statusBadge = `<span class="badge rounded-pill bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-3 py-1.5 fw-semibold" style="font-size: 0.75rem;"><i class="fas ${statusIcon} me-1.5"></i>${escapeHtml(cStatus)}</span>`;
 
                     const rowNameEsc = escapeHtml(row.name || 'Unknown');
                     const rowNameAttr = JSON.stringify(row.name || '').replace(/"/g, '&quot;');
+
+                    let submittedDateStr = '-';
+                    if (row.submitted_at) {
+                        try {
+                            const rawSub = typeof row.submitted_at === 'string' ? row.submitted_at.replace(' ', 'T') : row.submitted_at;
+                            const sDate = new Date(rawSub);
+                            if (!isNaN(sDate.getTime())) {
+                                submittedDateStr = sDate.toLocaleDateString();
+                            }
+                        } catch (_) { }
+                    }
 
                     return `<tr>
                     <td class="ps-3">
@@ -876,22 +1616,19 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     <td>${escapeHtml(row.designated_department || 'N/A')}</td>
                     <td class="${row.days_remaining !== null && row.days_remaining <= 30 ? 'text-danger fw-bold' : ''}">${expiry}<small class="d-block text-body-secondary">${row.days_remaining === null ? '' : (row.days_remaining < 0 ? 'Expired' : row.days_remaining + ' days remaining')}</small></td>
                     <td style="min-width:150px"><div class="progress mb-1" style="height:7px"><div class="progress-bar bg-${deptTone}" style="width:${deptProgress}%"></div></div><small class="text-body-secondary">${deptProgress}% (${deptApprovedCount}/1)</small></td>
-                    <td><span class="badge bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-2 py-1">${escapeHtml(c.status || 'Not Submitted')}</span></td>
-                    <td>${row.submitted_at ? new Date(row.submitted_at.replace(' ', 'T')).toLocaleDateString() : 'â€”'}</td>
+                    <td><span class="badge bg-${tone}-subtle text-${tone} border border-${tone}-subtle px-2 py-1">${escapeHtml(cStatus)}</span></td>
+                    <td>${submittedDateStr}</td>
                     <td class="text-end pe-3">
                         <div class="btn-group btn-group-sm">
                             <button class="btn btn-outline-primary" onclick="openReview(${row.id})" title="Review Clearance Details">
                                 <i class="fas fa-search me-1"></i>Review
                             </button>
-                            ${c.signature_data ? `<button class="btn btn-success" onclick="confirmDeclarationAndArchiveFromRow(${row.id}, ${rowNameAttr}, ${row.clearance?.clearance_id || 0})" title="Confirm Faculty Declaration and archive">
-                                <i class="fas fa-check me-1"></i>Confirm
-                            </button>` : ''}
                         </div>
                     </td>
                 </tr>`;
                 } catch (rowErr) {
                     console.error('Error rendering clearance row:', rowErr, row);
-                    return `<tr><td colspan="7" class="text-center text-muted small py-2">Error displaying faculty record (ID: ${row.id})</td></tr>`;
+                    return `<tr><td colspan="7" class="text-center text-muted small py-2">Error displaying faculty record (ID: ${row.id}): ${escapeHtml(rowErr && rowErr.message ? rowErr.message : 'Render error')}</td></tr>`;
                 }
             }).join('');
         }
@@ -928,7 +1665,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         let pager = document.getElementById('trackingPagination');
         if (!pager) return;
         pager.className = 'd-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top';
-        pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${currentPage} of ${totalPages} Â· ${totalRows} active records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${currentPage <= 1 ? 'disabled' : ''} onclick="changeTrackingPage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''} onclick="changeTrackingPage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
+        pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${currentPage} of ${totalPages} · ${totalRows} active records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${currentPage <= 1 ? 'disabled' : ''} onclick="changeTrackingPage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''} onclick="changeTrackingPage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
     }
 
     function changeTrackingPage(direction) {
@@ -941,7 +1678,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         const select = document.getElementById('archiveTermFilter');
         if (!select) return;
         const currentVal = select.value;
-        const terms = Array.from(new Set(archiveRows.map(r => `${r.academic_year} Â· ${r.semester}`)));
+        const terms = Array.from(new Set(archiveRows.map(r => `${r.academic_year} · ${r.semester}`)));
         select.innerHTML = '<option value="all">All Academic Terms</option>' + terms.map(t => `<option value="${escapeHtml(t)}" ${currentVal === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('');
     }
 
@@ -953,7 +1690,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         return archiveRows.filter(row => {
             const text = `${row.name} ${row.faculty_no} ${row.designated_department}`.toLowerCase();
             const matchesQuery = !query || text.includes(query);
-            const termLabel = `${row.academic_year} Â· ${row.semester}`;
+            const termLabel = `${row.academic_year} · ${row.semester}`;
             const matchesTerm = termFilter === 'all' || termLabel === termFilter;
             const rowEmp = row.employment_status || '';
             const matchesEmp = empFilter === 'all' || rowEmp.toLowerCase() === empFilter.toLowerCase();
@@ -974,13 +1711,15 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             body.innerHTML = visibleRows.map(row => {
                 const expiry = row.contractual_end && row.contractual_end !== '0000-00-00'
                     ? new Date(`${row.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                    : 'Not set';
+                    : '-';
                 const clearedAt = row.updated_at
                     ? new Date(row.updated_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                    : 'â€”';
+                    : '-';
                 const intentLabel = row.intent_type === 'renewal' ? 'Contract Renewal' : (row.intent_type === 'regularization' ? 'Regularization' : 'Clearance Only');
 
-                const reqTags = (row.items || []).map(it => {
+                // Dept head only owns Department Clearance — show only that item in the summary
+                const deptOnlyItems = (row.items || []).filter(it => it.name === 'Department Clearance');
+                const reqTags = (deptOnlyItems.length > 0 ? deptOnlyItems : (row.items || [])).map(it => {
                     if (!it.file_name && it.status !== 'Cleared') {
                         return `<span class="badge bg-secondary-subtle text-body-secondary border me-1 mb-1 small" title="${escapeHtml(it.name)}: Missing"><i class="fas fa-times-circle me-1"></i>${escapeHtml(it.name)}: Missing</span>`;
                     }
@@ -996,7 +1735,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                     <small class="text-body-secondary d-block">${escapeHtml(row.faculty_no || '')}</small>
                     <small class="text-body-secondary">${escapeHtml(row.designated_department || '')}</small>
                 </td>
-                <td><span class="badge bg-secondary-subtle text-body-secondary border">${escapeHtml(row.academic_year)} Â· ${escapeHtml(row.semester)}</span></td>
+                <td><span class="badge bg-secondary-subtle text-body-secondary border">${escapeHtml(row.academic_year)} · ${escapeHtml(row.semester)}</span></td>
                 <td><strong class="text-success">${expiry}</strong></td>
                 <td style="max-width: 250px;">${reqTags || '<span class="text-body-secondary small">No requirements</span>'}</td>
                 <td><small class="text-body-secondary">${clearedAt}</small></td>
@@ -1020,7 +1759,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         let pager = document.getElementById('archivePagination');
         if (!pager) return;
         pager.className = 'd-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top';
-        pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${archiveCurrentPage} of ${totalPages} Â· ${totalRows} completed records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${archiveCurrentPage <= 1 ? 'disabled' : ''} onclick="changeArchivePage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${archiveCurrentPage >= totalPages ? 'disabled' : ''} onclick="changeArchivePage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
+        pager.innerHTML = `<small class="text-body-secondary">${totalRows ? `Page ${archiveCurrentPage} of ${totalPages} · ${totalRows} completed records` : 'No records'}</small><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" ${archiveCurrentPage <= 1 ? 'disabled' : ''} onclick="changeArchivePage(-1)"><i class="fas fa-chevron-left"></i></button><button class="btn btn-outline-secondary" ${archiveCurrentPage >= totalPages ? 'disabled' : ''} onclick="changeArchivePage(1)"><i class="fas fa-chevron-right"></i></button></div>`;
     }
 
     function changeArchivePage(direction) {
@@ -1030,43 +1769,144 @@ require_once ROOT_PATH . '/includes/layout-start.php';
 
     async function openArchiveDetail(clearanceId, archiveId = 0) {
         try {
-            const queryParam = archiveId > 0 ? `archive_id=${archiveId}` : `clearance_id=${clearanceId}`;
+            // Always send clearance_id so the backend can find the record reliably.
+            // archive_id is sent as an optional hint (it may be a real archive_id or a
+            // clearance_item_id from the live-fallback path — backend handles both).
+            const queryParam = `clearance_id=${clearanceId}${archiveId > 0 ? '&archive_id=' + archiveId : ''}`;
             const response = await fetch(`${clearanceApi}?action=archive-detail&${queryParam}`);
             const data = await response.json();
             if (!data.ok) throw new Error(data.error);
             const r = data.record;
 
             document.getElementById('archiveModalTitle').innerHTML = `<i class="fas fa-archive me-2"></i>Archived Record - ${escapeHtml(r.name)}`;
-            document.getElementById('archiveModalMeta').textContent = `${r.faculty_no || ''} Â· ${r.designated_department || 'Department'}`;
-            document.getElementById('archiveModalTerm').textContent = `Academic Term: ${r.academic_year} Â· ${r.semester}`;
-            document.getElementById('archiveModalCompletedAt').textContent = r.completed_at || r.updated_at ? new Date((r.completed_at || r.updated_at).replace(' ', 'T')).toLocaleString() : 'â€”';
+            document.getElementById('archiveModalMeta').textContent = `${r.faculty_no || ''} · ${r.designated_department || 'Department'}`;
+            document.getElementById('archiveModalTerm').textContent = `Academic Term: ${r.academic_year} · ${r.semester}`;
+            document.getElementById('archiveModalCompletedAt').textContent = r.completed_at || r.updated_at ? new Date((r.completed_at || r.updated_at).replace(' ', 'T')).toLocaleString() : '-';
 
             document.getElementById('archiveFacultyName').textContent = r.name;
-            document.getElementById('archiveFacultyNo').textContent = r.faculty_no || 'â€”';
-            document.getElementById('archiveDepartment').textContent = r.designated_department || 'â€”';
-            document.getElementById('archiveRank').textContent = r.academic_rank || r.position || 'â€”';
-            document.getElementById('archiveContractEnd').textContent = r.contractual_end && r.contractual_end !== '0000-00-00' ? new Date(`${r.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set';
-            document.getElementById('archiveEmpStatus').textContent = r.employment_status || 'Regular';
-            document.getElementById('archiveEmail').textContent = r.email || 'â€”';
+            document.getElementById('archiveFacultyNo').textContent = r.faculty_no || '-';
+            document.getElementById('archiveDepartment').textContent = r.designated_department || '-';
+            document.getElementById('archiveRank').textContent = r.academic_rank || r.position || '-';
+            document.getElementById('archiveContractEnd').textContent = r.contractual_end && r.contractual_end !== '0000-00-00' ? new Date(`${r.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+            document.getElementById('archiveEmpStatus').textContent = r.employment_status || '-';
+            document.getElementById('archiveEmail').textContent = r.email || '-';
 
             const body = document.getElementById('archiveRequirementsBody');
-            body.innerHTML = (r.items || []).map((it, idx) => {
-                const isMissing = !it.file_name && it.status !== 'Cleared';
-                const statusLabel = isMissing ? 'Missing' : (it.status === 'Cleared' ? 'Approved / Cleared' : (it.status === 'Hold' ? 'Denied' : it.status));
-                const badgeClass = isMissing ? 'bg-secondary-subtle text-body-secondary border' : (it.status === 'Cleared' ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle');
-                const fileUrl = it.file_path
-                    ? `${clearanceApi}?action=file&download=1&path=${encodeURIComponent(it.file_path)}&item_id=${it.id || 0}`
-                    : `${clearanceApi}?action=file&download=1&item_id=${it.id || 0}`;
+            // Dept head only owns Department Clearance — filter to show only that item
+            const allItems = r.items || [];
+            const deptItems = allItems.filter(it => it.name === 'Department Clearance');
+            const displayItems = deptItems.length > 0 ? deptItems : allItems;
 
-                return `<tr>
-                <td>${idx + 1}</td>
-                <td><strong class="text-body-emphasis">${escapeHtml(it.name)}</strong></td>
-                <td>${it.file_name ? `<a class="btn btn-sm btn-outline-success" href="${fileUrl}" download="${escapeHtml(it.file_name)}" title="Download file"><i class="fas fa-download me-1"></i>Download (${escapeHtml(it.file_name)})</a>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-circle-xmark me-1"></i>No file (Missing)</span>'}</td>
-                <td><span class="badge ${badgeClass}"><i class="${isMissing ? 'fas fa-question-circle' : (it.status === 'Cleared' ? 'fas fa-check-circle' : 'fas fa-times-circle')} me-1"></i>${escapeHtml(statusLabel)}</span></td>
-                <td>${formatClearanceRemark(it.remarks, isMissing)}</td>
-                <td><small class="text-body-secondary">${it.cleared_at ? new Date(it.cleared_at.replace(' ', 'T')).toLocaleDateString() : 'â€”'}</small></td>
-            </tr>`;
-            }).join('');
+            if (!displayItems.length) {
+                body.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-body-secondary">
+                    <i class="fas fa-info-circle me-2 text-info"></i>
+                    <strong>Department Clearance file not found in archive.</strong><br>
+                    <small>The file may have been uploaded before the archive system was initialized. Please check the faculty's active clearance record for the uploaded file.</small>
+                </td></tr>`;
+            } else {
+                body.innerHTML = displayItems.map((it, idx) => {
+                    const hasFile = Boolean(it.file_name || it.original_name || it.file_path);
+                    const rawFileName = it.file_name || it.original_name || (it.file_path ? it.file_path.split('/').pop() : 'clearance-file.pdf');
+                    const displayCleanName = rawFileName.replace(/\.[^/.]+$/, "");
+                    const isMissing = !hasFile && it.status !== 'Cleared';
+                    const fileUrl = it.file_path
+                        ? `${clearanceApi}?action=file&download=1&path=${encodeURIComponent(it.file_path)}&item_id=${it.id || 0}&filename=${encodeURIComponent(rawFileName)}`
+                        : `${clearanceApi}?action=file&download=1&item_id=${it.id || 0}&filename=${encodeURIComponent(rawFileName)}`;
+                    const viewUrl = it.file_path
+                        ? `${clearanceApi}?action=file&path=${encodeURIComponent(it.file_path)}&item_id=${it.id || 0}&filename=${encodeURIComponent(rawFileName)}`
+                        : (it.id ? `${clearanceApi}?action=file&item_id=${it.id}&filename=${encodeURIComponent(rawFileName)}` : null);
+
+                    const clearedDateStr = it.cleared_at
+                        ? new Date(it.cleared_at.replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : (it.updated_at ? new Date(it.updated_at.replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-');
+
+                    let rawRemark = (it.remarks ? String(it.remarks) : '').trim();
+                    let scopeBadges = '';
+                    const scopeMatch = rawRemark.match(/<!--SCOPE_STATE:(.*?)-->/);
+                    if (scopeMatch) {
+                        try {
+                            const parsedScope = JSON.parse(scopeMatch[1]);
+                            const pList = Array.isArray(parsedScope.passed) ? parsedScope.passed : [];
+                            const fList = Array.isArray(parsedScope.failed) ? parsedScope.failed : [];
+                            if (pList.length || fList.length) {
+                                scopeBadges = `
+                                    <div class="mt-1 d-flex flex-wrap gap-1">
+                                        ${pList.map(p => `<span class="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-1.5" style="font-size:0.7rem;"><i class="fas fa-check me-1"></i>${escapeHtml(p)}</span>`).join('')}
+                                        ${fList.map(f => `<span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-1.5" style="font-size:0.7rem;"><i class="fas fa-times me-1"></i>${escapeHtml(f)}</span>`).join('')}
+                                    </div>
+                                `;
+                            }
+                        } catch (e) { }
+                    }
+                    rawRemark = rawRemark.replace(/<!--SCOPE_STATE:.*?-->/g, '').trim();
+                    rawRemark = rawRemark.replace(/^\[(Denied|On Hold|Hold|Approved|With Deficiency)\]\s*/i, '').trim();
+                    rawRemark = rawRemark.replace(/Deficiencies Flagged:[\s\S]*?(?=Instructions:|$)/i, '')
+                        .replace(/Complied:[\s\S]*?(?=Instructions:|$)/i, '')
+                        .replace(/^Instructions:\s*/i, '')
+                        .trim();
+                    const remarkDisplay = rawRemark || (isMissing ? 'No file submitted' : 'Requirement approved.');
+
+                    return `<tr class="border-bottom">
+                    <td class="ps-3 fw-normal text-body" style="font-size: 0.95rem;">${idx + 1}</td>
+                    <td>
+                        <div class="fw-normal text-body-emphasis" style="font-size: 0.92rem; line-height: 1.35;">${escapeHtml(it.name || 'Department Clearance')}</div>
+                        <div class="text-body-secondary" style="font-size: 0.82rem;">Dept. Verification</div>
+                    </td>
+                    <td>
+                        ${hasFile ? `
+                        <div>
+                            <div class="d-flex align-items-center gap-1.5 mb-1.5">
+                                <i class="far fa-file-pdf fs-4 text-danger me-1"></i>
+                                <span class="fw-semibold text-body-emphasis text-truncate" style="max-width: 230px; font-size: 0.88rem;" title="${escapeHtml(rawFileName)}">
+                                    ${escapeHtml(displayCleanName)}
+                                </span>
+                                <span class="badge bg-secondary-subtle text-secondary-emphasis border-0 px-1.5 py-0.5 rounded-1" style="font-size: 0.65rem; font-weight: 600;">PDF</span>
+                            </div>
+                            <div class="btn-group clearance-btn-group rounded-2 overflow-hidden shadow-none" style="height: 31px;">
+                                ${viewUrl ? `
+                                <a href="${viewUrl}" target="_blank" class="btn btn-sm d-inline-flex align-items-center gap-1.5 px-3 py-1 border-0">
+                                    <i class="far fa-eye"></i> View
+                                </a>` : ''}
+                                <a href="${fileUrl}" download="${escapeHtml(rawFileName)}" class="btn btn-sm d-inline-flex align-items-center gap-1.5 px-3 py-1 border-0">
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                            </div>
+                        </div>` : `
+                        <div class="d-flex align-items-center gap-1.5 text-body-secondary small">
+                            <i class="far fa-file-circle-xmark fs-5"></i>
+                            <span>No file uploaded</span>
+                        </div>`}
+                    </td>
+                    <td>
+                        ${isMissing ? `
+                        <span class="badge rounded-pill clr-pill-missing d-inline-flex align-items-center gap-1.5 px-3 py-1.5 fw-medium" style="font-size: 0.84rem;">
+                            <i class="fas fa-minus" style="font-size: 0.75rem;"></i> Missing
+                        </span>` : (it.status === 'Cleared' ? `
+                        <span class="badge rounded-pill clr-pill-approved d-inline-flex align-items-center gap-1.5 px-3 py-1.5 fw-medium" style="font-size: 0.84rem;">
+                            <i class="fas fa-check" style="font-size: 0.78rem;"></i> Approved
+                        </span>` : `
+                        <span class="badge rounded-pill clr-pill-denied d-inline-flex align-items-center gap-1.5 px-3 py-1.5 fw-medium" style="font-size: 0.84rem;">
+                            <i class="fas fa-times" style="font-size: 0.78rem;"></i> ${escapeHtml(it.status)}
+                        </span>`)}
+                    </td>
+                    <td>
+                        <div class="d-flex flex-column" style="font-size: 0.88rem;">
+                            <div class="d-inline-flex align-items-center gap-2">
+                                <i class="far fa-comment text-body-secondary" style="font-size: 0.95rem;"></i>
+                                <span class="text-body">${escapeHtml(remarkDisplay)}</span>
+                            </div>
+                            ${scopeBadges}
+                        </div>
+                    </td>
+                    <td class="pe-3">
+                        <div class="d-inline-flex align-items-center gap-2" style="font-size: 0.88rem;">
+                            <i class="far fa-calendar-alt text-body-secondary" style="font-size: 0.95rem;"></i>
+                            <span class="text-body">${clearedDateStr}</span>
+                        </div>
+                    </td>
+                </tr>`;
+                }).join('');
+            }
 
             archiveDetailModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('archiveDetailModal'));
             archiveDetailModal.show();
@@ -1088,7 +1928,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             `"${(r.faculty_no || '').replace(/"/g, '""')}"`,
             `"${(r.designated_department || '').replace(/"/g, '""')}"`,
             `"${r.employment_status || 'Probationary'}"`,
-            `"${r.academic_year} Â· ${r.semester}"`,
+            `"${r.academic_year} · ${r.semester}"`,
             `"${r.intent_type}"`,
             `"${r.contractual_end || ''}"`,
             `"${r.updated_at || ''}"`
@@ -1134,11 +1974,25 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             const c = data.clearance;
             currentReviewProfile = profile;
             currentReviewClearance = c;
+            _currentDhClearanceId = c.clearance_id || 0;
+            _currentDhFacultyId = facultyId;
             toggleConfirmArchiveAction(!!c.signature_data);
 
-            document.getElementById('reviewTitle').innerHTML = `<i class="fas fa-clipboard-check me-2"></i>Review Clearance - ${escapeHtml(profile.first_name)} ${escapeHtml(profile.last_name)}`;
-            document.getElementById('reviewMeta').textContent = `${profile.faculty_id || ''} Â· ${profile.designated_department || 'Department'}`;
+            const empStatus = profile.employment_status || 'Probationary';
 
+            // Top Header: Title & Subtitle
+            const mainTitle = document.getElementById('reviewMainTitle');
+            if (mainTitle) mainTitle.textContent = `${empStatus} Employee Clearance`;
+            const mainSub = document.getElementById('reviewMainSubtitle');
+            if (mainSub) mainSub.textContent = 'Complete all clearance requirements and get the official office sign-off.';
+
+            // Hidden backward-compatibility elements
+            const revTitle = document.getElementById('reviewTitle');
+            if (revTitle) revTitle.innerHTML = `<i class="fas fa-clipboard-check me-2"></i>Review Clearance - ${escapeHtml(profile.first_name)} ${escapeHtml(profile.last_name)}`;
+            const revMeta = document.getElementById('reviewMeta');
+            if (revMeta) revMeta.textContent = `${profile.faculty_id || ''} · ${profile.designated_department || 'Department'}`;
+
+            // 1. Stats Card: Contract Expiry
             const expiry = profile.contractual_end && profile.contractual_end !== '0000-00-00'
                 ? new Date(`${profile.contractual_end}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
                 : 'Not set';
@@ -1154,13 +2008,14 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 daysEl.className = `small d-block ${daysRemaining !== null && daysRemaining <= 30 ? 'text-danger fw-bold' : 'text-body-secondary'}`;
             }
 
-            const empStatus = profile.employment_status || 'Probationary';
+            // Stats Card: Employment Status Badge
             const empEl = document.getElementById('summaryEmpStatus');
             if (empEl) {
                 empEl.textContent = empStatus;
-                empEl.className = `badge rounded-pill ${empStatus === 'Regular' ? 'bg-success-subtle text-success border border-success-subtle' : (empStatus === 'Probationary' ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-secondary-subtle text-body-secondary border')} px-3 py-1.5 fw-semibold`;
+                empEl.className = `badge rounded-pill ${empStatus === 'Regular' ? 'bg-success-subtle text-success border border-success-subtle' : (empStatus === 'Probationary' ? 'bg-warning-subtle text-dark border border-warning-subtle' : 'bg-secondary-subtle text-body-secondary border')} px-2.5 py-1 fw-semibold`;
             }
 
+            // Stats Card: Progress
             const deptItem = (c.items || []).find(it => it.name === 'Department Clearance');
             const isDeptCleared = deptItem && (deptItem.status === 'Cleared' || deptItem.status === 'Approved');
             const deptProgress = isDeptCleared ? 100 : 0;
@@ -1170,8 +2025,81 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             if (progressBar) progressBar.style.width = `${deptProgress}%`;
             const progressText = document.getElementById('summaryProgressText');
             if (progressText) progressText.textContent = `${deptProgress}% (${deptApprovedCount}/1)`;
+            const progressSub = document.getElementById('summaryProgressSub');
+            if (progressSub) progressSub.textContent = isDeptCleared ? 'All requirements completed' : `${deptProgress}% completed`;
+
+            // 2. Transaction Summary Card
+            const txnId = c.clearance_no || ('TRX-' + (new Date().getFullYear()) + '-' + String(c.clearance_id || 1).padStart(6, '0'));
+            const empFullName = `${(profile.last_name || '').toUpperCase()}, ${(profile.first_name || '').toUpperCase()} ${profile.middle_name ? profile.middle_name.charAt(0) + '.' : ''}`.trim();
+            const posTitle = profile.employment_status ? `${profile.employment_status} Employee` : (profile.rank || 'Probationary Employee');
+            const subDateFormatted = c.created_at ? new Date(c.created_at.replace(' ', 'T')).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+            const subDateShort = c.created_at ? new Date(c.created_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+            const updDateFormatted = c.updated_at ? new Date(c.updated_at.replace(' ', 'T')).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : subDateFormatted;
+
+            const elTxnId = document.getElementById('reviewTxnId'); if (elTxnId) elTxnId.textContent = txnId;
+            const elTxnEmp = document.getElementById('reviewTxnEmployee'); if (elTxnEmp) elTxnEmp.textContent = empFullName;
+            const elTxnPos = document.getElementById('reviewTxnPosition'); if (elTxnPos) elTxnPos.textContent = posTitle;
+            const elTxnSub = document.getElementById('reviewTxnSubmitted'); if (elTxnSub) elTxnSub.textContent = subDateFormatted;
+            const elTxnUpd = document.getElementById('reviewTxnUpdated'); if (elTxnUpd) elTxnUpd.textContent = updDateFormatted;
+
+            // 3. Horizontal Stepper (3 steps)
+            const step1Date = document.getElementById('stepperStep1Date'); if (step1Date) step1Date.textContent = 'Completed';
+            const step2Circle = document.getElementById('stepperStep2Circle');
+            const step2Sub = document.getElementById('stepperStep2Sub');
+            const stepLine2 = document.getElementById('stepperLine2');
+            const step4Circle = document.getElementById('stepperStep4Circle');
+            const step4Sub = document.getElementById('stepperStep4Sub');
+
+            // Step 2 Review state
+            if (isDeptCleared) {
+                if (step2Circle) { step2Circle.className = 'stepper-circle bg-success text-white'; step2Circle.innerHTML = '<i class="fas fa-check"></i>'; }
+                if (step2Sub) step2Sub.textContent = 'Completed';
+                if (stepLine2) stepLine2.style.background = '#198754';
+            } else {
+                if (step2Circle) { step2Circle.className = 'stepper-circle bg-primary text-white'; step2Circle.textContent = '2'; }
+                if (step2Sub) step2Sub.textContent = 'In Progress';
+                if (stepLine2) stepLine2.style.background = 'var(--bs-border-color)';
+            }
+
+            // Step 3 (Completed) state
+            const isCompleted = isDeptCleared && !!c.signature_data;
+            if (isCompleted) {
+                if (step4Circle) { step4Circle.className = 'stepper-circle bg-success text-white'; step4Circle.innerHTML = '<i class="fas fa-check"></i>'; }
+                if (step4Sub) step4Sub.textContent = 'Completed';
+            } else if (isDeptCleared) {
+                if (step4Circle) { step4Circle.className = 'stepper-circle bg-primary text-white'; step4Circle.textContent = '3'; }
+                if (step4Sub) step4Sub.textContent = 'Pending';
+            } else {
+                if (step4Circle) { step4Circle.className = 'stepper-circle bg-body-secondary text-body-secondary'; step4Circle.textContent = '3'; }
+                if (step4Sub) step4Sub.textContent = 'Not yet';
+            }
 
 
+
+            // 5. Success Status Banner (Sequential lock aware)
+            const banner = document.getElementById('reviewSuccessBanner');
+            const deptStage = (c.stages && c.stages['Department Clearance']) || null;
+            const isDeptLocked = deptStage ? (deptStage.is_unlocked === false || deptStage.state === 'locked') : false;
+            const deptLockReason = (deptStage && deptStage.lock_reason) ? deptStage.lock_reason : 'Department Clearance is locked until preceding clearances (Academic, Library, Financial, Property, HR) are cleared.';
+
+            if (banner) {
+                if (isDeptCleared) {
+                    banner.className = 'alert alert-success d-flex align-items-center gap-3 p-3 rounded-3 border border-success-subtle mb-4';
+                    banner.innerHTML = `<div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px;height:28px;font-size:0.85rem;"><i class="fas fa-check"></i></div>
+                    <span class="fw-semibold small text-success-emphasis">All requirements have been cleared. Proceed to official office sign-off.</span>`;
+                } else if (isDeptLocked) {
+                    banner.className = 'alert alert-warning d-flex align-items-center gap-3 p-3 rounded-3 border border-warning-subtle mb-4';
+                    banner.innerHTML = `<div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px;height:28px;font-size:0.85rem;"><i class="fas fa-lock"></i></div>
+                    <div>
+                        <div class="fw-bold small text-warning-emphasis">Department Clearance Locked</div>
+                        <div class="small text-warning-emphasis">${escapeHtml(deptLockReason)}</div>
+                    </div>`;
+                } else {
+                    banner.className = 'alert alert-info d-flex align-items-center gap-3 p-3 rounded-3 border border-info-subtle mb-4';
+                    banner.innerHTML = `<div class="rounded-circle bg-info text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px;height:28px;font-size:0.85rem;"><i class="fas fa-info"></i></div>
+                    <span class="fw-semibold small text-info-emphasis">Clearance requirements are currently under review. Please review the submitted document.</span>`;
+                }
+            }
 
             // Clearance Agreement Form Review Section
             const formBadge = document.getElementById('agreementFormStatusBadge');
@@ -1179,8 +2107,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             if (formBadge && formBody) {
                 const isFormSub = !!c.form_submitted;
                 const formSt = c.form_status || (isFormSub ? 'Pending Review' : 'Not Submitted');
-                const formDate = c.form_submitted_at ? new Date(c.form_submitted_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'â€”';
-                const appDate = c.form_approved_at ? new Date(c.form_approved_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'â€”';
+                const formDate = c.form_submitted_at ? new Date(c.form_submitted_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+                const appDate = c.form_approved_at ? new Date(c.form_approved_at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
 
                 if (formSt === 'Approved') {
                     formBadge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1';
@@ -1190,7 +2118,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                                 <div>
                                     <strong class="text-success-emphasis d-block mb-1"><i class="fas fa-file-signature me-1"></i>Clearance Form Endorsed</strong>
-                                    <small class="text-body-secondary">Submitted on <strong>${formDate}</strong> Â· Approved on <strong>${appDate}</strong></small>
+                                    <small class="text-body-secondary">Submitted on <strong>${formDate}</strong> · Approved on <strong>${appDate}</strong></small>
                                 </div>
                                 <span class="badge bg-success text-white px-3 py-2"><i class="fas fa-check me-1"></i>Endorsed by Dept Head</span>
                             </div>
@@ -1237,34 +2165,85 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 }
             }
 
-            // Table rows â€“ only show Department Clearance requirement
+            // Table rows - styled to match mockup
             const body = document.getElementById('reviewBody');
             let visibleItems = c.items || [];
             visibleItems = visibleItems.filter(item => item.name === 'Department Clearance');
             body.innerHTML = visibleItems.length ? visibleItems.map(item => {
-                const isMissing = !item.file_name && item.status !== 'Cleared';
+                const hasFile = Boolean(item.file_name || item.original_name || item.file_path);
+                const rawFileName = item.file_name || item.original_name || (item.file_path ? item.file_path.split('/').pop() : 'clearance-file.pdf');
+                const isMissing = !hasFile && item.status !== 'Cleared';
                 const statusLabel = isMissing ? 'Missing' : (item.display_status || item.status);
-                const badgeClass = isMissing
-                    ? 'bg-secondary-subtle text-body-secondary border'
-                    : (item.status === 'Cleared'
-                        ? 'bg-success-subtle text-success border border-success-subtle'
-                        : (item.status === 'Denied' || item.status === 'Hold'
-                            ? 'bg-danger-subtle text-danger border border-danger-subtle'
-                            : (item.status === 'On Hold'
-                                ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-info-subtle text-info border border-info-subtle')));
+                const fileUrl = item.file_path
+                    ? `${clearanceApi}?action=file&download=1&path=${encodeURIComponent(item.file_path)}&item_id=${item.id || 0}&filename=${encodeURIComponent(rawFileName)}`
+                    : `${clearanceApi}?action=file&download=1&item_id=${item.id || 0}&filename=${encodeURIComponent(rawFileName)}`;
+                const viewUrl = item.file_path
+                    ? `${clearanceApi}?action=file&path=${encodeURIComponent(item.file_path)}&item_id=${item.id || 0}&filename=${encodeURIComponent(rawFileName)}`
+                    : (item.id ? `${clearanceApi}?action=file&item_id=${item.id}&filename=${encodeURIComponent(rawFileName)}` : null);
+                const isItemCleared = item.status === 'Cleared' || item.status === 'Approved';
 
-                return `<tr>
-                <td><strong class="text-body-emphasis">${escapeHtml(item.name)}</strong></td>
-                <td>${item.file_name ? `<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${clearanceApi}?action=file&item_id=${item.id}"><i class="fas fa-eye me-1"></i>View file</a><small class="d-block text-body-secondary mt-1">${escapeHtml(item.file_name)}</small>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-excel me-1"></i>No file uploaded (Missing)</span>'}</td>
-                <td><span class="badge ${badgeClass} px-2 py-1">${escapeHtml(statusLabel)}</span></td>
-                <td>${formatClearanceRemark(item.remarks, isMissing)}</td>
-                <td class="text-end"><div class="btn-group btn-group-sm">
-                    <button class="btn btn-success" onclick="reviewItem(${item.id}, 'approve')" ${item.file_name ? '' : 'disabled'} title="Approve"><i class="fas fa-check"></i></button>
-                    <button class="btn btn-danger" onclick="reviewItem(${item.id}, 'deny', '${escapeHtml(item.name)}')" ${item.file_name ? '' : 'disabled'} title="Deny (Red)"><i class="fas fa-times"></i></button>
-                    <button class="btn btn-warning text-dark" onclick="reviewItem(${item.id}, 'hold')" ${item.file_name ? '' : 'disabled'} title="Put On Hold (Yellow)"><i class="fas fa-pause"></i></button>
-                </div></td>
+                return `<tr style="border-bottom:1px solid var(--bs-border-color-translucent);">
+                <td class="ps-4 py-3 align-top">
+                    <div>
+                        <div class="fw-bold text-body-emphasis" style="font-size:0.875rem;">${escapeHtml(item.name || 'Department Clearance')}</div>
+                        <small class="text-body-secondary" style="font-size:0.7rem;">Department Head Office</small>
+                    </div>
+                </td>
+                <td class="py-3 align-top">
+                    ${hasFile ? `
+                    <div class="p-2 rounded-3 border bg-body-tertiary d-flex align-items-center gap-2" style="max-width:210px;">
+                        <div class="rounded-2 bg-danger-subtle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;">
+                            <i class="fas fa-file-pdf text-danger" style="font-size:1rem;"></i>
+                        </div>
+                        <div style="min-width:0;">
+                            <a href="${viewUrl || fileUrl}" target="_blank"
+                               class="fw-semibold text-primary text-decoration-none d-block"
+                               style="font-size:0.78rem;max-width:130px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;"
+                               title="${escapeHtml(rawFileName)}">
+                               ${escapeHtml(rawFileName)}
+                            </a>
+                            <div class="text-body-secondary" style="font-size:0.66rem;">
+                                ${item.uploaded_at ? new Date(item.uploaded_at.replace(' ', 'T')).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Uploaded recently'}
+                            </div>
+                        </div>
+                    </div>
+                    <a href="${fileUrl}" class="btn btn-outline-secondary btn-sm mt-1.5 w-100" style="font-size:0.72rem;max-width:210px;" title="Download file">
+                        <i class="fas fa-download me-1"></i>Download
+                    </a>` : `
+                    <div class="d-flex align-items-center gap-2 p-2 rounded-3 border border-dashed bg-body-tertiary" style="max-width:210px;">
+                        <div class="rounded-2 bg-secondary-subtle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;">
+                            <i class="fas fa-file-circle-xmark text-secondary" style="font-size:1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold text-body-secondary" style="font-size:0.78rem;">No file uploaded</div>
+                            <div class="text-body-secondary" style="font-size:0.68rem;">Awaiting faculty submission</div>
+                        </div>
+                    </div>`}
+                </td>
+                <td class="py-3 align-top">
+                    <span class="badge rounded-pill px-3 py-1.5 fw-semibold mb-1 d-inline-block"
+                        style="font-size:0.75rem;
+                        ${isMissing ? 'background:rgba(108,117,125,0.12);color:#6c757d;border:1px solid rgba(108,117,125,0.25);' :
+                        isItemCleared ? 'background:rgba(25,135,84,0.12);color:#198754;border:1px solid rgba(25,135,84,0.3);' :
+                            (item.status === 'Denied' || item.status === 'Hold') ? 'background:rgba(220,53,69,0.12);color:#dc3545;border:1px solid rgba(220,53,69,0.25);' :
+                                'background:rgba(13,110,253,0.1);color:#0d6efd;border:1px solid rgba(13,110,253,0.2);'}">
+                        <i class="fas ${isItemCleared ? 'fa-check-circle' : isMissing ? 'fa-circle-xmark' : (item.status === 'Denied' || item.status === 'Hold') ? 'fa-times-circle' : 'fa-hourglass-half'} me-1"></i>
+                        ${escapeHtml(isItemCleared ? 'Cleared' : statusLabel)}
+                    </span>
+                    <div>${formatClearanceRemark(item.remarks, isMissing)}</div>
+                </td>
+                <td class="pe-4 py-3 align-top">
+                    ${renderScopeVerificationList(item)}
+                </td>
             </tr>`;
-            }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No Department Clearance submitted.</td></tr>';
+            }).join('') : `<tr><td colspan="4" class="text-center py-5">
+                <div class="text-body-secondary">
+                    <i class="fas fa-inbox fs-2 d-block mb-2 opacity-25"></i>
+                    <div class="fw-semibold">No Department Clearance submitted</div>
+                    <small>This section will populate once the faculty submits their clearance.</small>
+                </div>
+            </td></tr>`;
+
 
             // Faculty Declaration & Final Digital Signature Section
             const declBadge = document.getElementById('declarationReviewBadge');
@@ -1288,7 +2267,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 <div class="flex-grow-1">
                                     <div class="fw-bold ${awaitingDeptHead ? 'text-warning-emphasis' : 'text-success-emphasis'} mb-2">
                                         <i class="fas ${awaitingDeptHead ? 'fa-user-check' : 'fa-check-circle'} me-2"></i>
-                                        ${awaitingDeptHead ? 'Faculty Declaration received â€” pending your review' : 'Faculty Declaration Completed'}
+                                        ${awaitingDeptHead ? 'Faculty Declaration received pending your review' : 'Faculty Declaration Completed'}
                                     </div>
                                     <p class="text-body-secondary small fst-italic mb-3 ps-2 border-start border-success-subtle border-3">
                                         &ldquo;I hereby certify that I have completed and submitted the required documents and have returned any school property, records, or other accountable items assigned to me.&rdquo;
@@ -1315,11 +2294,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                     </div>
                                 </div>
                             </div>
-                            <div class="d-flex justify-content-end mt-3 pt-3 border-top">
-                                <button type="button" class="btn btn-success fw-semibold px-4" onclick="confirmDeclarationAndArchive()">
-                                    <i class="fas fa-check me-1"></i> Confirm
-                                </button>
-                            </div>
+
                         </div>
                     `;
                 } else if (allApproved) {
@@ -1331,7 +2306,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                                 <i class="fas fa-pen-clip"></i>
                             </div>
                             <div>
-                                <div class="fw-bold text-warning-emphasis">All documents approved â€” awaiting faculty signature</div>
+                                <div class="fw-bold text-warning-emphasis">All documents approved awaiting faculty signature</div>
                                 <div class="small text-body-secondary">
                                     All ${c.total_items} required documents have been cleared. The faculty member can now draw their digital signature to finalize their declaration. This section will update once they sign.
                                 </div>
@@ -1362,6 +2337,10 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 }
             }
 
+
+
+
+
             reviewModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal'));
             reviewModal.show();
         } catch (error) {
@@ -1369,7 +2348,138 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         }
     }
 
-    // â”€â”€ Archive Confirmation Pop-up Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // DH Final Verify state
+    let _currentDhClearanceId = 0;
+    let _currentDhFacultyId = null;
+    let _confirmDhVerifyModal = null;
+
+    function initiateDhFinalVerify() {
+        if (!_currentDhFacultyId) return;
+        const deptItem = (currentReviewClearance?.items || []).find(it => it.name === 'Department Clearance');
+        const hasFile = Boolean(deptItem && (deptItem.file_name || deptItem.original_name || deptItem.file_path));
+        if (!hasFile) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small';
+                alertBox.innerHTML = '<i class="fas fa-exclamation-triangle me-1.5"></i>Cannot finalize: The faculty member has not submitted a file for Department Clearance yet.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+        const now = new Date().toLocaleString();
+        const signerEl = document.getElementById('dhVerifySignerName');
+        const tsEl = document.getElementById('dhVerifyTimestamp');
+        const nameEl = document.getElementById('dhVerifyFacultyName');
+        if (signerEl) signerEl.textContent = 'Department Head';
+        if (tsEl) tsEl.textContent = now;
+        if (nameEl && currentReviewProfile) nameEl.textContent = `${currentReviewProfile.first_name || ''} ${currentReviewProfile.last_name || ''}`.trim();
+        const remarksEl = document.getElementById('dhVerifyRemarks');
+        if (remarksEl) remarksEl.value = '';
+        _confirmDhVerifyModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmDhVerifyModal'));
+        _confirmDhVerifyModal.show();
+        setTimeout(() => {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length >= 2) backdrops[backdrops.length - 1].style.zIndex = '1075';
+        }, 50);
+    }
+
+    async function executeDhFinalVerify() {
+        if (!_currentDhFacultyId) return;
+        const btn = document.getElementById('btnConfirmDhVerify');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Finalizing...'; }
+        const remarks = (document.getElementById('dhVerifyRemarks')?.value || '').trim();
+        const form = new FormData();
+        form.append('action', 'dh-final-verify');
+        form.append('faculty_id', _currentDhFacultyId);
+        form.append('remarks', remarks);
+        try {
+            const resp = await fetch(clearanceApi, { method: 'POST', body: form });
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error);
+            _confirmDhVerifyModal?.hide();
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) { alertBox.className = 'alert alert-success'; alertBox.innerHTML = `<i class="fas fa-check-circle me-2"></i>${escapeHtml(data.message)}`; alertBox.classList.remove('d-none'); }
+            const dhBtn = document.getElementById('btnDhFinalVerify');
+            if (dhBtn) { dhBtn.disabled = true; dhBtn.innerHTML = '<i class="fas fa-check-circle me-1"></i>Already Finalized'; }
+            const dhBanner = document.getElementById('dhExistingVerifyBanner');
+            if (dhBanner) { dhBanner.innerHTML = `<div class="alert alert-primary py-2 mb-0 small"><i class="fas fa-check-circle me-1"></i><strong>Finalized:</strong> DH Final Verification completed. Ref: <strong>${escapeHtml(data.approval_ref || '')}</strong></div>`; dhBanner.classList.remove('d-none'); }
+
+            loadTracking();
+        } catch (err) {
+            _confirmDhVerifyModal?.hide();
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) { alertBox.className = 'alert alert-danger'; alertBox.textContent = err.message; alertBox.classList.remove('d-none'); }
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-stamp me-1"></i>Confirm &amp; Finalize'; }
+        }
+    }
+
+    function loadDhApprovalHistory() { }
+
+    function initiateDepartmentHeadRevision() {
+        if (!_currentDhFacultyId) return;
+        const deptItem = (currentReviewClearance?.items || []).find(it => it.name === 'Department Clearance');
+        const hasFile = Boolean(deptItem && (deptItem.file_name || deptItem.original_name || deptItem.file_path));
+        if (!hasFile) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small';
+                alertBox.innerHTML = '<i class="fas fa-exclamation-triangle me-1.5"></i>Cannot request revision: The faculty member has not submitted a file for this requirement yet.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+        const remarksEl = document.getElementById('dhRevisionRemarks');
+        if (remarksEl) remarksEl.value = '';
+        const alertEl = document.getElementById('dhRevisionAlert');
+        if (alertEl) alertEl.classList.add('d-none');
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('dhRequestRevisionModal'));
+        modal.show();
+    }
+
+    async function executeDepartmentHeadRevision() {
+        if (!_currentDhFacultyId) return;
+        const remarks = (document.getElementById('dhRevisionRemarks')?.value || '').trim();
+        const alertEl = document.getElementById('dhRevisionAlert');
+        if (!remarks) {
+            if (alertEl) {
+                alertEl.textContent = 'Please enter the reason for revision.';
+                alertEl.classList.remove('d-none');
+            }
+            return;
+        }
+        const btn = document.getElementById('btnConfirmDhRevision');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending...'; }
+        const form = new FormData();
+        form.append('action', 'office-request-revision');
+        form.append('faculty_id', _currentDhFacultyId);
+        form.append('remarks', remarks);
+        form.append('office', 'Department Clearance');
+
+        try {
+            const resp = await fetch(clearanceApi, { method: 'POST', body: form });
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error);
+            bootstrap.Modal.getInstance(document.getElementById('dhRequestRevisionModal'))?.hide();
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning';
+                alertBox.innerHTML = `<i class="fas fa-rotate-left me-2"></i>${escapeHtml(data.message || 'Revision requested.')}`;
+                alertBox.classList.remove('d-none');
+            }
+            await openReview(_currentDhFacultyId);
+            loadTracking();
+        } catch (err) {
+            if (alertEl) {
+                alertEl.textContent = err.message;
+                alertEl.classList.remove('d-none');
+            }
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-rotate-left me-1"></i>Send Revision Request'; }
+        }
+    }
+
+    // --- Archive Confirmation Pop-up Handlers ---
     let pendingArchiveTarget = { facultyId: 0, facultyName: '', clearanceId: 0 };
     let confirmArchiveModalInstance = null;
 
@@ -1384,8 +2494,22 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     function toggleConfirmArchiveAction(hasSignature) {
         const btn = document.getElementById('btnConfirmDeclarationArchive');
         if (!btn) return;
-        btn.classList.toggle('d-none', !hasSignature);
-        btn.disabled = !hasSignature;
+        btn.classList.remove('d-none');
+        const isArchivedOrCleared = currentReviewClearance && (
+            currentReviewClearance.overall_status === 'Cleared' ||
+            currentReviewClearance.overall_status === 'Completed'
+        );
+        if (isArchivedOrCleared) {
+            btn.disabled = true;
+            btn.style.opacity = '0.35';
+            btn.style.pointerEvents = 'none';
+            btn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Confirmed';
+        } else {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+            btn.innerHTML = '<i class="fas fa-check me-1"></i> Confirm';
+        }
     }
 
     function confirmArchiveFromReview() {
@@ -1424,7 +2548,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         const originalModalHtml = modalBtn ? modalBtn.innerHTML : '';
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Confirmingâ€¦';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Confirming...';
         }
         if (modalBtn) {
             modalBtn.disabled = true;
@@ -1444,17 +2568,25 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             if (!data.ok) throw new Error(data.error || 'Failed to archive clearance record.');
 
             showTrackingAlert(data.message || 'Faculty Declaration confirmed. The clearance record has been archived.', 'success');
+            if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.35';
+                btn.style.pointerEvents = 'none';
+                btn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Confirmed';
+            }
             confirmArchiveModalInstance?.hide();
             reviewModal?.hide();
             loadTracking();
             switchToArchiveTab();
         } catch (error) {
             alert(error.message);
-        } finally {
             if (btn) {
                 btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.pointerEvents = 'auto';
                 btn.innerHTML = originalHtml || '<i class="fas fa-check me-1"></i> Confirm';
             }
+        } finally {
             if (modalBtn) {
                 modalBtn.disabled = false;
                 modalBtn.innerHTML = originalModalHtml || '<i class="fas fa-archive me-1"></i> Yes, Archive Record';
@@ -1499,7 +2631,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         }
     }
 
-    // â”€â”€ Remark Modal state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Remark Modal state ---
     let _remarkResolve = null;
     let _remarkModal = null;
 
@@ -1567,7 +2699,681 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         });
     }
 
+    const DEPARTMENT_SCOPE_ITEMS = [
+        'Departmental reports submitted',
+        'Assigned department duties completed',
+        'Committee responsibilities fulfilled'
+    ];
+
+    function getParsedScopeState(item) {
+        let scope = { passed: [], failed: [], locked: false };
+        if (item && item.remarks) {
+            const match = String(item.remarks).match(/<!--SCOPE_STATE:(.*?)-->/);
+            if (match) {
+                try {
+                    const parsed = JSON.parse(match[1]);
+                    if (Array.isArray(parsed.passed)) scope.passed = parsed.passed.map(s => String(s).trim());
+                    if (Array.isArray(parsed.failed)) scope.failed = parsed.failed.map(s => String(s).trim());
+                    if (parsed.locked || parsed.confirmed) scope.locked = true;
+                } catch (e) { }
+            }
+        }
+        const isCleared = item && (item.status === 'Cleared' || item.status === 'Approved');
+        if (isCleared && scope.failed.length === 0 && scope.passed.length === 0) {
+            scope.passed = [...DEPARTMENT_SCOPE_ITEMS];
+        }
+        return scope;
+    }
+
+    function isScopeConfirmed(item) {
+        if (!item) return false;
+        const scope = getParsedScopeState(item);
+        return Boolean(scope.locked);
+    }
+
+    function renderScopeVerificationList(item) {
+        const hasFile = Boolean(item && (item.file_name || item.original_name || item.file_path));
+        const confirmed = isScopeConfirmed(item);
+        const scope = getParsedScopeState(item);
+        const passedSet = new Set(scope.passed.map(s => s.toLowerCase()));
+        const failedSet = new Set(scope.failed.map(s => s.toLowerCase()));
+
+        // Sequential Locking check
+        const deptStage = (currentReviewClearance?.stages && currentReviewClearance.stages['Department Clearance']) || null;
+        const isDeptLocked = deptStage ? (deptStage.is_unlocked === false || deptStage.state === 'locked') : false;
+        const deptLockReason = (deptStage && deptStage.lock_reason) ? deptStage.lock_reason : 'Department Clearance is locked until preceding clearances (Academic, Library, Financial, Property, HR) are cleared.';
+        const isCleared = item && (item.status === 'Cleared' || item.status === 'Approved');
+
+        if (isDeptLocked && !isCleared) {
+            return `
+                <div class="scope-verification-box" id="scopeBox_${item.id}">
+                    <div class="d-flex align-items-center justify-content-between mb-1.5 text-body-secondary" style="font-size:0.7rem;">
+                        <span class="fw-semibold text-uppercase text-secondary" style="letter-spacing:0.04em;">
+                            <i class="fas fa-lock text-secondary me-1"></i>Scope Checklist
+                        </span>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5" style="font-size:0.68rem;">
+                            <i class="fas fa-lock me-1"></i>Step Locked
+                        </span>
+                    </div>
+                    <div class="alert alert-secondary py-1.5 px-2.5 mb-2 small text-body-secondary d-flex align-items-center gap-1.5 rounded-2" style="font-size:0.73rem;">
+                        <i class="fas fa-lock text-muted"></i>
+                        <span>${escapeHtml(deptLockReason)}</span>
+                    </div>
+                    <div class="d-flex flex-column gap-1.5 opacity-50" style="pointer-events: none; cursor: not-allowed;">
+                        ${DEPARTMENT_SCOPE_ITEMS.map((text) => `
+                            <div class="scope-item d-flex align-items-center gap-2 py-1.5 px-2.5 rounded-2 border bg-body-tertiary" style="cursor: not-allowed;">
+                                <i class="fas fa-circle-minus text-secondary opacity-50 flex-shrink-0" style="font-size:1.05rem;"></i>
+                                <span class="small text-body-secondary" style="font-size:0.84rem; line-height:1.3;">
+                                    ${escapeHtml(text)}
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // State 1: No file submitted — fully locked (grey)
+        if (!hasFile) {
+            return `
+                <div class="scope-verification-box" id="scopeBox_${item.id}">
+                    <div class="d-flex align-items-center justify-content-between mb-1.5 text-body-secondary" style="font-size:0.7rem;">
+                        <span class="fw-semibold text-uppercase text-secondary" style="letter-spacing:0.04em;">
+                            <i class="fas fa-lock text-secondary me-1"></i>Scope Checklist
+                        </span>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5" style="font-size:0.68rem;">
+                            <i class="fas fa-lock me-1"></i>Locked
+                        </span>
+                    </div>
+                    <div class="alert alert-secondary py-1 px-2 mb-2 small text-body-secondary d-flex align-items-center gap-1.5 rounded-2" style="font-size:0.73rem;">
+                        <i class="fas fa-info-circle text-muted"></i>
+                        <span>Waiting for faculty to submit file.</span>
+                    </div>
+                    <div class="d-flex flex-column gap-1.5 opacity-50" style="pointer-events: none; cursor: not-allowed;">
+                        ${DEPARTMENT_SCOPE_ITEMS.map((text) => `
+                            <div class="scope-item d-flex align-items-center gap-2 py-1.5 px-2.5 rounded-2 border bg-body-tertiary" style="cursor: not-allowed;">
+                                <i class="fas fa-circle-minus text-secondary opacity-50 flex-shrink-0" style="font-size:1.05rem;"></i>
+                                <span class="small text-body-secondary" style="font-size:0.84rem; line-height:1.3;">${escapeHtml(text)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // State 2: Scope confirmed & locked (green)
+        if (confirmed) {
+            return `
+                <div class="scope-verification-box" id="scopeBox_${item.id}">
+                    <div class="d-flex align-items-center justify-content-between mb-1.5" style="font-size:0.7rem;">
+                        <span class="fw-semibold text-uppercase text-success" style="letter-spacing:0.04em;">
+                            <i class="fas fa-lock text-success me-1"></i>Scope Checklist
+                        </span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5" style="font-size:0.68rem;">
+                            <i class="fas fa-check-circle me-1"></i>Confirmed
+                        </span>
+                    </div>
+                    <div class="alert alert-success py-1 px-2 mb-2 small text-success-emphasis d-flex align-items-center gap-1.5 rounded-2" style="font-size:0.73rem;">
+                        <i class="fas fa-shield-check text-success"></i>
+                    </div>
+                    <div class="d-flex flex-column gap-1.0 mb-1.5" style="pointer-events: none; user-select: none;">
+                        ${DEPARTMENT_SCOPE_ITEMS.map((text) => {
+                const norm = text.toLowerCase();
+                const isP = passedSet.has(norm);
+                const isF = failedSet.has(norm);
+                const iconClass = isF ? 'fas fa-times-circle text-danger' : (isP ? 'fas fa-check-circle text-success' : 'fas fa-circle-check text-secondary opacity-50');
+                const textClass = isF ? 'text-danger fw-semibold' : (isP ? 'text-success fw-medium' : 'text-body-secondary');
+                const cls = isF ? 'is-failed' : (isP ? 'is-passed' : '');
+                return `
+                                <div class="scope-item d-flex align-items-center gap-2 py-1.5 px-2.5 rounded-2 border ${cls}" style="pointer-events: none !important; cursor: default !important; user-select: none;">
+                                    <i class="${iconClass} flex-shrink-0" style="font-size:1.05rem; pointer-events: none !important;"></i>
+                                    <span class="small ${textClass}" style="font-size:0.84rem; line-height:1.3; pointer-events: none !important;">${escapeHtml(text)}</span>
+                                </div>`;
+            }).join('')}
+                    ${isCleared ? `
+                        <div class="d-flex align-items-center justify-content-center gap-1.5 py-1 px-2 mt-2 rounded bg-success-subtle text-success border border-success-subtle fw-semibold" style="font-size:0.75rem;">
+                            <i class="fas fa-check-circle"></i> Digitally Signed &amp; Approved
+                        </div>
+                    ` : `
+                        <button type="button"
+                            class="btn btn-success btn-sm w-100 fw-semibold mt-2 shadow-sm"
+                            style="font-size:0.78rem;"
+                            onclick="openOfficeSignatureModal(${item.id})"
+                            title="Provide digital signature to sign off and approve">
+                            <i class="fas fa-signature me-1"></i>Sign &amp; Approve Clearance
+                        </button>
+                    `}
+                </div>
+            `;
+        }
+
+        // State 3: Editable — show checklist + Confirm & Lock button
+        return `
+            <div class="scope-verification-box" id="scopeBox_${item.id}">
+                <div class="d-flex align-items-center justify-content-between mb-1.5 text-body-secondary" style="font-size:0.7rem;">
+                    <span class="fw-semibold text-uppercase" style="letter-spacing:0.04em;">
+                        <i class="fas fa-clipboard-check text-primary me-1"></i>Scope Checklist
+                    </span>
+                    <span class="badge bg-body-tertiary text-body-secondary border px-2 py-0.5" style="font-size:0.68rem;">
+                        <span class="text-success fw-bold">&#10003; 1-click</span> &bull; <span class="text-danger fw-bold">&#10005; 2-clicks</span>
+                    </span>
+                </div>
+                <div class="d-flex flex-column gap-1.5 mb-2">
+                    ${DEPARTMENT_SCOPE_ITEMS.map((text, idx) => {
+            const norm = text.toLowerCase();
+            const isP = passedSet.has(norm);
+            const isF = failedSet.has(norm);
+            let iconClass = 'fas fa-circle-check text-secondary opacity-50';
+            let textClass = 'text-body';
+            let itemClass = '';
+            let tip = 'Single-click to mark as Checked (Passed) &bull; Double-click to mark as ✕ (Deficient)';
+            if (isF) { iconClass = 'fas fa-times-circle text-danger'; textClass = 'text-danger fw-semibold'; itemClass = 'is-failed'; tip = 'Flagged as Deficient &bull; Single-click to switch to Check &bull; Double-click to Reset'; }
+            else if (isP) { iconClass = 'fas fa-check-circle text-success'; textClass = 'text-success fw-medium'; itemClass = 'is-passed'; tip = 'Verified & Complied &bull; Single-click to Reset &bull; Double-click to switch to ✕'; }
+            return `
+                            <div class="scope-item d-flex align-items-center gap-2 py-1.5 px-2.5 rounded-2 ${itemClass}"
+                                 data-item-id="${item.id}" data-scope-index="${idx}"
+                                 onclick="handleScopeItemClick(${item.id}, ${idx}, event)" title="${tip}">
+                                <i class="${iconClass} flex-shrink-0" style="font-size:1.05rem;"></i>
+                                <span class="small ${textClass}" style="font-size:0.84rem; line-height:1.3;">${escapeHtml(text)}</span>
+                            </div>`;
+        }).join('')}
+                </div>
+                ${(() => {
+                const allPassed = DEPARTMENT_SCOPE_ITEMS.length > 0 && passedSet.size >= DEPARTMENT_SCOPE_ITEMS.length && failedSet.size === 0;
+                const hasFailed = failedSet.size > 0;
+                const noneChecked = passedSet.size === 0 && failedSet.size === 0;
+                const btnDisabled = !allPassed;
+                let btnTitle = 'Confirm and permanently lock this scope verification';
+                if (noneChecked) btnTitle = 'You must check all scope items before confirming';
+                else if (hasFailed) btnTitle = 'Cannot lock: some items are flagged as deficient';
+                else if (!allPassed) btnTitle = `Cannot lock: ${passedSet.size} of ${DEPARTMENT_SCOPE_ITEMS.length} items checked — all must be verified`;
+                return `<button type="button"
+                    class="btn ${allPassed ? 'btn-outline-success' : 'btn-outline-secondary'} btn-sm w-100 fw-semibold mt-1"
+                    style="font-size:0.78rem; ${btnDisabled ? 'opacity:0.55; cursor:not-allowed;' : ''}"
+                    ${btnDisabled ? 'disabled' : `onclick="promptScopeLock(${item.id})"`}
+                    title="${btnTitle}">
+                    <i class="fas fa-lock me-1"></i>${allPassed ? 'Confirm &amp; Lock' : (noneChecked ? 'Check All Items First' : (hasFailed ? 'Resolve Deficiencies First' : `${passedSet.size}/${DEPARTMENT_SCOPE_ITEMS.length} Items Checked`))}
+                </button>`;
+            })()}
+            </div>
+        `;
+    }
+
+    let _scopeClickTimers = {};
+
+    function handleScopeItemClick(itemId, index, event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        let currentItem = (currentReviewClearance?.items || []).find(it => it.id === itemId);
+        const deptStage = (currentReviewClearance?.stages && currentReviewClearance.stages['Department Clearance']) || null;
+        if (deptStage && (deptStage.is_unlocked === false || deptStage.state === 'locked')) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small';
+                alertBox.innerHTML = `<i class="fas fa-lock me-1"></i>Cannot verify scope: ${escapeHtml(deptStage.lock_reason || 'Department Clearance is locked until preceding clearances are cleared.')}`;
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+        const hasFile = Boolean(currentItem && (currentItem.file_name || currentItem.original_name || currentItem.file_path));
+        if (!hasFile) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small';
+                alertBox.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Cannot verify scope: The faculty member has not submitted a file for this requirement yet.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+        if (isScopeConfirmed(currentItem)) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-info py-2 px-3 small';
+                alertBox.innerHTML = '<i class="fas fa-lock me-1"></i>Scope verification has been confirmed and locked. No further changes are allowed.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+        const key = `${itemId}_${index}`;
+        if (_scopeClickTimers[key]) {
+            clearTimeout(_scopeClickTimers[key]);
+            delete _scopeClickTimers[key];
+            executeScopeToggle(itemId, index, 'double');
+        } else {
+            _scopeClickTimers[key] = setTimeout(() => {
+                delete _scopeClickTimers[key];
+                executeScopeToggle(itemId, index, 'single');
+            }, 260);
+        }
+    }
+
+    async function executeScopeToggle(itemId, index, type) {
+        const targetText = DEPARTMENT_SCOPE_ITEMS[index];
+        if (!targetText) return;
+        const targetNorm = targetText.toLowerCase();
+
+        let currentItem = (currentReviewClearance?.items || []).find(it => it.id === itemId);
+        const hasFile = Boolean(currentItem && (currentItem.file_name || currentItem.original_name || currentItem.file_path));
+        if (!hasFile) return;
+        if (isScopeConfirmed(currentItem)) return;
+        let scope = getParsedScopeState(currentItem);
+
+        const wasPassed = scope.passed.some(s => s.toLowerCase() === targetNorm);
+        const wasFailed = scope.failed.some(s => s.toLowerCase() === targetNorm);
+
+        if (type === 'single') {
+            if (wasPassed) {
+                scope.passed = scope.passed.filter(s => s.toLowerCase() !== targetNorm);
+            } else {
+                scope.failed = scope.failed.filter(s => s.toLowerCase() !== targetNorm);
+                scope.passed = scope.passed.filter(s => s.toLowerCase() !== targetNorm);
+                scope.passed.push(targetText);
+            }
+        } else if (type === 'double') {
+            if (wasFailed) {
+                scope.failed = scope.failed.filter(s => s.toLowerCase() !== targetNorm);
+            } else {
+                scope.passed = scope.passed.filter(s => s.toLowerCase() !== targetNorm);
+                scope.failed = scope.failed.filter(s => s.toLowerCase() !== targetNorm);
+                scope.failed.push(targetText);
+            }
+        }
+
+        // Optimistic UI update in the modal right away
+        if (currentItem) {
+            const scopeJson = JSON.stringify(scope);
+            currentItem.remarks = (currentItem.remarks || '').replace(/<!--SCOPE_STATE:.*?-->/g, '').trim() + ` <!--SCOPE_STATE:${scopeJson}-->`;
+            if (scope.failed.length > 0) {
+                currentItem.status = 'Denied';
+            } else {
+                currentItem.status = 'Under Review';
+            }
+            const box = document.getElementById(`scopeBox_${itemId}`);
+            if (box) {
+                box.outerHTML = renderScopeVerificationList(currentItem);
+            }
+        }
+
+        const form = new FormData();
+        form.append('action', 'update-scope');
+        form.append('item_id', itemId);
+        form.append('passed', JSON.stringify(scope.passed));
+        form.append('failed', JSON.stringify(scope.failed));
+
+        try {
+            const resp = await fetch(clearanceApi, { method: 'POST', body: form });
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to update scope');
+
+            if (currentReviewFacultyId) {
+                await refreshReviewItems(currentReviewFacultyId);
+            }
+            loadTracking();
+            loadArchives();
+        } catch (err) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-danger py-2 px-3 small';
+                alertBox.textContent = err.message;
+                alertBox.classList.remove('d-none');
+            }
+            if (currentReviewFacultyId) {
+                await refreshReviewItems(currentReviewFacultyId);
+            }
+        }
+    }
+
+    function promptScopeLock(itemId) {
+        let currentItem = (currentReviewClearance?.items || []).find(it => it.id === itemId);
+        const deptStage = (currentReviewClearance?.stages && currentReviewClearance.stages['Department Clearance']) || null;
+        if (deptStage && (deptStage.is_unlocked === false || deptStage.state === 'locked')) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small';
+                alertBox.innerHTML = `<i class="fas fa-lock me-1"></i>Cannot lock scope: ${escapeHtml(deptStage.lock_reason || 'Department Clearance is locked until preceding clearances are cleared.')}`;
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+        const hasFile = Boolean(currentItem && (currentItem.file_name || currentItem.original_name || currentItem.file_path));
+        if (!hasFile) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small';
+                alertBox.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Cannot lock: The faculty member has not submitted a file yet.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+        if (isScopeConfirmed(currentItem)) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-info py-2 px-3 small';
+                alertBox.innerHTML = '<i class="fas fa-lock me-1"></i>Scope verification is already confirmed and locked.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+
+        // Guard: all scope items must be passed (none failed, none unchecked)
+        const scopeState = (() => {
+            const rem = currentItem?.remarks || '';
+            const m = rem.match(/<!--SCOPE_STATE:(.*?)-->/);
+            if (m) { try { return JSON.parse(m[1]); } catch (e) { } }
+            return null;
+        })();
+        const passedItems = scopeState?.passed || [];
+        const failedItems = scopeState?.failed || [];
+        const totalItems = (typeof DEPARTMENT_SCOPE_ITEMS !== 'undefined') ? DEPARTMENT_SCOPE_ITEMS.length : 0;
+        const alertBox2 = document.getElementById('reviewAlert');
+        if (failedItems.length > 0) {
+            if (alertBox2) {
+                alertBox2.className = 'alert alert-danger py-2 px-3 small';
+                alertBox2.innerHTML = '<i class="fas fa-times-circle me-1"></i>Cannot confirm & lock: some scope items are flagged as deficient. Resolve all deficiencies first.';
+                alertBox2.classList.remove('d-none');
+            }
+            return;
+        }
+        if (totalItems > 0 && passedItems.length < totalItems) {
+            if (alertBox2) {
+                alertBox2.className = 'alert alert-warning py-2 px-3 small';
+                alertBox2.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i>Cannot confirm & lock: only ${passedItems.length} of ${totalItems} scope items have been verified. Please check all items first.`;
+                alertBox2.classList.remove('d-none');
+            }
+            return;
+        }
+
+        // Show the confirm-lock modal
+        const modal = document.getElementById('confirmScopeLockModal');
+        if (modal) {
+            document.getElementById('confirmScopeLockItemId').value = itemId;
+            bootstrap.Modal.getOrCreateInstance(modal).show();
+            setTimeout(() => {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                if (backdrops.length >= 2) {
+                    backdrops[backdrops.length - 1].style.zIndex = '1075';
+                }
+            }, 50);
+        }
+    }
+
+    async function executeScopeLock() {
+        const itemId = parseInt(document.getElementById('confirmScopeLockItemId')?.value || 0);
+        if (!itemId) return;
+
+        const btn = document.getElementById('btnConfirmScopeLock');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Locking...'; }
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmScopeLockModal')).hide();
+
+        const form = new FormData();
+        form.append('action', 'lock-scope');
+        form.append('item_id', itemId);
+
+        try {
+            const resp = await fetch(clearanceApi, { method: 'POST', body: form });
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to lock scope.');
+
+            // Optimistic UI: mark the item as confirmed so the re-render shows locked state
+            let currentItem = (currentReviewClearance?.items || []).find(it => it.id === itemId);
+            if (currentItem) {
+                let scope = getParsedScopeState(currentItem);
+                scope.locked = true;
+                const scopeJson = JSON.stringify(scope);
+                currentItem.remarks = (currentItem.remarks || '')
+                    .replace(/<!--SCOPE_STATE:.*?-->/g, '')
+                    .replace(/<!--SCOPE_CONFIRMED-->/g, '')
+                    .trim() + ` <!--SCOPE_STATE:${scopeJson}-->`;
+                const box = document.getElementById(`scopeBox_${itemId}`);
+                if (box) box.outerHTML = renderScopeVerificationList(currentItem);
+            }
+
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-success py-2 px-3 small';
+                alertBox.innerHTML = '<i class="fas fa-check-circle me-1"></i>Scope verification confirmed and locked successfully.';
+                alertBox.classList.remove('d-none');
+            }
+
+            if (currentReviewFacultyId) await refreshReviewItems(currentReviewFacultyId);
+            loadTracking();
+            loadArchives();
+
+            // Automatically open Digital Signature Modal after scope is locked
+            setTimeout(() => {
+                openOfficeSignatureModal(itemId);
+            }, 300);
+        } catch (err) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-danger py-2 px-3 small';
+                alertBox.textContent = err.message;
+                alertBox.classList.remove('d-none');
+            }
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-lock me-1"></i>Confirm & Lock'; }
+        }
+    }
+
+    /* ── DIGITAL OFFICE SIGNATURE PAD LOGIC (Department Head) ── */
+    let officeSignCanvas = null;
+    let officeSignCtx = null;
+    let officeSignDrawing = false;
+    let officeSignHasDrawn = false;
+    let officeSignLastPos = { x: 0, y: 0 };
+    let officeSignPendingItemId = 0;
+
+    function initOfficeSignaturePad() {
+        officeSignCanvas = document.getElementById('officeSignCanvas');
+        if (!officeSignCanvas) return;
+        officeSignCtx = officeSignCanvas.getContext('2d');
+
+        function resizeCanvas() {
+            if (!officeSignCanvas) return;
+            const rect = officeSignCanvas.getBoundingClientRect();
+            if (rect.width > 0 && officeSignCanvas.width !== Math.round(rect.width)) {
+                const temp = officeSignHasDrawn ? officeSignCanvas.toDataURL() : null;
+                officeSignCanvas.width = Math.round(rect.width);
+                officeSignCanvas.height = 150;
+                if (temp) {
+                    const img = new Image();
+                    img.onload = () => {
+                        if (officeSignCtx) officeSignCtx.drawImage(img, 0, 0);
+                    };
+                    img.src = temp;
+                }
+            }
+        }
+
+        function getPos(e) {
+            const rect = officeSignCanvas.getBoundingClientRect();
+            const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+            const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
+            const scaleX = officeSignCanvas.width / (rect.width || 1);
+            const scaleY = officeSignCanvas.height / (rect.height || 1);
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function startDraw(e) {
+            if (e.type === 'touchstart') e.preventDefault();
+            officeSignDrawing = true;
+            officeSignLastPos = getPos(e);
+            const placeholder = document.getElementById('officeSignPlaceholder');
+            if (placeholder) placeholder.style.display = 'none';
+        }
+
+        function isAppDarkMode() {
+            return document.documentElement.getAttribute('data-theme') === 'dark'
+                || document.documentElement.dataset.theme === 'dark'
+                || document.documentElement.getAttribute('data-bs-theme') === 'dark'
+                || document.documentElement.classList.contains('dark-mode')
+                || document.body.classList.contains('dark-mode');
+        }
+
+        function draw(e) {
+            if (!officeSignDrawing || !officeSignCtx) return;
+            if (e.type === 'touchmove') e.preventDefault();
+            const pos = getPos(e);
+            officeSignCtx.beginPath();
+            officeSignCtx.moveTo(officeSignLastPos.x, officeSignLastPos.y);
+            officeSignCtx.lineTo(pos.x, pos.y);
+            // Black pen in light mode, white pen in dark mode
+            officeSignCtx.strokeStyle = isAppDarkMode() ? '#ffffff' : '#000000';
+            officeSignCtx.lineWidth = 2.5;
+            officeSignCtx.lineCap = 'round';
+            officeSignCtx.lineJoin = 'round';
+            officeSignCtx.stroke();
+            officeSignLastPos = pos;
+            officeSignHasDrawn = true;
+        }
+
+        function stopDraw(e) {
+            if (officeSignDrawing) {
+                if (e && e.type === 'touchend') e.preventDefault();
+                officeSignDrawing = false;
+            }
+        }
+
+        officeSignCanvas.onmousedown = startDraw;
+        officeSignCanvas.onmousemove = draw;
+        window.addEventListener('mouseup', stopDraw);
+
+        officeSignCanvas.ontouchstart = startDraw;
+        officeSignCanvas.ontouchmove = draw;
+        window.addEventListener('touchend', stopDraw);
+
+        resizeCanvas();
+    }
+
+    function clearOfficeSignature() {
+        if (!officeSignCanvas || !officeSignCtx) {
+            officeSignCanvas = document.getElementById('officeSignCanvas');
+            if (officeSignCanvas) officeSignCtx = officeSignCanvas.getContext('2d');
+        }
+        if (officeSignCanvas && officeSignCtx) {
+            officeSignCtx.clearRect(0, 0, officeSignCanvas.width, officeSignCanvas.height);
+        }
+        officeSignHasDrawn = false;
+        const placeholder = document.getElementById('officeSignPlaceholder');
+        if (placeholder) placeholder.style.display = 'block';
+        const alertBox = document.getElementById('officeSignAlert');
+        if (alertBox) alertBox.classList.add('d-none');
+    }
+
+    function openOfficeSignatureModal(itemId) {
+        officeSignPendingItemId = itemId;
+        const modalEl = document.getElementById('officeSignatureModal');
+        if (!modalEl) return;
+
+        clearOfficeSignature();
+        const alertBox = document.getElementById('officeSignAlert');
+        if (alertBox) alertBox.classList.add('d-none');
+
+        const remarksInput = document.getElementById('officeSignRemarks');
+        if (remarksInput) remarksInput.value = 'Approved and verified.';
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+
+        setTimeout(() => {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length >= 2) {
+                backdrops[backdrops.length - 1].style.zIndex = '1082';
+            }
+            initOfficeSignaturePad();
+        }, 150);
+    }
+
+    async function submitOfficeSignature() {
+        if (!officeSignHasDrawn) {
+            const alertBox = document.getElementById('officeSignAlert');
+            if (alertBox) {
+                alertBox.textContent = 'Please draw your digital signature before confirming approval.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+
+        const btn = document.getElementById('btnSubmitOfficeSignature');
+        const originalHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Signing & Approving...';
+        }
+
+        try {
+            const sigData = officeSignCanvas.toDataURL('image/png');
+            const remarks = (document.getElementById('officeSignRemarks')?.value || '').trim() || 'Approved and verified.';
+
+            const form = new FormData();
+            form.append('action', 'office-approve-sign');
+            form.append('faculty_id', currentReviewFacultyId);
+            form.append('signature_data', sigData);
+            form.append('remarks', remarks);
+            form.append('office', 'Department Clearance');
+
+            const resp = await fetch(clearanceApi, { method: 'POST', body: form });
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to approve and sign clearance.');
+
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('officeSignatureModal')).hide();
+
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-success py-2 px-3 small';
+                alertBox.innerHTML = `<i class="fas fa-check-circle me-1"></i><strong>${escapeHtml(data.message || 'Department Clearance successfully approved and digitally signed.')}</strong>`;
+                alertBox.classList.remove('d-none');
+            }
+
+            showTrackingAlert(data.message || 'Department Clearance approved and signed.', 'success');
+
+            if (currentReviewFacultyId) {
+                await refreshReviewItems(currentReviewFacultyId);
+            }
+            loadTracking();
+            loadArchives();
+        } catch (err) {
+            const alertBox = document.getElementById('officeSignAlert');
+            if (alertBox) {
+                alertBox.textContent = err.message;
+                alertBox.classList.remove('d-none');
+            }
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml || '<i class="fas fa-check-circle me-1"></i>Sign &amp; Approve Clearance';
+            }
+        }
+    }
+
     async function reviewItem(itemId, decision, reqName = '') {
+        let currentItem = (currentReviewClearance?.items || []).find(it => it.id === itemId);
+        const deptStage = (currentReviewClearance?.stages && currentReviewClearance.stages['Department Clearance']) || null;
+        if (deptStage && (deptStage.is_unlocked === false || deptStage.state === 'locked')) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small';
+                alertBox.innerHTML = `<i class="fas fa-lock me-1.5"></i>Cannot take review action: ${escapeHtml(deptStage.lock_reason || 'Department Clearance is locked until preceding clearances are cleared.')}`;
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
+        const hasFile = Boolean(currentItem && (currentItem.file_name || currentItem.original_name || currentItem.file_path));
+        if (!hasFile) {
+            const alertBox = document.getElementById('reviewAlert');
+            if (alertBox) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small';
+                alertBox.innerHTML = '<i class="fas fa-exclamation-triangle me-1.5"></i>Cannot take review action: The faculty member has not submitted a file for this requirement yet.';
+                alertBox.classList.remove('d-none');
+            }
+            return;
+        }
         const isApprove = decision === 'approve';
         const isDeny = decision === 'deny';
 
@@ -1603,20 +3409,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 btnText: 'Deny'
             });
         } else {
-            remark = await openRemarkModal({
-                title: 'Place On Hold',
-                sub: 'The requirement will be flagged for further review.',
-                label: 'Hold Reason (Required)',
-                hint: 'State what needs to be addressed before approval.',
-                placeholder: 'e.g., Pending additional verification.',
-                defaultValue: '',
-                required: true,
-                headerClass: 'bg-warning-subtle',
-                iconClass: 'bg-warning text-dark',
-                btnClass: 'btn-warning text-dark',
-                btnIcon: 'fa-pause',
-                btnText: 'Put On Hold'
-            });
+            return;
         }
 
         if (remark === null) return; // Cancelled
@@ -1671,6 +3464,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             const data = await response.json();
             if (!data.ok) return;
             const c = data.clearance;
+            currentReviewClearance = c;
             const body = document.getElementById('reviewBody');
             if (!body) return;
 
@@ -1683,32 +3477,123 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             if (progressBar) progressBar.style.width = `${deptProgress}%`;
             const progressText = document.getElementById('summaryProgressText');
             if (progressText) progressText.textContent = `${deptProgress}% (${deptApprovedCount}/1)`;
+            const progressSub = document.getElementById('summaryProgressSub');
+            if (progressSub) progressSub.textContent = isDeptCleared ? 'All requirements completed' : `${deptProgress}% completed`;
+
+            // Update banner & stepper (Sequential lock aware)
+            const deptStage = (c.stages && c.stages['Department Clearance']) || null;
+            const isDeptLocked = deptStage ? (deptStage.is_unlocked === false || deptStage.state === 'locked') : false;
+            const deptLockReason = (deptStage && deptStage.lock_reason) ? deptStage.lock_reason : 'Department Clearance is locked until preceding clearances (Academic, Library, Financial, Property, HR) are cleared.';
+
+            const banner = document.getElementById('reviewSuccessBanner');
+            if (banner) {
+                if (isDeptCleared) {
+                    banner.className = 'alert alert-success d-flex align-items-center gap-3 p-3 rounded-3 border border-success-subtle mb-4';
+                    banner.innerHTML = `<div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px;height:28px;font-size:0.85rem;"><i class="fas fa-check"></i></div>
+                    <span class="fw-semibold small text-success-emphasis">All requirements have been cleared. Proceed to official office sign-off.</span>`;
+                } else if (isDeptLocked) {
+                    banner.className = 'alert alert-warning d-flex align-items-center gap-3 p-3 rounded-3 border border-warning-subtle mb-4';
+                    banner.innerHTML = `<div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px;height:28px;font-size:0.85rem;"><i class="fas fa-lock"></i></div>
+                    <div>
+                        <div class="fw-bold small text-warning-emphasis">Department Clearance Locked</div>
+                        <div class="small text-warning-emphasis">${escapeHtml(deptLockReason)}</div>
+                    </div>`;
+                } else {
+                    banner.className = 'alert alert-info d-flex align-items-center gap-3 p-3 rounded-3 border border-info-subtle mb-4';
+                    banner.innerHTML = `<div class="rounded-circle bg-info text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:28px;height:28px;font-size:0.85rem;"><i class="fas fa-info"></i></div>
+                    <span class="fw-semibold small text-info-emphasis">Clearance requirements are currently under review. Please review the submitted document.</span>`;
+                }
+            }
+
+            const step2Circle = document.getElementById('stepperStep2Circle');
+            const step2Sub = document.getElementById('stepperStep2Sub');
+            const stepLine2 = document.getElementById('stepperLine2');
+            if (isDeptCleared) {
+                if (step2Circle) { step2Circle.className = 'stepper-circle bg-success text-white'; step2Circle.innerHTML = '<i class="fas fa-check"></i>'; }
+                if (step2Sub) step2Sub.textContent = 'Completed';
+                if (stepLine2) stepLine2.style.background = '#198754';
+            } else {
+                if (step2Circle) { step2Circle.className = 'stepper-circle bg-primary text-white'; step2Circle.textContent = '2'; }
+                if (step2Sub) step2Sub.textContent = 'In Progress';
+                if (stepLine2) stepLine2.style.background = 'var(--bs-border-color)';
+            }
 
             let refreshItems = c.items || [];
             refreshItems = refreshItems.filter(item => item.name === 'Department Clearance');
             body.innerHTML = refreshItems.length ? refreshItems.map(item => {
-                const isMissing = !item.file_name && item.status !== 'Cleared';
+                const hasFile = Boolean(item.file_name || item.original_name || item.file_path);
+                const rawFileName = item.file_name || item.original_name || (item.file_path ? item.file_path.split('/').pop() : 'clearance-file.pdf');
+                const isMissing = !hasFile && item.status !== 'Cleared';
                 const statusLabel = isMissing ? 'Missing' : (item.display_status || item.status);
-                const badgeClass = isMissing
-                    ? 'bg-secondary-subtle text-body-secondary border'
-                    : (item.status === 'Cleared'
-                        ? 'bg-success-subtle text-success border border-success-subtle'
-                        : (item.status === 'Denied' || item.status === 'Hold'
-                            ? 'bg-danger-subtle text-danger border border-danger-subtle'
-                            : (item.status === 'On Hold'
-                                ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-info-subtle text-info border border-info-subtle')));
-                return `<tr>
-                <td><strong class="text-body-emphasis">${escapeHtml(item.name)}</strong></td>
-                <td>${item.file_name ? `<a class="btn btn-sm btn-outline-secondary" target="_blank" href="${clearanceApi}?action=file&item_id=${item.id}"><i class="fas fa-eye me-1"></i>View file</a><small class="d-block text-body-secondary mt-1">${escapeHtml(item.file_name)}</small>` : '<span class="badge bg-secondary-subtle text-body-secondary border"><i class="fas fa-file-excel me-1"></i>No file uploaded (Missing)</span>'}</td>
-                <td><span class="badge ${badgeClass} px-2 py-1">${escapeHtml(statusLabel)}</span></td>
-                <td>${formatClearanceRemark(item.remarks, isMissing)}</td>
-                <td class="text-end"><div class="btn-group btn-group-sm">
-                    <button class="btn btn-success" onclick="reviewItem(${item.id}, 'approve')" ${item.file_name ? '' : 'disabled'} title="Approve"><i class="fas fa-check"></i></button>
-                    <button class="btn btn-danger" onclick="reviewItem(${item.id}, 'deny', '${escapeHtml(item.name)}')" ${item.file_name ? '' : 'disabled'} title="Deny"><i class="fas fa-times"></i></button>
-                    <button class="btn btn-warning text-dark" onclick="reviewItem(${item.id}, 'hold')" ${item.file_name ? '' : 'disabled'} title="Put On Hold"><i class="fas fa-pause"></i></button>
-                </div></td>
+                const fileUrl = item.file_path
+                    ? `${clearanceApi}?action=file&download=1&path=${encodeURIComponent(item.file_path)}&item_id=${item.id || 0}&filename=${encodeURIComponent(rawFileName)}`
+                    : `${clearanceApi}?action=file&download=1&item_id=${item.id || 0}&filename=${encodeURIComponent(rawFileName)}`;
+                const viewUrl = item.file_path
+                    ? `${clearanceApi}?action=file&path=${encodeURIComponent(item.file_path)}&item_id=${item.id || 0}&filename=${encodeURIComponent(rawFileName)}`
+                    : (item.id ? `${clearanceApi}?action=file&item_id=${item.id}&filename=${encodeURIComponent(rawFileName)}` : null);
+                const isItemCleared = item.status === 'Cleared' || item.status === 'Approved';
+
+                return `<tr style="border-bottom:1px solid var(--bs-border-color-translucent);">
+                <td class="ps-4 py-3 align-top">
+                    <div>
+                        <div class="fw-bold text-body-emphasis" style="font-size:0.875rem;">${escapeHtml(item.name || 'Department Clearance')}</div>
+                        <small class="text-body-secondary" style="font-size:0.7rem;">Department Head Office</small>
+                    </div>
+                </td>
+                <td class="py-3 align-top">
+                    ${hasFile ? `
+                    <div class="p-2 rounded-3 border bg-body-tertiary d-flex align-items-center gap-2" style="max-width:210px;">
+                        <div class="rounded-2 bg-danger-subtle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;">
+                            <i class="fas fa-file-pdf text-danger" style="font-size:1rem;"></i>
+                        </div>
+                        <div style="min-width:0;">
+                            <a href="${viewUrl || fileUrl}" target="_blank"
+                               class="fw-semibold text-primary text-decoration-none d-block"
+                               style="font-size:0.78rem;max-width:130px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;"
+                               title="${escapeHtml(rawFileName)}">
+                                ${escapeHtml(rawFileName)}
+                            </a>
+                            <div class="text-body-secondary" style="font-size:0.66rem;">
+                                ${item.uploaded_at ? new Date(item.uploaded_at.replace(' ', 'T')).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Uploaded recently'}
+                            </div>
+                        </div>
+                    </div>
+                    <a href="${fileUrl}" class="btn btn-outline-secondary btn-sm mt-1.5 w-100" style="font-size:0.72rem;max-width:210px;" title="Download file">
+                        <i class="fas fa-download me-1"></i>Download
+                    </a>` : `
+                    <div class="d-flex align-items-center gap-2 p-2 rounded-3 border border-dashed bg-body-tertiary" style="max-width:210px;">
+                        <div class="rounded-2 bg-secondary-subtle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;">
+                            <i class="fas fa-file-circle-xmark text-secondary" style="font-size:1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold text-body-secondary" style="font-size:0.78rem;">No file uploaded</div>
+                            <div class="text-body-secondary" style="font-size:0.68rem;">Awaiting faculty submission</div>
+                        </div>
+                    </div>`}
+                </td>
+                <td class="py-3 align-top">
+                    <span class="badge rounded-pill px-3 py-1.5 fw-semibold mb-1 d-inline-block"
+                        style="font-size:0.75rem;
+                        ${isMissing ? 'background:rgba(108,117,125,0.12);color:#6c757d;border:1px solid rgba(108,117,125,0.25);' :
+                        isItemCleared ? 'background:rgba(25,135,84,0.12);color:#198754;border:1px solid rgba(25,135,84,0.3);' :
+                            (item.status === 'Denied' || item.status === 'Hold') ? 'background:rgba(220,53,69,0.12);color:#dc3545;border:1px solid rgba(220,53,69,0.25);' :
+                                'background:rgba(13,110,253,0.1);color:#0d6efd;border:1px solid rgba(13,110,253,0.2);'}">
+                        <i class="fas ${isItemCleared ? 'fa-check-circle' : isMissing ? 'fa-circle-xmark' : (item.status === 'Denied' || item.status === 'Hold') ? 'fa-times-circle' : 'fa-hourglass-half'} me-1"></i>
+                        ${escapeHtml(isItemCleared ? 'Cleared' : statusLabel)}
+                    </span>
+                    <div>${formatClearanceRemark(item.remarks, isMissing)}</div>
+                </td>
+                <td class="pe-4 py-3 align-top">
+                    ${renderScopeVerificationList(item)}
+                </td>
             </tr>`;
-            }).join('') : '<tr><td colspan="5" class="text-center text-body-secondary py-4">No Department Clearance submitted.</td></tr>';
+            }).join('') : `<tr><td colspan="4" class="text-center py-5">
+                <div class="text-body-secondary">
+                    <i class="fas fa-inbox fs-2 d-block mb-2 opacity-25"></i>
+                    <div class="fw-semibold">No Department Clearance submitted</div>
+                    <small>This section will populate once the faculty submits their clearance.</small>
+                </div>
+            </td></tr>`;
         } catch (e) {
             // silent
         }
@@ -1716,7 +3601,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
 
     function formatClearanceRemark(remarks, isMissing = false) {
         if (!remarks || !String(remarks).trim()) {
-            return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : 'No remark'}</small>`;
+            return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : ''}</small>`;
         }
 
         let raw = String(remarks).trim();
@@ -1729,7 +3614,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             .trim();
 
         if (!raw) {
-            return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : 'No remark'}</small>`;
+            return `<small class="text-body-secondary fst-italic">${isMissing ? 'No file submitted' : ''}</small>`;
         }
 
         return `<div class="text-body-secondary small text-start" style="white-space: pre-line; font-size:0.8rem;">${escapeHtml(raw)}</div>`;
