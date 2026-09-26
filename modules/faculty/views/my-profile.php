@@ -46,7 +46,21 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
 ?>
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 
+<style>
+    .toast-container { z-index: 1090; }
+</style>
+
 <?php renderBreadcrumbs($breadcrumbs); ?>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="profileToast" class="toast align-items-center border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2" id="profileToastBody"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
 
 <?php if (!$profile): ?>
     <div class="alert alert-warning rounded-3 shadow-sm border-0">
@@ -76,8 +90,6 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
         </button>
     </div>
 </div>
-
-<div id="profileAlert" class="alert d-none rounded-3" role="alert"></div>
 
 <!-- Primary Profile Overview -->
 <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden bg-body-tertiary text-body">
@@ -138,75 +150,6 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
                         <div class="p-3 rounded-3 bg-body border border-light-subtle">
                             <span class="text-body-secondary small d-block mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>Address</span>
                             <span class="fw-semibold text-truncate d-block"><?= htmlspecialchars($address ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Academic & Emergency Information Grid -->
-<div class="row g-4 mb-4">
-    <div class="col-lg-6">
-        <div class="card border-0 shadow-sm rounded-4 h-100 bg-body-tertiary text-body">
-            <div class="card-header bg-transparent border-bottom border-light-subtle py-3 px-4">
-                <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
-                    <i class="fas fa-graduation-cap text-primary fs-5"></i>
-                    Academic Profile
-                </h6>
-            </div>
-            <div class="card-body p-4">
-                <div class="row g-3">
-                    <div class="col-12">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Highest Educational Attainment</span>
-                            <h6 class="fw-bold mb-0"><?= htmlspecialchars($educationAttainment ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></h6>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Field of Specialization</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($specialization ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Date Hired</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($hiredDate ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card border-0 shadow-sm rounded-4 h-100 bg-body-tertiary text-body">
-            <div class="card-header bg-transparent border-bottom border-light-subtle py-3 px-4">
-                <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
-                    <i class="fas fa-phone-alt text-danger fs-5"></i>
-                    Emergency Contact
-                </h6>
-            </div>
-            <div class="card-body p-4">
-                <div class="row g-3">
-                    <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Contact Person</span>
-                            <h6 class="fw-bold mb-0"><?= htmlspecialchars($emergencyName ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></h6>
-                        </div>
-                    </div>
-                    <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Relationship</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($emergencyRelationship ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Emergency Phone</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($emergencyPhone ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                 </div>
@@ -307,18 +250,39 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
 </div>
 
 <script>
-function showProfileAlert(message, type) {
-    const el = document.getElementById('profileAlert');
-    el.textContent = message;
-    el.className = 'alert alert-' + type + ' rounded-3';
-    el.classList.remove('d-none');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+/* ---------------------------------------------------------------
+ | Toast helper
+ * --------------------------------------------------------------- */
+function showProfileToast(message, type = 'success') {
+    if (!message) return;
+    const toastEl   = document.getElementById('profileToast');
+    const toastBody = document.getElementById('profileToastBody');
+    const closeBtn  = toastEl.querySelector('.btn-close');
+
+    toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
+    toastEl.style.backgroundColor = (type === 'danger' || type === 'error')
+        ? '#842029'
+        : (type === 'warning' ? '#664d03' : '#0f5132');
+
+    closeBtn.classList.remove('btn-close-white');
+    closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+
+    const iconClass = (type === 'danger' || type === 'error')
+        ? 'fas fa-exclamation-circle'
+        : (type === 'warning' ? 'fas fa-triangle-exclamation' : 'fas fa-check-circle');
+
+    toastBody.innerHTML = `<i class="${iconClass} fs-5 text-white"></i> <span class="text-white">${message}</span>`;
+
+    new bootstrap.Toast(toastEl, { delay: 5000 }).show();
 }
 
+/* ---------------------------------------------------------------
+ | Save profile
+ * --------------------------------------------------------------- */
 document.getElementById('saveProfileBtn')?.addEventListener('click', async function () {
-    const form = document.getElementById('editProfileForm');
+    const form     = document.getElementById('editProfileForm');
     const formData = new FormData(form);
-    const btn = this;
+    const btn      = this;
     btn.disabled = true;
 
     try {
@@ -326,42 +290,65 @@ document.getElementById('saveProfileBtn')?.addEventListener('click', async funct
             method: 'POST',
             body: formData,
         });
-        const json = await res.json();
+
+        const text = await res.text();
+        let json;
+        try { json = JSON.parse(text); }
+        catch (e) {
+            console.error('Non-JSON response from save-my-profile.php:', text);
+            showProfileToast('Server returned an unexpected response. Check the console.', 'danger');
+            return;
+        }
+
         if (!json.ok) {
-            showProfileAlert(json.error || 'Could not save changes', 'danger');
+            showProfileToast(json.error || 'Could not save changes', 'danger');
             return;
         }
         bootstrap.Modal.getInstance(document.getElementById('editProfileModal'))?.hide();
-        showProfileAlert('Profile updated successfully.' + (json.email_changed ? ' Your login email was also updated.' : ''), 'success');
-        setTimeout(() => window.location.reload(), 1200);
+        showProfileToast('Profile updated successfully.' + (json.email_changed ? ' Your login email was also updated.' : ''), 'success');
+        setTimeout(() => window.location.reload(), 1400);
     } catch (err) {
-        showProfileAlert('Something went wrong. Please try again.', 'danger');
+        console.error(err);
+        showProfileToast('Something went wrong. Please try again.', 'danger');
     } finally {
         btn.disabled = false;
     }
 });
 
+/* ---------------------------------------------------------------
+ | Change password
+ * --------------------------------------------------------------- */
 document.getElementById('savePasswordBtn')?.addEventListener('click', async function () {
-    const form = document.getElementById('changePasswordForm');
+    const form     = document.getElementById('changePasswordForm');
     const formData = new FormData(form);
-    const btn = this;
+    const btn      = this;
     btn.disabled = true;
 
     try {
-        const res = await fetch('<?= BASE_URL ?>/modules/faculty/includes/change-my-password.php', {
+        const res = await fetch('<?= BASE_URL ?>/includes/change-my-password.php', {
             method: 'POST',
             body: formData,
         });
-        const json = await res.json();
+
+        const text = await res.text();
+        let json;
+        try { json = JSON.parse(text); }
+        catch (e) {
+            console.error('Non-JSON response from change-my-password.php:', text);
+            showProfileToast('Server returned an unexpected response. Check the console.', 'danger');
+            return;
+        }
+
         if (!json.ok) {
-            showProfileAlert(json.error || 'Could not update password', 'danger');
+            showProfileToast(json.error || 'Could not update password', 'danger');
             return;
         }
         bootstrap.Modal.getInstance(document.getElementById('changePasswordModal'))?.hide();
         form.reset();
-        showProfileAlert('Password updated successfully.', 'success');
+        showProfileToast('Password updated successfully.', 'success');
     } catch (err) {
-        showProfileAlert('Something went wrong. Please try again.', 'danger');
+        console.error(err);
+        showProfileToast('Something went wrong. Please try again.', 'danger');
     } finally {
         btn.disabled = false;
     }

@@ -13,9 +13,12 @@ $flash          = $controller->handleAddDepartmentHead();
 $deanFlash      = $controller->handleAddDean();
 $facultyList    = $controller->getDirectoryList();
 
+<<<<<<< HEAD
 // CHANGED: department list for the Dean multi-assignment checkboxes.
 // Falls back to a static list (matching departments seed data)
 // if the controller doesn't yet expose a getAllDepartments()-style method.
+=======
+>>>>>>> d0c7a8d (fixing of stupid bugs)
 $departments = method_exists($controller, 'getAllDepartments')
     ? $controller->getAllDepartments()
     : [
@@ -25,10 +28,31 @@ $departments = method_exists($controller, 'getAllDepartments')
         ['department_id' => 4, 'code' => 'BSBA',    'name' => 'Bachelor of Science in Business Administration'],
     ];
 
-$message     = $flash['message'] ?? '';
+/* ------------------------------------------------------------------
+ | Scrub credentials from flash messages.
+ | The controller may return strings like:
+ |   "Department Head profile successfully registered. Username: xxx / Temp password: yyy"
+ | We only want the human-readable part; credentials must never hit the UI.
+ * ------------------------------------------------------------------ */
+function sanitizeFlashMessage(string $msg): string
+{
+    if ($msg === '') {
+        return '';
+    }
+
+    // Drop anything from "Username:" or "Temp password:" onwards.
+    $msg = preg_replace('/\s*(Username|Temp(?:orary)?\s*password|Password)\s*:.*$/i', '', $msg);
+
+    // Also drop parenthetical credential hints like "(Username: xxx)"
+    $msg = preg_replace('/\s*\(.*?(Username|Password).*?\)/i', '', $msg);
+
+    return trim($msg);
+}
+
+$message     = sanitizeFlashMessage($flash['message'] ?? '');
 $messageType = $flash['type'] ?? 'success';
 
-$deanMessage     = $deanFlash['message'] ?? '';
+$deanMessage     = sanitizeFlashMessage($deanFlash['message'] ?? '');
 $deanMessageType = $deanFlash['type'] ?? 'success';
 
 $pageTitle    = 'Faculty Directory';
@@ -44,6 +68,22 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
+
+<style>
+    .toast-container {
+        z-index: 1080;
+    }
+</style>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="liveToast" class="toast align-items-center border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2" id="toastMessageBody"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
 
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
@@ -62,18 +102,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </button>
     </div>
 </div>
-
-<?php if ($message !== ''): ?>
-    <div class="alert alert-<?= htmlspecialchars($messageType, ENT_QUOTES, 'UTF-8') ?> rounded-3 mb-4" role="alert">
-        <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
-
-<?php if ($deanMessage !== ''): ?>
-    <div class="alert alert-<?= htmlspecialchars($deanMessageType, ENT_QUOTES, 'UTF-8') ?> rounded-3 mb-4" role="alert">
-        <?= htmlspecialchars($deanMessage, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
 
 <!-- Filter & Search Section -->
 <div class="card bg-body border-secondary-subtle p-3 mb-4 shadow-sm">
@@ -694,7 +722,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    // 6 cards per page limit (3 rows x 2 columns)
     const cardsPerPage = 6;
     let currentPage = 1;
 
@@ -703,39 +730,68 @@ document.addEventListener("DOMContentLoaded", function () {
     const deptFilter = document.getElementById("deptFilter");
     const statusFilter = document.getElementById("statusFilter");
     const paginationUl = document.getElementById("directoryPagination");
-    // Dean modal — Birthdate
+
+    // ---- Toast helper ----
+    function showDirectoryToast(message, type = 'success') {
+        if (!message) return;
+        const toastEl = document.getElementById('liveToast');
+        const toastBody = document.getElementById('toastMessageBody');
+        const closeBtn = toastEl.querySelector('.btn-close');
+
+        toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
+        toastEl.style.backgroundColor = (type === 'danger' || type === 'error')
+            ? '#842029'
+            : (type === 'warning' ? '#664d03' : '#0f5132');
+
+        closeBtn.classList.remove('btn-close-white');
+        closeBtn.style.filter = 'invert(1) grayscale(100%) brightness(200%)';
+
+        const iconClass = (type === 'danger' || type === 'error')
+            ? 'fas fa-exclamation-circle'
+            : (type === 'warning' ? 'fas fa-triangle-exclamation' : 'fas fa-check-circle');
+
+        toastBody.innerHTML = `<i class="${iconClass} fs-5 text-white"></i> <span class="text-white">${message}</span>`;
+
+        new bootstrap.Toast(toastEl, { delay: 5000 }).show();
+    }
+
+    // Fire PHP-driven flashes as toasts
+    const flashMessage     = <?= json_encode($message) ?>;
+    const flashType        = <?= json_encode($messageType) ?>;
+    const deanFlashMessage = <?= json_encode($deanMessage) ?>;
+    const deanFlashType    = <?= json_encode($deanMessageType) ?>;
+
+    if (flashMessage)     showDirectoryToast(flashMessage, flashType);
+    if (deanFlashMessage) showDirectoryToast(deanFlashMessage, deanFlashType);
+
+    // --- rest of the original script unchanged ---
     const birthdateInput = document.getElementById("birthdate");
     const birthMonthSel  = document.getElementById("birthMonthSelect");
     const birthDayInp    = document.getElementById("birthDayInput");
     const birthYearInp   = document.getElementById("birthYearInput");
     const ageInput       = document.getElementById("addAge");
 
-    // Dean modal — Hired Date
     const hiredMonthSel  = document.getElementById("hiredMonthSelect");
     const hiredDayInp    = document.getElementById("hiredDayInput");
     const hiredYearInp   = document.getElementById("hiredYearInput");
     const hiredDateInput = document.getElementById("hired_date");
 
-    // Dept Head modal — Birthdate
     const deptHeadBirthdateInput = document.getElementById("deptHeadBirthdate");
     const deptHeadBirthMonthSel  = document.getElementById("deptHeadBirthMonthSelect");
     const deptHeadBirthDayInp    = document.getElementById("deptHeadBirthDayInput");
     const deptHeadBirthYearInp   = document.getElementById("deptHeadBirthYearInput");
     const deptHeadAgeInput       = document.getElementById("deptHeadAge");
 
-    // Dept Head modal — Hired Date
     const deptHeadHiredMonthSel  = document.getElementById("deptHeadHiredMonthSelect");
     const deptHeadHiredDayInp    = document.getElementById("deptHeadHiredDayInput");
     const deptHeadHiredYearInp   = document.getElementById("deptHeadHiredYearInput");
     const deptHeadHiredDateInput = document.getElementById("deptHeadHiredDate");
 
-    // Dean modal — Contractual End Date
     const contractMonthSel  = document.getElementById("contractMonthSelect");
     const contractDayInp    = document.getElementById("contractDayInput");
     const contractYearInp   = document.getElementById("contractYearInput");
     const contractDateInput = document.getElementById("contractual_end");
 
-    // Dept Head modal — Contractual End Date
     const deptHeadContractMonthSel  = document.getElementById("deptHeadContractMonthSelect");
     const deptHeadContractDayInp    = document.getElementById("deptHeadContractDayInput");
     const deptHeadContractYearInp   = document.getElementById("deptHeadContractYearInput");
@@ -743,9 +799,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const employmentStatusSelect = document.getElementById("employmentStatus");
     const contractualEndCol = document.getElementById("contractualEndCol");
 
-    // Academic Rank -> Tier cascading dropdowns (single source of truth
-    // comes from getAcademicRankTiers() in faculty-data.php, so the
-    // frontend options can never drift out of sync with server validation).
     const RANK_TIERS = <?= json_encode(function_exists('getAcademicRankTiers') ? getAcademicRankTiers() : []) ?>;
 
     function bindAcademicRankTier(rankSelectId, tierSelectId) {
@@ -786,8 +839,6 @@ document.addEventListener("DOMContentLoaded", function () {
         return years >= 0 ? years : '';
     }
 
-    // Generic helper: syncs a Month/Day/Year group into a hidden YYYY-MM-DD input.
-    // Optionally updates an "age" field when a function is provided.
     function bindSegmentGroup(monthSel, dayInp, yearInp, hiddenInput, ageField, minYear, maxYear) {
         if (!monthSel || !dayInp || !yearInp || !hiddenInput) return;
 
@@ -819,22 +870,11 @@ document.addEventListener("DOMContentLoaded", function () {
         yearInp.addEventListener('input', sync);
     }
 
-    // Dean modal — Birthdate
     bindSegmentGroup(birthMonthSel, birthDayInp, birthYearInp, birthdateInput, ageInput, 1900, 2026);
-
-    // Dean modal — Hired Date (no age field)
     bindSegmentGroup(hiredMonthSel, hiredDayInp, hiredYearInp, hiredDateInput, null, 1900, 2030);
-
-    // Dean modal — Contractual End Date (no age field)
     bindSegmentGroup(contractMonthSel, contractDayInp, contractYearInp, contractDateInput, null, 1900, 2030);
-
-    // Dept Head modal — Birthdate
     bindSegmentGroup(deptHeadBirthMonthSel, deptHeadBirthDayInp, deptHeadBirthYearInp, deptHeadBirthdateInput, deptHeadAgeInput, 1900, 2026);
-
-    // Dept Head modal — Hired Date
     bindSegmentGroup(deptHeadHiredMonthSel, deptHeadHiredDayInp, deptHeadHiredYearInp, deptHeadHiredDateInput, null, 1900, 2030);
-
-    // Dept Head modal — Contractual End Date (no age field)
     bindSegmentGroup(deptHeadContractMonthSel, deptHeadContractDayInp, deptHeadContractYearInp, deptHeadContractDateInput, null, 1900, 2030);
 
     function updateContractualEndVisibility() {
@@ -842,12 +882,10 @@ document.addEventListener("DOMContentLoaded", function () {
         const isRegular = employmentStatusSelect.value === 'regular';
         contractualEndCol.style.display = isRegular ? 'none' : 'block';
 
-        // Toggle required on all inputs inside the group (Month/Day/Year)
         contractualEndCol.querySelectorAll('input, select').forEach(el => {
             el.required = !isRegular;
         });
 
-        // Clear the hidden value + segments when switching back to regular
         if (isRegular) {
             if (contractDateInput) contractDateInput.value = '';
             if (contractMonthSel) contractMonthSel.value = '';
@@ -861,8 +899,6 @@ document.addEventListener("DOMContentLoaded", function () {
         updateContractualEndVisibility();
     }
 
-    // NEW: same age-calc + contractual-end toggle, wired to the
-    // Add Department Head form's separately-namespaced fields.
     const deptHeadEmploymentStatusSelect = document.getElementById("deptHeadEmploymentStatus");
     const deptHeadContractualEndCol = document.getElementById("deptHeadContractualEndCol");
 
@@ -888,7 +924,6 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDeptHeadContractualEndVisibility();
     }
 
-    // NEW: require at least one department checked before the Add Dean form submits.
     const addDeanForm = document.getElementById('addDeanForm');
     const deanDeptError = document.getElementById('deanDeptError');
     if (addDeanForm) {
@@ -904,7 +939,6 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Modal data populate handler
     function setupViewModal() {
         const viewModal = document.getElementById('viewProfileModal');
         if (!viewModal) return;

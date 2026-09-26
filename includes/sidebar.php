@@ -181,9 +181,8 @@ $facultySecretaryNavGroups = [
         // CHANGED: Subject Load Tracker added here (moved over from Dean)
         ['slug' => 'subject-load-tracker', 'href' => BASE_URL . '/modules/faculty/views/secretary/subject-load-tracker.php', 'icon' => 'fa-book-open', 'label' => 'Subject Load Tracker'],
     ],
-    'Leave & Reports' => [
+    'Leave' => [
         ['slug' => 'leave-request-screening', 'href' => BASE_URL . '/modules/faculty/views/secretary/leave-request-screening.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Request'],
-        ['slug' => 'reports', 'href' => BASE_URL . '/modules/faculty/views/secretary/reports.php', 'icon' => 'fa-chart-pie', 'label' => 'Reports'],
     ],
 ];
 $facultyAttendanceMonitoringNavGroups = [
