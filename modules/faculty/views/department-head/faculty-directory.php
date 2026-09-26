@@ -137,11 +137,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone = trim((string) ($_POST['phone'] ?? ''));
             $email = strtolower(trim((string) ($_POST['email'] ?? '')));
             $position = trim((string) ($_POST['position'] ?? 'Faculty Professor'));
+            $academicRank = trim((string) ($_POST['academic_rank'] ?? ''));
+            $tier = trim((string) ($_POST['tier'] ?? ''));
             $hiredDate = trim((string) ($_POST['hired_date'] ?? ''));
             $contractualEnd = trim((string) ($_POST['contractual_end'] ?? ''));
             $employmentStatus = strtolower(
                 trim((string) ($_POST['employment_status'] ?? 'regular'))
             );
+
+            // New fields for specialization_assignment and coordinator_type
+            $specializationAssignment = trim((string) ($_POST['specialization_assignment'] ?? ''));
+            $coordinatorType = trim((string) ($_POST['coordinator_type'] ?? ''));
 
             // Set pending approval status flags
             $profileStatus = 'Pending Approval';
@@ -164,6 +170,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!in_array($sex, ['MALE', 'FEMALE'], true)) {
                 throw new InvalidArgumentException('Please select a valid biological sex.');
+            }
+
+            if ($academicRank === '') {
+                throw new InvalidArgumentException('Please select the Academic Rank.');
+            }
+
+            if ($tier === '') {
+                throw new InvalidArgumentException('Please select the Tier.');
+            }
+
+            if (function_exists('isValidAcademicRankTier') && !isValidAcademicRankTier($academicRank, $tier)) {
+                throw new InvalidArgumentException('The selected Tier does not match the selected Academic Rank.');
             }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -207,10 +225,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'designated_dept' => $headDepartmentCode,
                 'designated_department' => $headDepartmentCode,
                 'position' => $position,
-                'academic_rank' => '',
-                'specialization_assignment' => '',
-                'coordinator_type' => '',
-                'tier' => '',
+                'academic_rank' => $academicRank,
+                'specialization_assignment' => $specializationAssignment, // Added field
+                'coordinator_type' => $coordinatorType, // Added field
+                'tier' => $tier,
                 'hired_date' => $hiredDate,
                 'contractual_end' => $contractualEnd,
                 'employment_status' => $employmentStatus,
@@ -479,6 +497,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <div class="small text-muted">Department</div>
                                 <div class="fw-semibold text-capitalize"><?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
+                            
                             <div class="col-6">
                                 <div class="small text-muted">Hired</div>
                                 <div class="fw-semibold"><?= htmlspecialchars((string) ($profile['hired_date'] ?? '—'), ENT_QUOTES, 'UTF-8') ?></div>
@@ -539,6 +558,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </dl>
                         </div>
                     </div>
+                    
                     <div class="col-md-6">
                         <div class="bg-body rounded-4 p-3 h-100 shadow-sm">
                             <h6 class="fw-semibold mb-3">Contact & Assignment</h6>
@@ -717,61 +737,66 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <option value="Faculty Professor" selected>Faculty Professor</option>
                             </select>
                         </div>
+                        
+                        <div class="col-12 col-sm-6">
+                            <label for="assignmentLabel" class="form-label text-muted small fw-bold">Specialization Assignment</label>
+                            <select id="assignmentLabel" name="specialization_assignment" class="form-select bg-body border-secondary-subtle text-body">
+                                <option value="" selected>-- No Special Assignment --</option>
+
+                                <optgroup label="Technical Support Track (Advisors)">
+                                    <option value="Capstone Advisor / Panelist">Capstone Advisor</option>
+                                    <option value="OJT Academic Advisor">Practicum / OJT Academic Advisor</option>
+                                    <option value="Systems Advisor">Systems Advisor</option>
+                                    <option value="Technical Advisor">Technical Advisor</option>
+                                    <option value="Software Advisor">Software Advisor</option>
+                                    <option value="Programming Advisor">Programming Advisor</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-sm-6">
+                            <label for="coordinatorType" class="form-label text-muted small fw-bold">Coordinator Type</label>
+
+                            <select id="coordinatorType" name="coordinator_type" class="form-select bg-body border-secondary-subtle text-body">
+                                <option value="" selected>-- No Coordinator Type --</option>
+                                <option value="NSTP">NSTP</option>
+                                <option value="OJT">OJT</option>
+                                <option value="RESEARCH">RESEARCH & CAPSTONE</option>
+                                <option value="Low-Level-Coordinator">Low Level coordinator (1st & 2nd year)</option>
+                                <option value="High-Level-Coordinator">High Level coordinator (3rd & 4th year)</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="row g-3 mb-3">
-                        <!-- Hired Date: Month / Day / Year -->
-                        <div class="col-12 col-md-6">
-                            <label for="hiredMonthSelect" class="form-label text-muted small fw-bold mb-1">
-                                <i class="fas fa-calendar-check text-primary me-1"></i> Hired Date
-                            </label>
-                            <div class="input-group shadow-sm">
-                                <select id="hiredMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;" required>
-                                    <option value="" disabled selected hidden>Month</option>
-                                    <option value="01">January</option>
-                                    <option value="02">February</option>
-                                    <option value="03">March</option>
-                                    <option value="04">April</option>
-                                    <option value="05">May</option>
-                                    <option value="06">June</option>
-                                    <option value="07">July</option>
-                                    <option value="08">August</option>
-                                    <option value="09">September</option>
-                                    <option value="10">October</option>
-                                    <option value="11">November</option>
-                                    <option value="12">December</option>
-                                </select>
-                                <input type="number" id="hiredDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31" required>
-                                <input type="number" id="hiredYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2030" required>
-                            </div>
-                            <input type="hidden" id="hired_date" name="hired_date" required>
+                        <div class="col-6">
+                            <label for="academicRankSelect" class="form-label text-muted small fw-bold">Academic Rank</label>
+                            <select id="academicRankSelect" name="academic_rank" class="form-select bg-body border-secondary-subtle text-body" required>
+                                <option value="" selected disabled>Select Academic Rank</option>
+                                <option value="Instructor">Instructor</option>
+                                <option value="Assistant Professor">Assistant Professor</option>
+                                <option value="Associate Professor">Associate Professor</option>
+                                <option value="Professor">Professor</option>
+                            </select>
                         </div>
 
-                        <!-- Contractual End Date: Month / Day / Year -->
-                        <div class="col-12 col-md-6" id="contractualEndCol">
-                            <label for="contractMonthSelect" class="form-label text-muted small fw-bold mb-1">
-                                <i class="fas fa-calendar-xmark text-primary me-1"></i> Contractual End Date
-                            </label>
-                            <div class="input-group shadow-sm">
-                                <select id="contractMonthSelect" class="form-select bg-body border-secondary-subtle text-body" style="max-width: 42%;">
-                                    <option value="" disabled selected hidden>Month</option>
-                                    <option value="01">January</option>
-                                    <option value="02">February</option>
-                                    <option value="03">March</option>
-                                    <option value="04">April</option>
-                                    <option value="05">May</option>
-                                    <option value="06">June</option>
-                                    <option value="07">July</option>
-                                    <option value="08">August</option>
-                                    <option value="09">September</option>
-                                    <option value="10">October</option>
-                                    <option value="11">November</option>
-                                    <option value="12">December</option>
-                                </select>
-                                <input type="number" id="contractDayInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Day" min="1" max="31">
-                                <input type="number" id="contractYearInput" class="form-control bg-body border-secondary-subtle text-body text-center" placeholder="Year" min="1900" max="2030">
-                            </div>
-                            <input type="hidden" id="contractual_end" name="contractual_end">
+                        <div class="col-6">
+                            <label for="academicTierSelect" class="form-label text-muted small fw-bold">Tier</label>
+                            <select id="academicTierSelect" name="tier" class="form-select bg-body border-secondary-subtle text-body" required disabled>
+                                <option value="" selected>Select Academic Rank first</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label for="hired_date" class="form-label text-muted small fw-bold">Hired Date</label>
+                            <input type="date" id="hired_date" name="hired_date" class="form-control bg-body border-secondary-subtle text-body" required>
+                        </div>
+
+                        <div class="col-6" id="contractualEndCol">
+                            <label for="contractual_end" class="form-label text-muted small fw-bold">Contractual End Date</label>
+                            <input type="date" id="contractual_end" name="contractual_end" class="form-control bg-body border-secondary-subtle text-body">
                         </div>
                     </div>
 
@@ -836,6 +861,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const cardsPerPage = 6;
     let currentPage = 1;
 
+    // Academic Rank -> Tier cascading dropdown (single source of truth
+    // comes from getAcademicRankTiers() in faculty-data.php, so the
+    // frontend options can never drift out of sync with server validation).
+    const RANK_TIERS = <?= json_encode(function_exists('getAcademicRankTiers') ? getAcademicRankTiers() : []) ?>;
+    const academicRankSelect = document.getElementById('academicRankSelect');
+    const academicTierSelect = document.getElementById('academicTierSelect');
+
+    function populateAcademicTiers() {
+        if (!academicRankSelect || !academicTierSelect) return;
+        const tiers = RANK_TIERS[academicRankSelect.value] || [];
+        if (tiers.length === 0) {
+            academicTierSelect.disabled = true;
+            academicTierSelect.innerHTML = '<option value="" selected>Select Academic Rank first</option>';
+            return;
+        }
+        academicTierSelect.disabled = false;
+        academicTierSelect.innerHTML = '<option value="" selected disabled>Select Tier</option>' +
+            tiers.map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+
+    if (academicRankSelect) {
+        academicRankSelect.addEventListener('change', populateAcademicTiers);
+        populateAcademicTiers();
+    }
+
     const facultyGrid = document.getElementById('facultyGrid');
     const searchInput = document.getElementById('directorySearch');
     const statusFilter = document.getElementById('statusFilter');
@@ -848,20 +898,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const hiddenBirthdateInput = document.getElementById('birthdate');
     const ageInput = document.getElementById('addAge');
 
-    // Modern Hired Date Segment Inputs
-    const hiredMonthSel = document.getElementById('hiredMonthSelect');
-    const hiredDayInp = document.getElementById('hiredDayInput');
-    const hiredYearInp = document.getElementById('hiredYearInput');
-    const hiddenHiredDateInput = document.getElementById('hired_date');
-
-    // Modern Contractual End Date Segment Inputs
-    const contractMonthSel = document.getElementById('contractMonthSelect');
-    const contractDayInp = document.getElementById('contractDayInput');
-    const contractYearInp = document.getElementById('contractYearInput');
-    const hiddenContractInput = document.getElementById('contractual_end');
-
     const employmentStatus = document.getElementById('employmentStatus');
     const contractualEndCol = document.getElementById('contractualEndCol');
+    const contractualEnd = document.getElementById('contractual_end');
 
     // Real-Time Birthdate Syncing and Age Calculation
     function syncBirthdateAndAge() {
@@ -898,64 +937,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ageInput.value = age >= 0 ? age : '';
     }
 
-    // --- Hired Date: sync segments into hidden input ---
-    function syncHiredDate() {
-        const m = hiredMonthSel.value;
-        const d = parseInt(hiredDayInp.value, 10);
-        const y = parseInt(hiredYearInp.value, 10);
-
-        if (!m || isNaN(d) || isNaN(y) || y < 1900 || y > 2030) {
-            hiddenHiredDateInput.value = '';
-            return;
-        }
-
-        const formatted = `${y}-${m}-${String(d).padStart(2, '0')}`;
-        const parsed = new Date(formatted);
-        if (isNaN(parsed.getTime())) {
-            hiddenHiredDateInput.value = '';
-            return;
-        }
-
-        hiddenHiredDateInput.value = formatted;
-    }
-
-    // --- Contractual End Date: sync segments into hidden input ---
-    function syncContractualEnd() {
-        const m = contractMonthSel.value;
-        const d = parseInt(contractDayInp.value, 10);
-        const y = parseInt(contractYearInp.value, 10);
-
-        if (!m || isNaN(d) || isNaN(y) || y < 1900 || y > 2030) {
-            hiddenContractInput.value = '';
-            return;
-        }
-
-        const formatted = `${y}-${m}-${String(d).padStart(2, '0')}`;
-        const parsed = new Date(formatted);
-        if (isNaN(parsed.getTime())) {
-            hiddenContractInput.value = '';
-            return;
-        }
-
-        hiddenContractInput.value = formatted;
-    }
-
-    // --- Toggle Contractual End group based on employment status ---
     function updateContractualEnd() {
         const isRegular = employmentStatus.value === 'regular';
         contractualEndCol.style.display = isRegular ? 'none' : '';
-
-        // Toggle 'required' on all three segment inputs
-        [contractMonthSel, contractDayInp, contractYearInp].forEach(el => {
-            if (el) el.required = !isRegular;
-        });
+        contractualEnd.required = !isRegular;
 
         if (isRegular) {
-            // Clear everything when switching to regular
-            contractMonthSel.value = '';
-            contractDayInp.value = '';
-            contractYearInp.value = '';
-            hiddenContractInput.value = '';
+            contractualEnd.value = '';
         }
     }
 
@@ -1056,16 +1044,6 @@ document.addEventListener('DOMContentLoaded', () => {
     birthMonthSel.addEventListener('change', syncBirthdateAndAge);
     birthDayInp.addEventListener('input', syncBirthdateAndAge);
     birthYearInp.addEventListener('input', syncBirthdateAndAge);
-
-    // Attach event listeners for Segmented Hired Date Input
-    hiredMonthSel.addEventListener('change', syncHiredDate);
-    hiredDayInp.addEventListener('input', syncHiredDate);
-    hiredYearInp.addEventListener('input', syncHiredDate);
-
-    // Attach event listeners for Segmented Contractual End Input
-    contractMonthSel.addEventListener('change', syncContractualEnd);
-    contractDayInp.addEventListener('input', syncContractualEnd);
-    contractYearInp.addEventListener('input', syncContractualEnd);
 
     employmentStatus.addEventListener('change', updateContractualEnd);
 
