@@ -1096,6 +1096,176 @@ function smsRegisterSuccessfulLogin(array $user): void
  * @return array{ok:bool,code:string,message:string,alert:string,show_reset:bool,locked:bool,locked_until:?string}
  */
 function smsLoginAttempt(string $username, string $password): array
+// {
+//     $pack = static function (
+//         string $code,
+//         string $message,
+//         string $alert = 'danger',
+//         bool $showReset = false,
+//         bool $locked = false,
+//         ?string $lockedUntil = null
+//     ): array {
+//         return [
+//             'ok' => false,
+//             'code' => $code,
+//             'message' => $message,
+//             'alert' => $alert,
+//             'show_reset' => $showReset,
+//             'locked' => $locked,
+//             'locked_until' => $lockedUntil,
+//         ];
+//     };
+
+//     if (trim($username) === '' || trim($password) === '') {
+//         return $pack('empty', 'Please enter your email and password.');
+//     }
+
+//     // IP / login gate first (covers random spam emails too)
+//     $throttle = smsGetLoginThrottle($username);
+//     if (!empty($throttle['locked'])) {
+//         $secs = 0;
+//         if (!empty($throttle['locked_until'])) {
+//             $untilTs = strtotime((string) $throttle['locked_until']);
+//             if ($untilTs !== false && $untilTs > time()) {
+//                 $secs = max(1, $untilTs - time());
+//             }
+//         }
+//         if ($secs <= 0) {
+//             $secs = (int) ($throttle['lock_seconds'] ?? smsLockoutSeconds());
+//         }
+//         $msg = 'Login is temporarily locked after too many failed attempts. Please wait '
+//             . smsFormatDuration($secs)
+//             . ' before trying again. Sign-in is disabled until the cooldown ends.';
+//         return $pack('locked', $msg, 'warning', false, true, $throttle['locked_until'] ?? null);
+//     }
+
+//     $user = smsFindUserByLogin($username);
+//     if (!$user) {
+//         password_verify($password, '$2y$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWX12');
+//         $failInfo = smsRegisterLoginThrottleFailure($username);
+//         logActivity(
+//             'login_failed',
+//             'Invalid login attempt (unknown credentials)',
+//             'System',
+//             null,
+//             'Unknown',
+//             null,
+//             false
+//         );
+//         $msg = smsFailMessageFromThrottle($failInfo, true);
+//         return $pack(
+//             $msg['code'],
+//             $msg['message'],
+//             $msg['alert'],
+//             $msg['show_reset'],
+//             !empty($failInfo['locked']),
+//             $failInfo['locked_until'] ?? null
+//         );
+//     }
+
+//     smsClearLockIfExpired($user);
+//     $fresh = smsFindUserByLogin($username);
+//     if ($fresh) {
+//         $user = $fresh;
+//     }
+
+//     $accountStatus = strtolower(trim((string) ($user['status'] ?? '')));
+//     // Block pending approval accounts (catches any variation of 'pending')
+//     if (str_contains($accountStatus, 'pending') || in_array($accountStatus, ['unapproved', 'waiting_approval'], true)) {
+//         logActivity(
+//             'login_failed',
+//             'Login blocked — account pending approval: ' . $user['status'],
+//             'System',
+//             (int) $user['id'],
+//             (string) $user['full_name'],
+//             (string) $user['role_key'],
+//             false
+//         );
+//         return $pack(
+//             'pending',
+//             'Your account is currently pending administrator approval. Please wait for an admin to activate it.',
+//             'warning'
+//         );
+//     }
+
+//     // Block all other non-active account statuses (inactive, suspended, etc.)
+//     if ($accountStatus !== 'active') {
+//         logActivity(
+//             'login_failed',
+//             'Login blocked — account status: ' . $user['status'],
+//             'System',
+//             (int) $user['id'],
+//             (string) $user['full_name'],
+//             (string) $user['role_key'],
+//             false
+//         );
+//         return $pack('inactive', 'This login cannot be used right now. Contact your administrator.');
+//     }
+//     if (!password_verify($password, (string) $user['password_hash'])) {
+//         $userFail = smsRegisterFailedLogin($user);
+//         $ipFail = smsRegisterLoginThrottleFailure($username);
+//         // Use the stricter of the two
+//         $failInfo = $userFail;
+//         if (!empty($ipFail['locked']) && empty($userFail['locked'])) {
+//             $failInfo = $ipFail;
+//         } elseif (!empty($ipFail['locked']) && !empty($userFail['locked'])) {
+//             $failInfo = $userFail;
+//             if (empty($failInfo['locked_until']) && !empty($ipFail['locked_until'])) {
+//                 $failInfo['locked_until'] = $ipFail['locked_until'];
+//             }
+//         } elseif (
+//             isset($ipFail['remaining'], $userFail['remaining'])
+//             && $ipFail['remaining'] !== null
+//             && $userFail['remaining'] !== null
+//             && $ipFail['remaining'] < $userFail['remaining']
+//         ) {
+//             $failInfo = $ipFail;
+//         }
+
+//         logActivity(
+//             'login_failed',
+//             'Invalid password',
+//             'System',
+//             (int) $user['id'],
+//             (string) $user['full_name'],
+//             (string) $user['role_key'],
+//             false
+//         );
+
+//         $msg = smsFailMessageFromThrottle($failInfo, false);
+//         $isLocked = !empty($failInfo['locked']);
+//         if ($isLocked) {
+//             $until = smsForceLoginThrottleLock(
+//                 $username,
+//                 (int) ($failInfo['lock_seconds'] ?? smsLockoutSeconds()),
+//                 (int) ($failInfo['attempts'] ?? 0)
+//             );
+//             if ($until && empty($failInfo['locked_until'])) {
+//                 $failInfo['locked_until'] = $until;
+//             }
+//         }
+//         return $pack(
+//             $msg['code'],
+//             $msg['message'],
+//             $msg['alert'],
+//             $msg['show_reset'],
+//             $isLocked,
+//             $failInfo['locked_until'] ?? null
+//         );
+//     }
+
+//     // Rehash if algorithm upgraded
+//     if (password_needs_rehash((string) $user['password_hash'], PASSWORD_DEFAULT)) {
+//         $pdo = db();
+//         if ($pdo) {
+//             $pdo->prepare('UPDATE users SET password_hash = ?, password_changed_at = password_changed_at WHERE id = ?')
+//                 ->execute([password_hash($password, PASSWORD_DEFAULT), (int) $user['id']]);
+//         }
+//     }
+
+//     // Direct login — skip mandatory 2FA / OTP screens
+//     return smsCompleteLoginSession($user, $username);
+// }
 {
     $pack = static function (
         string $code,
@@ -1201,6 +1371,7 @@ function smsLoginAttempt(string $username, string $password): array
         );
         return $pack('inactive', 'This login cannot be used right now. Contact your administrator.');
     }
+
     if (!password_verify($password, (string) $user['password_hash'])) {
         $userFail = smsRegisterFailedLogin($user);
         $ipFail = smsRegisterLoginThrottleFailure($username);
@@ -1254,6 +1425,7 @@ function smsLoginAttempt(string $username, string $password): array
         );
     }
 
+    // ========== VALID CREDENTIALS — TRIGGER 2FA ==========
     // Rehash if algorithm upgraded
     if (password_needs_rehash((string) $user['password_hash'], PASSWORD_DEFAULT)) {
         $pdo = db();
@@ -1263,8 +1435,50 @@ function smsLoginAttempt(string $username, string $password): array
         }
     }
 
-    // Direct login — skip mandatory 2FA / OTP screens
-    return smsCompleteLoginSession($user, $username);
+    // Mark successful password check (for fail-counter reset later)
+    smsRegisterSuccessfulLogin($user);
+    smsClearLoginThrottle($username);
+
+    // Store 2FA pending state
+    $_SESSION['pending_2fa'] = [
+        'user_id' => (int) $user['id'],
+        'username' => $username,
+        'method' => 'email',  // Default to email; can switch to authenticator in verify-2fa.php
+        'at' => time(),       // Timestamp for session expiry check
+    ];
+
+    // Issue email OTP
+    $issued = smsIssueOtpToEmail(
+        (int) $user['id'],
+        'login_2fa',          // DB purpose
+        'System',             // Module key
+        10,                   // TTL minutes
+        'login verification'  // Human-readable purpose for email
+    );
+
+    // Log the 2FA attempt
+    logActivity(
+        'login_2fa_initiated',
+        'User initiated login 2FA (email OTP)',
+        'System',
+        (int) $user['id'],
+        (string) $user['full_name'],
+        (string) $user['role_key'],
+        false
+    );
+
+    // Return needs_2fa response
+    // login.php will detect this and redirect to verify-2fa.php
+    return [
+        'ok' => false,
+        'code' => 'needs_2fa',
+        'needs_2fa' => true,
+        'message' => 'A verification code has been sent to your email. Enter it on the next screen to complete sign-in.',
+        'alert' => 'info',
+        'show_reset' => false,
+        'locked' => false,
+        'locked_until' => null,
+    ];
 }
 
 /**

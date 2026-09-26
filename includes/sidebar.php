@@ -164,7 +164,7 @@ $facultyDepartmentHeadNavGroups = [
         ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/evaluation-summary.php', 'icon' => 'fa-chart-pie', 'label' => 'Evaluation Summary'],
         ['slug' => 'leave-request-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/leave-request-approval.php', 'icon' => 'fa-calendar-check', 'label' => 'Leave-Request Approval'],
     ],
-    'Clearance & Reports' => [
+    'Clearance' => [
         ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
         // CHANGED: Reports entry removed per request
     ],
