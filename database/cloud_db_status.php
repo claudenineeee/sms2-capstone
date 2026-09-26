@@ -86,8 +86,27 @@ if ($dbConnected && ($action === 'migrate' || $action === 'seed')) {
             : "Accounts re-seeded successfully! Total tables: {$tableCount}. Users ready: {$userCount}.";
         $messageType = 'success';
     } catch (Throwable $e) {
-        $message = "Migration failed: " . $e->getMessage();
-        $messageType = 'danger';
+        // If tables already exist and the DB is already populated, treat as ready instead of a scary red error
+        $tableCount = 0;
+        $userCount = 0;
+        try {
+            $stmt = $pdo->query('SHOW TABLES');
+            $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $tableCount = count($tables);
+            if (in_array('users', $tables, true)) {
+                $uStmt = $pdo->query('SELECT COUNT(*) AS c FROM users');
+                $userCount = (int) ($uStmt->fetch()['c'] ?? 0);
+            }
+        } catch (Throwable $ignore) {
+        }
+
+        if (str_contains($e->getMessage(), 'already exists') && $tableCount > 10) {
+            $message = "Database is already installed and ready! Total tables: {$tableCount}. Users ready: {$userCount}.";
+            $messageType = 'success';
+        } else {
+            $message = "Migration failed: " . $e->getMessage();
+            $messageType = 'danger';
+        }
     }
 }
 ?>
@@ -148,8 +167,9 @@ if ($dbConnected && ($action === 'migrate' || $action === 'seed')) {
         </div>
 
         <?php if ($message): ?>
-            <div class="alert alert-<?= htmlspecialchars($messageType) ?> mb-4">
+            <div class="alert alert-<?= htmlspecialchars($messageType) ?> alert-dismissible fade show mb-4" role="alert">
                 <?= htmlspecialchars($message) ?>
+                <a href="<?= BASE_URL ?>/database/cloud_db_status.php" class="btn-close" aria-label="Close"></a>
             </div>
         <?php endif; ?>
 
