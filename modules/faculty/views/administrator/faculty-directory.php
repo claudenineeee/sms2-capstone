@@ -13,12 +13,6 @@ $flash          = $controller->handleAddDepartmentHead();
 $deanFlash      = $controller->handleAddDean();
 $facultyList    = $controller->getDirectoryList();
 
-<<<<<<< HEAD
-// CHANGED: department list for the Dean multi-assignment checkboxes.
-// Falls back to a static list (matching departments seed data)
-// if the controller doesn't yet expose a getAllDepartments()-style method.
-=======
->>>>>>> d0c7a8d (fixing of stupid bugs)
 $departments = method_exists($controller, 'getAllDepartments')
     ? $controller->getAllDepartments()
     : [

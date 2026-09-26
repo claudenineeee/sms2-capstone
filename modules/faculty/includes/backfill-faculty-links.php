@@ -1,4 +1,4 @@
-<<<<<<< HEAD=======<<<<<<< HEAD <?php
+<?php
 /**
  * ONE-TIME SCRIPT: Backfill missing faculty records
  *
