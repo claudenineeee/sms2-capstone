@@ -1,0 +1,36 @@
+# Git history — not needed inside the container
+.git
+.gitignore
+
+# Local dev configs — should never go to production
+config/local.php
+.env
+
+# User-uploaded files — these are runtime data, not app code.
+# In production they should live on persistent storage / object storage,
+# not baked into the image (they also inflate the image by ~50 MB+).
+storage/
+uploads/
+modules/faculty/uploads/
+
+# Logs — runtime only, not part of the image
+storage/logs/
+*.log
+
+# Docker files themselves
+docker/
+docker-compose.yml
+
+# Debug tools
+debug/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE metadata
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -13,6 +13,14 @@ COPY . /var/www/html
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf && \
     echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
+# Recreate runtime upload/storage directories excluded by .dockerignore
+RUN mkdir -p \
+    /var/www/html/storage/logs \
+    /var/www/html/storage/uploads \
+    /var/www/html/uploads \
+    /var/www/html/modules/faculty/uploads/leave_requests \
+    /var/www/html/modules/faculty/uploads/profile_photos
+
 RUN chown -R www-data:www-data /var/www/html
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
