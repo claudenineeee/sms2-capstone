@@ -1,7 +1,14 @@
-# Block web access to installer / seed scripts and SQL dumps.
+# Block web access to SQL dumps and raw scripts, but allow cloud diagnostic tool
 <IfModule mod_authz_core.c>
     Require all denied
+    <Files "cloud_db_status.php">
+        Require all granted
+    </Files>
 </IfModule>
 <IfModule !mod_authz_core.c>
     Deny from all
+    <Files "cloud_db_status.php">
+        Allow from all
+    </Files>
 </IfModule>
+
