@@ -17,9 +17,15 @@ if [ "${APP_PORT}" != "8080" ]; then
     echo "Listen 8080" >> /etc/apache2/ports.conf
 fi
 
+# Suppress FQDN warning
+if ! grep -q "ServerName localhost" /etc/apache2/apache2.conf; then
+    echo "ServerName localhost" >> /etc/apache2/apache2.conf
+fi
+
 # Configure VirtualHost to respond to any listening port
 cat <<EOF > /etc/apache2/sites-available/000-default.conf
 <VirtualHost *:* >
+    ServerName localhost
     ServerAdmin webmaster@localhost
     DocumentRoot /var/www/html
 
@@ -28,6 +34,9 @@ cat <<EOF > /etc/apache2/sites-available/000-default.conf
         AllowOverride All
         Require all granted
     </Directory>
+
+    Alias /health /var/www/html/health.php
+    Alias /ping /var/www/html/health.php
 
     ErrorLog \${APACHE_LOG_DIR}/error.log
     CustomLog \${APACHE_LOG_DIR}/access.log combined
