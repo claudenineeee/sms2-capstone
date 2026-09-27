@@ -1,5 +1,7 @@
 FROM php:8.2-apache
 
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 RUN docker-php-ext-install mysqli pdo pdo_mysql
 
 RUN a2enmod rewrite headers
@@ -19,5 +21,9 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/
 
 EXPOSE 80 8080
 
+HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl -f http://127.0.0.1:80/health.php || curl -f http://127.0.0.1:8080/health.php || exit 1
+
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["apache2-foreground"]
+CMD ["apache2-foreground"]
+
