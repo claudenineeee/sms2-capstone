@@ -34,4 +34,14 @@ cat <<EOF > /etc/apache2/sites-available/000-default.conf
 </VirtualHost>
 EOF
 
-exec apache2-foreground "$@"
+# Ensure apache2-foreground is not passed to itself as an argument
+if [ "$1" = 'apache2-foreground' ] || [ "$1" = 'apache2' ]; then
+    shift
+fi
+
+if [ "$#" -eq 0 ]; then
+    exec apache2-foreground
+else
+    exec "$@"
+fi
+
