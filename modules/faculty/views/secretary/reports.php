@@ -1,729 +1,1264 @@
 <?php
 /**
- * Reports
- * Purpose: Generate daily, assignment monitoring, and document status reports
+ * Reports (Secretary View)
+ * // FIXED: Academic Term selector redesigned as an inline pill control.
+ * // FIXED: printSection() rewritten to produce a properly-styled print
+ * view — injects Bootstrap + page CSS, converts <canvas> charts to
+ * <img> so they actually render, strips interactive controls, adds a
+ * print header with title/scope/timestamp.
+ * // FIXED: Leave Request Report uses facultyDb() + positional (?) params
+ * to avoid SQLSTATE[HY093]. Stat cards removed — only "Latest Requests".
+ * // ADDED: CSV export for Leave Request Report (?export=leave_csv).
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
-require_once __DIR__ . '/../../controllers/faculty-data.php';
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../controllers/faculty-data.php';  // facultyDb() helper
 
 requireAuth();
+
+try {
+    $pdo = getFacultyDatabaseConnection();
+} catch (Exception $e) {
+    die('<div style="padding:20px;font-family:sans-serif;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;margin:20px;border-radius:4px;">'
+        . '<h3>Database Connection Error</h3><p>' . htmlspecialchars($e->getMessage()) . '</p></div>');
+}
+
+/* ============================================================
+   Separate PDO for leave-request queries — mirrors the exact
+   connection used by leave-request-screening.php.
+   ============================================================ */
+$leavePdo = null;
+try {
+    if (function_exists('facultyDb')) {
+        $leavePdo = facultyDb();
+    }
+} catch (Throwable $e) {
+    $leavePdo = null;
+}
+if (!$leavePdo) { $leavePdo = $pdo; }
+
+// 1. Secretary's Department Scope
+$deptScope = '';
+$currentUserId = getCurrentUserId();
+if ($currentUserId) {
+    try {
+        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid LIMIT 1");
+        $stmt->execute([':uid' => $currentUserId]);
+        $deptScope = trim((string) ($stmt->fetchColumn() ?: ''));
+    } catch (PDOException $e) { $deptScope = ''; }
+}
+
+// 2. Academic Term
+$academicTerms = [];
+try {
+    $academicTerms = $pdo->query("
+        SELECT DISTINCT academic_year, semester 
+        FROM teaching_load_history 
+        WHERE academic_year IS NOT NULL AND semester IS NOT NULL
+        ORDER BY academic_year DESC, semester DESC
+    ")->fetchAll();
+} catch (PDOException $e) { $academicTerms = []; }
+
+$selectedTerm = $_GET['term'] ?? '';
+if (empty($selectedTerm) && !empty($academicTerms)) {
+    $defaultTerm = null;
+    foreach ($academicTerms as $term) {
+        if (stripos(trim($term['semester']), '1st') !== false) { $defaultTerm = $term; break; }
+    }
+    if ($defaultTerm === null) $defaultTerm = $academicTerms[0];
+    $selectedTerm = $defaultTerm['academic_year'] . '-' . $defaultTerm['semester'];
+} elseif (empty($selectedTerm)) {
+    $selectedTerm = '2025-2026-1';
+}
+$termParts = explode('-', $selectedTerm);
+$selectedAY = (count($termParts) >= 2) ? $termParts[0] . '-' . $termParts[1] : '2025-2026';
+$selectedSem = $termParts[2] ?? '1';
+
+// 3. SUBJECT LOAD REPORT
+$nonTeachingPositions = ['dean','program head','program chair','department head','department chair','coordinator','secretary','registrar','admin','administrator'];
+function getMaxUnitsForEmploymentStatus($s) {
+    $n = strtolower(trim($s ?? ''));
+    if (in_array($n, ['part-time','part time','parttime'])) return 15;
+    return 24;
+}
+$facultyQuerySql = "
+    SELECT fp.id, fp.faculty_id AS profile_faculty_no, fp.first_name, fp.last_name,
+           fp.designated_department, fp.position, fp.email, fp.employment_status,
+           f.faculty_id AS real_faculty_id
+    FROM faculty_profiles fp
+    LEFT JOIN faculty f ON f.faculty_id = (
+        SELECT f2.faculty_id FROM faculty f2
+        WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+           OR f2.faculty_no = fp.faculty_id
+        ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+        LIMIT 1
+    )
+";
+$facultyMembers = [];
+try {
+    if (!empty($deptScope)) {
+        $stmt = $pdo->prepare($facultyQuerySql . " WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:dept) AND LOWER(TRIM(fp.request_status)) = 'approved' ORDER BY fp.last_name ASC");
+        $stmt->execute(['dept' => $deptScope]);
+        $facultyMembers = $stmt->fetchAll();
+    } else {
+        $facultyMembers = $pdo->query($facultyQuerySql . " WHERE LOWER(TRIM(fp.request_status)) = 'approved' ORDER BY fp.last_name ASC")->fetchAll();
+    }
+} catch (PDOException $e) { $facultyMembers = []; }
+
+$facultyMembers = array_values(array_filter($facultyMembers, function ($fac) use ($nonTeachingPositions) {
+    $pos = strtolower(trim($fac['position'] ?? ''));
+    if ($pos === '') return true;
+    foreach ($nonTeachingPositions as $ex) if (strpos($pos, $ex) !== false) return false;
+    return true;
+}));
+
+$subjectLoadRows = [];
+$slTotalFaculty = count($facultyMembers);
+$slFullyLoadedCount = 0;
+$slTotalUnassignedUnits = 0.0;
+$slDeptTotals = [];
+
+foreach ($facultyMembers as $fac) {
+    $realFacultyId = $fac['real_faculty_id'] !== null ? (int) $fac['real_faculty_id'] : null;
+    $maxUnitsLimit = getMaxUnitsForEmploymentStatus($fac['employment_status'] ?? '');
+    $assignedSubjects = [];
+    if ($realFacultyId !== null) {
+        try {
+            $stmtLoad = $pdo->prepare("SELECT units FROM teaching_load_history WHERE faculty_id = :fac_id AND academic_year = :ay AND semester = :sem");
+            $stmtLoad->execute(['fac_id' => $realFacultyId, 'ay' => $selectedAY, 'sem' => $selectedSem]);
+            $assignedSubjects = $stmtLoad->fetchAll();
+        } catch (PDOException $e) {}
+    }
+    if (empty($assignedSubjects)) {
+        try {
+            $stmtLoadAlt = $pdo->prepare("SELECT units FROM teaching_load_history WHERE (faculty_id = :f1 OR faculty_no = :f2) AND academic_year = :ay AND semester = :sem");
+            $stmtLoadAlt->execute(['f1' => $fac['id'], 'f2' => $fac['profile_faculty_no'] ?? '', 'ay' => $selectedAY, 'sem' => $selectedSem]);
+            $assignedSubjects = $stmtLoadAlt->fetchAll();
+        } catch (PDOException $e) {}
+    }
+    $totalAssignedUnits = 0.0;
+    foreach ($assignedSubjects as $s) $totalAssignedUnits += floatval($s['units'] ?? 0);
+    $isFullyLoaded = ($totalAssignedUnits >= $maxUnitsLimit);
+    if ($isFullyLoaded) $slFullyLoadedCount++;
+    else $slTotalUnassignedUnits += max(0, $maxUnitsLimit - $totalAssignedUnits);
+    $deptKey = $fac['designated_department'] ?? 'N/A';
+    $slDeptTotals[$deptKey] = ($slDeptTotals[$deptKey] ?? 0) + $totalAssignedUnits;
+    $subjectLoadRows[] = [
+        'name' => 'Prof. ' . $fac['first_name'] . ' ' . $fac['last_name'],
+        'department' => $deptKey,
+        'employment' => $fac['employment_status'] ?? 'N/A',
+        'total_units' => $totalAssignedUnits,
+        'max_units' => $maxUnitsLimit,
+        'remaining' => max(0, $maxUnitsLimit - $totalAssignedUnits),
+        'is_full' => $isFullyLoaded,
+    ];
+}
+$slFullyLoadedPct = $slTotalFaculty > 0 ? round(($slFullyLoadedCount / $slTotalFaculty) * 100) : 0;
+$slUnderLoadedCount = $slTotalFaculty - $slFullyLoadedCount;
+$slEmploymentOptions = array_values(array_unique(array_filter(array_map(fn($r) => $r['employment'], $subjectLoadRows))));
+sort($slEmploymentOptions);
+$slDeptHasData = array_sum($slDeptTotals) > 0;
+
+// 4. ASSIGNMENT MONITORING REPORT
+$assignmentRows = [];
+$assignmentTableAvailable = false;
+$assignmentStatusMessage = 'Pending schedule integration (REST API) — see assignment-monitoring.php';
+$amTotalAssignments = 0; $amTotalUnits = 0; $amConflictCount = 0;
+$amStatusCounts = []; $amFacultyUnits = [];
+
+try {
+    if ($pdo->query("SHOW TABLES LIKE 'faculty_class_assignments'")->fetchColumn() !== false) {
+        $assignmentTableAvailable = true;
+        $amSql = "SELECT fca.id, fca.faculty_id, fca.class_id, fca.units, fca.room, fca.time, fca.days, fca.status,
+                         fp.first_name, fp.last_name, fp.designated_department
+                  FROM faculty_class_assignments fca
+                  LEFT JOIN faculty_profiles fp ON fp.id = fca.faculty_id";
+        if (!empty($deptScope)) {
+            $st = $pdo->prepare($amSql . " WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:dept) ORDER BY fca.id DESC");
+            $st->execute(['dept' => $deptScope]);
+        } else {
+            $st = $pdo->query($amSql . " ORDER BY fca.id DESC");
+        }
+        $assignmentRows = $st->fetchAll();
+        $amTotalAssignments = count($assignmentRows);
+        foreach ($assignmentRows as $row) {
+            $amTotalUnits += (int) ($row['units'] ?? 0);
+            $statusKey = trim((string) ($row['status'] ?? 'pending')) ?: 'pending';
+            $amStatusCounts[$statusKey] = ($amStatusCounts[$statusKey] ?? 0) + 1;
+            $facName = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: ('Faculty ID ' . (int) ($row['faculty_id'] ?? 0));
+            $amFacultyUnits[$facName] = ($amFacultyUnits[$facName] ?? 0) + (int) ($row['units'] ?? 0);
+        }
+        $idx = [];
+        foreach ($assignmentRows as $row) {
+            $fid = (int) ($row['faculty_id'] ?? 0);
+            $key = ($row['time'] ?? '') . '|' . ($row['days'] ?? '');
+            if ($fid > 0 && trim($key, '|') !== '') $idx[$fid][$key] = ($idx[$fid][$key] ?? 0) + 1;
+        }
+        foreach ($idx as $slots) foreach ($slots as $c) if ($c > 1) $amConflictCount++;
+        $assignmentStatusMessage = $amTotalAssignments > 0
+            ? 'Connected — showing live data from faculty_class_assignments'
+            : 'faculty_class_assignments table exists but has no rows yet';
+    }
+} catch (PDOException $e) {
+    $assignmentTableAvailable = false;
+    $assignmentStatusMessage = 'Database error while reading assignment data: ' . $e->getMessage();
+}
+arsort($amFacultyUnits);
+$amFacultyUnitsTop = array_slice($amFacultyUnits, 0, 10, true);
+$amStatusOptions = array_keys($amStatusCounts);
+sort($amStatusOptions);
+
+/* ============================================================
+   5. LEAVE REQUEST REPORT DATA
+   ============================================================ */
+$lrTotalCount = 0;
+$lrTypeCounts = [];
+$lrTopFaculty = [];
+$lrRows = [];
+$lrDebugError = '';
+
+try {
+    $restrictedDeptCode = null;
+    if (function_exists('getRestrictedDepartmentId')) {
+        $restrictedDeptId = getRestrictedDepartmentId();
+        if ($restrictedDeptId !== null && $restrictedDeptId > 0) {
+            $stDept = $leavePdo->prepare("SELECT code FROM departments WHERE department_id = ? LIMIT 1");
+            $stDept->execute([$restrictedDeptId]);
+            $restrictedDeptCode = $stDept->fetchColumn() ?: null;
+        }
+    }
+    if ($restrictedDeptCode === null && !empty($deptScope)) {
+        $restrictedDeptCode = $deptScope;
+    }
+
+    $fromJoins = "
+        FROM leave_requests lr
+        LEFT JOIN faculty f            ON f.faculty_id = lr.faculty_id
+        LEFT JOIN faculty_profiles fp  ON fp.email = f.email
+        LEFT JOIN faculty_profiles fp2 ON fp2.id = lr.faculty_id
+    ";
+
+    $whereClause = '';
+    $params = [];
+    if ($restrictedDeptCode !== null) {
+        $whereClause = " WHERE (fp.designated_department = ? OR fp2.designated_department = ?)";
+        $params = [$restrictedDeptCode, $restrictedDeptCode];
+    }
+
+    $stTotal = $leavePdo->prepare("SELECT COUNT(*) $fromJoins $whereClause");
+    $stTotal->execute($params);
+    $lrTotalCount = (int) $stTotal->fetchColumn();
+
+    $typeWhere = $whereClause === ''
+        ? " WHERE (lr.leave_type IS NOT NULL AND lr.leave_type <> '')"
+        : $whereClause . " AND (lr.leave_type IS NOT NULL AND lr.leave_type <> '')";
+    $stTypes = $leavePdo->prepare("
+        SELECT lr.leave_type, COUNT(*) AS cnt
+        $fromJoins
+        $typeWhere
+        GROUP BY lr.leave_type
+        ORDER BY cnt DESC
+    ");
+    $stTypes->execute($params);
+    while ($row = $stTypes->fetch(PDO::FETCH_ASSOC)) {
+        $lrTypeCounts[(string)$row['leave_type']] = (int)$row['cnt'];
+    }
+
+    $stList = $leavePdo->prepare("
+        SELECT lr.id, lr.leave_type, lr.start_date, lr.end_date,
+               lr.screening_status, lr.created_at,
+               DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
+               COALESCE(
+                   NULLIF(CONCAT_WS(' ', fp.first_name, fp.last_name), ' '),
+                   NULLIF(CONCAT_WS(' ', fp2.first_name, fp2.last_name), ' ')
+               ) AS faculty_name
+        $fromJoins
+        $whereClause
+        ORDER BY CASE WHEN lr.screening_status = 'Pending' THEN 0 ELSE 1 END,
+                 lr.created_at DESC
+        LIMIT 10
+    ");
+    $stList->execute($params);
+    $lrRows = $stList->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $counts = [];
+    foreach ($lrRows as $r) {
+        $fn = trim((string)($r['faculty_name'] ?? ''));
+        if ($fn === '') continue;
+        $counts[$fn] = ($counts[$fn] ?? 0) + 1;
+    }
+    arsort($counts);
+    $lrTopFaculty = array_slice($counts, 0, 5, true);
+
+} catch (Throwable $e) {
+    $lrDebugError = $e->getMessage();
+    error_log('[reports.php][leave-report] ' . $e->getMessage());
+}
+
+/* ============================================================
+   CSV EXPORT — Leave Request Report
+   ============================================================ */
+if (isset($_GET['export']) && $_GET['export'] === 'leave_csv') {
+    try {
+        $exportPdo = $leavePdo;
+
+        $restrictedDeptCode = null;
+        if (function_exists('getRestrictedDepartmentId')) {
+            $restrictedDeptId = getRestrictedDepartmentId();
+            if ($restrictedDeptId !== null && $restrictedDeptId > 0) {
+                $stDept = $exportPdo->prepare("SELECT code FROM departments WHERE department_id = ? LIMIT 1");
+                $stDept->execute([$restrictedDeptId]);
+                $restrictedDeptCode = $stDept->fetchColumn() ?: null;
+            }
+        }
+        if ($restrictedDeptCode === null && !empty($deptScope)) {
+            $restrictedDeptCode = $deptScope;
+        }
+
+        $fromJoins = "
+            FROM leave_requests lr
+            LEFT JOIN faculty f            ON f.faculty_id = lr.faculty_id
+            LEFT JOIN faculty_profiles fp  ON fp.email = f.email
+            LEFT JOIN faculty_profiles fp2 ON fp2.id = lr.faculty_id
+        ";
+        $whereClause = '';
+        $params = [];
+        if ($restrictedDeptCode !== null) {
+            $whereClause = " WHERE (fp.designated_department = ? OR fp2.designated_department = ?)";
+            $params = [$restrictedDeptCode, $restrictedDeptCode];
+        }
+
+        $stExport = $exportPdo->prepare("
+            SELECT
+                lr.id,
+                COALESCE(
+                    NULLIF(CONCAT_WS(' ', fp.first_name, fp.last_name), ' '),
+                    NULLIF(CONCAT_WS(' ', fp2.first_name, fp2.last_name), ' ')
+                ) AS faculty_name,
+                COALESCE(fp.designated_department, fp2.designated_department) AS department,
+                lr.leave_type,
+                lr.start_date,
+                lr.end_date,
+                DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
+                lr.screening_status,
+                lr.created_at
+            $fromJoins
+            $whereClause
+            ORDER BY CASE WHEN lr.screening_status = 'Pending' THEN 0 ELSE 1 END,
+                     lr.created_at DESC
+            LIMIT 200
+        ");
+        $stExport->execute($params);
+        $exportRows = $stExport->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $filename = 'leave-requests-' . date('Y-m-d_His') . '.csv';
+
+        while (ob_get_level() > 0) { ob_end_clean(); }
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $out = fopen('php://output', 'w');
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, ['Request ID', 'Faculty', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Screening Status', 'Filed At']);
+        foreach ($exportRows as $r) {
+            fputcsv($out, [
+                (int) ($r['id'] ?? 0),
+                (string) ($r['faculty_name'] ?? ''),
+                (string) ($r['department'] ?? ''),
+                (string) ($r['leave_type'] ?? ''),
+                (string) ($r['start_date'] ?? ''),
+                (string) ($r['end_date'] ?? ''),
+                (int) ($r['days'] ?? 0),
+                (string) ($r['screening_status'] ?? ''),
+                (string) ($r['created_at'] ?? ''),
+            ]);
+        }
+        fclose($out);
+        exit;
+    } catch (Throwable $e) {
+        error_log('[reports.php][leave-csv] ' . $e->getMessage());
+        $lrDebugError = 'CSV export failed: ' . $e->getMessage();
+    }
+}
 
 $pageTitle    = 'Reports';
 $activeModule = 'faculty';
 $activePage   = 'reports';
-
-$breadcrumbs = [
+$breadcrumbs  = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
     ['label' => 'Reports', 'url' => null],
 ];
 
-$formError = '';
-$formSuccess = '';
-
-if (isset($_GET['success'])) {
-    $formSuccess = (string) $_GET['success'];
-}
-
-try {
-    $pdo = facultyDb();
-    if (!$pdo) {
-        throw new RuntimeException('Unable to connect to the faculty database.');
-    }
-
-    $restrictedDeptId = function_exists('getRestrictedDepartmentId') ? getRestrictedDepartmentId() : null;
-    $restrictedDeptCode = null;
-
-    if ($restrictedDeptId !== null && $restrictedDeptId > 0) {
-        $deptCodeStmt = $pdo->prepare("SELECT code FROM departments WHERE department_id = :id LIMIT 1");
-        $deptCodeStmt->execute([':id' => $restrictedDeptId]);
-        $restrictedDeptCode = $deptCodeStmt->fetchColumn() ?: null;
-    }
-
-    /*
-     * Handle Form Actions (Generate or Delete Report Log)
-     */
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $action = trim((string) ($_POST['action'] ?? ''));
-
-        if ($action === 'generate_standard' || $action === 'generate_custom') {
-            $reportTitle = trim((string) ($_POST['report_title'] ?? 'Generated Report'));
-            $reportType = trim((string) ($_POST['report_type'] ?? 'Daily'));
-            $outputFormat = trim((string) ($_POST['output_format'] ?? 'PDF'));
-
-            // Map types cleanly to match allowed database ENUM/VARCHAR
-            $dbType = match(strtolower($reportType)) {
-                'assignment' => 'Assignment',
-                'document'   => 'Document',
-                default      => 'Daily'
-            };
-
-            // Insert matching table columns precisely (report_name, report_type, created_at)
-            $logStmt = $pdo->prepare("
-                INSERT INTO generated_reports (report_name, report_type, created_at)
-                VALUES (:name, :type, NOW())
-            ");
-
-            $logStmt->execute([
-                ':name'   => $reportTitle,
-                ':type'   => $dbType
-            ]);
-
-            $redirectUrl = strtok($_SERVER['REQUEST_URI'], '?');
-            header('Location: ' . $redirectUrl . '?success=' . urlencode('Report generated successfully.'));
-            exit;
-
-        } elseif ($action === 'delete_report') {
-            $reportId = (int) ($_POST['report_id'] ?? 0);
-            if ($reportId > 0) {
-                $delStmt = $pdo->prepare("DELETE FROM generated_reports WHERE report_id = :id LIMIT 1");
-                $delStmt->execute([':id' => $reportId]);
-            }
-            $redirectUrl = strtok($_SERVER['REQUEST_URI'], '?');
-            header('Location: ' . $redirectUrl . '?success=' . urlencode('Report log entry removed.'));
-            exit;
-        }
-    }
-
-    /*
-     * Search, Filter & Pagination Logic for Generated Reports History
-     */
-    $q = trim((string) ($_GET['q'] ?? ''));
-    $filterType = trim((string) ($_GET['type'] ?? ''));
-
-    $limit = 5;
-    $page = max(1, (int) ($_GET['page'] ?? 1));
-
-    $where = [];
-    $params = [];
-
-    if ($q !== '') {
-        $where[] = "report_name LIKE :q";
-        $params[':q'] = '%' . $q . '%';
-    }
-
-    if ($filterType !== '') {
-        $where[] = "report_type = :report_type";
-        $params[':report_type'] = $filterType;
-    }
-
-    $whereClause = !empty($where) ? ' WHERE ' . implode(' AND ', $where) : '';
-
-    // Total records count
-    $countSql = "SELECT COUNT(*) FROM generated_reports" . $whereClause;
-    $countStmt = $pdo->prepare($countSql);
-    foreach ($params as $k => $v) {
-        $countStmt->bindValue($k, $v, PDO::PARAM_STR);
-    }
-    $countStmt->execute();
-    $totalRecords = (int) $countStmt->fetchColumn();
-    $totalPages = max(1, ceil($totalRecords / $limit));
-    if ($page > $totalPages) {
-        $page = $totalPages;
-    }
-    $offset = ($page - 1) * $limit;
-
-    // Fetch reports history
-    $sql = "SELECT * FROM generated_reports" . $whereClause . " ORDER BY report_id DESC LIMIT :limit OFFSET :offset";
-    $stmt = $pdo->prepare($sql);
-    foreach ($params as $k => $v) {
-        $stmt->bindValue($k, $v, PDO::PARAM_STR);
-    }
-    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-    $stmt->execute();
-    $reports = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    // AJAX Handler for dynamic search/filtering
-    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest' || isset($_GET['ajax'])) {
-        header('Content-Type: application/json');
-        
-        ob_start();
-        if (empty($reports)) {
-            echo '<tr><td colspan="4" class="text-center text-muted py-4">No reports found matching your criteria.</td></tr>';
-        } else {
-            foreach ($reports as $r) {
-                $type = $r['report_type'] ?? 'Daily';
-                $createdAt = $r['created_at'] ?? ($r['date_generated'] ?? 'N/A');
-                
-                $typeBadge = match($type) {
-                    'Daily'      => 'bg-white text-primary border border-primary-subtle',
-                    'Assignment' => 'bg-white text-success border border-success-subtle',
-                    default      => 'bg-white text-warning border border-warning-subtle'
-                };
-                ?>
-                <tr>
-                    <td class="ps-3 fw-semibold text-dark"><?= htmlspecialchars($r['report_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                    <td><span class="badge <?= $typeBadge ?> rounded-pill px-3 py-1 fw-bold"><?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?></span></td>
-                    <td class="small font-monospace text-muted"><?= htmlspecialchars($createdAt, ENT_QUOTES, 'UTF-8') ?></td>
-                    <td class="text-end pe-3">
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-secondary border-0" title="View" onclick="viewReport('<?= htmlspecialchars(addslashes($r['report_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>')">
-                                <i class="fas fa-eye text-primary"></i>
-                            </button>
-                            <button class="btn btn-outline-secondary border-0" title="Download" onclick="downloadReport('<?= htmlspecialchars(addslashes($r['report_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>')">
-                                <i class="fas fa-download text-success"></i>
-                            </button>
-                            <button class="btn btn-outline-secondary border-0" title="Delete" onclick="deleteReportRecord(<?= (int)$r['report_id'] ?>, '<?= htmlspecialchars(addslashes($r['report_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>')">
-                                <i class="fas fa-trash text-danger"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-                <?php
-            }
-        }
-        $tableHtml = ob_get_clean();
-
-        // Pagination HTML
-        ob_start();
-        if ($totalPages > 1) {
-            $urlParams = $_GET;
-            unset($urlParams['page'], $urlParams['ajax']);
-            $baseUrl = '?' . http_build_query($urlParams) . (empty($urlParams) ? '' : '&') . 'page=';
-            ?>
-            <small class="text-muted">Showing <?= $totalRecords > 0 ? $offset + 1 : 0 ?>-<?= min($offset + $limit, $totalRecords) ?> of <?= $totalRecords ?> reports</small>
-            <nav>
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
-                        <a class="page-link ajax-page-link" href="<?= $page <= 1 ? '#' : $baseUrl . ($page - 1) ?>" data-page="<?= $page - 1 ?>">Prev</a>
-                    </li>
-                    <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
-                        <li class="page-item <?= $page === $i ? 'active' : '' ?>">
-                            <a class="page-link ajax-page-link" href="<?= $baseUrl . $i ?>" data-page="<?= $i ?>"><?= $i ?></a>
-                        </li>
-                    <?php endfor; ?>
-                    <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
-                        <a class="page-link ajax-page-link" href="<?= $page >= $totalPages ? '#' : $baseUrl . ($page + 1) ?>" data-page="<?= $page + 1 ?>">Next</a>
-                    </li>
-                </ul>
-            </nav>
-            <?php
-        }
-        $paginationHtml = ob_get_clean();
-
-        echo json_encode([
-            'tableHtml' => $tableHtml,
-            'paginationHtml' => $paginationHtml,
-            'totalRecords' => $totalRecords
-        ]);
-        exit;
-    }
-
-} catch (Throwable $e) {
-    $formError = $e->getMessage();
-    error_log('[reports] ' . $e->getMessage());
-}
-
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
+<link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+    /* Badge styles — verbatim from leave-request-screening.php */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 650;
+        border-radius: 6px;
+        line-height: 1;
+        letter-spacing: 0.01em;
+        transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .badge-pending  { background-color: rgba(245, 158, 11, 0.15) !important; color: #d97706 !important; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-screened { background-color: rgba(16, 185, 129, 0.15) !important; color: #059669 !important; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-returned { background-color: rgba(239, 68, 68, 0.15) !important;  color: #dc2626 !important; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-none     { background-color: rgba(148, 163, 184, 0.15) !important; color: #64748b !important; border: 1px solid rgba(148, 163, 184, 0.25); }
+    [data-bs-theme="dark"] .badge-pending,  [data-theme="dark"] .badge-pending,  body.dark-mode .badge-pending  { background-color: rgba(245, 158, 11, 0.22) !important; color: #fbbf24 !important; border-color: rgba(251, 191, 36, 0.35); }
+    [data-bs-theme="dark"] .badge-screened, [data-theme="dark"] .badge-screened, body.dark-mode .badge-screened { background-color: rgba(16, 185, 129, 0.22) !important; color: #34d399 !important; border-color: rgba(52, 211, 153, 0.35); }
+    [data-bs-theme="dark"] .badge-returned, [data-theme="dark"] .badge-returned, body.dark-mode .badge-returned { background-color: rgba(239, 68, 68, 0.22) !important;  color: #f87171 !important; border-color: rgba(248, 113, 113, 0.35); }
+    [data-bs-theme="dark"] .badge-none,     [data-theme="dark"] .badge-none,     body.dark-mode .badge-none     { background-color: rgba(148, 163, 184, 0.20) !important; color: #94a3b8 !important; border-color: rgba(148, 163, 184, 0.3); }
+
+    .report-chart-wrap { position: relative; height: 200px; }
+    .stat-card .card-body { padding: 0.85rem 1rem; }
+    .stat-card .stat-icon { font-size: 1.1rem; }
+    .stat-card h6 { font-size: 0.7rem; letter-spacing: 0.03em; }
+    .stat-card h4 { font-size: 1.15rem; }
+    .stat-card small { font-size: 0.7rem; }
+    .compact-table thead th { font-size: 0.7rem; padding: 0.6rem 0.5rem; }
+    .compact-table tbody td { font-size: 0.8rem; padding: 0.6rem 0.5rem; }
+    .report-section-header { font-size: 0.85rem; padding: 0; margin-bottom: 0.75rem; }
+    .compact-filter .form-control,
+    .compact-filter .form-select,
+    .compact-filter .input-group-text { font-size: 0.8rem; padding: 0.35rem 0.6rem; }
+    .compact-filter .form-label { font-size: 0.7rem; }
+
+/* ============================================================
+   Academic Term pill — theme-aware (uses explicit selectors
+   instead of --bs-* fallbacks, so it works with any theme
+   mechanism the layout uses: data-bs-theme, data-theme, or
+   .dark-mode class).
+   ============================================================ */
+
+/* ---------- LIGHT (default) ---------- */
+.term-pill {
+    background-color: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+    gap: 0.5rem !important;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+}
+.term-pill-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    letter-spacing: 0.02em;
+    display: inline-flex;
+    align-items: center;
+}
+.term-pill-label i { color: #0d6efd; }
+.term-pill-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #ffffff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.35rem;
+    padding: 0.35rem 1.9rem 0.35rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #0f172a;
+    cursor: pointer;
+    min-width: 210px;
+    line-height: 1.2;
+}
+.term-pill-select:focus {
+    outline: none;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+}
+
+/* ---------- DARK — matches leave-request-screening palette ---------- */
+[data-bs-theme="dark"] .term-pill,
+[data-theme="dark"] .term-pill,
+body.dark-mode .term-pill {
+    background-color: #131c2e;
+    border-color: #1f2a44;
+}
+[data-bs-theme="dark"] .term-pill-label,
+[data-theme="dark"] .term-pill-label,
+body.dark-mode .term-pill-label {
+    color: #94a3b8;
+}
+[data-bs-theme="dark"] .term-pill-select,
+[data-theme="dark"] .term-pill-select,
+body.dark-mode .term-pill-select {
+    background-color: #0d1526;
+    color: #e2e8f0;
+    border-color: #1f2a44;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+[data-bs-theme="dark"] .term-pill-select option,
+[data-theme="dark"] .term-pill-select option,
+body.dark-mode .term-pill-select option {
+    background-color: #0d1526;
+    color: #e2e8f0;
+}
+
+@media (max-width: 575.98px) {
+    .term-pill {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 0.25rem !important;
+        width: 100%;
+    }
+    .term-pill-select { width: 100%; min-width: 0; }
+}
+</style>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <!-- Page Header -->
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
-        <h2 class="h4 fw-bold text-dark mb-1 fs-5 fs-md-4">
-            <i class="fas fa-file-alt text-primary me-2"></i>Reports
-        </h2>
-        <p class="text-muted small mb-0 fs-7 fs-md-6">Generate daily, assignment monitoring, and document status reports</p>
+        <h1 class="h4 fw-bold mb-1 text-body">
+            <i class="fas fa-file-alt text-primary me-2"></i>
+            Reports
+        </h1>
+        <p class="text-muted mb-0 small">
+            Department Scope: <strong class="text-primary"><?= htmlspecialchars(!empty($deptScope) ? $deptScope : 'All Departments') ?></strong>
+        </p>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-primary text-truncate" data-bs-toggle="modal" data-bs-target="#customReportModal">
-            <i class="fas fa-plus me-1"></i><span class="d-inline d-sm-none">Custom Builder</span><span class="d-none d-sm-inline">Custom Report Builder</span>
+
+    <!-- Inline academic term selector -->
+    <div class="term-pill d-flex align-items-center gap-2">
+        <label for="academicTermSelect" class="term-pill-label mb-0">
+            <i class="fas fa-calendar-alt me-1"></i>Academic Term:
+        </label>
+        <select class="term-pill-select" id="academicTermSelect" onchange="changeAcademicTerm(this.value)">
+            <?php if (!empty($academicTerms)): ?>
+                <?php foreach ($academicTerms as $term): ?>
+                    <?php $termVal = $term['academic_year'] . '-' . $term['semester']; ?>
+                    <option value="<?= htmlspecialchars($termVal) ?>" <?= $selectedTerm === $termVal ? 'selected' : '' ?>>
+                        A.Y. <?= htmlspecialchars($term['academic_year']) ?> | <?= htmlspecialchars($term['semester']) ?> Semester
+                    </option>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <option value="2025-2026-1" selected>A.Y. 2025–2026 | 1st Semester</option>
+            <?php endif; ?>
+        </select>
+    </div>
+</div>
+
+<!-- ============================ SUBJECT LOAD REPORT ============================ -->
+<div class="mb-4" id="subject-load-report">
+    <div class="d-flex justify-content-between align-items-center report-section-header">
+        <h6 class="mb-0 fw-bold text-body"><i class="fas fa-chalkboard-teacher text-primary me-2"></i>Subject Load Report</h6>
+        <button class="btn btn-sm btn-outline-primary" onclick="printSection('subject-load-report')">
+            <i class="fas fa-file-pdf me-1"></i>Export / Print
         </button>
     </div>
-</div>
 
-<?php if ($formError !== ''): ?>
-    <div class="alert alert-danger rounded-3 mb-4" role="alert"><?= htmlspecialchars($formError, ENT_QUOTES, 'UTF-8') ?></div>
-<?php endif; ?>
-
-<?php if ($formSuccess !== ''): ?>
-    <div class="alert alert-success rounded-3 mb-4" role="alert"><?= htmlspecialchars($formSuccess, ENT_QUOTES, 'UTF-8') ?></div>
-<?php endif; ?>
-
-<!-- Report Type Cards -->
-<div class="row g-3 mb-4">
-    <!-- Daily Reports -->
-    <div class="col-12 col-md-4">
-        <div class="card h-100 shadow-sm border">
-            <div class="card-body p-3 p-md-4 d-flex flex-column">
-                <div class="d-flex align-items-center gap-3 mb-3">
-                    <div class="d-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-3 fs-5" style="width: 44px; height: 44px; flex-shrink: 0;">
-                        <i class="fas fa-calendar-day"></i>
-                    </div>
+    <div class="row g-2 mb-3">
+        <div class="col-12 col-sm-6 col-xl-4">
+            <section class="card stat-card primary border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-primary"><i class="fas fa-users"></i></div>
                     <div>
-                        <h6 class="fw-bold mb-0 text-dark fs-6">Daily Reports</h6>
-                        <small class="text-muted fs-7">Real-time operational summaries</small>
+                        <h6 class="text-muted mb-0 text-uppercase fw-bold">Total Active Faculty</h6>
+                        <h4 class="mb-0 fw-bold text-primary"><?= $slTotalFaculty ?></h4>
+                        <small class="text-muted fw-semibold">In current scope</small>
                     </div>
                 </div>
-                <div class="p-3 bg-light rounded-3 mb-4 flex-grow-1">
-                    <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-primary"></i>Daily Activity Log</li>
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-primary"></i>Daily Leave Summary</li>
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-primary"></i>Daily Document Updates</li>
-                    </ul>
-                </div>
-                <button class="btn btn-outline-primary w-100 fw-semibold text-truncate" onclick="openGenerateModal('Daily', 'Daily Activity Log')">
-                    <i class="fas fa-cog me-1"></i>Generate Daily
-                </button>
-            </div>
+            </section>
         </div>
-    </div>
-
-    <!-- Assignment Monitoring Reports -->
-    <div class="col-12 col-md-4">
-        <div class="card h-100 shadow-sm border">
-            <div class="card-body p-3 p-md-4 d-flex flex-column">
-                <div class="d-flex align-items-center gap-3 mb-3">
-                    <div class="d-flex align-items-center justify-content-center bg-success-subtle text-success rounded-3 fs-5" style="width: 44px; height: 44px; flex-shrink: 0;">
-                        <i class="fas fa-tasks"></i>
-                    </div>
+        <div class="col-12 col-sm-6 col-xl-4">
+            <section class="card stat-card success border shadow-sm position-relative h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-success"><i class="fas fa-check-circle"></i></div>
                     <div>
-                        <h6 class="fw-bold mb-0 text-dark fs-6">Assignment Monitoring</h6>
-                        <small class="text-muted fs-7">Faculty workload & tasks</small>
+                        <h6 class="text-muted mb-0 text-uppercase fw-bold">Fully Loaded</h6>
+                        <h4 class="mb-0 fw-bold text-success"><?= $slFullyLoadedCount ?> <span class="fs-6 text-muted">/ <?= $slTotalFaculty ?></span></h4>
+                        <small class="text-muted fw-semibold"><?= $slFullyLoadedPct ?>% of faculty</small>
                     </div>
                 </div>
-                <div class="p-3 bg-light rounded-3 mb-4 flex-grow-1">
-                    <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-success"></i>Faculty Workload Summary</li>
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-success"></i>Subject Assignment Status</li>
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-success"></i>Teaching Load Distribution</li>
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-success"></i>Unassigned Faculty Report</li>
-                    </ul>
-                </div>
-                <button class="btn btn-outline-success w-100 fw-semibold text-truncate" onclick="openGenerateModal('Assignment', 'Faculty Workload Summary')">
-                    <i class="fas fa-cog me-1"></i>Generate Assignment
-                </button>
-            </div>
+            </section>
         </div>
-    </div>
-
-    <!-- Document Reports -->
-    <div class="col-12 col-md-4">
-        <div class="card h-100 shadow-sm border">
-            <div class="card-body p-3 p-md-4 d-flex flex-column">
-                <div class="d-flex align-items-center gap-3 mb-3">
-                    <div class="d-flex align-items-center justify-content-center bg-warning-subtle text-warning rounded-3 fs-5" style="width: 44px; height: 44px; flex-shrink: 0;">
-                        <i class="fas fa-folder"></i>
-                    </div>
+        <div class="col-12 col-sm-6 col-xl-4">
+            <section class="card stat-card border-0 border-start border-4 shadow-sm position-relative h-100" style="border-left-color: #f59e0b !important;">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon me-3 text-warning"><i class="fas fa-exclamation-triangle"></i></div>
                     <div>
-                        <h6 class="fw-bold mb-0 text-dark fs-6">Document Reports</h6>
-                        <small class="text-muted fs-7">Compliance & status logs</small>
+                        <h6 class="text-muted mb-0 text-uppercase fw-bold">Unassigned Units</h6>
+                        <h4 class="mb-0 fw-bold text-warning"><?= $slTotalUnassignedUnits ?></h4>
+                        <small class="text-muted fw-semibold">Still to distribute</small>
                     </div>
                 </div>
-                <div class="p-3 bg-light rounded-3 mb-4 flex-grow-1">
-                    <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-warning"></i>Document Status Summary</li>
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-warning"></i>Expiring Documents Report</li>
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-warning"></i>Missing Documents Report</li>
-                        <li class="d-flex align-items-center gap-2 small text-secondary"><i class="fas fa-check-circle text-warning"></i>Document Audit Trail</li>
-                    </ul>
-                </div>
-                <button class="btn btn-outline-warning text-dark w-100 fw-semibold text-truncate" onclick="openGenerateModal('Document', 'Document Status Summary')">
-                    <i class="fas fa-cog me-1"></i>Generate Document
-                </button>
-            </div>
+            </section>
         </div>
     </div>
-</div>
 
-<!-- Report History Table -->
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h6 class="mb-0 fw-bold text-dark fs-6"><i class="fas fa-history text-primary me-2"></i>Generated Reports History</h6>
-        <div class="d-flex gap-2 w-100 w-md-auto flex-wrap flex-sm-nowrap">
-            <div class="input-group input-group-sm flex-grow-1 flex-md-grow-0" style="width: 100%; max-width: 220px;">
-                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                <input type="text" id="reportSearch" class="form-control" placeholder="Search reports..." value="<?= htmlspecialchars($q, ENT_QUOTES, 'UTF-8') ?>">
+    <div class="row g-2 mb-3">
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2 small text-uppercase fw-bold">Load Status Distribution</h6>
+                    <?php if ($slTotalFaculty > 0): ?>
+                        <div class="report-chart-wrap"><canvas id="slStatusChart"></canvas></div>
+                    <?php else: ?>
+                        <p class="text-muted small text-center py-4 mb-0">No data to chart yet.</p>
+                    <?php endif; ?>
+                </div>
             </div>
-            <select id="reportTypeFilter" class="form-select form-select-sm w-auto flex-grow-1 flex-md-grow-0">
-                <option value="">All Types</option>
-                <option value="Daily" <?= $filterType === 'Daily' ? 'selected' : '' ?>>Daily</option>
-                <option value="Assignment" <?= $filterType === 'Assignment' ? 'selected' : '' ?>>Assignment</option>
-                <option value="Document" <?= $filterType === 'Document' ? 'selected' : '' ?>>Document</option>
-            </select>
+        </div>
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2 small text-uppercase fw-bold">Assigned Units by Department</h6>
+                    <?php if ($slDeptHasData): ?>
+                        <div class="report-chart-wrap"><canvas id="slDeptChart"></canvas></div>
+                    <?php else: ?>
+                        <p class="text-muted small text-center py-4 mb-0">No units assigned in this term yet.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="card-body p-0">
+
+    <div class="card border-0 shadow-sm mb-3 compact-filter">
+        <div class="card-body py-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small fw-bold text-muted mb-1">Search</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-search"></i></span>
+                        <input type="text" id="slSearchInput" class="form-control border-start-0 ps-0 bg-light" placeholder="Faculty name or department" onkeyup="filterSubjectLoadTable()">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-muted mb-1">Employment Status</label>
+                    <select id="slEmploymentFilter" class="form-select bg-light" onchange="filterSubjectLoadTable()">
+                        <option value="">All</option>
+                        <?php foreach ($slEmploymentOptions as $opt): ?>
+                            <option value="<?= htmlspecialchars(strtolower($opt)) ?>"><?= htmlspecialchars($opt) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Load Status</label>
+                    <select id="slStatusFilter" class="form-select bg-light" onchange="filterSubjectLoadTable()">
+                        <option value="">All</option>
+                        <option value="full">Full Load</option>
+                        <option value="under">Under-loaded</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
         <div class="table-responsive">
-            <table class="table align-middle mb-0">
+            <table class="table table-hover align-middle mb-0 compact-table">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-3">Report Name</th>
-                        <th>Type</th>
-                        <th>Date Generated</th>
-                        <th class="text-end pe-3">Actions</th>
+                        <th class="ps-3">Faculty</th>
+                        <th>Department</th>
+                        <th>Employment</th>
+                        <th class="text-center">Assigned</th>
+                        <th class="text-center">Max</th>
+                        <th class="text-center">Remaining</th>
+                        <th class="text-center">Status</th>
                     </tr>
                 </thead>
-                <tbody id="reportsTableBody">
-                    <?php if (empty($reports)): ?>
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-4">No reports found matching your criteria.</td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($reports as $r): 
-                            $type = $r['report_type'] ?? 'Daily';
-                            $createdAt = $r['created_at'] ?? ($r['date_generated'] ?? 'N/A');
-
-                            $typeBadge = match($type) {
-                                'Daily'      => 'bg-white text-primary border border-primary-subtle',
-                                'Assignment' => 'bg-white text-success border border-success-subtle',
-                                default      => 'bg-white text-warning border border-warning-subtle'
-                            };
-                        ?>
-                        <tr>
-                            <td class="ps-3 fw-semibold text-dark text-truncate" style="max-width: 180px;"><?= htmlspecialchars($r['report_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><span class="badge <?= $typeBadge ?> rounded-pill px-2 px-md-3 py-1 fw-bold"><?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?></span></td>
-                            <td class="small font-monospace text-muted text-nowrap"><?= htmlspecialchars($createdAt, ENT_QUOTES, 'UTF-8') ?></td>
-                            <td class="text-end pe-3">
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-secondary border-0" title="View" onclick="viewReport('<?= htmlspecialchars(addslashes($r['report_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>')">
-                                        <i class="fas fa-eye text-primary"></i>
-                                    </button>
-                                    <button class="btn btn-outline-secondary border-0" title="Download" onclick="downloadReport('<?= htmlspecialchars(addslashes($r['report_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>')">
-                                        <i class="fas fa-download text-success"></i>
-                                    </button>
-                                    <button class="btn btn-outline-secondary border-0" title="Delete" onclick="deleteReportRecord(<?= (int)$r['report_id'] ?>, '<?= htmlspecialchars(addslashes($r['report_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>')">
-                                        <i class="fas fa-trash text-danger"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                <tbody id="subjectLoadTableBody">
+                    <?php if (!empty($subjectLoadRows)): ?>
+                        <?php foreach ($subjectLoadRows as $row): ?>
+                            <?php $searchStr = strtolower($row['name'] . ' ' . $row['department']); ?>
+                            <tr data-search="<?= htmlspecialchars($searchStr) ?>"
+                                data-employment="<?= htmlspecialchars(strtolower($row['employment'])) ?>"
+                                data-status="<?= $row['is_full'] ? 'full' : 'under' ?>">
+                                <td class="fw-bold ps-3"><?= htmlspecialchars($row['name']) ?></td>
+                                <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($row['department']) ?></span></td>
+                                <td class="small text-muted"><?= htmlspecialchars($row['employment']) ?></td>
+                                <td class="text-center fw-medium"><?= $row['total_units'] ?></td>
+                                <td class="text-center small text-muted"><?= $row['max_units'] ?></td>
+                                <td class="text-center small text-muted"><?= $row['remaining'] ?></td>
+                                <td class="text-center">
+                                    <span class="status-badge <?= $row['is_full'] ? 'badge-screened' : 'badge-pending' ?>">
+                                        <?= $row['is_full'] ? 'Full Load' : 'Under-loaded' ?>
+                                    </span>
+                                </td>
+                            </tr>
                         <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr><td colspan="7" class="text-center text-muted py-4">No faculty found for this department scope and term.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2 flex-wrap gap-2" id="paginationContainer">
-        <?php if (isset($totalPages) && $totalPages > 1): ?>
-            <?php
-            $urlParams = $_GET;
-            unset($urlParams['page']);
-            $baseUrl = '?' . http_build_query($urlParams) . (empty($urlParams) ? '' : '&') . 'page=';
-            ?>
-            <small class="text-muted">Showing <?= $totalRecords > 0 ? $offset + 1 : 0 ?>-<?= min($offset + $limit, $totalRecords) ?> of <?= $totalRecords ?> reports</small>
-            <nav>
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
-                        <a class="page-link ajax-page-link" href="<?= $page <= 1 ? '#' : $baseUrl . ($page - 1) ?>" data-page="<?= $page - 1 ?>">Prev</a>
-                    </li>
-                    <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
-                        <li class="page-item <?= $page === $i ? 'active' : '' ?>">
-                            <a class="page-link ajax-page-link" href="<?= $baseUrl . $i ?>" data-page="<?= $i ?>"><?= $i ?></a>
-                        </li>
-                    <?php endfor; ?>
-                    <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
-                        <a class="page-link ajax-page-link" href="<?= $page >= $totalPages ? '#' : $baseUrl . ($page + 1) ?>" data-page="<?= $page + 1 ?>">Next</a>
-                    </li>
-                </ul>
-            </nav>
-        <?php else: ?>
-            <small class="text-muted">Showing <?= $totalRecords ?? 0 ?> of <?= $totalRecords ?? 0 ?> reports</small>
-            <div></div>
-        <?php endif; ?>
+</div>
+
+<!-- ============================ LEAVE REQUEST REPORT ============================ -->
+<div class="mb-4" id="leave-request-report">
+    <div class="d-flex justify-content-between align-items-center report-section-header">
+        <h6 class="mb-0 fw-bold text-body"><i class="fas fa-file-signature text-primary me-2"></i>Leave Request Report</h6>
+        <a href="<?= BASE_URL ?>/modules/faculty/views/secretary/leave-request-screening.php" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-external-link-alt me-1"></i>Open Screening
+        </a>
+    </div>
+
+    <?php if ($lrDebugError !== ''): ?>
+        <div class="alert alert-danger small py-2 mb-3">
+            <strong>Leave request query error:</strong> <?= htmlspecialchars($lrDebugError) ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($lrTotalCount > 0): ?>
+    <div class="row g-2 mb-3">
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2 small text-uppercase fw-bold">Leave Type Breakdown</h6>
+                    <div class="report-chart-wrap"><canvas id="lrTypeChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2 small text-uppercase fw-bold">Top Faculty by Requests</h6>
+                    <?php if (!empty($lrTopFaculty)): ?>
+                        <div class="report-chart-wrap"><canvas id="lrFacultyChart"></canvas></div>
+                    <?php else: ?>
+                        <p class="text-muted small text-center py-4 mb-0">No faculty data yet.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Latest Requests</h6>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small">Total on file: <strong><?= (int) $lrTotalCount ?></strong></span>
+            <a href="?export=leave_csv" class="btn btn-sm btn-outline-success" title="Download all leave requests as CSV">
+                <i class="fas fa-file-csv me-1"></i>Export CSV
+            </a>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 compact-table">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Faculty</th>
+                    <th>Type</th>
+                    <th>Duration</th>
+                    <th class="text-center">Days</th>
+                    <th>Screening Status</th>
+                    <th>Filed</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($lrRows)): ?>
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            No leave requests in your department scope yet.
+                        </td>
+                    </tr>
+                <?php else: ?>
+                    <?php foreach ($lrRows as $r): ?>
+                        <?php
+                            $fn = trim((string)($r['faculty_name'] ?? ''));
+                            if ($fn === '') $fn = 'Unknown Faculty';
+                            $s = $r['screening_status'] ?? 'Pending';
+                            $badgeCls = match ($s) {
+                                'Screened' => 'badge-screened',
+                                'Returned' => 'badge-returned',
+                                default    => 'badge-pending',
+                            };
+                            $days = (int) ($r['days'] ?? 0);
+                        ?>
+                        <tr>
+                            <td class="fw-bold ps-3"><?= htmlspecialchars($fn) ?></td>
+                            <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($r['leave_type'] ?? '—') ?></span></td>
+                            <td class="small text-muted">
+                                <?= htmlspecialchars($r['start_date'] ?? '') ?> &rarr; <?= htmlspecialchars($r['end_date'] ?? '') ?>
+                            </td>
+                            <td class="text-center fw-medium"><?= $days ?></td>
+                            <td><span class="status-badge <?= $badgeCls ?>"><?= htmlspecialchars($s) ?></span></td>
+                            <td class="small text-muted"><?= htmlspecialchars($r['created_at'] ?? '') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 
-<!-- Generate Report Modal -->
-<form id="standardReportForm" method="POST">
-    <input type="hidden" name="action" value="generate_standard">
-    <div class="modal fade" id="generateModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content border-0 shadow bg-body text-body">
-                <div class="modal-header border-bottom">
-                    <h5 class="modal-title h6 fw-bold"><i class="fas fa-cog text-primary me-2"></i>Generate Standard Report</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">Report Category</label>
-                        <select class="form-select form-select-sm bg-body text-body" name="report_type" id="reportTypeCategory" onchange="updateSpecificReports(this.value)">
-                            <option value="Daily">Daily Report</option>
-                            <option value="Assignment">Assignment Monitoring</option>
-                            <option value="Document">Document Report</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">Specific Report Title</label>
-                        <select class="form-select form-select-sm bg-body text-body" name="report_title" id="specificReport">
-                            <option>Daily Activity Log</option>
-                            <option>Daily Leave Summary</option>
-                            <option>Daily Document Updates</option>
-                        </select>
-                    </div>
-                    <div class="mb-3" id="dateRangeContainer" style="display: none;">
-                        <label class="form-label small fw-semibold">Date Range</label>
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <input type="date" class="form-control form-control-sm bg-body text-body" name="start_date" id="startDate">
-                            </div>
-                            <div class="col-6">
-                                <input type="date" class="form-control form-control-sm bg-body text-body" name="end_date" id="endDate">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">Output Format</label>
-                        <select class="form-select form-select-sm bg-body text-body" name="output_format">
-                            <option value="PDF">PDF</option>
-                            <option value="Excel">Excel</option>
-                            <option value="CSV">CSV</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer border-top">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-cog me-1"></i>Generate Report</button>
-                </div>
-            </div>
-        </div>
+<!-- ============================ ASSIGNMENT MONITORING REPORT ============================ -->
+<div class="mb-4" id="assignment-monitoring-report">
+    <div class="d-flex justify-content-between align-items-center report-section-header">
+        <h6 class="mb-0 fw-bold text-body"><i class="fas fa-clipboard-list text-primary me-2"></i>Assignment Monitoring Report</h6>
+        <button class="btn btn-sm btn-outline-primary" onclick="printSection('assignment-monitoring-report')" <?= !$assignmentTableAvailable ? 'disabled' : '' ?>>
+            <i class="fas fa-file-pdf me-1"></i>Export / Print
+        </button>
     </div>
-</form>
 
-<!-- Custom Report Modal -->
-<form id="customReportForm" method="POST">
-    <input type="hidden" name="action" value="generate_custom">
-    <input type="hidden" name="report_type" value="Custom">
-    <div class="modal fade" id="customReportModal" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content border-0 shadow bg-body text-body">
-                <div class="modal-header border-bottom">
-                    <h5 class="modal-title h6 fw-bold"><i class="fas fa-sliders-h text-primary me-2"></i>Custom Report Builder</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row g-3 mb-3">
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-semibold">Report Title</label>
-                            <input type="text" class="form-control form-control-sm bg-body text-body" name="report_title" placeholder="e.g., Q3 Faculty Workload & Assignment Summary" required>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-semibold">Date Range</label>
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <input type="date" class="form-control form-control-sm bg-body text-body" name="custom_start_date">
-                                </div>
-                                <div class="col-6">
-                                    <input type="date" class="form-control form-control-sm bg-body text-body" name="custom_end_date">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold d-block">Data Sources</label>
-                        <div class="row g-2 p-3 bg-light dark-mode-bg-subtle rounded-3">
-                            <div class="col-12 col-md-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="ds1" name="data_sources[]" value="Assignment Records" checked>
-                                    <label class="form-check-label small" for="ds1">Assignment Records</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="ds2" name="data_sources[]" value="Teaching Workload" checked>
-                                    <label class="form-check-label small" for="ds2">Teaching Workload</label>
-                                </div>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="ds3" name="data_sources[]" value="Document Compliance Data">
-                                    <label class="form-check-label small" for="ds3">Document Compliance Data</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="ds4" name="data_sources[]" value="Faculty Profile Information">
-                                    <label class="form-check-label small" for="ds4">Faculty Profile Information</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row g-3 mb-3">
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small fw-semibold">Department Filter</label>
-                            <select class="form-select form-select-sm bg-body text-body" name="department_filter">
-                                <option value="">All Departments</option>
-                                <option selected>College of Computer Studies</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small fw-semibold">Faculty Status</label>
-                            <select class="form-select form-select-sm bg-body text-body" name="faculty_status">
-                                <option value="">All Faculty Types</option>
-                                <option>Full-time Faculty</option>
-                                <option>Part-time Faculty</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small fw-semibold">Output Format</label>
-                            <select class="form-select form-select-sm bg-body text-body" name="output_format">
-                                <option value="PDF">PDF Document (.pdf)</option>
-                                <option value="Excel">Excel Spreadsheet (.xlsx)</option>
-                                <option value="CSV">CSV Format (.csv)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer border-top">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-magic me-1"></i>Generate Custom Report</button>
-                </div>
+    <?php if (!$assignmentTableAvailable || $amTotalAssignments === 0): ?>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center py-4">
+                <i class="fas fa-plug text-muted fs-4 mb-2 d-block opacity-50"></i>
+                <p class="text-muted small mb-0"><?= htmlspecialchars($assignmentStatusMessage) ?></p>
             </div>
         </div>
-    </div>
-</form>
+    <?php else: ?>
+        <div class="row g-2 mb-3">
+            <div class="col-12 col-sm-6 col-xl-4">
+                <section class="card stat-card primary border shadow-sm h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="stat-icon me-3 text-primary"><i class="fas fa-list-check"></i></div>
+                        <div>
+                            <h6 class="text-muted mb-0 text-uppercase fw-bold">Total Assignments</h6>
+                            <h4 class="mb-0 fw-bold text-primary"><?= $amTotalAssignments ?></h4>
+                            <small class="text-muted fw-semibold">Class assignments on file</small>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <div class="col-12 col-sm-6 col-xl-4">
+                <section class="card stat-card primary border shadow-sm h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="stat-icon me-3 text-primary"><i class="fas fa-layer-group"></i></div>
+                        <div>
+                            <h6 class="text-muted mb-0 text-uppercase fw-bold">Total Units Assigned</h6>
+                            <h4 class="mb-0 fw-bold text-primary"><?= $amTotalUnits ?></h4>
+                            <small class="text-muted fw-semibold">Across all assignments</small>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <div class="col-12 col-sm-6 col-xl-4">
+                <section class="card stat-card border-0 border-start border-4 shadow-sm h-100" style="border-left-color: <?= $amConflictCount > 0 ? '#dc3545' : '#198754' ?> !important;">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="stat-icon me-3 <?= $amConflictCount > 0 ? 'text-danger' : 'text-success' ?>"><i class="fas fa-triangle-exclamation"></i></div>
+                        <div>
+                            <h6 class="text-muted mb-0 text-uppercase fw-bold">Conflicts Detected</h6>
+                            <h4 class="mb-0 fw-bold <?= $amConflictCount > 0 ? 'text-danger' : 'text-success' ?>"><?= $amConflictCount ?></h4>
+                            <small class="text-muted fw-semibold"><?= $amConflictCount > 0 ? 'Needs review' : 'None found' ?></small>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
 
-<!-- View Report Modal -->
-<div class="modal fade" id="viewReportModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow bg-body text-body">
-            <div class="modal-header border-bottom">
-                <h5 class="modal-title h6 fw-bold">
-                    <i class="fas fa-eye text-primary me-2"></i>Report Preview: <span id="viewReportTitle"></span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body text-center py-4">
-                <div class="mb-3 text-primary fs-1">
-                    <i class="fas fa-file-alt"></i>
+        <div class="row g-2 mb-3">
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2 small text-uppercase fw-bold">Assignment Status</h6>
+                        <div class="report-chart-wrap"><canvas id="amStatusChart"></canvas></div>
+                    </div>
                 </div>
-                <h6 class="fw-semibold text-body" id="viewReportNameDisplay"></h6>
-                <p class="text-muted small mb-0">Preview mode is active. You can review or download the generated output below.</p>
             </div>
-            <div class="modal-footer border-top">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-sm btn-success" onclick="downloadReport(document.getElementById('viewReportTitle').textContent)">
-                    <i class="fas fa-download me-1"></i>Download Report
-                </button>
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2 small text-uppercase fw-bold">Top Faculty by Assigned Units</h6>
+                        <div class="report-chart-wrap"><canvas id="amFacultyChart"></canvas></div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
+
+        <div class="card border-0 shadow-sm mb-3 compact-filter">
+            <div class="card-body py-3">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted mb-1">Search</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-search"></i></span>
+                            <input type="text" id="amSearchInput" class="form-control border-start-0 ps-0 bg-light" placeholder="Faculty, room, or department" onkeyup="filterAssignmentTable()">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted mb-1">Status</label>
+                        <select id="amStatusFilter" class="form-select bg-light" onchange="filterAssignmentTable()">
+                            <option value="">All</option>
+                            <?php foreach ($amStatusOptions as $opt): ?>
+                                <option value="<?= htmlspecialchars(strtolower($opt)) ?>"><?= htmlspecialchars(ucfirst($opt)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 compact-table">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Faculty</th>
+                        <th>Department</th>
+                        <th>Class ID</th>
+                        <th class="text-center">Units</th>
+                        <th>Room</th>
+                        <th>Time</th>
+                        <th>Days</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="assignmentTableBody">
+                    <?php foreach ($assignmentRows as $row): ?>
+                        <?php
+                            $facName = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: ('Faculty ID ' . (int) ($row['faculty_id'] ?? 0));
+                            $rowStatus = trim((string) ($row['status'] ?? 'pending')) ?: 'pending';
+                            $searchStr = strtolower($facName . ' ' . ($row['room'] ?? '') . ' ' . ($row['designated_department'] ?? ''));
+                            $badgeCls = 'badge-pending';
+                            if (strtolower($rowStatus) === 'approved') $badgeCls = 'badge-screened';
+                            if (strtolower($rowStatus) === 'rejected') $badgeCls = 'badge-returned';
+                        ?>
+                        <tr data-search="<?= htmlspecialchars($searchStr) ?>" data-status="<?= htmlspecialchars(strtolower($rowStatus)) ?>">
+                            <td class="fw-bold ps-3"><?= htmlspecialchars($facName) ?></td>
+                            <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($row['designated_department'] ?? 'N/A') ?></span></td>
+                            <td class="small text-muted font-monospace"><?= (int) ($row['class_id'] ?? 0) ?></td>
+                            <td class="text-center fw-medium"><?= (int) ($row['units'] ?? 0) ?></td>
+                            <td class="small text-muted"><?= htmlspecialchars($row['room'] ?? '') ?></td>
+                            <td class="small text-muted"><?= htmlspecialchars($row['time'] ?? '') ?></td>
+                            <td class="small text-muted"><?= htmlspecialchars($row['days'] ?? '') ?></td>
+                            <td><span class="status-badge <?= $badgeCls ?>"><?= htmlspecialchars(ucfirst($rowStatus)) ?></span></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
 </div>
-
-<!-- Delete Action Form -->
-<form id="deleteReportForm" method="POST" style="display:none;">
-    <input type="hidden" name="action" value="delete_report">
-    <input type="hidden" name="report_id" id="del-report-id">
-</form>
 
 <script>
-function openGenerateModal(category, defaultTitle) {
-    const modal = new bootstrap.Modal(document.getElementById('generateModal'));
-    document.getElementById('reportTypeCategory').value = category;
-    updateSpecificReports(category);
-    document.getElementById('specificReport').value = defaultTitle;
-    modal.show();
-}
+    function changeAcademicTerm(v) {
+        const u = new URL(window.location.href);
+        u.searchParams.set('term', v);
+        window.location.href = u.toString();
+    }
 
-function updateSpecificReports(category) {
-    const select = document.getElementById('specificReport');
-    const dateRangeContainer = document.getElementById('dateRangeContainer');
-    
-    select.innerHTML = '';
-    
-    let options = [];
-    if (category === 'Daily') {
-        options = ['Daily Activity Log', 'Daily Leave Summary', 'Daily Document Updates'];
-        if (dateRangeContainer) dateRangeContainer.style.display = 'none'; // Hide date range for daily reports
-    } else {
-        if (dateRangeContainer) dateRangeContainer.style.display = 'block'; // Show for custom/assignment/document
-        
-        if (category === 'Assignment') {
-            options = ['Faculty Workload Summary', 'Subject Assignment Status', 'Teaching Load Distribution', 'Unassigned Faculty Report'];
-        } else if (category === 'Document') {
-            options = ['Document Status Summary', 'Expiring Documents Report', 'Missing Documents Report', 'Document Audit Trail'];
+    /**
+     * printSection()
+     * Opens a new window with a fully-styled printable version of the
+     * given section:
+     *   - Clones the section so the original DOM isn't modified.
+     *   - Converts every <canvas> chart to a static <img> using its
+     *     current PNG data (so charts actually show up in print).
+     *   - Strips form controls and interactive buttons.
+     *   - Injects Bootstrap + the page's own <style> so all classes
+     *     render correctly.
+     *   - Adds a proper print header (title + scope + timestamp).
+     */
+    function printSection(sectionId) {
+        const section = document.getElementById(sectionId);
+        if (!section) return;
+
+        // --- Clone and prepare the section ---
+        const clone = section.cloneNode(true);
+
+        // 1. Convert every canvas (chart) to an image
+        const originalCanvases = section.querySelectorAll('canvas');
+        const clonedCanvases = clone.querySelectorAll('canvas');
+        clonedCanvases.forEach((canvas, idx) => {
+            const src = originalCanvases[idx];
+            if (!src) return;
+            try {
+                const dataUrl = src.toDataURL('image/png');
+                const img = document.createElement('img');
+                img.src = dataUrl;
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.display = 'block';
+                img.style.margin = '0 auto';
+                canvas.parentNode.replaceChild(img, canvas);
+            } catch (e) {
+                const ph = document.createElement('div');
+                ph.textContent = '[Chart]';
+                ph.style.textAlign = 'center';
+                ph.style.color = '#999';
+                ph.style.padding = '2rem';
+                canvas.parentNode.replaceChild(ph, canvas);
+            }
+        });
+
+        // 2. Remove interactive-only elements
+        clone.querySelectorAll('.btn, .compact-filter, select, input[type="text"]').forEach(el => el.remove());
+
+        // 3. Remove inline "corner link" icons on stat cards
+        clone.querySelectorAll('.position-absolute.top-0.end-0').forEach(el => el.remove());
+
+        // --- Collect CSS from the host page ---
+        const stylesheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+            .map(l => `<link rel="stylesheet" href="${l.href}">`)
+            .join('\n');
+
+        const inlineStyles = Array.from(document.querySelectorAll('style'))
+            .map(s => s.outerHTML)
+            .join('\n');
+
+        // --- Compose the print HTML ---
+        const docTitle = 'Reports — ' + (
+            document.querySelector('.page-header small strong')?.textContent?.trim() || 'All Departments'
+        );
+        const printedAt = new Date().toLocaleString();
+
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>${docTitle}</title>
+                ${stylesheets}
+                ${inlineStyles}
+                <style>
+                    @page { size: A4; margin: 12mm; }
+                    body {
+                        background: #ffffff !important;
+                        color: #111111 !important;
+                        padding: 0 !important;
+                        font-size: 11px;
+                    }
+                    .report-chart-wrap { height: 220px !important; }
+
+                    .print-header {
+                        border-bottom: 2px solid #0d6efd;
+                        padding-bottom: 0.5rem;
+                        margin-bottom: 1rem;
+                    }
+                    .print-header h1 {
+                        font-size: 16px;
+                        font-weight: 700;
+                        color: #0d6efd;
+                        margin: 0 0 0.15rem 0;
+                    }
+                    .print-header .meta {
+                        font-size: 10px;
+                        color: #555;
+                        margin: 0;
+                    }
+
+                    .report-section-header { margin-bottom: 0.5rem !important; }
+                    .stat-card { page-break-inside: avoid; }
+                    .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+
+                    [data-bs-theme="dark"] body,
+                    [data-theme="dark"] body,
+                    body.dark-mode { background: #ffffff !important; color: #111111 !important; }
+                    .card, .stat-card { background: #ffffff !important; color: #111111 !important; }
+                    .text-muted { color: #666 !important; }
+                    .table thead th { background: #f0f0f0 !important; color: #111 !important; }
+
+                    a.btn, button.btn { display: none !important; }
+                </style>
+            </head>
+            <body>
+                <div class="print-header">
+                    <h1>${escapeHtml(docTitle)}</h1>
+                    <p class="meta">
+                        Department Scope: ${escapeHtml(document.querySelector('.page-header small strong')?.textContent?.trim() || 'All Departments')}
+                        &nbsp;·&nbsp; Printed: ${escapeHtml(printedAt)}
+                    </p>
+                </div>
+                ${clone.outerHTML}
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+
+        const triggerPrint = () => {
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+            }, 300);
+        };
+
+        if (printWindow.document.readyState === 'complete') {
+            triggerPrint();
+        } else {
+            printWindow.addEventListener('load', triggerPrint);
+            setTimeout(triggerPrint, 1500);
         }
     }
-    
-    options.forEach(opt => {
-        const el = document.createElement('option');
-        el.value = opt;
-        el.textContent = opt;
-        select.appendChild(el);
-    });
-}
 
-function viewReport(name) {
-    document.getElementById('viewReportTitle').textContent = name;
-    document.getElementById('viewReportNameDisplay').textContent = name;
-    const modal = new bootstrap.Modal(document.getElementById('viewReportModal'));
-    modal.show();
-}
-
-function downloadReport(name) {
-    alert('Downloading report: ' + name);
-}
-
-function deleteReportRecord(id, name) {
-    if (confirm('Are you sure you want to delete this historical report entry: ' + name + '?')) {
-        document.getElementById('del-report-id').value = id;
-        document.getElementById('deleteReportForm').submit();
-    }
-}
-
-// AJAX Live Search and Filtering for Reports History
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('reportSearch');
-    const typeFilter = document.getElementById('reportTypeFilter');
-    let searchTimeout = null;
-
-    // Initialize date container state on load based on default dropdown value
-    updateSpecificReports(document.getElementById('reportTypeCategory').value);
-
-    function fetchReports(page = 1) {
-        const q = searchInput.value.trim();
-        const type = typeFilter.value;
-
-        const newUrl = '?' + new URLSearchParams({
-            q: q,
-            type: type,
-            page: page
-        }).toString();
-        window.history.pushState({path: newUrl}, '', newUrl);
-
-        fetch(newUrl + '&ajax=1', {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('reportsTableBody').innerHTML = data.tableHtml;
-            document.getElementById('paginationContainer').innerHTML = data.paginationHtml;
-            attachPaginationListeners();
-        })
-        .catch(err => console.error('Error filtering reports:', err));
+    function escapeHtml(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
-    function attachPaginationListeners() {
-        document.querySelectorAll('.ajax-page-link').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                const page = this.getAttribute('data-page');
-                if (page) {
-                    fetchReports(page);
-                }
+    function filterSubjectLoadTable() {
+        const search = document.getElementById('slSearchInput').value.toLowerCase().trim();
+        const employment = document.getElementById('slEmploymentFilter').value;
+        const status = document.getElementById('slStatusFilter').value;
+        document.querySelectorAll('#subjectLoadTableBody tr[data-search]').forEach(r => {
+            const ok = (!search || r.dataset.search.includes(search))
+                    && (!employment || r.dataset.employment === employment)
+                    && (!status || r.dataset.status === status);
+            r.style.display = ok ? '' : 'none';
+        });
+    }
+
+    function filterAssignmentTable() {
+        const s = document.getElementById('amSearchInput');
+        const st = document.getElementById('amStatusFilter');
+        if (!s || !st) return;
+        const search = s.value.toLowerCase().trim();
+        const status = st.value;
+        document.querySelectorAll('#assignmentTableBody tr[data-search]').forEach(r => {
+            const ok = (!search || r.dataset.search.includes(search))
+                    && (!status || r.dataset.status === status);
+            r.style.display = ok ? '' : 'none';
+        });
+    }
+
+    // ============================================================
+    // CHARTS
+    // ============================================================
+    const charts = {};
+
+    function getBootstrapToken(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+    function chartColors() {
+        return {
+            bodyBg:      getBootstrapToken('--bs-body-bg')      || '#ffffff',
+            bodyColor:   getBootstrapToken('--bs-body-color')   || '#212529',
+            borderColor: getBootstrapToken('--bs-border-color') || 'rgba(0,0,0,0.1)'
+        };
+    }
+
+    function renderCharts() {
+        if (typeof Chart === 'undefined') return;
+        const c = chartColors();
+        Object.values(charts).forEach(ch => { try { ch.destroy(); } catch (e) {} });
+
+        const slS = document.getElementById('slStatusChart');
+        if (slS) charts.slS = new Chart(slS, {
+            type: 'doughnut',
+            data: {
+                labels: ['Fully Loaded', 'Under-loaded'],
+                datasets: [{ data: [<?= (int) $slFullyLoadedCount ?>, <?= (int) $slUnderLoadedCount ?>],
+                    backgroundColor: ['#198754', '#ffc107'], borderWidth: 2, borderColor: c.bodyBg }]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, color: c.bodyColor, font: { size: 11 } } } },
+                cutout: '65%' }
+        });
+
+        const slD = document.getElementById('slDeptChart');
+        if (slD) {
+            const dl = <?= json_encode(array_keys($slDeptTotals), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+            const dv = <?= json_encode(array_values($slDeptTotals)) ?>;
+            const mv = Math.max(...dv, 0);
+            const yMax = mv > 0 ? Math.ceil(mv * 1.15) : 10;
+            charts.slD = new Chart(slD, {
+                type: 'bar',
+                data: { labels: dl, datasets: [{ label: 'Assigned Units', data: dv, backgroundColor: '#0d6efd', borderRadius: 6, maxBarThickness: 50 }] },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, suggestedMax: yMax, grid: { color: c.borderColor },
+                             ticks: { color: c.bodyColor, font: { size: 10 }, stepSize: Math.max(1, Math.ceil(yMax/5)), callback: v => Number.isInteger(v) ? v : '' } },
+                        x: { grid: { display: false }, ticks: { color: c.bodyColor, font: { size: 10 } } }
+                    } }
             });
+        }
+
+        const lrT = document.getElementById('lrTypeChart');
+        if (lrT) {
+            const tl = <?= json_encode(array_keys($lrTypeCounts), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+            const tv = <?= json_encode(array_values($lrTypeCounts)) ?>;
+            charts.lrT = new Chart(lrT, {
+                type: 'doughnut',
+                data: { labels: tl, datasets: [{ data: tv,
+                    backgroundColor: ['#0d6efd','#198754','#ffc107','#dc3545','#6f42c1','#20c997','#fd7e14','#0dcaf0'],
+                    borderWidth: 2, borderColor: c.bodyBg }] },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, color: c.bodyColor, font: { size: 10 } } } },
+                    cutout: '62%' }
+            });
+        }
+
+        const lrF = document.getElementById('lrFacultyChart');
+        if (lrF) {
+            const fl = <?= json_encode(array_keys($lrTopFaculty ?? []), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+            const fv = <?= json_encode(array_values($lrTopFaculty ?? [])) ?>;
+            const mv = Math.max(...fv, 0);
+            const xMax = mv > 0 ? Math.ceil(mv * 1.15) : 5;
+            charts.lrF = new Chart(lrF, {
+                type: 'bar',
+                data: { labels: fl, datasets: [{ label: 'Requests', data: fv, backgroundColor: '#0d6efd', borderRadius: 6, maxBarThickness: 26 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, suggestedMax: xMax, grid: { color: c.borderColor },
+                             ticks: { color: c.bodyColor, font: { size: 10 }, stepSize: Math.max(1, Math.ceil(xMax/5)), callback: v => Number.isInteger(v) ? v : '' } },
+                        y: { grid: { display: false }, ticks: { color: c.bodyColor, font: { size: 10 } } }
+                    } }
+            });
+        }
+
+        const amS = document.getElementById('amStatusChart');
+        if (amS) charts.amS = new Chart(amS, {
+            type: 'doughnut',
+            data: {
+                labels: <?= json_encode(array_map('ucfirst', array_keys($amStatusCounts)), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
+                datasets: [{ data: <?= json_encode(array_values($amStatusCounts)) ?>,
+                    backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1', '#20c997'],
+                    borderWidth: 2, borderColor: c.bodyBg }]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, color: c.bodyColor, font: { size: 11 } } } },
+                cutout: '65%' }
         });
+
+        const amF = document.getElementById('amFacultyChart');
+        if (amF) {
+            const fl = <?= json_encode(array_keys($amFacultyUnitsTop), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+            const fv = <?= json_encode(array_values($amFacultyUnitsTop)) ?>;
+            const mv = Math.max(...fv, 0);
+            const xMax = mv > 0 ? Math.ceil(mv * 1.15) : 10;
+            charts.amF = new Chart(amF, {
+                type: 'bar',
+                data: { labels: fl, datasets: [{ label: 'Units Assigned', data: fv, backgroundColor: '#0dcaf0', borderRadius: 6, maxBarThickness: 24 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, suggestedMax: xMax, grid: { color: c.borderColor },
+                             ticks: { color: c.bodyColor, font: { size: 10 }, stepSize: Math.max(1, Math.ceil(xMax/5)), callback: v => Number.isInteger(v) ? v : '' } },
+                        y: { grid: { display: false }, ticks: { color: c.bodyColor, font: { size: 10 } } }
+                    } }
+            });
+        }
     }
 
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                fetchReports(1);
-            }, 400);
-        });
-    }
-
-    if (typeFilter) {
-        typeFilter.addEventListener('change', function() {
-            fetchReports(1);
-        });
-    }
-
-    attachPaginationListeners();
-});
+    document.addEventListener('DOMContentLoaded', renderCharts);
+    new MutationObserver(renderCharts).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-bs-theme', 'data-theme', 'class']
+    });
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>
