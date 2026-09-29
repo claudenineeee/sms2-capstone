@@ -238,17 +238,23 @@ try {
     } else {
         $userData = [];
         try {
-            $userStmt = $pdo->prepare("SELECT username, email FROM sms2_db.users WHERE id = :id LIMIT 1");
+            $userStmt = $pdo->prepare("SELECT username, email FROM users WHERE id = :id LIMIT 1");
             $userStmt->execute([':id' => $userId]);
             $userData = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) {
-            error_log('[leave-request] sms2_db.users lookup failed: ' . $e->getMessage());
+            try {
+                $userStmt = $pdo->prepare("SELECT username, email FROM sms2_db.users WHERE id = :id LIMIT 1");
+                $userStmt->execute([':id' => $userId]);
+                $userData = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            } catch (Throwable $e2) {
+                error_log('[leave-request] users lookup failed: ' . $e2->getMessage());
+            }
         }
 
         $userEmail = trim((string) ($userData['email'] ?? ($_SESSION['email'] ?? '')));
 
         if ($userEmail !== '') {
-            $stmt = $pdo->prepare("SELECT faculty_id FROM faculty_db.faculty WHERE email = :email LIMIT 1");
+            $stmt = $pdo->prepare("SELECT faculty_id FROM faculty WHERE email = :email LIMIT 1");
             $stmt->execute([':email' => $userEmail]);
             $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
 
@@ -257,7 +263,7 @@ try {
                     $facultyNo = 'FAC-' . date('Y') . '-' . str_pad((string) $userId, 4, '0', STR_PAD_LEFT);
                     $firstName = $userData['username'] ?? ($_SESSION['username'] ?? 'Faculty');
                     $insertFaculty = $pdo->prepare("
-                        INSERT INTO faculty_db.faculty (faculty_no, first_name, last_name, email, department_id, position)
+                        INSERT INTO faculty (faculty_no, first_name, last_name, email, department_id, position)
                         VALUES (:faculty_no, :first_name, 'Member', :email, 1, 'Faculty Professor')
                     ");
                     $insertFaculty->execute([
