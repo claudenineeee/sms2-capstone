@@ -43,7 +43,25 @@ cat <<EOF > /etc/apache2/sites-available/000-default.conf
 </VirtualHost>
 EOF
 
-# Ensure apache2-foreground is not passed to itself as an argument
+# Auto-migrate database on container boot if seed_accounts.php is present
+if [ -f /var/www/html/database/seed_accounts.php ]; then
+    (
+        echo "[Entrypoint] Waiting 2s before running auto-migration..."
+        sleep 2
+        for i in 1 2 3 4 5; do
+            echo "[Entrypoint] Attempting database migration and seed ($i/5)..."
+            if php /var/www/html/database/seed_accounts.php; then
+                echo "[Entrypoint] Database migration & accounts seed completed successfully!"
+                break
+            else
+                echo "[Entrypoint] Database not reachable yet, retrying in 4 seconds..."
+                sleep 4
+            fi
+        done
+    ) &
+fi
+
+# Ensure apache2-foreground is handled properly
 if [ "$1" = 'apache2-foreground' ] || [ "$1" = 'apache2' ]; then
     shift
 fi
