@@ -203,6 +203,20 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
+<!-- CHANGED: toast for the pending schedule-data-integration notice (replaces the old permanent alert banner) -->
+<?php if (empty($dbMatchingTables)): ?>
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+    <div id="dbStatusToast" class="toast align-items-center text-bg-warning border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-exclamation-triangle me-2"></i><?= htmlspecialchars($dbTableStatus, ENT_QUOTES, 'UTF-8') ?>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
         <h2 class="h4 fw-bold text-dark mb-1">
@@ -227,14 +241,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<?php if (!empty($dbMatchingTables)): ?>
-<?php else: ?>
-    <div class="alert alert-warning small mb-3">
-        <?= htmlspecialchars($dbTableStatus, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
-
-
+<!-- CHANGED: the permanent inline alert banner is replaced by a dismissible toast
+     (see the toast container + init script near the end of this file) so the
+     pending-integration notice doesn't take up permanent page real estate. -->
 
 <div class="row mt-4 g-4 align-items-stretch">
     <div class="col-lg-8">
@@ -554,6 +563,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <script>
+// CHANGED: toast replacing the old permanent alert banner for the pending-integration message
+document.addEventListener('DOMContentLoaded', function () {
+    <?php if (empty($dbMatchingTables)): ?>
+    const dbStatusToastEl = document.getElementById('dbStatusToast');
+    if (dbStatusToastEl && window.bootstrap && bootstrap.Toast) {
+        const dbStatusToast = new bootstrap.Toast(dbStatusToastEl, { delay: 6000 });
+        dbStatusToast.show();
+    }
+    <?php endif; ?>
+});
+
 document.addEventListener('DOMContentLoaded', function () {
     /* ============================================================
      * TODO: OR-TOOLS CONFLICT RESOLUTION (REST API)
