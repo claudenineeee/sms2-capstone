@@ -21,8 +21,13 @@ $facultyList = array_filter($facultyList, function ($member) {
 });
 
 // Real stats + today's logs
+// CHANGED: was new AttendanceModel(db()) — db() connects to sms2_db, but the
+// faculty/attendance tables live in faculty_db, so every query inside
+// AttendanceModel was silently failing (caught below) and the page always
+// showed zeros / "No sessions recorded yet." Use the faculty DB connection.
+require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/AttendanceModel.php';
-$attendanceModel = new AttendanceModel(db());
+$attendanceModel = new AttendanceModel(getFacultyDatabaseConnection());
 
 $deptForStats = $_SESSION['user']['department'] ?? $_SESSION['department'] ?? '';
 if (empty($deptForStats) && !empty($facultyList)) {

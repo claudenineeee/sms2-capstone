@@ -15,9 +15,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 require_once __DIR__ . '/../../controllers/FacultyController.php';
 $facultyController = new FacultyController();
 $facultyList = $facultyController->getDirectoryList();
+// CHANGED: restrict to teaching faculty only (same filter used in
+// daily-attendance-log.php) — excludes deans, secretaries, coordinators, etc.
+$facultyList = array_filter($facultyList, function ($member) {
+    $position = strtolower(trim((string) ($member['position'] ?? '')));
+    return $position === 'faculty professor' || $position === 'teacher' || $position === '';
+});
 
+require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/AttendanceModel.php';
-$attendanceModel = new AttendanceModel(db());
+$attendanceModel = new AttendanceModel(getFacultyDatabaseConnection());
 
 $selectedFacultyId = $_GET['faculty_id'] ?? null;
 $pastLogs = [];

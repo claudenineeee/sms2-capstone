@@ -4,54 +4,20 @@
  * Purpose: Let a Department Head evaluate the faculty members in their own
  * department. Access is restricted to accounts whose position is
  * "Department Head" - both here (to hide the UI) and in
- * ProcessDeptHeadEvaluationController.php (to reject the POST), since a
- * client-side-only restriction is trivially bypassed by hitting the
- * controller URL directly.
+ * ProcessDeptHeadEvaluationController.php (to reject the POST).
  */
 require_once __DIR__ . '/../../../../config/config.php';
-
-// This page reads $_SESSION (to identify the current faculty member) before
-// includes/layout-start.php runs later in the file. config.php alone does
-// NOT start the session - that only happens inside config/session.php,
-// which is pulled in by includes/authentication.php. Without this require,
-// PHP never starts the app's named "SMS2SESSID" session on this page, so
-// every $_SESSION read below comes back empty even when the user is
-// properly logged in elsewhere on the site.
 require_once ROOT_PATH . '/includes/authentication.php';
 
-// 1. Establish Database Connection
-//
-// facultyDb() lives in modules/faculty/config/database.php - a SEPARATE
-// file from the root config/database.php that authentication.php loads
-// (which only connects to sms2_db). Nothing was requiring this file, so
-// facultyDb() was always undefined here and the page silently fell through
-// to the sms2_db connection via the "$conn ?? $db" guess below.
+// faculty-data.php defines facultyDb() — load it BEFORE anything calls it.
+require_once __DIR__ . '/../../controllers/faculty-data.php';
 require_once __DIR__ . '/../../config/database.php';
 
-if (function_exists('facultyDb')) {
-    $pdo = facultyDb();
-}
-
-if (!isset($pdo) || !$pdo) {
-    $pdo = $conn ?? $db ?? null;
-}
-
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
 if (!$pdo) {
-    try {
-        $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
-        $dbName = defined('DB_NAME') ? DB_NAME : 'faculty_db'; 
-        $dbUser = defined('DB_USER') ? DB_USER : 'root';
-        $dbPass = defined('DB_PASS') ? DB_PASS : '';
-
-        $pdo = new PDO("mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4", $dbUser, $dbPass, [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-    } catch (PDOException $e) {
-        die('<div style="padding: 20px; color: #721c24; background-color: #f8d7da; margin: 20px; border-radius: 5px;">
-            <strong>Database Connection Failed:</strong> ' . htmlspecialchars($e->getMessage()) . '
-        </div>');
-    }
+    die('<div style="padding:20px;color:#721c24;background:#f8d7da;margin:20px;border-radius:5px;">
+        <strong>Faculty database connection is unavailable.</strong>
+    </div>');
 }
 
 $pageTitle    = 'Department Head Evaluation';
@@ -63,94 +29,128 @@ $breadcrumbs  = [
     ['label' => 'Department Head Evaluation', 'url' => null],
 ];
 
-// 2. Identify Current User, Department & Position
-//
-// NOTE: faculty_profiles.id is NOT the same identifier as faculty.faculty_id.
-// The evaluations table's foreign keys (evaluator_id, faculty_id) point at
-// faculty.faculty_id, so we bridge the two tables here via faculty_no/email
-// and resolve the REAL faculty_id up front. Everything downstream (faculty
-// list, modal submission) uses that real id, never faculty_profiles.id.
-//
-// CONFIRMED against includes/authentication.php -> smsCompleteLoginSession():
-// login sets $_SESSION['user_id']    = users.id
-//            $_SESSION['user_email'] = users.email
-$currentUserId = (int)($_SESSION['user_id'] ?? 0);
-$sessionEmail  = $_SESSION['user_email'] ?? null;
+/* ------------------------------------------------------------------
+ | 2. Identify current user, department, and real faculty_id (self-healing)
+ * ------------------------------------------------------------------ */
+$currentUserId = (int) ($_SESSION['user_id'] ?? 0);
+$sessionEmail  = trim((string) ($_SESSION['user_email'] ?? $_SESSION['email'] ?? ''));
 
-$currentFaculty      = null;
-$userDept            = null;
-$evaluatorProfileId  = 0;    // faculty_profiles.id (only used to exclude self from the list)
-$evaluatorFacultyId  = null; // faculty.faculty_id (the id evaluations must use)
-$evaluatorPosition   = null;
+$currentFaculty     = null;
+$userDept           = '';
+$evaluatorProfileId = 0;
+$evaluatorFacultyId = null;
+$evaluatorPosition  = '';
 
-if ($currentUserId || $sessionEmail) {
-    try {
+if ($currentUserId > 0 || $sessionEmail !== '') {
+    // (a) by user_id
+    if ($currentUserId > 0) {
         $stmt = $pdo->prepare("
-            SELECT fp.id, fp.designated_department, fp.email, fp.faculty_id AS profile_faculty_no,
+            SELECT fp.id, fp.designated_department, fp.email,
+                   fp.faculty_id AS profile_faculty_no,
                    fp.position,
                    f.faculty_id AS real_faculty_id
             FROM faculty_profiles fp
             LEFT JOIN faculty f ON f.faculty_id = (
                 SELECT f2.faculty_id
                 FROM faculty f2
-                WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+                WHERE (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email)))
                    OR f2.faculty_no = fp.faculty_id
-                ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+                   OR (fp.user_id IS NOT NULL AND f2.external_user_id = fp.user_id)
+                ORDER BY
+                    (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email))) DESC,
+                    (f2.faculty_no = fp.faculty_id) DESC
                 LIMIT 1
             )
-            WHERE fp.user_id = :uid1
-               OR fp.id = :uid2
-               OR (:email1 IS NOT NULL AND fp.email = :email2)
+            WHERE fp.user_id = :uid
             LIMIT 1
         ");
-        $stmt->execute([
-            'uid1'   => $currentUserId,
-            'uid2'   => $currentUserId,
-            'email1' => $sessionEmail,
-            'email2' => $sessionEmail
-        ]);
-        $currentFaculty = $stmt->fetch();
+        $stmt->execute([':uid' => $currentUserId]);
+        $currentFaculty = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
 
-        if ($currentFaculty) {
-            $userDept           = trim($currentFaculty['designated_department'] ?? '');
-            $evaluatorProfileId = (int)$currentFaculty['id'];
-            $evaluatorPosition  = trim($currentFaculty['position'] ?? '');
-            $evaluatorFacultyId = $currentFaculty['real_faculty_id'] !== null
-                ? (int)$currentFaculty['real_faculty_id']
-                : null;
+    // (b) by email + repair user_id
+    if (!$currentFaculty && $sessionEmail !== '') {
+        $stmt = $pdo->prepare("
+            SELECT id, user_id, designated_department, email,
+                   faculty_id AS profile_faculty_no, position
+            FROM faculty_profiles
+            WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email))
+            LIMIT 1
+        ");
+        $stmt->execute([':email' => $sessionEmail]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            if ($currentUserId > 0 && (int) ($row['user_id'] ?? 0) !== $currentUserId) {
+                try {
+                    $pdo->prepare("UPDATE faculty_profiles SET user_id = :uid WHERE id = :id")
+                        ->execute([':uid' => $currentUserId, ':id' => (int) $row['id']]);
+                    error_log("[faculty-member-evaluation] repaired user_id for profile {$row['id']} -> {$currentUserId}");
+                } catch (Throwable $e) {
+                    error_log('[faculty-member-evaluation][repair] ' . $e->getMessage());
+                }
+            }
+
+            // Re-run the full lookup now that user_id is fixed
+            $stmt = $pdo->prepare("
+                SELECT fp.id, fp.designated_department, fp.email,
+                       fp.faculty_id AS profile_faculty_no,
+                       fp.position,
+                       f.faculty_id AS real_faculty_id
+                FROM faculty_profiles fp
+                LEFT JOIN faculty f ON f.faculty_id = (
+                    SELECT f2.faculty_id
+                    FROM faculty f2
+                    WHERE (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email)))
+                       OR f2.faculty_no = fp.faculty_id
+                       OR (fp.user_id IS NOT NULL AND f2.external_user_id = fp.user_id)
+                    ORDER BY
+                        (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email))) DESC,
+                        (f2.faculty_no = fp.faculty_id) DESC
+                    LIMIT 1
+                )
+                WHERE fp.id = :id
+                LIMIT 1
+            ");
+            $stmt->execute([':id' => (int) $row['id']]);
+            $currentFaculty = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         }
-    } catch (PDOException $e) {
-        $userDept = null;
+    }
+
+    if ($currentFaculty) {
+        $userDept           = trim((string) ($currentFaculty['designated_department'] ?? ''));
+        $evaluatorProfileId = (int) $currentFaculty['id'];
+        $evaluatorPosition  = trim((string) ($currentFaculty['position'] ?? ''));
+        $evaluatorFacultyId = $currentFaculty['real_faculty_id'] !== null
+            ? (int) $currentFaculty['real_faculty_id']
+            : null;
     }
 }
 
-// Fallback to session variables if missing
-if (empty($userDept)) {
-    $userDept = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? '');
+if ($userDept === '') {
+    $userDept = trim((string) ($_SESSION['department'] ?? $_SESSION['designated_department'] ?? ''));
 }
 
-// Access is restricted to Department Heads only. This is a UI-level gate;
-// the real enforcement is server-side in ProcessDeptHeadEvaluationController.php.
-$isDeptHead = $evaluatorPosition !== null && strcasecmp($evaluatorPosition, 'Department Head') === 0;
+$isDeptHead = $evaluatorPosition !== '' && strcasecmp($evaluatorPosition, 'Department Head') === 0;
 
-// 3. Fetch Faculty Members in the Same Department, mapped to their real faculty.faculty_id
+/* ------------------------------------------------------------------
+ | 3. Fetch Faculty in the same department, mapped to real faculty_id
+ * ------------------------------------------------------------------ */
 $faculty = [];
 
-if ($isDeptHead && !empty($userDept)) {
-    // Unevaluated faculty first, completed ones pushed down, unlinked ones last.
+if ($isDeptHead && $userDept !== '') {
     $stmt = $pdo->prepare("
-        SELECT 
-            fp.id AS profile_id,
-            f.faculty_id AS id,
-            fp.faculty_id AS employee_id, 
-            fp.first_name, 
-            fp.last_name, 
-            fp.designated_department AS department,
+        SELECT
+            fp.id                              AS profile_id,
+            f.faculty_id                       AS id,
+            fp.faculty_id                      AS employee_id,
+            fp.first_name,
+            fp.last_name,
+            fp.designated_department           AS department,
             fp.position,
             (
-                SELECT COUNT(*) 
-                FROM evaluations e 
-                WHERE e.evaluator_id = :evaluator_id 
+                SELECT COUNT(*)
+                FROM evaluations e
+                WHERE e.evaluator_id = :evaluator_id
                   AND e.faculty_id = f.faculty_id
                   AND e.source_type = 'DeptHead'
             ) AS evaluation_count
@@ -158,9 +158,12 @@ if ($isDeptHead && !empty($userDept)) {
         LEFT JOIN faculty f ON f.faculty_id = (
             SELECT f2.faculty_id
             FROM faculty f2
-            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
+            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email)))
                OR f2.faculty_no = fp.faculty_id
-            ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
+               OR (fp.user_id IS NOT NULL AND f2.external_user_id = fp.user_id)
+            ORDER BY
+                (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email))) DESC,
+                (f2.faculty_no = fp.faculty_id) DESC
             LIMIT 1
         )
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:department)
@@ -169,7 +172,10 @@ if ($isDeptHead && !empty($userDept)) {
         ORDER BY
             CASE
                 WHEN f.faculty_id IS NULL THEN 2
-                WHEN evaluation_count > 0 THEN 1
+                WHEN (SELECT COUNT(*) FROM evaluations e2
+                      WHERE e2.evaluator_id = :evaluator_id_2
+                        AND e2.faculty_id = f.faculty_id
+                        AND e2.source_type = 'DeptHead') > 0 THEN 1
                 ELSE 0
             END ASC,
             fp.last_name ASC,
@@ -177,20 +183,27 @@ if ($isDeptHead && !empty($userDept)) {
     ");
 
     $stmt->execute([
-        'department'      => $userDept,
-        'current_user_id' => $currentUserId,
-        'profile_id'      => $evaluatorProfileId,
-        'evaluator_id'    => $evaluatorFacultyId ?? 0
+        'department'        => $userDept,
+        'current_user_id'   => $currentUserId,
+        'profile_id'        => $evaluatorProfileId,
+        'evaluator_id'      => $evaluatorFacultyId ?? 0,
+        'evaluator_id_2'    => $evaluatorFacultyId ?? 0,
     ]);
 
     $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Calculate Statistics (only faculty records that are actually linked & evaluable count)
-$totalFaculty = count($faculty);
+// Statistics: only linked faculty are evaluable
+$totalFaculty   = 0;
 $evaluatedCount = 0;
+$unlinkedCount  = 0;
 foreach ($faculty as $p) {
-    if (!empty($p['id']) && $p['evaluation_count'] > 0) {
+    if (empty($p['id'])) {
+        $unlinkedCount++;
+        continue;
+    }
+    $totalFaculty++;
+    if ((int) $p['evaluation_count'] > 0) {
         $evaluatedCount++;
     }
 }
@@ -201,7 +214,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-<!-- Page Header & Department Context -->
+<!-- Page Header -->
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
     <div>
         <h1 class="h3 mb-0 fw-bold text-body">
@@ -210,7 +223,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
     <div>
         <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 px-3 py-2 rounded-pill">
-            <i class="fas fa-building me-1"></i> Department: <?= htmlspecialchars(!empty($userDept) ? $userDept : 'Unassigned') ?>
+            <i class="fas fa-building me-1"></i> Department: <?= htmlspecialchars($userDept !== '' ? $userDept : 'Unassigned') ?>
         </span>
     </div>
 </div>
@@ -220,7 +233,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <i class="fas fa-ban fs-5 flex-shrink-0"></i>
         <div class="small">
             <strong>Access restricted.</strong>
-            This page is only available to accounts with the Department Head position. If this is a mistake, please contact the administrator.
+            This page is only available to accounts with the Department Head position.
         </div>
     </div>
 <?php else: ?>
@@ -230,7 +243,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <i class="fas fa-triangle-exclamation fs-5 flex-shrink-0"></i>
             <div class="small">
                 <strong>Your account isn't linked to an official faculty record yet.</strong>
-                You can browse this directory, but evaluation submissions will be blocked until your profile is linked. Please contact the administrator.
+                Evaluation submissions will be blocked until your profile is linked.
             </div>
         </div>
     <?php endif; ?>
@@ -264,15 +277,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <?php endif; ?>
     </div>
 
-    <!-- Evaluation Stats Row -->
+    <!-- Stats Row -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-md-6">
             <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
                 <div class="card-body d-flex align-items-center ps-4">
-                    <div class="stat-icon me-3 fs-4" style="color: #0d6efd;">
-                        <i class="fas fa-users"></i>
-                    </div>
+                    <div class="stat-icon me-3 fs-4" style="color: #0d6efd;"><i class="fas fa-users"></i></div>
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Department Faculty</h6>
                         <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= $totalFaculty ?> <small class="text-muted fs-6 fw-normal">Members</small></h4>
@@ -284,9 +295,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #28a745; z-index: 1;"></div>
                 <div class="card-body d-flex align-items-center ps-4">
-                    <div class="stat-icon me-3 fs-4" style="color: #28a745;">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
+                    <div class="stat-icon me-3 fs-4" style="color: #28a745;"><i class="fas fa-check-circle"></i></div>
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Completed Ratings</h6>
                         <h4 class="mb-0 fw-bold" style="color: #28a745;"><?= $evaluatedCount ?> <small class="text-muted fs-6 fw-normal">/ <?= $totalFaculty ?> Evaluated</small></h4>
@@ -296,17 +305,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- Department Faculty Table Card -->
+    <!-- Faculty Table -->
     <div class="card bg-body text-body border-secondary-subtle shadow-sm mb-4">
         <div class="card-header bg-body-tertiary border-bottom border-secondary-subtle py-3">
             <div class="row g-2 align-items-center">
                 <div class="col-12 col-md-6">
                     <h6 class="mb-0 text-primary fw-bold">
-                        <i class="fas fa-list-ul me-2"></i>Faculty Members — <?= htmlspecialchars(!empty($userDept) ? $userDept : 'Unassigned') ?>
+                        <i class="fas fa-list-ul me-2"></i>Faculty Members — <?= htmlspecialchars($userDept !== '' ? $userDept : 'Unassigned') ?>
                     </h6>
                     <small class="text-body-secondary">Rate your department's faculty for current academic term</small>
                 </div>
-                <!-- Filter Dropdown & Search Bar placed cleanly side-by-side -->
                 <div class="col-12 col-md-6 d-flex gap-2 justify-content-md-end align-items-center flex-wrap">
                     <select id="facultyStatusFilter" class="form-select form-select-sm bg-body text-body border-secondary-subtle" style="max-width: 150px;" onchange="filterFaculty()">
                         <option value="">All Status</option>
@@ -333,16 +341,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <tbody>
                         <?php if (!empty($faculty)): ?>
                             <?php foreach ($faculty as $member): ?>
-                                <?php 
+                                <?php
+                                    // Skip unlinked profiles entirely — they can't be evaluated
+                                    // and shouldn't appear in the list.
+                                    if (empty($member['id'])) {
+                                        continue;
+                                    }
+
                                     $fullName  = htmlspecialchars('Prof. ' . $member['first_name'] . ' ' . $member['last_name']);
                                     $initials  = strtoupper(substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1));
                                     $facId     = htmlspecialchars($member['employee_id'] ?? $member['id']);
-                                    $isLinked  = !empty($member['id']);
-                                    $isDone    = $isLinked && $member['evaluation_count'] > 0;
+                                    $isDone    = (int) $member['evaluation_count'] > 0;
                                     $searchStr = strtolower($fullName . ' ' . $facId);
                                 ?>
-                                <tr class="faculty-row border-bottom border-secondary-subtle" 
-                                    data-status="<?= $isDone ? 'COMPLETED' : 'PENDING' ?>" 
+                                <tr class="faculty-row border-bottom border-secondary-subtle"
+                                    data-status="<?= $isDone ? 'COMPLETED' : 'PENDING' ?>"
                                     data-search="<?= $searchStr ?>">
                                     <td class="ps-3">
                                         <div class="d-flex align-items-center gap-3">
@@ -354,20 +367,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                                 <small class="text-body-secondary">ID: <?= $facId ?> • Dept: <?= htmlspecialchars($member['department'] ?? 'N/A') ?></small>
                                             </div>
                                         </div>
-                                    </td>                      
+                                    </td>
                                     <td class="text-end pe-3">
-                                        <?php if (!$isLinked): ?>
-                                            <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill px-3 py-2 fw-bold text-uppercase border-0"
-                                                  title="This profile has no linked faculty record yet and cannot be evaluated. Contact the administrator.">
-                                                NOT LINKED
-                                            </span>
-                                        <?php elseif ($isDone): ?>
+                                        <?php if ($isDone): ?>
                                             <span class="badge bg-success-subtle text-success-emphasis rounded-pill px-3 py-2 fw-bold text-uppercase border-0">DONE</span>
                                         <?php else: ?>
-                                            <button class="btn btn-primary rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center justify-content-center" 
-                                                    onclick="openEvaluationModal('<?= $member['id'] ?>', '<?= addslashes($fullName) ?>', '<?= htmlspecialchars($member['department']) ?>')" 
-                                                    title="Evaluate Now" 
-                                                    aria-label="Evaluate Now"
+                                            <button class="btn btn-primary rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center justify-content-center"
+                                                    onclick="openEvaluationModal('<?= (int) $member['id'] ?>', '<?= addslashes($fullName) ?>', '<?= htmlspecialchars($member['department']) ?>')"
+                                                    title="Evaluate Now" aria-label="Evaluate Now"
                                                     <?= empty($evaluatorFacultyId) ? 'disabled' : '' ?>>
                                                 <i class="fas fa-star text-white"></i>
                                             </button>
@@ -375,6 +382,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
+
+                            <?php if ($totalFaculty === 0): ?>
+                                <tr>
+                                    <td colspan="2" class="text-center py-4 text-body-secondary">
+                                        No department faculty members found.
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
                         <?php else: ?>
                             <tr>
                                 <td colspan="2" class="text-center py-4 text-body-secondary">
@@ -392,20 +407,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
         </div>
 
-        <!-- Table Footer with Pagination Controls -->
+        <!-- Pagination Footer -->
         <div class="card-footer bg-body-tertiary border-top border-secondary-subtle py-2 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
             <small class="text-body-secondary" id="facultyPaginationInfo">Showing 0 entries</small>
             <nav aria-label="Faculty Table Pagination">
-                <ul class="pagination pagination-sm mb-0" id="facultyPagination">
-                </ul>
+                <ul class="pagination pagination-sm mb-0" id="facultyPagination"></ul>
             </nav>
         </div>
     </div>
 
-    <!-- Department Head Evaluation Rating Form Modal -->
+    <!-- Evaluation Modal -->
     <div class="modal fade" id="evaluateFacultyModal" tabindex="-1" aria-labelledby="evaluateFacultyModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content bg-body text-body border-secondary-subtle shadow-lg">     
+            <div class="modal-content bg-body text-body border-secondary-subtle shadow-lg">
                 <form action="../../controllers/ProcessDeptHeadEvaluationController.php" method="POST" id="deptHeadEvaluationForm" class="d-flex flex-column">
                     <input type="hidden" name="faculty_id" id="modalFacultyId">
                     <div class="modal-header bg-body-tertiary border-bottom border-secondary-subtle py-3">
@@ -550,14 +564,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </table>
                         </div>
 
-                        <!-- Qualitative Feedback -->
                         <div class="mt-3">
                             <label for="evalRemarks" class="form-label fw-bold text-body small">Other Comments <small class="text-body-secondary fw-normal">(Optional)</small></label>
                             <textarea class="form-control bg-body text-body border-secondary-subtle" id="evalRemarks" name="remarks" rows="3" placeholder="Provide comments or feedback..."></textarea>
                         </div>
                     </div>
 
-                    <!-- Modal Footer -->
                     <div class="modal-footer bg-body-tertiary border-top border-secondary-subtle">
                         <button type="button" class="btn btn-outline-secondary border-secondary-subtle" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary px-4">
@@ -569,7 +581,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-<?php endif; // $isDeptHead ?>
+<?php endif; ?>
 
 <script>
 function filterFaculty() {
@@ -581,14 +593,10 @@ function openEvaluationModal(id, name, dept) {
     document.getElementById('modalFacultyId').value = id;
     document.getElementById('modalFacultyName').textContent = name;
     document.getElementById('modalFacultyDept').textContent = dept;
-
     document.getElementById('deptHeadEvaluationForm').reset();
-
-    const modal = new bootstrap.Modal(document.getElementById('evaluateFacultyModal'));
-    modal.show();
+    new bootstrap.Modal(document.getElementById('evaluateFacultyModal')).show();
 }
 
-// Pagination Logic
 let currentFacultyPage = 1;
 const facultyPerPage = 5;
 
@@ -604,20 +612,16 @@ function renderFacultyTable() {
 
     const filteredRows = rows.filter(row => {
         const searchData = row.getAttribute('data-search') || '';
-        const rowStatus = row.getAttribute('data-status') || '';
-
+        const rowStatus  = row.getAttribute('data-status') || '';
         const matchesSearch = searchData.includes(searchInput);
         const matchesStatus = (statusFilter === '' || rowStatus === statusFilter);
-
         return matchesSearch && matchesStatus;
     });
 
     const totalItems = filteredRows.length;
     const totalPages = Math.ceil(totalItems / facultyPerPage) || 1;
 
-    if (currentFacultyPage > totalPages) {
-        currentFacultyPage = totalPages;
-    }
+    if (currentFacultyPage > totalPages) currentFacultyPage = totalPages;
 
     rows.forEach(row => row.classList.add('d-none'));
 
@@ -625,7 +629,6 @@ function renderFacultyTable() {
         noResultsMsg?.classList.add('d-none');
         const start = (currentFacultyPage - 1) * facultyPerPage;
         const end = start + facultyPerPage;
-
         filteredRows.slice(start, end).forEach(row => row.classList.remove('d-none'));
 
         const displayStart = start + 1;
@@ -641,17 +644,14 @@ function renderFacultyTable() {
 function renderPaginationControls(totalPages, container) {
     if (!container) return;
     container.innerHTML = '';
-
     if (totalPages <= 1) return;
+
     const prevLi = document.createElement('li');
     prevLi.className = `page-item ${currentFacultyPage === 1 ? 'disabled' : ''}`;
     prevLi.innerHTML = `<a class="page-link" href="#" aria-label="Previous">&laquo;</a>`;
     prevLi.addEventListener('click', (e) => {
         e.preventDefault();
-        if (currentFacultyPage > 1) {
-            currentFacultyPage--;
-            renderFacultyTable();
-        }
+        if (currentFacultyPage > 1) { currentFacultyPage--; renderFacultyTable(); }
     });
     container.appendChild(prevLi);
 
@@ -672,17 +672,13 @@ function renderPaginationControls(totalPages, container) {
     nextLi.innerHTML = `<a class="page-link" href="#" aria-label="Next">&raquo;</a>`;
     nextLi.addEventListener('click', (e) => {
         e.preventDefault();
-        if (currentFacultyPage < totalPages) {
-            currentFacultyPage++;
-            renderFacultyTable();
-        }
+        if (currentFacultyPage < totalPages) { currentFacultyPage++; renderFacultyTable(); }
     });
     container.appendChild(nextLi);
 }
 
 document.addEventListener('DOMContentLoaded', renderFacultyTable);
 
-// ALERT
 function closeToast(id) {
     const el = document.getElementById(id);
     if (el) el.remove();
@@ -692,20 +688,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
         ['statusToastSuccess', 'statusToastError'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) {
-                const toast = new bootstrap.Toast(el, { delay: 4000 });
-                toast.show();
-            }
+            if (el) new bootstrap.Toast(el, { delay: 4000 }).show();
         });
     } else {
-        setTimeout(function() {
+        setTimeout(function () {
             ['statusToastSuccess', 'statusToastError'].forEach(id => {
                 const el = document.getElementById(id);
-                if (el) {
-                    el.style.transition = 'opacity 0.5s ease';
-                    el.style.opacity = '0';
-                    setTimeout(() => el.remove(), 500);
-                }
+                if (el) { el.style.transition = 'opacity 0.5s ease'; el.style.opacity = '0'; setTimeout(() => el.remove(), 500); }
             });
         }, 4000);
     }

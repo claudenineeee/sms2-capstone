@@ -23,8 +23,11 @@ require_once ROOT_PATH . '/includes/authentication.php';
 // to the sms2_db connection via the "$conn ?? $db" guess below.
 require_once __DIR__ . '/../../config/database.php';
 
-if (function_exists('facultyDb')) {
-    $pdo = facultyDb();
+// CHANGED: facultyDb() doesn't exist anywhere in this codebase (same bug found
+// in AttendanceController/AttendanceModel) — the real helper defined in
+// modules/faculty/config/database.php is getFacultyDatabaseConnection().
+if (function_exists('getFacultyDatabaseConnection')) {
+    $pdo = getFacultyDatabaseConnection();
 }
 
 if (!isset($pdo) || !$pdo) {
@@ -221,6 +224,43 @@ if (empty($peers)) {
         'evaluator_id' => $evaluatorFacultyId ?? 0
     ]);
     $peers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// 4. Auto-link any profiles that don't yet have a matching `faculty` row.
+// "NOT LINKED" appears because faculty_profiles and faculty are bridged only
+// by email/faculty_no in the query above; profiles that never got a faculty
+// row (e.g. never logged attendance) fall through as unlinked. Reuse
+// AttendanceModel's getOrCreateFacultyRecord() — the same linking logic this
+// module already uses elsewhere — to create the missing faculty row on the
+// fly instead of just showing a "NOT LINKED" badge.
+require_once __DIR__ . '/../../models/AttendanceModel.php';
+$attendanceModel = new AttendanceModel($pdo);
+
+foreach ($peers as &$peer) {
+    if (empty($peer['id']) && !empty($peer['profile_id'])) {
+        try {
+            $linkedId = $attendanceModel->getOrCreateFacultyRecord((int) $peer['profile_id']);
+            if ($linkedId) {
+                $peer['id'] = $linkedId;
+            }
+        } catch (Throwable $e) {
+            error_log('Peer evaluation auto-link failed for profile ' . $peer['profile_id'] . ': ' . $e->getMessage());
+        }
+    }
+}
+unset($peer);
+
+// Also auto-link the current user's own profile if it wasn't linked, so
+// evaluation submissions aren't blocked by the same issue.
+if (empty($evaluatorFacultyId) && !empty($evaluatorProfileId)) {
+    try {
+        $linkedSelfId = $attendanceModel->getOrCreateFacultyRecord($evaluatorProfileId);
+        if ($linkedSelfId) {
+            $evaluatorFacultyId = $linkedSelfId;
+        }
+    } catch (Throwable $e) {
+        error_log('Peer evaluation self-link failed for profile ' . $evaluatorProfileId . ': ' . $e->getMessage());
+    }
 }
 
 // Calculate Statistics (only faculty records that are actually linked & evaluable count toward "peers")

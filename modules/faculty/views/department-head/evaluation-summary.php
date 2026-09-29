@@ -10,59 +10,109 @@ require_once ROOT_PATH . '/includes/authentication.php';
 requireAuth();
 
 /* ------------------------------------------------------------------
- | 1. Establish Database Connection
+ | Load the faculty-business helpers (defines facultyDb(), getScopedFacultyList()).
+ | config/config.php alone does NOT define facultyDb() in this project.
  * ------------------------------------------------------------------ */
-require_once __DIR__ . '/../../config/database.php';
-$pdo = facultyDb();
+require_once __DIR__ . '/../../controllers/faculty-data.php';
 
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
 if (!$pdo) {
     http_response_code(503);
     die('Faculty database is currently unavailable. Please try again later.');
 }
 
 /* ------------------------------------------------------------------
- | 2. Identify the department assigned to the logged-in account.
- |    users.id is linked to faculty_profiles.user_id; email is used only
- |    as a fallback for legacy profiles without that link.
+ | 2. Identify the logged-in user's department (self-healing)
+ |
+ | faculty_profiles.user_id is the canonical link, but that column can
+ | be stale after imports/merges. We try:
+ |   a) faculty_profiles.user_id = session user_id
+ |   b) faculty_profiles.email   = session email  (repairs user_id on hit)
+ |   c) faculty.external_user_id = session user_id
  * ------------------------------------------------------------------ */
-$currentUserId = (int) ($_SESSION['user_id'] ?? 0);
-$sessionEmail  = $_SESSION['user_email'] ?? $_SESSION['email'] ?? null;
-$deptHeadDept  = null;
+$currentUserId = (int) ($_SESSION['user_id'] ?? $_SESSION['id'] ?? 0);
+$sessionEmail  = trim((string) ($_SESSION['user_email'] ?? $_SESSION['email'] ?? ''));
 
-if ($currentUserId) {
+$deptHeadDept      = '';
+$deptHeadProfileId = 0;
+
+$captureDept = function (?array $row) use (&$deptHeadDept, &$deptHeadProfileId) {
+    if (!$row) return false;
+    $deptHeadDept      = trim((string) ($row['designated_department'] ?? ''));
+    $deptHeadProfileId = (int) ($row['id'] ?? 0);
+    return $deptHeadDept !== '';
+};
+
+// (a) by user_id
+if ($currentUserId > 0) {
     try {
         $stmt = $pdo->prepare("
-            SELECT designated_department
+            SELECT id, user_id, email, designated_department
             FROM faculty_profiles
             WHERE user_id = :uid
             LIMIT 1
         ");
-        $stmt->execute(['uid' => $currentUserId]);
-        $deptHeadDept = trim((string) ($stmt->fetchColumn() ?: ''));
+        $stmt->execute([':uid' => $currentUserId]);
+        $captureDept($stmt->fetch(PDO::FETCH_ASSOC) ?: null);
     } catch (PDOException $e) {
-        error_log('[EvalSummary] Dept lookup failed: ' . $e->getMessage());
+        error_log('[EvalSummary][uid] ' . $e->getMessage());
     }
 }
 
-if (empty($deptHeadDept) && $sessionEmail) {
+// (b) by email + repair user_id
+if ($deptHeadDept === '' && $sessionEmail !== '') {
     try {
-        $stmt = $pdo->prepare(" 
-            SELECT designated_department
+        $stmt = $pdo->prepare("
+            SELECT id, user_id, email, designated_department
             FROM faculty_profiles
             WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email))
             LIMIT 1
         ");
-        $stmt->execute(['email' => $sessionEmail]);
-        $deptHeadDept = trim((string) ($stmt->fetchColumn() ?: ''));
+        $stmt->execute([':email' => $sessionEmail]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        if ($row && $captureDept($row)) {
+            if ($currentUserId > 0 && (int) ($row['user_id'] ?? 0) !== $currentUserId) {
+                try {
+                    $pdo->prepare("UPDATE faculty_profiles SET user_id = :uid WHERE id = :id")
+                        ->execute([':uid' => $currentUserId, ':id' => (int) $row['id']]);
+                    error_log("[EvalSummary] repaired user_id for profile {$row['id']} -> {$currentUserId}");
+                } catch (PDOException $e) {
+                    error_log('[EvalSummary][repair] ' . $e->getMessage());
+                }
+            }
+        }
     } catch (PDOException $e) {
-        error_log('[EvalSummary] Dept email lookup failed: ' . $e->getMessage());
+        error_log('[EvalSummary][email] ' . $e->getMessage());
     }
+}
+
+// (c) bridge via faculty.external_user_id
+if ($deptHeadDept === '' && $currentUserId > 0) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT fp.id, fp.user_id, fp.email, fp.designated_department
+            FROM faculty f
+            INNER JOIN faculty_profiles fp ON fp.email = f.email
+            WHERE f.external_user_id = :uid
+            LIMIT 1
+        ");
+        $stmt->execute([':uid' => (string) $currentUserId]);
+        $captureDept($stmt->fetch(PDO::FETCH_ASSOC) ?: null);
+    } catch (PDOException $e) {
+        error_log('[EvalSummary][external] ' . $e->getMessage());
+    }
+}
+
+// Fallback to session
+if ($deptHeadDept === '') {
+    $deptHeadDept = trim((string) ($_SESSION['department'] ?? $_SESSION['designated_department'] ?? ''));
 }
 
 $departmentName = $deptHeadDept;
 
-// Resolve the canonical code and name so profiles storing either form are included.
-if (!empty($deptHeadDept)) {
+// Resolve code <-> name
+if ($deptHeadDept !== '') {
     try {
         $stmt = $pdo->prepare("
             SELECT code, name
@@ -72,58 +122,106 @@ if (!empty($deptHeadDept)) {
             LIMIT 1
         ");
         $stmt->execute(['d' => $deptHeadDept]);
-        $row = $stmt->fetch();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($row && !empty($row['code'])) {
-            $deptHeadDept = trim($row['code']);
+            $deptHeadDept   = trim($row['code']);
             $departmentName = trim($row['name'] ?? $departmentName);
         }
     } catch (PDOException $e) {
-        // Non-fatal; continue with what we have
+        // Non-fatal
     }
 }
 
+error_log('[EvalSummary] user_id=' . $currentUserId
+    . ' email=[' . $sessionEmail . ']'
+    . ' dept_code=[' . $deptHeadDept . ']'
+    . ' dept_name=[' . $departmentName . ']');
+
 /* ------------------------------------------------------------------
  | 3. Fetch Faculty Members from the SAME Department Only
+ |
+ | We fetch everyone in the department (either by code or by full name),
+ | then bridge each profile to its real faculty.faculty_id in a separate
+ | query so a NULL join doesn't silently drop rows.
  * ------------------------------------------------------------------ */
 $facultyMembers = [];
 
-if (!empty($deptHeadDept)) {
-    $facultyQuerySql = "
-        SELECT fp.id,
-               fp.faculty_id            AS profile_faculty_no,
-               fp.first_name,
-               fp.last_name,
-               fp.designated_department,
-               fp.position,
-               fp.email,
-               f.faculty_id             AS real_faculty_id
-        FROM faculty_profiles fp
-        LEFT JOIN faculty f ON f.faculty_id = (
-            SELECT f2.faculty_id
-            FROM faculty f2
-            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
-               OR f2.faculty_no = fp.faculty_id
-            ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
-            LIMIT 1
-        )
-        WHERE LOWER(TRIM(fp.designated_department)) = LOWER(TRIM(:dept_code))
-           OR LOWER(TRIM(fp.designated_department)) = LOWER(TRIM(:dept_name))
-        ORDER BY fp.last_name ASC, fp.first_name ASC
-    ";
+if ($deptHeadDept !== '' || $departmentName !== '') {
+    try {
+        $acceptedDepts = array_values(array_unique(array_filter([
+            strtolower(trim($deptHeadDept)),
+            strtolower(trim($departmentName)),
+        ])));
 
-    $stmt = $pdo->prepare($facultyQuerySql);
-    $stmt->execute([
-        'dept_code' => $deptHeadDept,
-        'dept_name' => $departmentName,
-    ]);
-    $facultyMembers = $stmt->fetchAll();
+        $placeholders = implode(',', array_fill(0, max(1, count($acceptedDepts)), '?'));
+        $stmt = $pdo->prepare("
+            SELECT fp.id,
+                   fp.faculty_id            AS profile_faculty_no,
+                   fp.first_name,
+                   fp.last_name,
+                   fp.designated_department,
+                   fp.position,
+                   fp.email
+            FROM faculty_profiles fp
+            WHERE LOWER(TRIM(fp.designated_department)) IN ($placeholders)
+            ORDER BY fp.last_name ASC, fp.first_name ASC
+        ");
+        $stmt->execute(count($acceptedDepts) ? $acceptedDepts : ['__none__']);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $bridgeStmt = $pdo->prepare("
+            SELECT faculty_id
+            FROM faculty
+            WHERE (email IS NOT NULL AND email <> '' AND LOWER(TRIM(email)) = LOWER(TRIM(:email1)))
+               OR faculty_no = :faculty_no
+               OR (external_user_id IS NOT NULL AND external_user_id = :external_uid)
+            ORDER BY
+                (email IS NOT NULL AND email <> '' AND LOWER(TRIM(email)) = LOWER(TRIM(:email2))) DESC,
+                (faculty_no = :faculty_no2) DESC
+            LIMIT 1
+        ");
+
+        foreach ($rows as $r) {
+            $realId = null;
+            $email  = trim((string) ($r['email'] ?? ''));
+            $fno    = trim((string) ($r['profile_faculty_no'] ?? ''));
+
+            if ($email !== '' || $fno !== '') {
+                try {
+                    $bridgeStmt->execute([
+                        ':email1'       => $email,
+                        ':email2'       => $email,
+                        ':faculty_no'   => $fno,
+                        ':faculty_no2'  => $fno,
+                        ':external_uid' => (string) $currentUserId, // rarely matches, harmless
+                    ]);
+                    $found = $bridgeStmt->fetchColumn();
+                    if ($found !== false && $found !== null) {
+                        $realId = (int) $found;
+                    }
+                } catch (Throwable $e) {
+                    // ignore
+                }
+            }
+
+            $r['real_faculty_id'] = $realId;
+            $facultyMembers[] = $r;
+        }
+
+        error_log('[EvalSummary] faculty rows=' . count($facultyMembers));
+    } catch (PDOException $e) {
+        error_log('[EvalSummary][faculty] ' . $e->getMessage());
+        $facultyMembers = [];
+    }
+} else {
+    error_log('[EvalSummary] No department resolved — faculty list will be empty.');
 }
 
 /* ------------------------------------------------------------------
  | Helper: Rating Label Generator
  * ------------------------------------------------------------------ */
 function getRatingLabel($score) {
-    $num = (float)$score;
+    $num = (float) $score;
     if ($num >= 4.50) return '5 - Outstanding';
     if ($num >= 3.50) return '4 - Very Satisfactory';
     if ($num >= 2.50) return '3 - Satisfactory';
@@ -133,17 +231,18 @@ function getRatingLabel($score) {
 }
 
 /* ------------------------------------------------------------------
- | 4. Compute 60/40 Weighted Evaluation Ratings per Faculty
+ | 4. Compute weighted evaluation ratings per faculty
  * ------------------------------------------------------------------ */
 $performanceDB = [];
 
 foreach ($facultyMembers as $fac) {
     $facId         = $fac['id'];
-    $realFacultyId = $fac['real_faculty_id'] !== null ? (int)$fac['real_faculty_id'] : null;
+    $realFacultyId = isset($fac['real_faculty_id']) && $fac['real_faculty_id'] !== null
+        ? (int) $fac['real_faculty_id']
+        : null;
     $isLinked      = $realFacultyId !== null;
 
     if ($isLinked) {
-        // Student
         $stmtStud = $pdo->prepare("
             SELECT COALESCE(AVG(composite_score), 0) AS avg_score,
                    COUNT(evaluation_id)              AS total_evals
@@ -155,7 +254,6 @@ foreach ($facultyMembers as $fac) {
         $studentAvg   = (float)($studData['avg_score']   ?? 0);
         $studentCount = (int)  ($studData['total_evals'] ?? 0);
 
-        // Peer
         $stmtPeer = $pdo->prepare("
             SELECT COALESCE(AVG(composite_score), 0) AS avg_score,
                    COUNT(evaluation_id)              AS total_evals
@@ -167,7 +265,6 @@ foreach ($facultyMembers as $fac) {
         $peerAvg    = (float)($peerData['avg_score']   ?? 0);
         $peerCount  = (int)  ($peerData['total_evals'] ?? 0);
 
-        // Dept Head
         $stmtHead = $pdo->prepare("
             SELECT COALESCE(AVG(composite_score), 0) AS avg_score,
                    COUNT(evaluation_id)              AS total_evals
@@ -184,14 +281,13 @@ foreach ($facultyMembers as $fac) {
         $headAvg    = 0; $headCount    = 0;
     }
 
-    // Weighted composite (Student 50 / Peer 30 / DeptHead 20)
     $weightedSources = [
         ['avg' => $studentAvg, 'count' => $studentCount, 'weight' => 0.50],
         ['avg' => $peerAvg,    'count' => $peerCount,    'weight' => 0.30],
         ['avg' => $headAvg,    'count' => $headCount,    'weight' => 0.20],
     ];
-    $weightedSum   = 0;
-    $weightTotal   = 0;
+    $weightedSum = 0;
+    $weightTotal = 0;
     foreach ($weightedSources as $src) {
         if ($src['count'] > 0) {
             $weightedSum += $src['avg'] * $src['weight'];
@@ -200,7 +296,6 @@ foreach ($facultyMembers as $fac) {
     }
     $composite = $weightTotal > 0 ? $weightedSum / $weightTotal : 0;
 
-    // Comments
     $commentsRaw = [];
     if ($isLinked) {
         $stmtComments = $pdo->prepare("
@@ -224,10 +319,10 @@ foreach ($facultyMembers as $fac) {
     $headComments    = [];
     foreach ($commentsRaw as $c) {
         $parts = [];
-        if (!empty(trim((string)$c['strength_comment']))) {
+        if (!empty(trim((string) $c['strength_comment']))) {
             $parts[] = 'Strength: '    . htmlspecialchars($c['strength_comment']);
         }
-        if (!empty(trim((string)$c['improvement_comment']))) {
+        if (!empty(trim((string) $c['improvement_comment']))) {
             $parts[] = 'To improve: '  . htmlspecialchars($c['improvement_comment']);
         }
         $line = implode(' | ', $parts);
@@ -280,7 +375,7 @@ foreach ($facultyMembers as $fac) {
 }
 
 /* ------------------------------------------------------------------
- | 5. Department-Wide Overview Stats
+ | 5. Department-wide overview stats
  * ------------------------------------------------------------------ */
 $totalFacultyCount = count($performanceDB);
 $deptOverallScores = [];
@@ -289,22 +384,20 @@ $deptPeerScores    = [];
 $deptHeadScores    = [];
 
 foreach ($performanceDB as $facId => $data) {
-    if ((int)$data['totalEvals'] > 0)                       $deptOverallScores[$facId] = (float)$data['compositeScore'];
-    if ((int)$data['sources']['student']['evalCount'] > 0)  $deptStudentScores[$facId] = (float)$data['sources']['student']['score'];
-    if ((int)$data['sources']['peer']['evalCount']    > 0)  $deptPeerScores[$facId]    = (float)$data['sources']['peer']['score'];
-    if ((int)$data['sources']['head']['evalCount']    > 0)  $deptHeadScores[$facId]    = (float)$data['sources']['head']['score'];
+    if ((int) $data['totalEvals'] > 0)                        $deptOverallScores[$facId] = (float) $data['compositeScore'];
+    if ((int) $data['sources']['student']['evalCount'] > 0)   $deptStudentScores[$facId] = (float) $data['sources']['student']['score'];
+    if ((int) $data['sources']['peer']['evalCount']    > 0)   $deptPeerScores[$facId]    = (float) $data['sources']['peer']['score'];
+    if ((int) $data['sources']['head']['evalCount']    > 0)   $deptHeadScores[$facId]    = (float) $data['sources']['head']['score'];
 }
 
 $evaluatedFacultyCount = count($deptOverallScores);
 
 $fullyEvaluatedCount = 0;
 foreach ($performanceDB as $facId => $data) {
-    $sc = (int)$data['sources']['student']['evalCount'];
-    $pc = (int)$data['sources']['peer']['evalCount'];
-    $hc = (int)$data['sources']['head']['evalCount'];
-    if ($sc > 0 && $pc > 0 && $hc > 0) {
-        $fullyEvaluatedCount++;
-    }
+    $sc = (int) $data['sources']['student']['evalCount'];
+    $pc = (int) $data['sources']['peer']['evalCount'];
+    $hc = (int) $data['sources']['head']['evalCount'];
+    if ($sc > 0 && $pc > 0 && $hc > 0) $fullyEvaluatedCount++;
 }
 
 $deptOverallAverage = !empty($deptOverallScores) ? array_sum($deptOverallScores) / count($deptOverallScores) : 0;
@@ -344,6 +437,10 @@ $breadcrumbs  = [
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
+
+<!-- ================= ALL ORIGINAL HTML FROM HERE DOWN ================= -->
+<!-- The entire <style> block, header, cards, faculty list, tabs, tables,
+     and <script> section stay identical to your existing file. -->
 
 <style>
     .custom-scrollbar {

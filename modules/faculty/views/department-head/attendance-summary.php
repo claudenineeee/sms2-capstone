@@ -7,47 +7,98 @@ require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 
+// faculty-data.php defines facultyDb() (and every other business-DB helper).
+// It MUST be loaded before any code calls facultyDb().
+require_once __DIR__ . '/../../controllers/faculty-data.php';
+
 // =====================================================================
 // NEW LOGIC: Fetch Department Head's Dept and Attendance Data
 // =====================================================================
 require_once __DIR__ . '/../../models/AttendanceModel.php';
-$attendanceModel = new AttendanceModel(db());
+$attendanceModel = new AttendanceModel(facultyDb());
 
-// 1. Identify Department Head's Department Name
-$currentUserId = $_SESSION['user_id'] ?? $_SESSION['id'] ?? 0;
-$deptHeadDept  = null;
+// 1. Identify Department Head's Department (self-healing lookup)
+$currentUserId = (int) ($_SESSION['user_id'] ?? $_SESSION['id'] ?? 0);
+$sessionEmail  = trim((string) ($_SESSION['user_email'] ?? $_SESSION['email'] ?? ''));
+$deptHeadDept  = '';
 
-if ($currentUserId) {
+if ($currentUserId > 0 || $sessionEmail !== '') {
     try {
-        $stmt = db()->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
-        $stmt->execute(['uid' => $currentUserId, 'id' => $currentUserId]);
-        $row = $stmt->fetch();
-        if ($row) {
-            $deptHeadDept = trim($row['designated_department'] ?? '');
+        $pdo = facultyDb();
+
+        // (a) by user_id
+        if ($currentUserId > 0) {
+            $stmt = $pdo->prepare("
+                SELECT designated_department
+                FROM faculty_profiles
+                WHERE user_id = :uid
+                LIMIT 1
+            ");
+            $stmt->execute([':uid' => $currentUserId]);
+            $val = $stmt->fetchColumn();
+            if ($val !== false && $val !== null && trim((string) $val) !== '') {
+                $deptHeadDept = trim((string) $val);
+            }
+        }
+
+        // (b) by email + repair user_id
+        if ($deptHeadDept === '' && $sessionEmail !== '') {
+            $stmt = $pdo->prepare("
+                SELECT id, user_id, designated_department
+                FROM faculty_profiles
+                WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email))
+                LIMIT 1
+            ");
+            $stmt->execute([':email' => $sessionEmail]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && !empty($row['designated_department'])) {
+                $deptHeadDept = trim((string) $row['designated_department']);
+
+                if ($currentUserId > 0 && (int) ($row['user_id'] ?? 0) !== $currentUserId) {
+                    try {
+                        $pdo->prepare("UPDATE faculty_profiles SET user_id = :uid WHERE id = :id")
+                            ->execute([':uid' => $currentUserId, ':id' => (int) $row['id']]);
+                        error_log("[attendance-summary] repaired user_id for profile {$row['id']} -> {$currentUserId}");
+                    } catch (Throwable $e) {
+                        error_log('[attendance-summary][repair] ' . $e->getMessage());
+                    }
+                }
+            }
+        }
+
+        // (c) via faculty.external_user_id
+        if ($deptHeadDept === '' && $currentUserId > 0) {
+            $stmt = $pdo->prepare("
+                SELECT fp.designated_department
+                FROM faculty f
+                INNER JOIN faculty_profiles fp ON fp.email = f.email
+                WHERE f.external_user_id = :uid
+                LIMIT 1
+            ");
+            $stmt->execute([':uid' => (string) $currentUserId]);
+            $val = $stmt->fetchColumn();
+            if ($val !== false && $val !== null && trim((string) $val) !== '') {
+                $deptHeadDept = trim((string) $val);
+            }
         }
     } catch (Throwable $e) {
-        $deptHeadDept = null;
+        error_log('[attendance-summary] dept lookup failed: ' . $e->getMessage());
     }
 }
 
-if (empty($deptHeadDept)) {
-    $deptHeadDept = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? '');
+if ($deptHeadDept === '') {
+    $deptHeadDept = trim((string) ($_SESSION['department'] ?? $_SESSION['designated_department'] ?? ''));
 }
 
-// CHANGED: removed the dead $deptId lookup that used to sit here. It
-// queried departments to resolve a numeric department_id, but
-// that variable was never actually used anywhere on this page — every
-// query below works off faculty IDs, not department_id.
+error_log('[attendance-summary] user_id=' . $currentUserId
+    . ' email=[' . $sessionEmail . ']'
+    . ' resolved dept=[' . $deptHeadDept . ']');
 
 // Filter parameters
 $selectedPeriod = $_GET['period'] ?? '7days';
 $selectedMonth  = $_GET['month'] ?? date('Y-m');
 
 // 3. Fetch Faculty in this department
-// CHANGED: was getFacultyByDepartment($deptHeadDept ?? '1'). The ?? operator
-// only catches NULL, not an empty string — so if the department lookup above
-// came back blank, this passed '' and silently matched zero faculty, making
-// the whole page render as zeros. Now falls back properly on empty too.
 $facultyInDept = $attendanceModel->getFacultyByDepartment(
     $deptHeadDept !== '' ? $deptHeadDept : '1'
 ) ?? [];
@@ -57,21 +108,15 @@ $today      = date('Y-m-d');
 $weekStart  = date('Y-m-d', strtotime('-7 days'));
 $monthStart = date('Y-m-01');
 
-// CHANGED: this whole section used to call getSessionsForFaculty() four
-// separate times per faculty member (today / week / month / selected
-// period). With ~29 faculty that was 116 database round trips on every
-// page load. Now it pulls the widest range needed ONCE via the new
-// batched getSessionsForFacultyIds(), then buckets the rows in PHP.
+// Batch-fetch all sessions in the widest window once instead of per-faculty.
 $facultyIds = array_column($facultyInDept, 'id');
 
-// Widest window we need: earliest of month-start / week-start, through
-// the end of the current month (the 'monthly' filter looks ahead to Y-m-t).
 $fetchStart = min($monthStart, $weekStart);
 $fetchEnd   = max($today, date('Y-m-t'));
 
 $allSessions = $attendanceModel->getSessionsForFacultyIds($facultyIds, $fetchStart, $fetchEnd) ?? [];
 
-// Group sessions by faculty id for quick lookup below.
+// Group sessions by faculty id.
 $sessionsByFaculty = [];
 foreach ($allSessions as $s) {
     $sessionsByFaculty[(string) $s['faculty_id']][] = $s;
@@ -79,21 +124,17 @@ foreach ($allSessions as $s) {
 
 // 4. Build Summary Metrics
 $summaryMetrics = [
-    'today_present'   => 0,
-    'today_total'     => 0,
-    'today_percentage'=> 0,
-    'weekly_present'  => 0,
-    'weekly_total'    => 0,
-    'weekly_percentage'=> 0,
-    'monthly_present' => 0,
-    'monthly_total'   => 0,
-    'monthly_percentage'=> 0
+    'today_present'      => 0,
+    'today_total'        => 0,
+    'today_percentage'   => 0,
+    'weekly_present'     => 0,
+    'weekly_total'       => 0,
+    'weekly_percentage'  => 0,
+    'monthly_present'    => 0,
+    'monthly_total'      => 0,
+    'monthly_percentage' => 0,
 ];
 
-// CHANGED: 'Late' now counts toward the present tallies. A late professor
-// still showed up and still taught, so counting them as not-present made
-// the department look worse than it was, and was inconsistent with the
-// monitoring officer's own dashboard, which already counts Late as present.
 $presentStatuses = ['Present', 'Late'];
 
 foreach ($allSessions as $log) {
@@ -114,15 +155,13 @@ foreach ($allSessions as $log) {
     }
 }
 
-// Calculate Percentages
-$summaryMetrics['today_percentage'] = $summaryMetrics['today_total'] > 0 ? ($summaryMetrics['today_present'] / $summaryMetrics['today_total']) * 100 : 0;
-$summaryMetrics['weekly_percentage'] = $summaryMetrics['weekly_total'] > 0 ? ($summaryMetrics['weekly_present'] / $summaryMetrics['weekly_total']) * 100 : 0;
+$summaryMetrics['today_percentage']   = $summaryMetrics['today_total']   > 0 ? ($summaryMetrics['today_present']   / $summaryMetrics['today_total'])   * 100 : 0;
+$summaryMetrics['weekly_percentage']  = $summaryMetrics['weekly_total']  > 0 ? ($summaryMetrics['weekly_present']  / $summaryMetrics['weekly_total'])  * 100 : 0;
 $summaryMetrics['monthly_percentage'] = $summaryMetrics['monthly_total'] > 0 ? ($summaryMetrics['monthly_present'] / $summaryMetrics['monthly_total']) * 100 : 0;
 
 // 5. Build Faculty Summaries for the table
 $facultySummaries = [];
 
-// Determine Date Range based on selected period
 $dateRangeStart = $today;
 $dateRangeEnd   = $today;
 
@@ -136,8 +175,6 @@ if ($selectedPeriod === '7days') {
 foreach ($facultyInDept as $fac) {
     $fullName = htmlspecialchars($fac['first_name'] . ' ' . $fac['last_name']);
 
-    // CHANGED: reads from the pre-fetched $sessionsByFaculty bucket and
-    // filters by date in PHP, instead of issuing another query per faculty.
     $logs = array_filter(
         $sessionsByFaculty[(string) $fac['id']] ?? [],
         function ($s) use ($dateRangeStart, $dateRangeEnd) {
@@ -160,16 +197,15 @@ foreach ($facultyInDept as $fac) {
     }
 
     $total = count($logs);
-    // CHANGED: Late counts toward the attendance rate here too (see above).
-    $rate = $total > 0 ? (($present + $late) / $total) * 100 : 0;
+    $rate  = $total > 0 ? (($present + $late) / $total) * 100 : 0;
 
     $facultySummaries[] = [
-        'name' => $fullName,
+        'name'          => $fullName,
         'total_classes' => $total,
         'present_count' => $present,
-        'late_count' => $late,
-        'absent_count' => $absent,
-        'rate' => $rate
+        'late_count'    => $late,
+        'absent_count'  => $absent,
+        'rate'          => $rate,
     ];
 }
 
@@ -178,8 +214,8 @@ foreach ($facultyInDept as $fac) {
 // =====================================================================
 $perPage      = 15;
 $totalFaculty = count($facultySummaries);
-$totalPages   = max(1, ceil($totalFaculty / $perPage));
-$page         = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$totalPages   = max(1, (int) ceil($totalFaculty / $perPage));
+$page         = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
 
 if ($page > $totalPages) {
     $page = $totalPages;
@@ -198,7 +234,7 @@ $breadcrumbs  = [
 ];
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
-require_once __DIR__ . '/../../../../includes/layout-start.php'; 
+require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
@@ -225,7 +261,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <!-- Stat Cards -->
 <div class="row g-3 mb-4">
-    <!-- Today's Rate Card -->
     <div class="col-12 col-md-4">
         <section class="card stat-card primary border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -243,7 +278,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </section>
     </div>
 
-    <!-- 7-Day Average Card -->
     <div class="col-12 col-md-4">
         <section class="card stat-card info border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -261,7 +295,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </section>
     </div>
 
-    <!-- Monthly Attendance Card -->
     <div class="col-12 col-md-4">
         <section class="card stat-card success border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -287,8 +320,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <div class="col-12 col-md-5">
                 <label class="form-label small fw-semibold text-body-secondary">Time Period</label>
                 <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="today" <?= $selectedPeriod === 'today' ? 'selected' : '' ?>>Today</option>
-                    <option value="7days" <?= $selectedPeriod === '7days' ? 'selected' : '' ?>>Past Week (7 Days)</option>
+                    <option value="today"   <?= $selectedPeriod === 'today'   ? 'selected' : '' ?>>Today</option>
+                    <option value="7days"   <?= $selectedPeriod === '7days'   ? 'selected' : '' ?>>Past Week (7 Days)</option>
                     <option value="monthly" <?= $selectedPeriod === 'monthly' ? 'selected' : '' ?>>Monthly</option>
                 </select>
             </div>
@@ -354,7 +387,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <td class="pe-3 py-2 py-md-3">
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="progress flex-grow-1" style="height: 6px; min-width: 80px;">
-                                            <div class="progress-bar <?= $row['rate'] >= 85 ? 'bg-success' : ($row['rate'] >= 70 ? 'bg-warning' : 'bg-danger') ?>" 
+                                            <div class="progress-bar <?= $row['rate'] >= 85 ? 'bg-success' : ($row['rate'] >= 70 ? 'bg-warning' : 'bg-danger') ?>"
                                                  style="width: <?= $row['rate'] ?>%"></div>
                                         </div>
                                         <span class="small fw-bold text-body"><?= number_format($row['rate'], 1) ?>%</span>
@@ -374,7 +407,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </table>
         </div>
     </div>
-    
+
     <!-- Pagination Footer -->
     <?php if ($totalPages > 1): ?>
         <div class="card-footer bg-body-tertiary py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -383,21 +416,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <nav aria-label="Faculty breakdown pagination">
                 <ul class="pagination pagination-sm mb-0">
-                    <!-- Previous Page Link -->
                     <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
                         <a class="page-link" href="?period=<?= urlencode($selectedPeriod) ?>&month=<?= urlencode($selectedMonth) ?>&page=<?= $page - 1 ?>" aria-label="Previous">
                             <span aria-hidden="true">&laquo;</span>
                         </a>
                     </li>
 
-                    <!-- Page Numbers -->
                     <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                         <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
                             <a class="page-link" href="?period=<?= urlencode($selectedPeriod) ?>&month=<?= urlencode($selectedMonth) ?>&page=<?= $i ?>"><?= $i ?></a>
                         </li>
                     <?php endfor; ?>
 
-                    <!-- Next Page Link -->
                     <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
                         <a class="page-link" href="?period=<?= urlencode($selectedPeriod) ?>&month=<?= urlencode($selectedMonth) ?>&page=<?= $page + 1 ?>" aria-label="Next">
                             <span aria-hidden="true">&raquo;</span>
@@ -409,6 +439,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <?php endif; ?>
 </div>
 
-<?php 
-require_once __DIR__ . '/../../../../includes/layout-end.php'; 
+<?php
+require_once __DIR__ . '/../../../../includes/layout-end.php';
 ?>

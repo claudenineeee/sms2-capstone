@@ -28,25 +28,28 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
 // DYNAMIC DATABASE QUERIES
 // ============================================================
 
-$pdo = function_exists('facultyDb') ? facultyDb() : (function_exists('db') ? db() : null);
+/*
+ * IMPORTANT: leave_requests, faculty_deadlines, faculty_profiles
+ * all live in the FACULTY database (faculty_db), not sms2_db.
+ *
+ * Previously this block fell back to db() (which points at sms2_db)
+ * when facultyDb() wasn't available, silently running every query
+ * against the wrong schema. Now we require facultyDb() explicitly
+ * and skip queries cleanly if it's unavailable, instead of blowing
+ * up on "table not found".
+ */
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
 
-// Department-scoped faculty list - same proven method faculty-profile.php
-// and faculty-records.php already use successfully, instead of guessing
-// at $_SESSION keys directly.
-$facultyController  = new FacultyController();
-$departmentFaculty  = $facultyController->getDirectoryList();
+// Department-scoped faculty list — same proven method faculty-profile.php
+// and faculty-records.php already use.
+$facultyController = new FacultyController();
+$departmentFaculty = $facultyController->getDirectoryList();
 
-// The faculty_profiles.id values for everyone in this department - used
-// below to scope leave_requests and faculty_deadlines, since neither of
-// those tables has a department_id column of its own.
-// NOTE: this assumes leave_requests.faculty_id / faculty_deadlines.faculty_id
-// store faculty_profiles.id (matching FacultyModel::fetchPerformanceRows'
-// convention). If your leave-request-screening.php page actually uses
-// faculty.faculty_id instead, tell me and I'll switch this to match.
+// faculty_profiles.id values for everyone in this department.
 $departmentFacultyIds = array_map('intval', array_column($departmentFaculty, 'id'));
 
-// 1. TOTAL FACULTY - only this secretary's department, excluding Rejected
-// and Pending Approval (profile_status values seen in faculty-records.php)
+// 1. TOTAL FACULTY — only this secretary's department, excluding Rejected
+// and Pending Approval.
 $totalFaculty = 0;
 foreach ($departmentFaculty as $f) {
     $status = strtolower(trim((string) ($f['profile_status'] ?? '')));
@@ -55,95 +58,130 @@ foreach ($departmentFaculty as $f) {
     }
 }
 
-// 2. ON LEAVE TODAY - approved leave covering today, for this department's faculty
+// 2. ON LEAVE TODAY — approved leave covering today, for this department's faculty.
 $onLeaveToday = 0;
 if ($pdo && !empty($departmentFacultyIds)) {
-    $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
-    $stmtLeave = $pdo->prepare("
-        SELECT COUNT(*)
-        FROM leave_requests
-        WHERE approval_status = 'Approved'
-          AND CURRENT_DATE() BETWEEN start_date AND end_date
-          AND faculty_id IN ($placeholders)
-    ");
-    $stmtLeave->execute($departmentFacultyIds);
-    $onLeaveToday = (int) $stmtLeave->fetchColumn();
+    try {
+        $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
+        $stmtLeave = $pdo->prepare("
+            SELECT COUNT(*)
+            FROM leave_requests
+            WHERE approval_status = 'Approved'
+              AND CURRENT_DATE() BETWEEN start_date AND end_date
+              AND faculty_id IN ($placeholders)
+        ");
+        $stmtLeave->execute($departmentFacultyIds);
+        $onLeaveToday = (int) $stmtLeave->fetchColumn();
+    } catch (Throwable $e) {
+        error_log('[secretary-dashboard] on-leave query failed: ' . $e->getMessage());
+    }
 }
 
-// 3. PENDING SCREENING COUNT - leave requests awaiting this secretary's screening
+// 3. PENDING SCREENING COUNT — leave requests awaiting this secretary's screening.
 $pendingScreening = 0;
 if ($pdo && !empty($departmentFacultyIds)) {
-    $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
-    $stmtPending = $pdo->prepare("
-        SELECT COUNT(*)
-        FROM leave_requests
-        WHERE screening_status = 'Pending'
-          AND faculty_id IN ($placeholders)
-    ");
-    $stmtPending->execute($departmentFacultyIds);
-    $pendingScreening = (int) $stmtPending->fetchColumn();
+    try {
+        $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
+        $stmtPending = $pdo->prepare("
+            SELECT COUNT(*)
+            FROM leave_requests
+            WHERE screening_status = 'Pending'
+              AND faculty_id IN ($placeholders)
+        ");
+        $stmtPending->execute($departmentFacultyIds);
+        $pendingScreening = (int) $stmtPending->fetchColumn();
+    } catch (Throwable $e) {
+        error_log('[secretary-dashboard] pending-screening query failed: ' . $e->getMessage());
+    }
 }
 
 // 4. LEAVE REQUESTS BY CATEGORY (Chart Data)
 $leaveCategories = [];
 $leaveCounts     = [];
+$categoryData    = [];
 
 if ($pdo && !empty($departmentFacultyIds)) {
-    $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
-    $stmtCategories = $pdo->prepare("
-        SELECT leave_type, COUNT(*) as total
-        FROM leave_requests
-        WHERE approval_status != 'Rejected'
-          AND faculty_id IN ($placeholders)
-        GROUP BY leave_type
-    ");
-    $stmtCategories->execute($departmentFacultyIds);
-    $categoryData = $stmtCategories->fetchAll(PDO::FETCH_ASSOC);
-} else {
-    $categoryData = [];
+    try {
+        $placeholders = implode(',', array_fill(0, count($departmentFacultyIds), '?'));
+        $stmtCategories = $pdo->prepare("
+            SELECT leave_type, COUNT(*) as total
+            FROM leave_requests
+            WHERE approval_status != 'Rejected'
+              AND faculty_id IN ($placeholders)
+            GROUP BY leave_type
+        ");
+        $stmtCategories->execute($departmentFacultyIds);
+        $categoryData = $stmtCategories->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('[secretary-dashboard] category query failed: ' . $e->getMessage());
+        $categoryData = [];
+    }
 }
 
 if (!empty($categoryData)) {
     foreach ($categoryData as $row) {
-        $leaveCategories[] = htmlspecialchars($row['leave_type']);
+        $leaveCategories[] = htmlspecialchars((string) $row['leave_type']);
         $leaveCounts[]     = (int) $row['total'];
     }
 } else {
-    // Default fallback values if no database records exist yet
+    // Fallback labels only when there is genuinely no data yet, so the
+    // chart still renders with an empty ring instead of a broken layout.
     $leaveCategories = ['Sick Leave', 'Vacation Leave', 'Emergency Leave', 'Study Leave'];
     $leaveCounts     = [0, 0, 0, 0];
 }
 
 // 5. UPCOMING DEADLINES
-// faculty_deadlines has no priority or completion-status column, so those
-// aspects of the original mock aren't real data - every deadline is shown
-// with a neutral priority marker instead of a fabricated one.
+// faculty_deadlines lives in faculty_db. Only run this if $pdo actually
+// resolved to facultyDb(); otherwise skip cleanly instead of crashing.
 $deadlines = [];
 if ($pdo) {
-    $placeholders = !empty($departmentFacultyIds)
-        ? implode(',', array_fill(0, count($departmentFacultyIds), '?'))
-        : '';
-    $sql = "
-        SELECT title, due_date
-        FROM faculty_deadlines
-        WHERE due_date >= CURRENT_DATE()
-    ";
-    $params = [];
-    if ($placeholders !== '') {
-        // Include department-specific deadlines plus general ones (no faculty_id set)
-        $sql .= " AND (faculty_id IS NULL OR faculty_id IN ($placeholders))";
-        $params = $departmentFacultyIds;
-    }
-    $sql .= " ORDER BY due_date ASC LIMIT 5";
+    try {
+        // Verify the table exists before querying — protects against the
+        // exact "table not found" crash we were seeing, and makes the
+        // reason obvious in the log if it happens again.
+        $hasTable = false;
+        try {
+            $check = $pdo->query("SHOW TABLES LIKE 'faculty_deadlines'");
+            $hasTable = (bool) $check->fetchColumn();
+        } catch (Throwable $e) {
+            $hasTable = false;
+        }
 
-    $stmtDeadlines = $pdo->prepare($sql);
-    $stmtDeadlines->execute($params);
-    $deadlines = $stmtDeadlines->fetchAll(PDO::FETCH_ASSOC);
+        if ($hasTable) {
+            $placeholders = !empty($departmentFacultyIds)
+                ? implode(',', array_fill(0, count($departmentFacultyIds), '?'))
+                : '';
+
+            $sql = "
+                SELECT title, due_date
+                FROM faculty_deadlines
+                WHERE due_date >= CURRENT_DATE()
+            ";
+            $params = [];
+            if ($placeholders !== '') {
+                // Include department-specific deadlines plus general ones
+                // (rows where faculty_id is NULL).
+                $sql .= " AND (faculty_id IS NULL OR faculty_id IN ($placeholders))";
+                $params = $departmentFacultyIds;
+            }
+            $sql .= " ORDER BY due_date ASC LIMIT 5";
+
+            $stmtDeadlines = $pdo->prepare($sql);
+            $stmtDeadlines->execute($params);
+            $deadlines = $stmtDeadlines->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            error_log('[secretary-dashboard] faculty_deadlines table missing in current PDO connection — skipping deadline block.');
+        }
+    } catch (Throwable $e) {
+        error_log('[secretary-dashboard] deadlines query failed: ' . $e->getMessage());
+        $deadlines = [];
+    }
 }
 
-// Map priority values to design colors (kept for markup compatibility -
-// faculty_deadlines has no priority column, so every real deadline gets
-// the neutral 'muted' marker until/unless that column is added).
+/**
+ * Map priority values to design colors. faculty_deadlines has no priority
+ * column, so every real deadline gets the neutral 'muted' marker.
+ */
 function getPriorityColor($priority) {
     return match (strtolower((string) $priority)) {
         'high', 'danger', 'urgent' => 'danger',
@@ -645,7 +683,7 @@ function getPriorityColor($priority) {
                 <div class="sec-card-body">
                     <ul class="sec-deadlines">
                         <?php if (!empty($deadlines)): ?>
-                            <?php foreach ($deadlines as $item): 
+                            <?php foreach ($deadlines as $item):
                                 $date  = strtotime($item['due_date']);
                                 $month = date('M', $date);
                                 $day   = date('d', $date);

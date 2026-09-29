@@ -12,28 +12,17 @@ $activeModule = 'faculty';
 $activePage   = 'attendance-summary';
 $breadcrumbs  = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
-    // CHANGED: was pointing to the department-head dashboard, copy-pasted
-    // from that page — this is the Dean's page (views/dean/), so it should
-    // point at the Dean's own dashboard instead.
     ['label' => 'Dean',              'url' => BASE_URL . '/modules/faculty/views/dean/index.php'],
     ['label' => 'Attendance Reports', 'url' => null],
 ];
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
-require_once __DIR__ . '/../../../../includes/layout-start.php'; 
+require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 // Filter parameters
 $selectedPeriod = $_GET['period'] ?? '7days';
 $selectedMonth  = $_GET['month'] ?? date('Y-m');
 
-// CHANGED: this whole block is new. $summaryMetrics and $facultySummaries
-// were referenced everywhere below via `?? 0` / `?? []` fallbacks but never
-// actually defined anywhere in this file — the page was silently rendering
-// all zeros. Unlike the Department Head's attendance-summary.php (scoped to
-// one department), the Dean sees EVERY department, so faculty come from
-// FacultyController::getDirectoryList() (the same college-wide source used
-// by daily-attendance-log.php and the Dean's own Faculty Directory) rather
-// than a department-filtered query.
 require_once __DIR__ . '/../../../../config/database.php';   // defines db()
 require_once __DIR__ . '/../../controllers/faculty-data.php'; // defines facultyDb()
 require_once __DIR__ . '/../../controllers/FacultyController.php';
@@ -49,14 +38,13 @@ $facultyListRaw = array_filter($facultyListRaw, function ($member) {
     return $position === 'faculty professor' || $position === 'teacher' || $position === '';
 });
 
-$attendanceModel = new AttendanceModel(db());
+// IMPORTANT: class_attendance_sessions / attendance_records / faculty_profiles
+// all live in faculty_db. Passing db() here connects to sms2_db and every
+// query fails with "Table 'sms2_db.class_attendance_sessions' doesn't exist".
+$attendanceModel = new AttendanceModel(facultyDb());
 
 $today          = date('Y-m-d');
 $weekStart      = date('Y-m-d', strtotime('-7 days'));
-// CHANGED: monthly figures now follow the actual $selectedMonth from the
-// filter (the input already existed in the form below — it just was never
-// wired to anything), instead of always meaning "this calendar month"
-// regardless of what was picked.
 $monthStart     = $selectedMonth . '-01';
 $monthEnd       = date('Y-m-t', strtotime($monthStart));
 
@@ -147,10 +135,9 @@ foreach ($facultyListRaw as $fac) {
     ];
 }
 
-// CHANGED: new — powers the "View Details" links on the three stat cards
-// (previously href="javascript:void(0)", i.e. dead). Builds the actual list
-// of sessions behind each card's number, with the faculty member's real
-// name attached (the raw session rows only carry faculty_id).
+// Builds the actual list of sessions behind each card's number, with the
+// faculty member's real name attached (the raw session rows only carry
+// faculty_id).
 $facultyNameById = [];
 foreach ($facultyListRaw as $fac) {
     $facultyNameById[(string) $fac['id']] = trim(($fac['first_name'] ?? '') . ' ' . ($fac['last_name'] ?? ''));
@@ -171,7 +158,6 @@ if (!function_exists('buildAttendanceDetailRows')) {
                 'status'  => $s['status'],
             ];
         }
-        // Most recent first
         usort($rows, fn($a, $b) => strcmp($b['date'], $a['date']));
         return $rows;
     }
@@ -206,7 +192,6 @@ $monthlyDetailRows = buildAttendanceDetailRows($allSessions, $monthStart, $month
 
 <!-- Stat Cards -->
 <div class="row g-3 mb-4">
-    <!-- Today's Rate Card (Primary) -->
     <div class="col-12 col-md-4">
         <section class="card stat-card primary border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -221,15 +206,12 @@ $monthlyDetailRows = buildAttendanceDetailRows($allSessions, $monthStart, $month
                     </small>
                 </div>
             </div>
-            <!-- CHANGED: was href="javascript:void(0)" — a dead link. Now opens
-                 a modal listing the actual sessions behind today's numbers. -->
             <a href="#" data-bs-toggle="modal" data-bs-target="#todayDetailsModal" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
                 <i class="fas fa-arrow-up-right-from-square"></i>
             </a>
         </section>
     </div>
 
-    <!-- 7-Day Average Card (Info) -->
     <div class="col-12 col-md-4">
         <section class="card stat-card info border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -250,7 +232,6 @@ $monthlyDetailRows = buildAttendanceDetailRows($allSessions, $monthStart, $month
         </section>
     </div>
 
-    <!-- Monthly Attendance Card (Success) -->
     <div class="col-12 col-md-4">
         <section class="card stat-card success border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
@@ -273,9 +254,6 @@ $monthlyDetailRows = buildAttendanceDetailRows($allSessions, $monthStart, $month
 </div>
 
 <?php
-// CHANGED: new — the three "View Details" modals. Reused across the file
-// via a tiny local render function so the three modals (Today / 7-Day /
-// Monthly) don't repeat the same ~25 lines of markup three times.
 if (!function_exists('renderAttendanceDetailModal')) {
     function renderAttendanceDetailModal($id, $title, array $rows) {
         ?>
@@ -412,7 +390,7 @@ renderAttendanceDetailModal('monthlyDetailsModal', 'Monthly Attendance — ' . d
                                 <td class="pe-3 py-2 py-md-3">
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="progress flex-grow-1" style="height: 6px; min-width: 80px;">
-                                            <div class="progress-bar <?= $row['rate'] >= 85 ? 'bg-success' : ($row['rate'] >= 70 ? 'bg-warning' : 'bg-danger') ?>" 
+                                            <div class="progress-bar <?= $row['rate'] >= 85 ? 'bg-success' : ($row['rate'] >= 70 ? 'bg-warning' : 'bg-danger') ?>"
                                                  style="width: <?= $row['rate'] ?>%"></div>
                                         </div>
                                         <span class="small fw-bold text-body"><?= number_format($row['rate'], 1) ?>%</span>
@@ -434,6 +412,6 @@ renderAttendanceDetailModal('monthlyDetailsModal', 'Monthly Attendance — ' . d
     </div>
 </div>
 
-<?php 
-require_once __DIR__ . '/../../../../includes/layout-end.php'; 
+<?php
+require_once __DIR__ . '/../../../../includes/layout-end.php';
 ?>

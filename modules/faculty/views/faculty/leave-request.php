@@ -30,7 +30,7 @@ class LeaveBalance
     public function forFaculty(int $facultyId, string $academicYear): array
     {
         $stmt = $this->pdo->prepare("
-            SELECT * FROM leave_balances
+            SELECT * FROM faculty_db.leave_balances
             WHERE faculty_id = :fid AND academic_year = :yr
             LIMIT 1
         ");
@@ -44,8 +44,8 @@ class LeaveBalance
         // Determine the faculty's sex to enforce gender-specific leave rules.
         $check = $this->pdo->prepare("
             SELECT COALESCE(fp.sex, f.sex) AS sex
-            FROM faculty f
-            LEFT JOIN faculty_profiles fp ON fp.email = f.email
+            FROM faculty_db.faculty f
+            LEFT JOIN faculty_db.faculty_profiles fp ON fp.email = f.email
             WHERE f.faculty_id = :fid
             LIMIT 1
         ");
@@ -73,20 +73,12 @@ class LeaveBalance
     private function seed(int $facultyId, string $academicYear): array
     {
         $f = $this->pdo->prepare("
-<<<<<<< HEAD
-            SELECT COALESCE(fp.sex, f.sex)              AS sex,
-                   COALESCE(fp.position, f.position)    AS position,
-                   COALESCE(fp.hired_date, f.hired_date) AS hired_date
-            FROM faculty f
-            LEFT JOIN faculty_profiles fp ON fp.email = f.email
-=======
             SELECT COALESCE(fp.sex, f.sex)               AS sex,
                    COALESCE(fp.position, f.position)     AS position,
                    COALESCE(fp.hired_date, f.hired_date) AS hired_date,
                    COALESCE(fp.is_solo_parent, 0)        AS is_solo_parent
             FROM faculty_db.faculty f
             LEFT JOIN faculty_db.faculty_profiles fp ON fp.email = f.email
->>>>>>> d0c7a8d (fixing of stupid bugs)
             WHERE f.faculty_id = :fid
             LIMIT 1
         ");
@@ -133,7 +125,7 @@ class LeaveBalance
 
         try {
             $ins = $this->pdo->prepare("
-                INSERT INTO leave_balances (
+                INSERT INTO faculty_db.leave_balances (
                     faculty_id, academic_year,
                     sick_leave_total, vacation_leave_total, emergency_total,
                     maternity_total, paternity_total, solo_parent_total,
@@ -184,7 +176,7 @@ class LeaveBalance
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT * FROM leave_balances
+            SELECT * FROM faculty_db.leave_balances
             WHERE faculty_id = :fid AND academic_year = :yr
             LIMIT 1
         ");
@@ -253,28 +245,6 @@ try {
             error_log('[leave-request] sms2_db.users lookup failed: ' . $e->getMessage());
         }
 
-<<<<<<< HEAD
-        $stmt = $pdo->prepare("SELECT faculty_id FROM faculty WHERE email = :email LIMIT 1");
-        $stmt->execute([':email' => $userEmail]);
-        $facultyProfileId = (int) ($stmt->fetchColumn() ?: 0);
-
-        if ($facultyProfileId <= 0 && $userEmail !== '') {
-            try {
-                $facultyNo = 'FAC-' . date('Y') . '-' . str_pad((string) $userId, 4, '0', STR_PAD_LEFT);
-                $firstName = $userData['username'] ?? 'Faculty';
-                $insertFaculty = $pdo->prepare("
-                    INSERT INTO faculty (faculty_no, first_name, last_name, email, department_id, position)
-                    VALUES (:faculty_no, :first_name, 'Member', :email, 1, 'Faculty Professor')
-                ");
-                $insertFaculty->execute([
-                    ':faculty_no' => $facultyNo,
-                    ':first_name' => $firstName,
-                    ':email' => $userEmail,
-                ]);
-                $facultyProfileId = (int) $pdo->lastInsertId();
-            } catch (Exception $ex) {
-                $formError = 'Your account is not linked to a faculty record and auto-creation failed: ' . $ex->getMessage();
-=======
         $userEmail = trim((string) ($userData['email'] ?? ($_SESSION['email'] ?? '')));
 
         if ($userEmail !== '') {
@@ -299,7 +269,6 @@ try {
                 } catch (Exception $ex) {
                     $formError = 'Your account is not linked to a faculty record and auto-creation failed: ' . $ex->getMessage();
                 }
->>>>>>> d0c7a8d (fixing of stupid bugs)
             }
         } else {
             $formError = 'Your account has no email on record. Please contact the administrator.';
@@ -311,8 +280,8 @@ try {
 
             $sexQ = $pdo->prepare("
                 SELECT UPPER(COALESCE(fp.sex, f.sex))
-                FROM faculty f
-                LEFT JOIN faculty_profiles fp ON fp.email = f.email
+                FROM faculty_db.faculty f
+                LEFT JOIN faculty_db.faculty_profiles fp ON fp.email = f.email
                 WHERE f.faculty_id = :id LIMIT 1
             ");
             $sexQ->execute([':id' => $facultyProfileId]);
@@ -340,7 +309,7 @@ try {
             : 0;
 
         if ($formError === '') {
-            $chk = $pdo->prepare('SELECT id, documents, faculty_id, status, screening_status, total_days FROM leave_requests WHERE id = :id LIMIT 1');
+            $chk = $pdo->prepare('SELECT id, documents, faculty_id, status, screening_status, total_days FROM faculty_db.leave_requests WHERE id = :id LIMIT 1');
             $chk->execute([':id' => $editRequestId]);
             $row = $chk->fetch(PDO::FETCH_ASSOC);
 
@@ -393,13 +362,13 @@ try {
 
         if ($formError === '') {
             try {
-                $docQ = $pdo->prepare("SELECT documents FROM leave_requests WHERE id = :id LIMIT 1");
+                $docQ = $pdo->prepare("SELECT documents FROM faculty_db.leave_requests WHERE id = :id LIMIT 1");
                 $docQ->execute([':id' => $editRequestId]);
                 $existingDoc = (string) ($docQ->fetchColumn() ?: '');
                 $finalDoc    = $uploadedName ?: $existingDoc;
 
                 $upSql = "
-                    UPDATE leave_requests
+                    UPDATE faculty_db.leave_requests
                     SET leave_type=:leave_type, start_date=:start_date, end_date=:end_date,
                         total_days=:total_days, reason=:reason, documents=:documents,
                         status='Pending', screening_status='Pending', notification=0, updated_at=NOW()
@@ -489,7 +458,7 @@ try {
             try {
                 $pdo->beginTransaction();
                 $sql = "
-                    INSERT INTO leave_requests (
+                    INSERT INTO faculty_db.leave_requests (
                         faculty_id, request_ref, leave_type,
                         start_date, end_date, total_days, reason,
                         documents, status, screening_status
@@ -515,7 +484,7 @@ try {
                 if ($map['key'] !== '' && isset($balance[$map['key'] . '_used'])) {
                     $col = $map['key'] . '_used';
                     $upd = $pdo->prepare("
-                        UPDATE leave_balances
+                        UPDATE faculty_db.leave_balances
                         SET {$col} = {$col} + :days, updated_at = NOW()
                         WHERE faculty_id = :fid AND academic_year = :yr
                     ");
@@ -546,8 +515,8 @@ try {
                 CONCAT_WS(' ', fp.first_name, fp.last_name) AS faculty_name,
                 DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
                 lr.updated_at AS approval_timestamp
-            FROM leave_requests lr
-            LEFT JOIN faculty fp ON fp.faculty_id = lr.faculty_id
+            FROM faculty_db.leave_requests lr
+            LEFT JOIN faculty_db.faculty fp ON fp.faculty_id = lr.faculty_id
             WHERE lr.faculty_id = :faculty_profile_id
             ORDER BY lr.created_at DESC
         ";

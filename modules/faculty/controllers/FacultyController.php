@@ -272,26 +272,12 @@ class FacultyController
             $email            = strtolower(trim((string) ($_POST['email'] ?? '')));
             $designatedDept   = trim((string) ($_POST['designated_department'] ?? ''));
             $position         = trim((string) ($_POST['position'] ?? 'Department Head'));
-            $academicRank     = trim((string) ($_POST['academic_rank'] ?? ''));
-            $tier             = trim((string) ($_POST['tier'] ?? ''));
             $hiredDate        = trim((string) ($_POST['hired_date'] ?? ''));
             $contractualEnd   = trim((string) ($_POST['contractual_end'] ?? ''));
             $employmentStatus = trim((string) ($_POST['employment_status'] ?? 'regular'));
 
             if ($firstName === '' || $lastName === '' || $birthdate === '' || $sex === '' || $email === '' || $designatedDept === '' || $hiredDate === '' || $employmentStatus === '') {
                 throw new InvalidArgumentException('Please fill in all required fields.');
-            }
-
-            if ($academicRank === '') {
-                throw new InvalidArgumentException('Please select the Academic Rank.');
-            }
-
-            if ($tier === '') {
-                throw new InvalidArgumentException('Please select the Tier.');
-            }
-
-            if (function_exists('isValidAcademicRankTier') && !isValidAcademicRankTier($academicRank, $tier)) {
-                throw new InvalidArgumentException('The selected Tier does not match the selected Academic Rank.');
             }
 
             $mainPdo = function_exists('db') ? db() : null;
@@ -319,8 +305,6 @@ class FacultyController
                 'email'                 => $email,
                 'designated_department' => $designatedDept,
                 'position'              => $position,
-                'academic_rank'         => $academicRank,
-                'tier'                  => $tier,
                 'hired_date'            => $hiredDate,
                 'contractual_end'       => $contractualEnd,
                 'employment_status'     => $employmentStatus,
@@ -387,7 +371,7 @@ class FacultyController
      * Process Dean registration POST request. A Dean can oversee multiple
      * departments — same account-creation flow as handleAddDepartmentHead(),
      * plus a loop that records every selected department into
-     * faculty_profile_department_assignments.
+     * faculty_db.faculty_profile_department_assignments.
      * See migration_add_dean_support_v2.sql for that table's definition.
      */
     public function handleAddDean(): ?array
@@ -412,26 +396,12 @@ class FacultyController
             $email            = strtolower(trim((string) ($_POST['email'] ?? '')));
             $departmentIds    = array_filter(array_map('intval', (array) ($_POST['department_ids'] ?? [])));
             $position         = trim((string) ($_POST['position'] ?? 'Dean'));
-            $academicRank     = trim((string) ($_POST['academic_rank'] ?? ''));
-            $tier             = trim((string) ($_POST['tier'] ?? ''));
             $hiredDate        = trim((string) ($_POST['hired_date'] ?? ''));
             $contractualEnd   = trim((string) ($_POST['contractual_end'] ?? ''));
             $employmentStatus = trim((string) ($_POST['employment_status'] ?? 'regular'));
 
             if ($firstName === '' || $lastName === '' || $birthdate === '' || $sex === '' || $email === '' || empty($departmentIds) || $hiredDate === '' || $employmentStatus === '') {
                 throw new InvalidArgumentException('Please fill in all required fields and select at least one department.');
-            }
-
-            if ($academicRank === '') {
-                throw new InvalidArgumentException('Please select the Academic Rank.');
-            }
-
-            if ($tier === '') {
-                throw new InvalidArgumentException('Please select the Tier.');
-            }
-
-            if (function_exists('isValidAcademicRankTier') && !isValidAcademicRankTier($academicRank, $tier)) {
-                throw new InvalidArgumentException('The selected Tier does not match the selected Academic Rank.');
             }
 
             $mainPdo = function_exists('db') ? db() : null;
@@ -446,7 +416,7 @@ class FacultyController
 
             // Resolve department_id -> code (e.g. 1 -> 'BSIT') for the
             // primary designated_department stored on the profile itself.
-            $deptStmt = $facPdo->prepare("SELECT department_id, code FROM departments WHERE department_id IN (" . implode(',', array_fill(0, count($departmentIds), '?')) . ")");
+            $deptStmt = $facPdo->prepare("SELECT department_id, code FROM faculty_db.departments WHERE department_id IN (" . implode(',', array_fill(0, count($departmentIds), '?')) . ")");
             $deptStmt->execute($departmentIds);
             $deptRows = $deptStmt->fetchAll(PDO::FETCH_KEY_PAIR); // [department_id => code]
 
@@ -472,8 +442,6 @@ class FacultyController
                 'email'                 => $email,
                 'designated_department' => $primaryDeptCode,
                 'position'              => $position,
-                'academic_rank'         => $academicRank,
-                'tier'                  => $tier,
                 'hired_date'            => $hiredDate,
                 'contractual_end'       => $contractualEnd,
                 'employment_status'     => $employmentStatus,
@@ -507,7 +475,7 @@ class FacultyController
 
             // Record every selected department in the pivot table.
             $pivotStmt = $facPdo->prepare("
-                INSERT INTO faculty_profile_department_assignments (faculty_profile_id, department_id)
+                INSERT INTO faculty_db.faculty_profile_department_assignments (faculty_profile_id, department_id)
                 VALUES (:profile_id, :dept_id)
             ");
             foreach ($departmentIds as $deptId) {

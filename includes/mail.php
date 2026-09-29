@@ -1,13 +1,29 @@
 <?php
 /**
  * SMS 2 – Mail helper (PHPMailer + OTP/Password Reset emails)
+ *
+ * Uses the same Gmail SMTP credentials as pending-approvals.php so the
+ * OTP and password-reset flows work without relying on env variables.
  */
 require_once __DIR__ . '/security.php';
 
-// Correct relative paths: if mail.php is in includes/, load PHPMailer from the same directory
+// Load PHPMailer from this same directory
 require_once __DIR__ . '/Exception.php';
 require_once __DIR__ . '/PHPMailer.php';
 require_once __DIR__ . '/SMTP.php';
+
+/* ------------------------------------------------------------------
+ | Shared SMTP credentials — single source of truth.
+ | Change these in ONE place and both this file and any other mailer
+ | that includes mail.php will pick them up.
+ * ------------------------------------------------------------------ */
+if (!defined('SMS2_SMTP_HOST'))      define('SMS2_SMTP_HOST',      'smtp.gmail.com');
+if (!defined('SMS2_SMTP_PORT'))      define('SMS2_SMTP_PORT',      587);
+if (!defined('SMS2_SMTP_USER'))      define('SMS2_SMTP_USER',      'jcespejo002@gmail.com');
+if (!defined('SMS2_SMTP_PASS'))      define('SMS2_SMTP_PASS',      'cshwohpgllkqdtga');
+if (!defined('SMS2_SMTP_SECURE'))    define('SMS2_SMTP_SECURE',    'tls');   // 'tls' or 'ssl'
+if (!defined('SMS2_MAIL_FROM'))      define('SMS2_MAIL_FROM',      'jcespejo002@gmail.com');
+if (!defined('SMS2_MAIL_FROM_NAME')) define('SMS2_MAIL_FROM_NAME', 'Bestlink College No-Reply');
 
 /**
  * @return array{ok:bool,error:string}
@@ -19,14 +35,14 @@ function smsSendMail(string $to, string $subject, string $htmlBody, string $text
         return ['ok' => false, 'error' => 'Invalid recipient email.'];
     }
 
-    $fromEmail = trim((string) sms2_env('SMS2_MAIL_FROM', sms2_env('MAIL_FROM', 'no-reply@sms2.local')));
-    $fromName = trim((string) sms2_env(
-        'SMS2_MAIL_FROM_NAME',
-        sms2_env('MAIL_FROM_NAME', defined('APP_SHORT_NAME') ? APP_SHORT_NAME : 'SMS 2')
-    ));
+    $fromEmail = SMS2_MAIL_FROM;
+    $fromName  = SMS2_MAIL_FROM_NAME;
 
     if ($textBody === '') {
-        $textBody = trim(html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $htmlBody)), ENT_QUOTES | ENT_HTML5));
+        $textBody = trim(html_entity_decode(
+            strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $htmlBody)),
+            ENT_QUOTES | ENT_HTML5
+        ));
     }
 
     return smsSendMailSmtp($to, $subject, $htmlBody, $textBody, $fromEmail, $fromName);
@@ -43,41 +59,34 @@ function smsSendMailSmtp(
     string $fromEmail,
     string $fromName
 ): array {
-    $host = trim((string) sms2_env('SMS2_SMTP_HOST', sms2_env('SMTP_HOST', '')));
-    if ($host === '') {
+    $host     = SMS2_SMTP_HOST;
+    $port     = SMS2_SMTP_PORT;
+    $username = SMS2_SMTP_USER;
+    $password = SMS2_SMTP_PASS;
+    $encRaw   = strtolower(trim(SMS2_SMTP_SECURE));
+    $auth     = ($username !== '' && $password !== '');
+
+    if ($host === '' || !$auth) {
         return ['ok' => false, 'error' => 'SMTP is not configured.'];
-    }
-
-    $port = (int) sms2_env('SMS2_SMTP_PORT', sms2_env('SMTP_PORT', '587'));
-    $port = $port > 0 && $port <= 65535 ? $port : 587;
-    $encryption = strtolower(trim((string) sms2_env('SMS2_SMTP_ENCRYPTION', sms2_env('SMTP_ENCRYPTION', 'tls'))));
-    $auth = in_array(
-        strtolower(trim((string) sms2_env('SMS2_SMTP_AUTH', sms2_env('SMTP_AUTH', 'true')))),
-        ['1', 'true', 'yes', 'on'],
-        true
-    );
-    $username = (string) sms2_env('SMS2_SMTP_USERNAME', sms2_env('SMTP_USERNAME', ''));
-    $password = (string) sms2_env('SMS2_SMTP_PASSWORD', sms2_env('SMTP_PASSWORD', ''));
-
-    if ($auth && ($username === '' || $password === '')) {
-        return ['ok' => false, 'error' => 'SMTP authentication is incomplete.'];
     }
 
     try {
         $mail = new PHPMailer\PHPMailer\PHPMailer(true);
         $mail->isSMTP();
-        $mail->Host = $host;
-        $mail->Port = $port;
-        $mail->SMTPAuth = $auth;
-        $mail->Username = $username;
-        $mail->Password = $password;
+        $mail->Host       = $host;
+        $mail->Port       = $port;
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $username;
+        $mail->Password   = $password;
+        $mail->CharSet    = 'UTF-8';
+        $mail->Timeout    = 20;
 
-        if (in_array($encryption, ['ssl', 'smtps'], true)) {
+        if (in_array($encRaw, ['ssl', 'smtps'], true)) {
             $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
-        } elseif (in_array($encryption, ['tls', 'starttls'], true)) {
+        } elseif (in_array($encRaw, ['tls', 'starttls'], true)) {
             $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
         } else {
-            $mail->SMTPSecure = '';
+            $mail->SMTPSecure  = '';
             $mail->SMTPAutoTLS = false;
         }
 
@@ -85,13 +94,13 @@ function smsSendMailSmtp(
         $mail->addAddress($to);
         $mail->isHTML(true);
         $mail->Subject = $subject;
-        $mail->Body = $htmlBody;
+        $mail->Body    = $htmlBody;
         $mail->AltBody = $textBody;
 
         $mail->send();
         return ['ok' => true, 'error' => ''];
     } catch (\Throwable $e) {
-        $msg = 'Mailer Error: ' . ($mail->ErrorInfo ?? $e->getMessage());
+        $msg = 'Mailer Error: ' . (isset($mail) && !empty($mail->ErrorInfo) ? $mail->ErrorInfo : $e->getMessage());
         error_log('SMS2 ' . $msg);
         return ['ok' => false, 'error' => $msg];
     }
@@ -118,11 +127,11 @@ function smsSendPasswordResetEmail(array $user, string $resetUrl, ?string $toOve
         $name = 'User';
     }
 
-    $subject = (defined('APP_SHORT_NAME') ? APP_SHORT_NAME : 'SMS') . ' password reset';
-    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-    $safeUrl = htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8');
-    $app = defined('APP_NAME') ? APP_NAME : 'System';
-    $inst = defined('INSTITUTION') ? INSTITUTION : 'Bestlink College of the Philippines';
+    $subject   = (defined('APP_SHORT_NAME') ? APP_SHORT_NAME : 'SMS') . ' password reset';
+    $safeName  = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeUrl   = htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8');
+    $app       = defined('APP_NAME') ? APP_NAME : 'System';
+    $inst      = defined('INSTITUTION') ? INSTITUTION : 'Bestlink College of the Philippines';
 
     $html = '<div style="font-family:Segoe UI,Arial,sans-serif;line-height:1.5;color:#0f172a;">'
         . '<p>Hi ' . $safeName . ',</p>'
@@ -167,13 +176,13 @@ function smsSendOtpEmail(array $user, string $code, string $purposeLabel = 'pass
         $name = 'User';
     }
 
-    $ttlMinutes = max(1, $ttlMinutes);
-    $subject = (defined('APP_SHORT_NAME') ? APP_SHORT_NAME : 'SMS') . ' verification code';
-    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-    $safeCode = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
+    $ttlMinutes  = max(1, $ttlMinutes);
+    $subject     = (defined('APP_SHORT_NAME') ? APP_SHORT_NAME : 'SMS') . ' verification code';
+    $safeName    = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeCode    = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
     $safePurpose = htmlspecialchars($purposeLabel, ENT_QUOTES, 'UTF-8');
-    $app = defined('APP_NAME') ? APP_NAME : 'System';
-    $inst = defined('INSTITUTION') ? INSTITUTION : 'Bestlink College of the Philippines';
+    $app         = defined('APP_NAME') ? APP_NAME : 'System';
+    $inst        = defined('INSTITUTION') ? INSTITUTION : 'Bestlink College of the Philippines';
 
     $html = '<div style="font-family:Segoe UI,Arial,sans-serif;line-height:1.5;color:#0f172a;">'
         . '<p>Hi ' . $safeName . ',</p>'
