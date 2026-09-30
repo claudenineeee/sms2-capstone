@@ -192,7 +192,9 @@ $facultySecretaryNavGroups = [
     ],
     'Leave' => [
         ['slug' => 'leave-request-screening', 'href' => BASE_URL . '/modules/faculty/views/secretary/leave-request-screening.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Request'],
+        ['slug' => 'reports', 'href' => BASE_URL . '/modules/faculty/views/secretary/reports.php', 'icon' => 'fa-file-alt', 'label' => 'Reports'],
     ],
+
 ];
 $facultyAttendanceMonitoringNavGroups = [
     'Dashboard' => [
