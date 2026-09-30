@@ -43,6 +43,8 @@ try {
     $isDeptHead = in_array($role, ['department_head', 'dept_head'], true);
     // All clearance-office roles that can review clearance records
     $isClearanceOffice = in_array($role, ['department_head', 'dept_head', 'hr', 'hr_clearance', 'faculty_admin', 'dean', 'registrar_clearance', 'registrar', 'finance_office', 'finance', 'library_clearance', 'library', 'property_custodian_office', 'property', 'admin', 'super_admin'], true);
+    // Roles that bypass department isolation — they see ALL departments
+    $isAdminScope = in_array($role, ['admin', 'super_admin', 'faculty_admin', 'dean'], true);
     $assignedDepartments = facultyClearanceAssignedDepartments($profile ?: [], $db);
 
     if ($action === 'file') {
@@ -61,7 +63,7 @@ try {
             $item = $stmt->fetch();
             if ($item && !empty($item['file_path'])) {
                 // SECURITY CHECK: Restrict file download for Department Heads to their assigned department
-                if ($isDeptHead && !empty($assignedDepartments) && !empty($item['designated_department']) && !in_array($item['designated_department'], $assignedDepartments, true)) {
+                if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !empty($item['designated_department']) && !in_array($item['designated_department'], $assignedDepartments, true)) {
                     http_response_code(403);
                     exit('Access denied.');
                 }
@@ -131,15 +133,20 @@ try {
             clearanceApiResponse(['ok' => true, 'profile' => $profile, 'term' => $term, 'offices' => $offices, 'clearance' => facultyClearanceJson($request)]);
         }
 
-        $sql = 'SELECT fp.*, cr.clearance_id, cr.overall_status, cr.submitted_at, cr.updated_at FROM faculty_profiles fp LEFT JOIN faculty f ON f.faculty_no = fp.faculty_id LEFT JOIN clearance_requests cr ON cr.faculty_id = f.faculty_id AND cr.term_id = ? WHERE (fp.position NOT IN ("Department Head", "Dean") OR fp.position IS NULL) AND (fp.profile_status = ? OR fp.profile_status IS NULL)';
-        $params = [(int) $term['term_id'], 'Active'];
+        // Only Faculty Professors appear here — no secretaries, no monitoring officers,
+        // no deans, no department heads. All departments are included.
+        $sql = 'SELECT fp.*, cr.clearance_id, cr.overall_status, cr.submitted_at, cr.updated_at 
+                FROM faculty_profiles fp 
+                LEFT JOIN faculty f ON f.faculty_no = fp.faculty_id 
+                LEFT JOIN clearance_requests cr ON cr.faculty_id = f.faculty_id AND cr.term_id = ? 
+                WHERE fp.position = ? 
+                  AND (fp.profile_status = ? OR fp.profile_status IS NULL)';
+        $params = [(int) $term['term_id'], 'Faculty Professor', 'Active'];
 
-        // Filter by assigned departments if restricted (HR, Registrar, Finance, Library, Property and Faculty Admin see all)
-        if (!empty($assignedDepartments) && !in_array($role, ['hr', 'hr_clearance', 'faculty_admin', 'registrar_clearance', 'registrar', 'finance_office', 'finance', 'library_clearance', 'library', 'property_custodian_office', 'property', 'admin', 'super_admin'], true)) {
-            $placeholders = implode(',', array_fill(0, count($assignedDepartments), '?'));
-            $sql .= " AND fp.designated_department IN ($placeholders)";
-            $params = array_merge($params, $assignedDepartments);
-        }
+        // Department scoping is disabled for admin roles AND for every role here —
+        // each allowed user sees all departments. If you want to re-enable department
+        // isolation later, wrap the following block in:
+        //     if (!$isAdminScope && !empty($assignedDepartments)) { ... }
 
         $sql .= ' ORDER BY cr.updated_at DESC, fp.last_name, fp.first_name';
         $stmt = $db->prepare($sql);
@@ -176,7 +183,7 @@ try {
         }
 
         // SECURITY CHECK: Department restriction for Department Head
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Faculty member is not in your department.'], 403);
         }
 
@@ -210,7 +217,7 @@ try {
         // ── Office-specific archive (each office only sees its own cleared requirements) ──
         if ($officeKey !== null) {
             // Department Head is restricted to assigned departments; all other offices see all.
-            $canSeeAll = !in_array($role, ['department_head', 'dept_head'], true);
+            $canSeeAll = !in_array($role, ['department_head', 'dept_head'], true) || $isAdminScope;
             $officeArchives = facultyClearanceGetOfficeArchives($db, $officeKey, $assignedDepartments, $canSeeAll);
 
             // ── Backfill fallback ──────────────────────────────────────────────────────
@@ -407,7 +414,7 @@ try {
 
         if ($a) {
             // SECURITY CHECK: Department isolation for Department Head
-            if ($isDeptHead && !empty($assignedDepartments) && !in_array($a['designated_department'], $assignedDepartments, true)) {
+            if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($a['designated_department'], $assignedDepartments, true)) {
                 clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Record belongs to another department.'], 403);
             }
 
@@ -560,7 +567,7 @@ try {
         }
 
         // SECURITY CHECK: Department isolation for Department Head
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($rec['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($rec['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Record belongs to another department.'], 403);
         }
 
@@ -690,7 +697,7 @@ try {
             clearanceApiResponse(['ok' => false, 'error' => 'Faculty profile not found.'], 404);
         }
 
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Cannot review clearance forms for faculty in another department.'], 403);
         }
 
@@ -1043,7 +1050,7 @@ try {
         }
 
         // SECURITY CHECK: Department isolation for Department Head
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($itemRow['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($itemRow['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Cannot review items for other departments.'], 403);
         }
 
@@ -1161,7 +1168,7 @@ try {
         }
 
         // SECURITY CHECK: Department isolation for Department Head
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($itemRow['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($itemRow['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Cannot review items for other departments.'], 403);
         }
 
@@ -1263,7 +1270,7 @@ try {
         }
 
         // SECURITY CHECK: Department isolation for Department Head
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($itemRow['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($itemRow['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Cannot review items for other departments.'], 403);
         }
 
@@ -1357,7 +1364,7 @@ try {
         }
 
         // SECURITY CHECK: Department isolation for Department Head
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Cannot renew contract for faculty in another department.'], 403);
         }
 
@@ -1435,7 +1442,7 @@ try {
         }
 
         // SECURITY CHECK: Department isolation for Department Head
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Cannot update employment status for faculty in another department.'], 403);
         }
 
@@ -1772,7 +1779,7 @@ try {
             clearanceApiResponse(['ok' => false, 'error' => 'Faculty profile not found.'], 404);
         }
 
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Faculty member is not in your department.'], 403);
         }
 
@@ -1963,7 +1970,7 @@ try {
             clearanceApiResponse(['ok' => false, 'error' => 'Faculty profile not found.'], 404);
         }
 
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Faculty member is not in your department.'], 403);
         }
 
@@ -2090,7 +2097,7 @@ try {
             clearanceApiResponse(['ok' => false, 'error' => 'Faculty profile not found.'], 404);
         }
 
-        if ($isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
+        if (!$isAdminScope && $isDeptHead && !empty($assignedDepartments) && !in_array($targetProfile['designated_department'], $assignedDepartments, true)) {
             clearanceApiResponse(['ok' => false, 'error' => 'Access denied: Faculty member is not in your department.'], 403);
         }
 

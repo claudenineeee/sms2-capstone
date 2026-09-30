@@ -36,9 +36,7 @@ try {
         throw new RuntimeException('Unable to connect to the faculty database.');
     }
 
-    /*
-     * Handle reassignment actions before rendering.
-     */
+    /* Handle reassignment actions before rendering. */
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $action = trim((string) ($_POST['action'] ?? ''));
@@ -61,8 +59,6 @@ try {
             }
 
             if ($headProfileId > 0) {
-                // Assign this profile as the head of the chosen department.
-                // They are moved OUT of whichever department they previously headed.
                 $update = $pdo->prepare("
                     UPDATE faculty_db.faculty_profiles
                     SET designated_department = :code
@@ -76,8 +72,6 @@ try {
 
                 $redirectMessage = 'Department Head reassigned successfully.';
             } else {
-                // "-- No Head Assigned --" selected: clear whoever currently
-                // heads this department back to unassigned.
                 $clear = $pdo->prepare("
                     UPDATE faculty_db.faculty_profiles
                     SET designated_department = NULL
@@ -96,7 +90,7 @@ try {
         if ($action === 'update_dean_assignments') {
 
             $deanProfileId = (int) ($_POST['dean_profile_id'] ?? 0);
-            $selectedDeptIds = array_filter(array_map('intval', (array) ($_POST['department_ids'] ?? [])));
+            $selectedDeptIds = array_values(array_filter(array_map('intval', (array) ($_POST['department_ids'] ?? []))));
 
             if ($deanProfileId <= 0) {
                 throw new InvalidArgumentException('Invalid Dean profile.');
@@ -110,9 +104,6 @@ try {
 
             $pdo->beginTransaction();
 
-            // Replace the full assignment set for this Dean: remove all,
-            // then re-add exactly what was checked. Simpler and safer than
-            // diffing, and this table is small per Dean.
             $delete = $pdo->prepare("DELETE FROM faculty_db.faculty_profile_department_assignments WHERE faculty_profile_id = :id");
             $delete->execute([':id' => $deanProfileId]);
 
@@ -125,8 +116,6 @@ try {
                     $insert->execute([':profile_id' => $deanProfileId, ':dept_id' => $deptId]);
                 }
 
-                // Keep designated_department (the "primary" department) in
-                // sync too, defaulting to the first checked department.
                 $deptCodeStmt = $pdo->prepare("SELECT code FROM faculty_db.departments WHERE department_id = :id LIMIT 1");
                 $deptCodeStmt->execute([':id' => $selectedDeptIds[0]]);
                 $primaryCode = $deptCodeStmt->fetchColumn();
@@ -135,6 +124,9 @@ try {
                     $updatePrimary = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET designated_department = :code WHERE id = :id");
                     $updatePrimary->execute([':code' => $primaryCode, ':id' => $deanProfileId]);
                 }
+            } else {
+                $updatePrimary = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET designated_department = NULL WHERE id = :id");
+                $updatePrimary->execute([':id' => $deanProfileId]);
             }
 
             $pdo->commit();
@@ -147,16 +139,14 @@ try {
         throw new InvalidArgumentException('Unknown action.');
     }
 
-    /*
-     * Load data for display.
-     */
+    /* Load data for display. */
     $departments = $pdo->query("SELECT department_id, code, name FROM faculty_db.departments ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
 
-    // Current head per department (by designated_department code).
     $headRows = $pdo->query("
         SELECT id, designated_department, CONCAT_WS(' ', first_name, last_name) AS name
         FROM faculty_db.faculty_profiles
         WHERE position = 'Department Head'
+        ORDER BY last_name, first_name
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($headRows as $h) {
@@ -164,13 +154,12 @@ try {
         $allHeads[] = $h;
     }
 
-    // All Deans + which departments they currently cover.
     $deanRows = $pdo->query("
         SELECT fp.id, CONCAT_WS(' ', fp.first_name, fp.last_name) AS name, a.department_id
         FROM faculty_db.faculty_profiles fp
         LEFT JOIN faculty_db.faculty_profile_department_assignments a ON a.faculty_profile_id = fp.id
         WHERE fp.position = 'Dean'
-        ORDER BY fp.last_name
+        ORDER BY fp.last_name, fp.first_name
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($deanRows as $d) {
@@ -210,25 +199,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div>
         <h1 class="h3 fw-bold mb-1 text-body">
             <i class="fas fa-building text-primary me-2"></i>
-            Department & Program Management
+            Department &amp; Program Management
         </h1>
         <p class="text-body-secondary mb-0">Add, configure, and manage academic departments and degree programs across
             campus.</p>
     </div>
 </div>
 
-<?php if ($formError !== ''): ?>
-    <div class="alert alert-danger rounded-3 mb-4" role="alert">
-        <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($formError, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
-
-<?php if ($formSuccess !== ''): ?>
-    <div class="alert alert-success rounded-3 mb-4" role="alert">
-        <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($formSuccess, ENT_QUOTES, 'UTF-8') ?>
-    </div>
-<?php endif; ?>
-
+<!-- ============================ DEPARTMENT HEADS ============================ -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-body-tertiary fw-bold text-body py-3 border-bottom">
         <i class="fas fa-user-shield text-primary me-2"></i>Department Heads
@@ -247,6 +225,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <?php
                         $heads = $headsByDept[$dept['code']] ?? [];
                         $currentHead = $heads[0] ?? null;
+                        $hasMultipleHeads = count($heads) > 1;
+                        $hasAnyHead = count($heads) > 0;
+                        // Disable reassign when the department has exactly one head
+                        $disableReassign = ($hasAnyHead && !$hasMultipleHeads);
                     ?>
                     <tr>
                         <td class="fw-bold ps-3">
@@ -260,13 +242,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <td>
                             <?php if ($currentHead): ?>
                                 <span class="text-body fw-semibold"><?= htmlspecialchars($currentHead['name'], ENT_QUOTES, 'UTF-8') ?></span>
-                                <?php if (count($heads) > 1): ?>
-                                    <?php 
+                                <?php if ($hasMultipleHeads): ?>
+                                    <?php
                                         $headsJson = htmlspecialchars(json_encode($heads), ENT_QUOTES, 'UTF-8');
                                         $deptCodeJson = htmlspecialchars(json_encode($dept['code']), ENT_QUOTES, 'UTF-8');
                                         $deptId = (int) $dept['department_id'];
                                     ?>
-                                    <button type="button" 
+                                    <button type="button"
                                             class="btn btn-sm btn-warning fw-bold border-0 shadow-sm ms-2 py-0 px-2"
                                             onclick="openMultipleHeadsModal(<?= $deptId ?>, <?= $deptCodeJson ?>, <?= $headsJson ?>)">
                                         <i class="fas fa-layer-group me-1"></i>+<?= count($heads) - 1 ?> more
@@ -277,8 +259,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-end pe-3">
-                            <button type="button" class="btn btn-sm btn-outline-primary"
-                                    onclick="openHeadModal(<?= (int) $dept['department_id'] ?>, '<?= htmlspecialchars(addslashes($dept['code']), ENT_QUOTES, 'UTF-8') ?>', <?= $currentHead ? (int) $currentHead['id'] : 0 ?>)">
+                            <button type="button"
+                                    class="btn btn-sm <?= $disableReassign ? 'btn-outline-secondary' : 'btn-outline-primary' ?>"
+                                    <?= $disableReassign ? 'disabled title="Only one head in this department — reassign is disabled."' : '' ?>
+                                    onclick="openHeadModal(
+                                        <?= (int) $dept['department_id'] ?>,
+                                        <?= htmlspecialchars(json_encode($dept['code']), ENT_QUOTES, 'UTF-8') ?>,
+                                        <?= $currentHead ? (int) $currentHead['id'] : 0 ?>
+                                    )">
                                 <i class="fas fa-user-edit me-1"></i>Reassign
                             </button>
                         </td>
@@ -289,6 +277,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
+<!-- ============================ DEANS ============================ -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-body-tertiary fw-bold text-body py-3 border-bottom">
         <i class="fas fa-user-tie text-primary me-2"></i>Deans
@@ -336,7 +325,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </td>
                             <td class="text-end pe-3">
                                 <button type="button" class="btn btn-sm btn-outline-primary"
-                                    onclick="openDeanModal(<?= (int) $dean['id'] ?>, '<?= htmlspecialchars(addslashes($dean['name']), ENT_QUOTES, 'UTF-8') ?>', <?= json_encode($dean['department_ids']) ?>)">
+                                    data-dean-id="<?= (int) $dean['id'] ?>"
+                                    data-dean-name="<?= htmlspecialchars($dean['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                    data-dean-depts="<?= htmlspecialchars(json_encode(array_values($dean['department_ids'])), ENT_QUOTES, 'UTF-8') ?>"
+                                    onclick="openDeanModalFromBtn(this)">
                                     <i class="fas fa-edit me-1"></i>Edit Departments
                                 </button>
                             </td>
@@ -360,8 +352,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <div class="modal-body p-3 p-md-4">
                     <input type="hidden" name="action" value="reassign_head">
                     <input type="hidden" name="department_id" id="hm-dept-id">
-                    <p class="text-body-secondary small mb-3">Department: <strong id="hm-dept-label"
-                            class="text-body"></strong></p>
+                    <p class="text-body-secondary small mb-3">Department: <strong id="hm-dept-label" class="text-body"></strong></p>
 
                     <label class="form-label small fw-bold text-body mb-1">Department Head</label>
                     <select name="head_profile_id" id="hm-head-select" class="form-select">
@@ -373,8 +364,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <div class="form-text text-body-secondary small mt-1">Choosing a name here moves them out of
-                        whichever department they currently head.</div>
+                    <div class="form-text text-body-secondary small mt-1">
+                        Choosing a name here moves them out of whichever department they currently head.
+                    </div>
                 </div>
                 <div class="modal-footer border-top bg-body-tertiary">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -401,9 +393,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     The following Department Heads are assigned to this department. Click <strong>Reassign</strong> on
                     any individual to manage their position:
                 </p>
-                <div class="list-group shadow-sm" id="mhm-heads-list">
-                    <!-- Populated dynamically via JavaScript -->
-                </div>
+                <div class="list-group shadow-sm" id="mhm-heads-list"></div>
             </div>
             <div class="modal-footer border-top bg-body-tertiary">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
@@ -415,7 +405,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <!-- Edit Dean Departments Modal -->
 <div class="modal fade" id="deanModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <form method="POST">
+        <form method="POST" id="deanForm">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header border-bottom py-3">
                     <h5 class="modal-title fw-bold text-body">Edit Dean's Departments</h5>
@@ -424,8 +414,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <div class="modal-body p-3 p-md-4">
                     <input type="hidden" name="action" value="update_dean_assignments">
                     <input type="hidden" name="dean_profile_id" id="dm-dean-id">
-                    <p class="text-body-secondary small mb-3">Dean: <strong id="dm-dean-label"
-                            class="text-body"></strong></p>
+                    <p class="text-body-secondary small mb-3">Dean: <strong id="dm-dean-label" class="text-body"></strong></p>
 
                     <label class="form-label small fw-bold text-body mb-2">Departments Overseen</label>
                     <div id="dm-dept-checkboxes" class="border rounded-3 p-3 d-flex flex-wrap gap-3 bg-body-tertiary">
@@ -450,7 +439,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="assignmentToast" class="toast align-items-center border shadow-lg rounded-3 bg-body text-body" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex align-items-center p-2">
+            <div class="me-2 fs-5 px-1">
+                <i id="assignmentToastIcon" class="fas fa-check-circle text-success"></i>
+            </div>
+            <div class="toast-body fs-7 fw-semibold p-1 text-body" id="assignmentToastMessage"></div>
+            <button type="button" class="btn-close ms-auto me-1 shadow-none" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
 <script>
+/* ============================ REASSIGN HEAD MODAL ============================ */
 function openHeadModal(deptId, deptLabel, currentHeadId) {
     document.getElementById('hm-dept-id').value = deptId;
     document.getElementById('hm-dept-label').textContent = deptLabel;
@@ -458,17 +461,17 @@ function openHeadModal(deptId, deptLabel, currentHeadId) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('headModal')).show();
 }
 
-    function openMultipleHeadsModal(deptId, deptCode, headsList) {
-        document.getElementById('mhm-dept-label').textContent = deptCode;
+/* ============================ MULTIPLE HEADS MODAL ============================ */
+function openMultipleHeadsModal(deptId, deptCode, headsList) {
+    document.getElementById('mhm-dept-label').textContent = deptCode;
 
-        const container = document.getElementById('mhm-heads-list');
-        container.innerHTML = '';
+    const container = document.getElementById('mhm-heads-list');
+    container.innerHTML = '';
 
-        headsList.forEach(function (head) {
-            const item = document.createElement('div');
-            item.className = 'list-group-item d-flex justify-content-between align-items-center py-2 px-3 bg-body';
-
-            item.innerHTML = `
+    headsList.forEach(function (head) {
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center py-2 px-3 bg-body';
+        item.innerHTML = `
             <div>
                 <div class="fw-bold text-body">${head.name}</div>
                 <small class="text-body-secondary">Profile ID: ${head.id}</small>
@@ -477,65 +480,85 @@ function openHeadModal(deptId, deptLabel, currentHeadId) {
                 <i class="fas fa-user-edit me-1"></i>Reassign
             </button>
         `;
-            container.appendChild(item);
-        });
+        container.appendChild(item);
+    });
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('multipleHeadsModal')).show();
 }
 
 function switchModalToReassign(deptId, deptCode, headId) {
-    // Hide list modal, then open reassign modal pre-selecting this specific head
     const multModalEl = document.getElementById('multipleHeadsModal');
     const multModal = bootstrap.Modal.getInstance(multModalEl);
     if (multModal) {
         multModal.hide();
     }
-    
     openHeadModal(deptId, deptCode, headId);
 }
 
-    function switchModalToReassign(deptId, deptCode, headId) {
-        const multModalEl = document.getElementById('multipleHeadsModal');
-        const multModal = bootstrap.Modal.getInstance(multModalEl);
-        if (multModal) {
-            multModal.hide();
-        }
-        openHeadModal(deptId, deptCode, headId);
+/* ============================ EDIT DEAN MODAL ============================ */
+function openDeanModalFromBtn(btn) {
+    const deanId   = parseInt(btn.getAttribute('data-dean-id') || '0', 10);
+    const deanName = btn.getAttribute('data-dean-name') || '';
+
+    let deptIds = [];
+    try {
+        deptIds = JSON.parse(btn.getAttribute('data-dean-depts') || '[]');
+    } catch (e) {
+        deptIds = [];
     }
 
-    function openDeanModal(deanId, deanLabel, currentDeptIds) {
-        document.getElementById('dm-dean-id').value = deanId;
-        document.getElementById('dm-dean-label').textContent = deanLabel;
+    document.getElementById('dm-dean-id').value = deanId;
+    document.getElementById('dm-dean-label').textContent = deanName;
 
-        document.querySelectorAll('.dm-dept-checkbox').forEach(function (cb) {
-            cb.checked = currentDeptIds.includes(parseInt(cb.value, 10));
-        });
-
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('deanModal')).show();
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-
-        // Fire PHP-driven messages as toasts
-        const phpError = <?= json_encode($formError) ?>;
-        const phpSuccess = <?= json_encode($formSuccess) ?>;
-
-        if (phpError) showAssignmentToast(phpError, 'danger');
-        else if (phpSuccess) showAssignmentToast(phpSuccess, 'success');
+    document.querySelectorAll('.dm-dept-checkbox').forEach(function (cb) {
+        cb.checked = deptIds.includes(parseInt(cb.value, 10));
     });
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('deanModal')).show();
 }
 
+/* ============================ TOAST NOTIFICATIONS ============================ */
+function showAssignmentToast(message, tone) {
+    if (!message) return;
+
+    const toastEl   = document.getElementById('assignmentToast');
+    const iconEl    = document.getElementById('assignmentToastIcon');
+    const messageEl = document.getElementById('assignmentToastMessage');
+
+    // Reset classes first
+    toastEl.classList.remove('border-success', 'border-danger', 'border-warning', 'border-primary');
+
+    if (tone === 'danger') {
+        toastEl.classList.add('border-danger');
+        iconEl.className = 'fas fa-times-circle text-danger';
+    } else if (tone === 'warning') {
+        toastEl.classList.add('border-warning');
+        iconEl.className = 'fas fa-exclamation-triangle text-warning';
+    } else {
+        toastEl.classList.add('border-success');
+        iconEl.className = 'fas fa-check-circle text-success';
+    }
+
+    messageEl.textContent = message;
+    bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 4500 }).show();
+}
+
+/* ============================ INIT ============================ */
 document.addEventListener('DOMContentLoaded', function () {
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
+    // Init tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
     });
+
+    // Fire PHP-driven messages as toasts
+    const phpError   = <?= json_encode($formError) ?>;
+    const phpSuccess = <?= json_encode($formSuccess) ?>;
+
+    if (phpError) {
+        showAssignmentToast(phpError, 'danger');
+    } else if (phpSuccess) {
+        showAssignmentToast(phpSuccess, 'success');
+    }
 });
 </script>
 

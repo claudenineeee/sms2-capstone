@@ -19,60 +19,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $userId = (int)($_POST['user_id'] ?? 0);
 
-    if ($action === 'approve_account' && $userId > 0) {
-        $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'active' WHERE id = :user_id");
-        $res1 = $stmt1->execute([':user_id' => $userId]);
+    // users.status ENUM is ('active','inactive','locked','suspended')
+    $statusMap = [
+        'approve_account' => 'active',
+        'restore_active'  => 'active',
+        'toggle_inactive' => 'inactive',
+        'reject_account'  => 'suspended',
+    ];
 
-        $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Active' WHERE user_id = :user_id");
-        $res2 = $stmt2->execute([':user_id' => $userId]);
+    $successMessages = [
+        'approve_account' => ['Faculty account has been approved and activated!', 'success'],
+        'restore_active'  => ['Faculty account has been restored to active status.', 'success'],
+        'toggle_inactive' => ['Faculty account has been marked as inactive and blocked from logging in.', 'warning'],
+        'reject_account'  => ['Faculty account request has been rejected.', 'warning'],
+    ];
 
-        if ($res1 && $res2) {
-            $message = 'Faculty account has been approved and activated!';
-            $messageType = 'success';
-        } else {
-            $message = 'Failed to approve account. Please try again.';
-            $messageType = 'danger';
-        }
-    } elseif ($action === 'reject_account' && $userId > 0) {
-        $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'rejected' WHERE id = :user_id");
-        $res1 = $stmt1->execute([':user_id' => $userId]);
+    if (isset($statusMap[$action]) && $userId > 0) {
+        try {
+            $stmt = $pdo->prepare("UPDATE users SET status = :status WHERE id = :id");
+            $stmt->execute([':status' => $statusMap[$action], ':id' => $userId]);
+            $rowsAffected = $stmt->rowCount();
 
-        $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Rejected' WHERE user_id = :user_id");
-        $res2 = $stmt2->execute([':user_id' => $userId]);
+            if ($rowsAffected > 0) {
+                [$message, $messageType] = $successMessages[$action];
+            } else {
+                // Either the user doesn't exist, or it was already in that state.
+                // Verify which one:
+                $check = $pdo->prepare("SELECT status FROM users WHERE id = :id");
+                $check->execute([':id' => $userId]);
+                $current = $check->fetchColumn();
 
-        if ($res1 && $res2) {
-            $message = 'Faculty account request has been rejected.';
-            $messageType = 'warning';
-        } else {
-            $message = 'Failed to reject account.';
-            $messageType = 'danger';
-        }
-    } elseif ($action === 'toggle_inactive' && $userId > 0) {
-        $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'inactive' WHERE id = :user_id");
-        $res1 = $stmt1->execute([':user_id' => $userId]);
-
-        $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Inactive' WHERE user_id = :user_id");
-        $res2 = $stmt2->execute([':user_id' => $userId]);
-
-        if ($res1 && $res2) {
-            $message = 'Faculty account has been marked as inactive and blocked from logging in.';
-            $messageType = 'warning';
-        } else {
-            $message = 'Failed to update account status.';
-            $messageType = 'danger';
-        }
-    } elseif ($action === 'restore_active' && $userId > 0) {
-        $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'active' WHERE id = :user_id");
-        $res1 = $stmt1->execute([':user_id' => $userId]);
-
-        $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Active' WHERE user_id = :user_id");
-        $res2 = $stmt2->execute([':user_id' => $userId]);
-
-        if ($res1 && $res2) {
-            $message = 'Faculty account has been restored to active status.';
-            $messageType = 'success';
-        } else {
-            $message = 'Failed to restore account status.';
+                if ($current === false) {
+                    $message = 'Account not found in the system. Please refresh and try again.';
+                    $messageType = 'danger';
+                } else {
+                    // Already in the requested state — treat as success, no change needed.
+                    [$message, $messageType] = $successMessages[$action];
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('[faculty-profile] Status update failed for user_id=' . $userId . ': ' . $e->getMessage());
+            $message = 'Failed to update account status. Please try again.';
             $messageType = 'danger';
         }
     } else {
@@ -88,14 +75,45 @@ $showInactive = isset($_GET['view']) && $_GET['view'] === 'inactive';
 // 2. Retrieve directory list with Role-Based Scope
 $rawProfiles = $controller->getDirectoryList();
 
+// ---------- PATCH: sync profile_status with the real users.status ----------
+// The controller's getDirectoryList() may return a stale or unrelated
+// "profile_status". We fetch the actual users.status for every profile
+// and overwrite it so the Active/Inactive filter works correctly.
+if (!empty($rawProfiles)) {
+    $userIds = array_values(array_filter(array_map(
+        fn($p) => (int)($p['user_id'] ?? 0),
+        $rawProfiles
+    )));
+
+    if (!empty($userIds)) {
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+        $statusStmt = $pdo->prepare("SELECT id, status FROM users WHERE id IN ($placeholders)");
+        $statusStmt->execute($userIds);
+        $realStatuses = $statusStmt->fetchAll(PDO::FETCH_KEY_PAIR); // [id => status]
+
+        foreach ($rawProfiles as &$p) {
+            $uid = (int)($p['user_id'] ?? 0);
+            if (isset($realStatuses[$uid])) {
+                $p['profile_status'] = $realStatuses[$uid];
+            }
+        }
+        unset($p);
+    }
+}
+// ---------- /PATCH ----------
+
 // Filter profiles based on Active / Inactive view
 $rawProfiles = array_filter($rawProfiles, function ($profile) use ($showInactive) {
-    $pStatus = strtolower(trim($profile['profile_status'] ?? 'active'));
-    if ($showInactive) {
-        return $pStatus === 'inactive';
-    } else {
-        return $pStatus !== 'inactive';
-    }
+    $rawStatus = $profile['profile_status']
+        ?? $profile['user_status']
+        ?? $profile['account_status']
+        ?? $profile['status']
+        ?? 'active';
+
+    $pStatus = strtolower(trim((string)$rawStatus));
+    $isInactive = in_array($pStatus, ['inactive', 'suspended', 'locked'], true);
+
+    return $showInactive ? $isInactive : !$isInactive;
 });
 
 $userRole       = strtolower($_SESSION['role'] ?? $_SESSION['user_role'] ?? '');
@@ -121,20 +139,20 @@ if (in_array($userRole, ['admin', 'superadmin', 'administrator'], true)) {
         $userCollege = 'CCS';
     }
     $allowedDepts = $collegeScopes[$userCollege] ?? [];
-    
+
     $facultyProfiles = array_filter($rawProfiles, function ($profile) use ($allowedDepts) {
         $dept = $profile['designated_department'] ?? $profile['designated_dept'] ?? '';
         return in_array($dept, $allowedDepts, true);
     });
 } elseif (in_array($userRole, ['department_head', 'head', 'dept_head', 'department head'], true)) {
     $targetDepts = $deptAliases[$userDepartment] ?? [$userDepartment];
-    
+
     $facultyProfiles = array_filter($rawProfiles, function ($profile) use ($targetDepts) {
         $dept = $profile['designated_department'] ?? $profile['designated_dept'] ?? '';
         return in_array($dept, $targetDepts, true);
     });
 } else {
-    $facultyProfiles = $rawProfiles; 
+    $facultyProfiles = $rawProfiles;
 }
 
 $pageTitle    = 'Faculty Profile';
@@ -217,6 +235,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <?php foreach ($facultyProfiles as $profile): ?>
                                 <?php
                                     $fullName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['middle_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
+                                    if ($fullName === '') {
+                                        $fullName = trim((string) ($profile['full_name'] ?? ''));
+                                    }
                                     $departmentLabel = FacultyController::getDepartmentLabel((string) ($profile['designated_department'] ?? $profile['designated_dept'] ?? ''));
                                     $employmentStatus = ucwords(strtolower((string) ($profile['employment_status'] ?? '')));
                                     $profileStatus = ucwords(strtolower((string) ($profile['profile_status'] ?? '')));
@@ -229,7 +250,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     $hiredDate = trim((string) ($profile['hired_date'] ?? ''));
                                     $contractualEnd = trim((string) ($profile['contractual_end'] ?? ''));
                                     $userId = (int)($profile['user_id'] ?? 0);
-                                    
+
                                     $isPending = str_contains(strtolower($profileStatus), 'pending');
 
                                     $initials = '';
@@ -366,7 +387,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- Custom Confirmation Modal using Bootstrap Native Theme Classes (.bg-body, .text-body, .border-light-subtle) -->
+<!-- Custom Confirmation Modal -->
 <div class="modal fade" id="actionConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="max-width: 450px;">
         <div class="modal-content border border-light-subtle rounded-4 shadow bg-body text-body">
@@ -587,16 +608,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     document.addEventListener('DOMContentLoaded', () => {
         initPagination();
 
-        // Trigger Bootstrap Toast if message is present with proper dark/light mode styling
         const phpMessage = <?= json_encode($message) ?>;
         const messageType = <?= json_encode($messageType) ?>;
-        
+
         if (phpMessage && phpMessage.trim() !== '') {
             const toastEl = document.getElementById('liveToast');
             const toastIcon = document.getElementById('toastIcon');
-            const toastIconContainer = document.getElementById('toastIconContainer');
-            
-            // Apply explicit styling based on type (success = green, warning/danger = red)
+
             if (messageType === 'success') {
                 toastEl.classList.add('border-success');
                 toastEl.style.backgroundColor = 'var(--bs-body-bg)';
@@ -733,7 +751,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             submitBtn.innerHTML = '<i class="fas fa-user-slash me-1"></i> Yes, Inactive';
         }
 
-        // Hide review details modal if open
         const reviewModalEl = document.getElementById('facultyModal');
         if (reviewModalEl) {
             const reviewModal = bootstrap.Modal.getInstance(reviewModalEl);
@@ -742,7 +759,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             }
         }
 
-        // Show confirmation dialog modal
         const confirmModalEl = document.getElementById('actionConfirmModal');
         if (confirmModalEl && window.bootstrap && bootstrap.Modal) {
             bootstrap.Modal.getOrCreateInstance(confirmModalEl).show();

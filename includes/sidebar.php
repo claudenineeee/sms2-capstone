@@ -116,13 +116,22 @@ $facultyAdministrator = [
     'Faculty' => [
         ['slug' => 'faculty-profile', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-profile.php', 'icon' => 'fa-id-badge', 'label' => 'Faculty Profile'],
         ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
+        ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-performance.php', 'icon' => 'fa-chart-line', 'label' => 'Faculty Performance'],
     ],
-    'Pending & Approvals' => [
+    'Pending Approvals' => [
         ['slug' => 'pending-approvals', 'href' => BASE_URL . '/modules/faculty/views/administrator/pending-approvals.php', 'icon' => 'fa-user-clock', 'label' => 'Pending Approvals'],
     ],
     'Departments' => [
         ['slug' => 'departments', 'href' => BASE_URL . '/modules/faculty/views/administrator/departments.php', 'icon' => 'fa-building', 'label' => 'Departments'],
         ['slug' => 'department-assignments', 'href' => BASE_URL . '/modules/faculty/views/administrator/department-assignments.php', 'icon' => 'fa-user-tag', 'label' => 'Department Assignments'],
+    ],
+    'Evaluation & Leave Application' => [
+        ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/administrator/evaluation-summary.php', 'icon' => 'fa-chart-pie', 'label' => 'Evaluation Summary'],
+        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/administrator/leave-application-approval.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Application'],
+    ],
+    'Clearance & Teaching Load' => [
+        ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
+        ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/administrator/teaching-load-approval.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
     ],
 ];
 $facultyDeanNavGroups = [
