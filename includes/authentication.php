@@ -471,8 +471,8 @@ function smsPostLoginRedirectUrl(): string
         return BASE_URL . '/modules/faculty/views/hr/dashboard.php';
     }
 
-    if ($roleKey === 'registrar_clearance') {
-        return BASE_URL . '/modules/faculty/views/registrar/faculty-clearance.php';
+    if (in_array($roleKey, ['registrar_clearance', 'registrar'], true)) {
+        return BASE_URL . '/modules/faculty/views/registrar/dashboard.php';
     }
 
     if (in_array($roleKey, ['library_clearance', 'library'], true)) {
