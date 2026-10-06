@@ -108,32 +108,51 @@ $facultyAccountNavGroups = [
         ['slug' => 'security-settings', 'href' => BASE_URL . '/account/module-security.php?module=faculty', 'icon' => 'fa-shield-alt', 'label' => 'Security Settings'],
     ],
 ];
+
 //FACULTY MANAGEMENT USER TYPES
 $facultyAdministrator = [
     'Dashboard' => [
-        ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/administrator/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
+        ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/administrator/dashboard.php', 'icon' => 'fa-gauge-high', 'label' => 'Dashboard'],
     ],
     'Faculty' => [
-        ['slug' => 'faculty-profile', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-profile.php', 'icon' => 'fa-id-badge', 'label' => 'Faculty Profile'],
-        ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
-        ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-performance.php', 'icon' => 'fa-chart-line', 'label' => 'Faculty Performance'],
+        ['slug' => 'faculty-profile',     'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-profile.php',     'icon' => 'fa-id-badge',    'label' => 'Faculty Profile'],
+        ['slug' => 'faculty-directory',   'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-directory.php',   'icon' => 'fa-address-book','label' => 'Faculty Directory'],
+        ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-performance.php', 'icon' => 'fa-chart-line',  'label' => 'Faculty Performance'],
     ],
-    'Pending Approvals' => [
+    'Approvals' => [
         ['slug' => 'pending-approvals', 'href' => BASE_URL . '/modules/faculty/views/administrator/pending-approvals.php', 'icon' => 'fa-user-clock', 'label' => 'Pending Approvals'],
     ],
     'Departments' => [
-        ['slug' => 'departments', 'href' => BASE_URL . '/modules/faculty/views/administrator/departments.php', 'icon' => 'fa-building', 'label' => 'Departments'],
-        ['slug' => 'department-assignments', 'href' => BASE_URL . '/modules/faculty/views/administrator/department-assignments.php', 'icon' => 'fa-user-tag', 'label' => 'Department Assignments'],
+        ['slug' => 'departments',             'href' => BASE_URL . '/modules/faculty/views/administrator/departments.php',             'icon' => 'fa-building',  'label' => 'Departments'],
+        ['slug' => 'department-assignments',  'href' => BASE_URL . '/modules/faculty/views/administrator/department-assignments.php',  'icon' => 'fa-user-tag',  'label' => 'Department Assignments'],
     ],
-    'Evaluation & Leave Application' => [
-        ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/administrator/evaluation-summary.php', 'icon' => 'fa-chart-pie', 'label' => 'Evaluation Summary'],
-        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/administrator/leave-application-approval.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Application'],
+    'Evaluation &amp; Leave Application' => [
+        ['slug' => 'evaluation-summary',         'href' => BASE_URL . '/modules/faculty/views/administrator/evaluation-summary.php',         'icon' => 'fa-chart-pie',       'label' => 'Evaluation Summary'],
+        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/administrator/leave-application-approval.php', 'icon' => 'fa-file-signature',  'label' => 'Leave Application'],
     ],
-    'Clearance & Teaching Load' => [
-        ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
-        ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/administrator/teaching-load-approval.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
+    'Clearance &amp; Teaching Load' => [
+        ['slug' => 'faculty-clearance',        'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-clearance.php',        'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
+        ['slug' => 'teaching-load-approval',   'href' => BASE_URL . '/modules/faculty/views/administrator/teaching-load-approval.php',   'icon' => 'fa-layer-group',     'label' => 'Teaching Load'],
+    ],
+    'History' => [
+        [
+            'slug'     => 'history',
+            'href'     => '#',                // ← safe default for dropdown toggle
+            'icon'     => 'fa-clock-rotate-left',
+            'label'    => 'History',
+            'dropdown' => true,
+            'children' => [
+                ['slug' => 'leave-history',          'href' => BASE_URL . '/modules/faculty/views/administrator/history-leave.php',          'icon' => 'fa-file-signature',  'label' => 'Leave Request History'],
+                ['slug' => 'attendance-history',     'href' => BASE_URL . '/modules/faculty/views/administrator/history-attendance.php',     'icon' => 'fa-calendar-check',  'label' => 'Attendance History'],
+                ['slug' => 'approval-history',       'href' => BASE_URL . '/modules/faculty/views/administrator/history-approval.php',       'icon' => 'fa-user-check',      'label' => 'Approval History'],
+                ['slug' => 'evaluation-history',     'href' => BASE_URL . '/modules/faculty/views/administrator/history-evaluation.php',     'icon' => 'fa-chart-pie',       'label' => 'Evaluation History'],
+                ['slug' => 'teaching-load-history',  'href' => BASE_URL . '/modules/faculty/views/administrator/history-load-teaching.php',  'icon' => 'fa-layer-group',     'label' => 'Teaching Load History'],
+                ['slug' => 'clearance-history',      'href' => BASE_URL . '/modules/faculty/views/administrator/history-clearance.php',      'icon' => 'fa-clipboard-list',  'label' => 'Clearance History'],
+            ],
+        ],
     ],
 ];
+
 $facultyDeanNavGroups = [
     'Faculty Profiles' => [
         ['slug' => 'faculty-profile', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-profile.php', 'icon' => 'fa-id-badge', 'label' => 'Faculty Profile'],
@@ -340,17 +359,62 @@ $facultyScheduleOfficerNavGroups = [
                         </span>
                     </li>
                     <?php foreach ($groupItems as $item): ?>
-                        <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
-                        <li class="nav-item">
-                            <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
-                                data-title="<?= htmlspecialchars($item['label']) ?>"
-                                title="<?= htmlspecialchars($item['label']) ?>">
-                                <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
-                                <span>
-                                    <?= htmlspecialchars($item['label']) ?>
-                                </span>
-                            </a>
-                        </li>
+                        <?php if (!empty($item['children'])): ?>
+                            <?php
+                            // CHANGED: added this branch so an item with a 'children'
+                            // array (like the new "History" entry) renders as a
+                            // Bootstrap-collapse dropdown instead of a plain <a> —
+                            // mirrors the same pattern already used for the FACULTY
+                            // role's submenus below, adapted to match on 'slug'
+                            // (this module's pages don't use the ?view= pattern).
+                            $childSlugs = array_column($item['children'], 'slug');
+                            $isParentActive = ($activeModule === 'faculty' && in_array($activePage, $childSlugs, true));
+                            $submenuId = 'sidebarSubmenu_' . preg_replace('/[^a-zA-Z0-9_\-]/', '', (string) $item['slug']);
+                            ?>
+                            <li class="nav-item">
+                                <a class="nav-link sidebar-sub sidebar-parent <?= $isParentActive ? 'active' : '' ?>"
+                                    href="#<?= $submenuId ?>" data-bs-toggle="collapse" role="button"
+                                    aria-expanded="<?= $isParentActive ? 'true' : 'false' ?>" aria-controls="<?= $submenuId ?>"
+                                    data-title="<?= htmlspecialchars($item['label']) ?>"
+                                    title="<?= htmlspecialchars($item['label']) ?>">
+                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                    <span>
+                                        <?= htmlspecialchars($item['label']) ?>
+                                    </span>
+                                    <i class="fas fa-chevron-down sidebar-chevron" aria-hidden="true"></i>
+                                </a>
+                                <div class="collapse sidebar-submenu <?= $isParentActive ? 'show' : '' ?>" id="<?= $submenuId ?>">
+                                    <ul class="nav flex-column ps-2">
+                                        <?php foreach ($item['children'] as $child): ?>
+                                            <?php $isChildActive = ($isParentActive && $activePage === $child['slug']); ?>
+                                            <li class="nav-item">
+                                                <a class="nav-link sidebar-sub <?= $isChildActive ? 'active' : '' ?>"
+                                                    href="<?= htmlspecialchars($child['href']) ?>"
+                                                    data-title="<?= htmlspecialchars($child['label']) ?>"
+                                                    title="<?= htmlspecialchars($child['label']) ?>">
+                                                    <i class="fas <?= htmlspecialchars($child['icon']) ?>" aria-hidden="true"></i>
+                                                    <span>
+                                                        <?= htmlspecialchars($child['label']) ?>
+                                                    </span>
+                                                </a>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            </li>
+                        <?php else: ?>
+                            <?php $linkClass = ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : ''; ?>
+                            <li class="nav-item">
+                                <a class="nav-link sidebar-sub <?= $linkClass ?>" href="<?= htmlspecialchars($item['href']) ?>"
+                                    data-title="<?= htmlspecialchars($item['label']) ?>"
+                                    title="<?= htmlspecialchars($item['label']) ?>">
+                                    <i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
+                                    <span>
+                                        <?= htmlspecialchars($item['label']) ?>
+                                    </span>
+                                </a>
+                            </li>
+                        <?php endif; ?>
                     <?php endforeach; ?>
                 <?php endforeach; ?>
 
