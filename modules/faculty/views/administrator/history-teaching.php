@@ -1,9 +1,10 @@
 <?php
 /**
- * SMS 2 - Faculty Admin - Approval History
- * Charts + Records redesigned; Top Approvers sits beside the records table.
- * Client-side filtering, theme-aware chart legends, responsive to 344px.
- * Records: 10 per page. Top Approvers: top 8 ranked list.
+ * SMS 2 - Faculty Admin - Teaching Load History
+ * Layout: 2 rows × 2 columns.
+ *   Row 1: Teaching Load Trend | Teaching Load Records
+ *   Row 2: Status Distribution | Units by Department
+ * Pagination: 10 per page. Responsive to 344px.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
@@ -33,87 +34,104 @@ $totalRawCount = 0;
 try {
     if (!$pdo instanceof PDO) { throw new RuntimeException('Database unavailable.'); }
 
-    $clearStmt = $pdo->query("
+    /* ---- Requests ---- */
+    $reqStmt = $pdo->query("
         SELECT
-            coa.id                  AS row_id,
-            'Clearance'             AS category,
-            coa.office              AS subject,
-            coa.approval_ref        AS ref_no,
-            coa.faculty_id          AS faculty_id,
-            coa.approver_name       AS actor_name,
-            coa.approver_role       AS actor_role,
-            coa.status              AS status,
-            coa.remarks             AS remarks,
-            coa.approved_at         AS acted_at,
+            tlr.load_request_id       AS row_id,
+            'Request'                 AS kind,
+            tlr.faculty_id            AS faculty_id,
+            tlr.term_id               AS term_id,
+            tlr.total_units           AS total_units,
+            tlr.status                AS status,
+            tlr.submitted_at          AS acted_at,
+            tlr.reviewed_at           AS reviewed_at,
+            tlr.comments              AS remarks,
+            at.academic_year,
+            at.semester,
             fp.first_name,
             fp.last_name,
-            fp.designated_department AS dept
-        FROM faculty_db.clearance_office_approvals coa
-        LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = coa.faculty_id
-        ORDER BY coa.approved_at DESC
+            fp.designated_department AS dept,
+            (SELECT COUNT(*) FROM faculty_db.teaching_load_request_items tri
+                WHERE tri.load_request_id = tlr.load_request_id) AS subject_count
+        FROM faculty_db.teaching_load_requests tlr
+        LEFT JOIN faculty_db.academic_terms at ON at.term_id = tlr.term_id
+        LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = tlr.faculty_id
+        ORDER BY tlr.submitted_at DESC
     ");
-    foreach ($clearStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    foreach ($reqStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $allRows[] = [
-            'row_id'     => (int) $r['row_id'],
-            'category'   => 'Clearance',
-            'subject'    => (string) $r['subject'],
-            'ref_no'     => (string) $r['ref_no'],
-            'faculty_id' => (int) $r['faculty_id'],
-            'actor_name' => (string) $r['actor_name'],
-            'actor_role' => (string) $r['actor_role'],
-            'status'     => (string) $r['status'],
-            'remarks'    => (string) ($r['remarks'] ?? ''),
-            'acted_at'   => (string) $r['acted_at'],
-            'first_name' => (string) ($r['first_name'] ?? ''),
-            'last_name'  => (string) ($r['last_name'] ?? ''),
-            'dept'       => (string) ($r['dept'] ?? ''),
+            'row_id'        => (int) $r['row_id'],
+            'kind'          => 'Request',
+            'faculty_id'    => (int) $r['faculty_id'],
+            'term_id'       => (int) $r['term_id'],
+            'academic_year' => (string) ($r['academic_year'] ?? ''),
+            'semester'      => (string) ($r['semester'] ?? ''),
+            'subject_count' => (int) ($r['subject_count'] ?? 0),
+            'total_units'   => (float) ($r['total_units'] ?? 0),
+            'status'        => (string) ($r['status'] ?? 'Pending'),
+            'acted_at'      => (string) ($r['acted_at'] ?? ''),
+            'reviewed_at'   => (string) ($r['reviewed_at'] ?? ''),
+            'remarks'       => (string) ($r['remarks'] ?? ''),
+            'first_name'    => (string) ($r['first_name'] ?? ''),
+            'last_name'     => (string) ($r['last_name'] ?? ''),
+            'dept'          => (string) ($r['dept'] ?? ''),
         ];
     }
 
-    $leaveStmt = $pdo->query("
+    /* ---- Archived ---- */
+    $histStmt = $pdo->query("
         SELECT
-            lr.id                   AS row_id,
-            'Leave'                 AS category,
-            lr.leave_type           AS subject,
-            lr.request_ref          AS ref_no,
-            lr.faculty_id           AS faculty_id,
-            lr.approver_id          AS actor_id,
-            lr.approved_by_external_id AS actor_ext,
-            lr.approval_status      AS status,
-            lr.approver_comment     AS remarks,
-            COALESCE(lr.approved_at, lr.updated_at, lr.created_at) AS acted_at,
+            tlh.history_id            AS row_id,
+            'Archived'                AS kind,
+            tlh.faculty_id            AS faculty_id,
+            tlh.term_id               AS term_id,
+            tlh.total_units           AS total_units,
+            tlh.subject_count         AS subject_count,
+            tlh.total_students        AS total_students,
+            tlh.status                AS status,
+            at.academic_year,
+            at.semester,
             fp.first_name,
             fp.last_name,
             fp.designated_department AS dept
-        FROM faculty_db.leave_requests lr
-        LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = lr.faculty_id
-        WHERE lr.approval_status IN ('Approved','Rejected','Pending','Cancelled')
-        ORDER BY acted_at DESC
+        FROM faculty_db.teaching_load_history tlh
+        LEFT JOIN faculty_db.academic_terms at ON at.term_id = tlh.term_id
+        LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = tlh.faculty_id
+        ORDER BY tlh.history_id DESC
     ");
-    foreach ($leaveStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    foreach ($histStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $year = $r['academic_year'] ?? '';
+        $actedAt = '';
+        if (preg_match('/^(\d{4})-/', $year, $m)) {
+            $actedAt = $m[1] . '-06-01 00:00:00';
+        }
         $allRows[] = [
-            'row_id'     => (int) $r['row_id'],
-            'category'   => 'Leave',
-            'subject'    => (string) $r['subject'],
-            'ref_no'     => (string) $r['ref_no'],
-            'faculty_id' => (int) $r['faculty_id'],
-            'actor_name' => $r['actor_ext'] ? ('User #' . $r['actor_ext']) : ($r['actor_id'] ? ('User #' . $r['actor_id']) : '—'),
-            'actor_role' => 'Approver',
-            'status'     => (string) $r['status'],
-            'remarks'    => (string) ($r['remarks'] ?? ''),
-            'acted_at'   => (string) $r['acted_at'],
-            'first_name' => (string) ($r['first_name'] ?? ''),
-            'last_name'  => (string) ($r['last_name'] ?? ''),
-            'dept'       => (string) ($r['dept'] ?? ''),
+            'row_id'        => (int) $r['row_id'],
+            'kind'          => 'Archived',
+            'faculty_id'    => (int) $r['faculty_id'],
+            'term_id'       => (int) $r['term_id'],
+            'academic_year' => (string) ($r['academic_year'] ?? ''),
+            'semester'      => (string) ($r['semester'] ?? ''),
+            'subject_count' => (int) ($r['subject_count'] ?? 0),
+            'total_units'   => (float) ($r['total_units'] ?? 0),
+            'total_students'=> (int) ($r['total_students'] ?? 0),
+            'status'        => (string) ($r['status'] ?? 'Completed'),
+            'acted_at'      => $actedAt,
+            'reviewed_at'   => '',
+            'remarks'       => '',
+            'first_name'    => (string) ($r['first_name'] ?? ''),
+            'last_name'     => (string) ($r['last_name'] ?? ''),
+            'dept'          => (string) ($r['dept'] ?? ''),
         ];
     }
 
     usort($allRows, function ($a, $b) {
         return strcmp($b['acted_at'], $a['acted_at']);
     });
+
     $totalRawCount = count($allRows);
 } catch (Throwable $e) {
-    error_log('Approval history load failed: ' . $e->getMessage());
+    error_log('Teaching load history load failed: ' . $e->getMessage());
     $loadError = 'Some data could not be loaded. Try again later.';
 }
 
@@ -122,12 +140,17 @@ try {
    ============================================================ */
 $schoolYears = [];
 foreach ($allRows as $r) {
-    $ts = strtotime($r['acted_at']);
-    if (!$ts) continue;
-    $y = (int) date('Y', $ts);
-    $m = (int) date('n', $ts);
-    $syStart = $m >= 6 ? $y : $y - 1;
-    $schoolYears[$syStart . '-' . ($syStart + 1)] = true;
+    if (!empty($r['academic_year'])) {
+        $schoolYears[$r['academic_year']] = true;
+    } elseif ($r['acted_at']) {
+        $ts = strtotime($r['acted_at']);
+        if ($ts) {
+            $y = (int) date('Y', $ts);
+            $m = (int) date('n', $ts);
+            $syStart = $m >= 6 ? $y : $y - 1;
+            $schoolYears[$syStart . '-' . ($syStart + 1)] = true;
+        }
+    }
 }
 ksort($schoolYears);
 $schoolYears = array_keys($schoolYears);
@@ -138,13 +161,13 @@ $weekLabels = [1=>'Week 1 · 1–7',2=>'Week 2 · 8–14',3=>'Week 3 · 15–21'
 /* ============================================================
    Page config
    ============================================================ */
-$pageTitle    = 'Approval History';
+$pageTitle    = 'Teaching Load History';
 $activeModule = 'faculty';
-$activePage   = 'approval-history';
+$activePage   = 'teaching-load-history';
 $breadcrumbs  = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
     ['label' => 'History', 'url' => null],
-    ['label' => 'Approval History', 'url' => null],
+    ['label' => 'Teaching Load', 'url' => null],
 ];
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
@@ -153,7 +176,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-<div class="container-fluid px-3 px-md-4 px-lg-5 py-4" id="apprPage">
+<div class="container-fluid px-3 px-md-4 px-lg-5 py-4" id="tlPage">
 
     <?php if ($loadError): ?>
         <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
@@ -163,7 +186,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <?php endif; ?>
 
     <div class="d-none d-print-block text-center mb-3">
-        <h4 class="mb-0 fw-bold">Approval History Report</h4>
+        <h4 class="mb-0 fw-bold">Teaching Load History Report</h4>
         <small>Generated <?= date('F j, Y g:i A') ?></small>
         <p class="small mb-0 mt-1"><em>Faculty identities are blurred for privacy.</em></p>
     </div>
@@ -171,8 +194,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <!-- ================= Page Header ================= -->
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4 no-print">
         <div class="min-w-0">
-            <h1 class="h3 fw-bold mb-1 text-body-emphasis">Approval History</h1>
-            <p class="text-body-secondary mb-0">Every approval action taken across clearance and leave requests.</p>
+            <h1 class="h3 fw-bold mb-1 text-body-emphasis">Teaching Load History</h1>
+            <p class="text-body-secondary mb-0">Submitted load requests and archived teaching assignments across terms.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <label class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 border bg-body-tertiary mb-0"
@@ -200,12 +223,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
                     <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
                          style="width:42px;height:42px;font-size:1.2rem;background:rgba(13,110,253,0.12);color:#0d6efd;">
-                        <i class="fas fa-clipboard-check"></i>
+                        <i class="fas fa-layer-group"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Total Actions</h6>
+                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Total Loads</h6>
                         <h4 class="mb-0 fw-bold" style="color:#0d6efd;" id="kpiTotal">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#0d6efd;font-size:0.7rem;">All approvals</small>
+                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#0d6efd;font-size:0.7rem;">All records</small>
                     </div>
                 </div>
             </section>
@@ -216,13 +239,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
                     <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
                          style="width:42px;height:42px;font-size:1.2rem;background:rgba(16,185,129,0.14);color:#10b981;">
-                        <i class="fas fa-circle-check"></i>
+                        <i class="fas fa-check-circle"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Approved</h6>
+                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Approved / Done</h6>
                         <h4 class="mb-0 fw-bold" style="color:#10b981;" id="kpiApproved">0</h4>
                         <small class="fw-semibold d-block mt-1 text-truncate" style="color:#10b981;font-size:0.7rem;">
-                            <span id="kpiApprovedPct">0%</span> approval rate
+                            <span id="kpiApprovedPct">0%</span> of total
                         </small>
                     </div>
                 </div>
@@ -234,12 +257,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
                     <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
                          style="width:42px;height:42px;font-size:1.2rem;background:rgba(245,158,11,0.14);color:#f59e0b;">
-                        <i class="fas fa-hourglass-half"></i>
+                        <i class="fas fa-clock"></i>
                     </div>
                     <div class="min-w-0">
                         <h6 class="text-muted mb-1 small text-uppercase fw-bold">Pending</h6>
                         <h4 class="mb-0 fw-bold" style="color:#f59e0b;" id="kpiPending">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#f59e0b;font-size:0.7rem;">Awaiting action</small>
+                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#f59e0b;font-size:0.7rem;">Awaiting review</small>
                     </div>
                 </div>
             </section>
@@ -250,12 +273,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
                     <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(255,77,77,0.14);color:#ff4d4d;">
-                        <i class="fas fa-circle-xmark"></i>
+                        <i class="fas fa-book-open"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Rejected</h6>
-                        <h4 class="mb-0 fw-bold" style="color:#ff4d4d;" id="kpiRejected">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#ff4d4d;font-size:0.7rem;">Declined actions</small>
+                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Total Units</h6>
+                        <h4 class="mb-0 fw-bold" style="color:#ff4d4d;" id="kpiUnits">0</h4>
+                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#ff4d4d;font-size:0.7rem;">Units assigned</small>
                     </div>
                 </div>
             </section>
@@ -302,84 +325,42 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- ================= Charts ================= -->
-    <div class="row g-3 mb-4 no-print">
-
-        <div class="col-12">
-            <div class="card border shadow-sm">
-                <div class="card-body">
+    <!-- ============================================================
+         ROW 1 — Teaching Load Trend (left) | Teaching Load Records (right)
+         ============================================================ -->
+    <div class="row g-3 mb-3">
+        <!-- Trend -->
+        <div class="col-12 col-lg-6">
+            <div class="card border shadow-sm h-100">
+                <div class="card-body d-flex flex-column">
                     <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
                         <div>
-                            <h5 class="card-title mb-1 fw-bold">Approval Trend</h5>
-                            <p class="text-body-secondary small mb-0">Monthly breakdown of approved, pending, and rejected actions</p>
+                            <h5 class="card-title mb-1 fw-bold">Teaching Load Trend</h5>
+                            <p class="text-body-secondary small mb-0">Monthly total units assigned</p>
                         </div>
                         <span class="badge text-bg-light border" id="trendCountBadge">0 periods</span>
                     </div>
-                    <div class="position-relative w-100" style="height:280px;">
+                    <div class="position-relative w-100 flex-grow-1" style="min-height:320px;">
                         <canvas id="trendChart"></canvas>
-                        <div class="appr-empty d-none" id="trendEmpty">
+                        <div class="tl-empty d-none" id="trendEmpty">
                             <i class="fas fa-chart-line"></i>
                             <h6>No trend data yet</h6>
-                            <p>Activity trends will appear once approvals come in.</p>
+                            <p>Load trends will appear once teaching loads are submitted.</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Records -->
         <div class="col-12 col-lg-6">
-            <div class="card border shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                        <div>
-                            <h5 class="card-title mb-1 fw-bold">Status Distribution</h5>
-                            <p class="text-body-secondary small mb-0">Approved vs pending vs rejected</p>
-                        </div>
-                    </div>
-                    <div class="position-relative w-100" style="height:260px;">
-                        <canvas id="statusChart"></canvas>
-                        <div class="appr-empty d-none" id="statusEmpty">
-                            <i class="fas fa-chart-pie"></i>
-                            <h6>No status data yet</h6>
-                            <p>Status breakdown will show here.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-lg-6">
-            <div class="card border shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                        <div>
-                            <h5 class="card-title mb-1 fw-bold">By Category</h5>
-                            <p class="text-body-secondary small mb-0">Clearance vs leave approvals</p>
-                        </div>
-                    </div>
-                    <div class="position-relative w-100" style="height:260px;">
-                        <canvas id="categoryChart"></canvas>
-                        <div class="appr-empty d-none" id="categoryEmpty">
-                            <i class="fas fa-chart-column"></i>
-                            <h6>No category data</h6>
-                            <p>Category breakdown will appear once approvals exist.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ================= Records + Top Approvers ================= -->
-    <div class="row g-3">
-        <div class="col-12 col-xl-8">
-            <div class="card border shadow-sm h-100 overflow-hidden">
+            <div class="card border shadow-sm h-100 overflow-hidden d-flex flex-column">
                 <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-start flex-wrap gap-3 py-3 no-print">
                     <div>
-                        <h5 class="card-title mb-1 fw-bold">Approval Records</h5>
+                        <h5 class="card-title mb-1 fw-bold">Teaching Load Records</h5>
                         <p class="text-body-secondary small mb-0" id="recordsSubtitle">No results</p>
                     </div>
-                    <div class="d-flex flex-wrap gap-3 align-items-center">
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
                         <span class="d-inline-flex align-items-center gap-2 small fw-semibold text-body-secondary">
                             <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:#10b981;"></span>Approved
                         </span>
@@ -392,45 +373,75 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
                 </div>
 
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0 appr-history-table">
+                <div class="table-responsive flex-grow-1">
+                    <table class="table align-middle mb-0 tl-history-table">
                         <thead>
                             <tr>
                                 <th class="text-uppercase small fw-bold text-body-secondary">Faculty</th>
-                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-md-table-cell">Category</th>
-                                <th class="text-uppercase small fw-bold text-body-secondary">Subject</th>
-                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-lg-table-cell">Approver</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-md-table-cell">Term</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-sm-table-cell text-center">Subj</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary text-center">Units</th>
                                 <th class="text-uppercase small fw-bold text-body-secondary">Status</th>
-                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-sm-table-cell">Ref</th>
-                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-lg-table-cell">Date</th>
                             </tr>
                         </thead>
                         <tbody id="recordsBody"></tbody>
                     </table>
                 </div>
 
-                <div class="card-footer bg-transparent border-top d-flex justify-content-between align-items-center flex-wrap gap-3 py-3 no-print">
+                <div class="card-footer bg-transparent border-top d-flex justify-content-between align-items-center flex-wrap gap-2 py-3 no-print">
                     <div class="small text-body-secondary" id="pagerInfo">Showing 0 of 0</div>
-                    <nav aria-label="Approval pagination">
+                    <nav aria-label="Teaching load pagination">
                         <ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap gap-1" id="pager"></ul>
                     </nav>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="col-12 col-xl-4">
+    <!-- ============================================================
+         ROW 2 — Status Distribution (left) | Units by Department (right)
+         ============================================================ -->
+    <div class="row g-3">
+        <!-- Status -->
+        <div class="col-12 col-lg-6">
             <div class="card border shadow-sm h-100">
-                <div class="card-header bg-transparent border-bottom py-3">
-                    <h5 class="card-title mb-1 fw-bold">Top Approvers</h5>
-                    <p class="text-body-secondary small mb-0">Users with the most approval actions</p>
-                </div>
-                <div class="card-body" id="approverBody">
-                    <div class="appr-empty-static d-none" id="approverEmpty">
-                        <i class="fas fa-user-tie"></i>
-                        <h6>No approver data yet</h6>
-                        <p>Top approvers will appear here.</p>
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                        <div>
+                            <h5 class="card-title mb-1 fw-bold">Status Distribution</h5>
+                            <p class="text-body-secondary small mb-0">Approved vs pending vs rejected</p>
+                        </div>
                     </div>
-                    <div class="d-flex flex-column gap-3" id="approverBars"></div>
+                    <div class="position-relative w-100 flex-grow-1" style="min-height:300px;">
+                        <canvas id="statusChart"></canvas>
+                        <div class="tl-empty d-none" id="statusEmpty">
+                            <i class="fas fa-chart-pie"></i>
+                            <h6>No status data yet</h6>
+                            <p>Status breakdown will show here.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Department -->
+        <div class="col-12 col-lg-6">
+            <div class="card border shadow-sm h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                        <div>
+                            <h5 class="card-title mb-1 fw-bold">Units by Department</h5>
+                            <p class="text-body-secondary small mb-0">Total units assigned per department</p>
+                        </div>
+                    </div>
+                    <div class="position-relative w-100 flex-grow-1" style="min-height:300px;">
+                        <canvas id="deptChart"></canvas>
+                        <div class="tl-empty d-none" id="deptEmpty">
+                            <i class="fas fa-building"></i>
+                            <h6>No department data</h6>
+                            <p>Department breakdown will appear once records exist.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -438,63 +449,56 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <!-- Print-only table -->
-<div class="appr-print-only" id="printTable" aria-hidden="true"></div>
+<div class="tl-print-only" id="printTable" aria-hidden="true"></div>
 
 <style>
-    .appr-empty {
+    .tl-empty {
         position: absolute; inset: 0;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         text-align: center; padding: 1rem;
         pointer-events: none;
     }
-    .appr-empty i { font-size: 2rem; opacity: 0.35; margin-bottom: 0.75rem; color: var(--sms-text-muted); }
-    .appr-empty h6 { font-weight: 700; color: var(--sms-heading); margin-bottom: 0.25rem; }
-    .appr-empty p { font-size: 0.82rem; color: var(--sms-text-muted); margin: 0; max-width: 280px; }
+    .tl-empty i { font-size: 2rem; opacity: 0.35; margin-bottom: 0.75rem; color: var(--sms-text-muted); }
+    .tl-empty h6 { font-weight: 700; color: var(--sms-heading); margin-bottom: 0.25rem; }
+    .tl-empty p { font-size: 0.82rem; color: var(--sms-text-muted); margin: 0; max-width: 280px; }
 
-    .appr-empty-static {
-        text-align: center;
-        padding: 2.5rem 1rem;
-    }
-    .appr-empty-static i {
-        font-size: 2.25rem; opacity: 0.3; display: block;
-        margin-bottom: 0.75rem; color: var(--sms-text-muted);
-    }
-    .appr-empty-static h6 { font-weight: 700; color: var(--sms-heading); }
-    .appr-empty-static p { font-size: 0.82rem; color: var(--sms-text-muted); margin: 0; }
-
-    .privacy-mode .appr-history-identity {
+    .privacy-mode .tl-history-identity {
         filter: blur(5px); -webkit-filter: blur(5px);
         user-select: none; transition: filter 0.15s ease;
     }
-    .privacy-mode .appr-history-identity:hover { filter: blur(0); -webkit-filter: blur(0); }
+    .privacy-mode .tl-history-identity:hover { filter: blur(0); -webkit-filter: blur(0); }
 
-    .appr-history-table thead th { white-space: nowrap; background: var(--sms-table-head-bg); }
-    .appr-history-table tbody tr:hover td { background: var(--sms-dropdown-hover); }
+    .tl-history-table thead th { white-space: nowrap; background: var(--sms-table-head-bg); }
+    .tl-history-table tbody tr:hover td { background: var(--sms-dropdown-hover); }
 
-    .appr-print-only { display: none; }
+    .tl-print-only { display: none; }
+
+    /* Compact table cells so 10 rows fit comfortably in the card */
+    .tl-history-table tbody td { padding: 0.6rem 0.75rem; font-size: 0.85rem; }
+    .tl-history-table thead th { padding: 0.65rem 0.75rem; font-size: 0.7rem; }
 
     @media (max-width: 400px) {
-        #apprPage { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
-        #apprPage h1.h3 { font-size: 1.15rem; }
+        #tlPage { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+        #tlPage h1.h3 { font-size: 1.15rem; }
         .stat-card .card-body { padding: 0.7rem 0.6rem 0.7rem 0.9rem !important; }
         .stat-card h4 { font-size: 1.2rem !important; }
         .stat-card h6 { font-size: 0.62rem !important; letter-spacing: 0.03em !important; }
         .stat-card small { font-size: 0.65rem !important; }
-        .appr-history-table tbody td,
-        .appr-history-table thead th { font-size: 0.72rem; padding: 0.5rem 0.4rem; }
-        #apprPage .card-title { font-size: 0.9rem; }
+        .tl-history-table tbody td,
+        .tl-history-table thead th { font-size: 0.72rem; padding: 0.5rem 0.4rem; }
+        #tlPage .card-title { font-size: 0.9rem; }
     }
     @media (max-width: 360px) {
-        .appr-history-table tbody td,
-        .appr-history-table thead th { font-size: 0.68rem; padding: 0.45rem 0.3rem; }
+        .tl-history-table tbody td,
+        .tl-history-table thead th { font-size: 0.68rem; padding: 0.45rem 0.3rem; }
     }
 
     @media print {
         body { background: #fff !important; color: #000 !important; }
         .no-print, nav, header, footer, .sidebar, .sms-sidebar, .sms-navbar,
         .breadcrumb, .card-header, .card-footer, .btn, button, .modal { display: none !important; }
-        #apprPage { padding: 0 !important; }
+        #tlPage { padding: 0 !important; }
         .container-fluid { padding: 0 !important; }
         .card { box-shadow: none !important; border: 1px solid #ccc !important;
                 background: #fff !important; backdrop-filter: none !important;
@@ -507,7 +511,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         .table tbody tr:hover td { background: transparent !important; }
         .badge { border: 1px solid #999 !important; background: #f3f4f6 !important; color: #000 !important; }
 
-        .appr-history-table tbody td:nth-child(1) {
+        .tl-history-table tbody td:nth-child(1) {
             filter: blur(6px) !important;
             -webkit-filter: blur(6px) !important;
             user-select: none !important;
@@ -521,16 +525,15 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 (function () {
     'use strict';
 
-    const APPR_ROWS = <?= json_encode($allRows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    const PAGE_SIZE = 10;              // ← Approval Records: 10 per page
-    const TOP_APPROVERS_LIMIT = 8;     // ← Top Approvers: top 8 ranked
+    const TL_ROWS = <?= json_encode($allRows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const PAGE_SIZE = 10;             // ← 10 per page
     const TABLE_EMPTY = <?= $totalRawCount === 0 ? 'true' : 'false' ?>;
 
     let currentFilters = { sy: '', month: '', week: '' };
-    let filteredRows = APPR_ROWS.slice();
+    let filteredRows = TL_ROWS.slice();
     let currentPage = 1;
 
-    let trendChart = null, statusChart = null, categoryChart = null;
+    let trendChart = null, statusChart = null, deptChart = null;
 
     /* ============================================================
        THEME-AWARE COLORS
@@ -548,9 +551,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         };
     }
 
-    /* ============================================================
-       HELPERS
-       ============================================================ */
     function parseDate(str) {
         if (!str) return null;
         const m = String(str).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
@@ -566,6 +566,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const name = (row.first_name + ' ' + row.last_name).trim();
         return name || '—';
     }
+    function termLabel(row) {
+        const y = row.academic_year || '';
+        const s = row.semester || '';
+        if (y && s) return y + ' · ' + s;
+        if (y) return y;
+        if (s) return s;
+        return '—';
+    }
     function getSyRange(sy) {
         const m = /^(\d{4})-(\d{4})$/.exec(sy);
         if (!m) return null;
@@ -579,23 +587,24 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
     function normalizeStatus(s) {
         const l = (s || '').toLowerCase();
-        if (l === 'approved' || l === 'signed') return 'Approved';
+        if (l === 'approved' || l === 'completed' || l === 'current') return 'Approved';
         if (l === 'pending') return 'Pending';
-        if (l === 'rejected' || l === 'denied') return 'Rejected';
-        if (l === 'cancelled') return 'Cancelled';
+        if (l === 'rejected') return 'Rejected';
         return s || 'Unknown';
     }
 
-    /* ============================================================
-       FILTER
-       ============================================================ */
     function applyFilters() {
-        filteredRows = APPR_ROWS.filter(function (r) {
+        filteredRows = TL_ROWS.filter(function (r) {
             const d = parseDate(r.acted_at);
             if (!d) return false;
+
             if (currentFilters.sy) {
-                const range = getSyRange(currentFilters.sy);
-                if (!range || d < range.start || d > range.end) return false;
+                if (r.academic_year && r.academic_year === currentFilters.sy) {
+                    // match
+                } else {
+                    const range = getSyRange(currentFilters.sy);
+                    if (!range || d < range.start || d > range.end) return false;
+                }
             }
             if (currentFilters.month && (d.getMonth() + 1) !== +currentFilters.month) return false;
             if (currentFilters.week) {
@@ -613,13 +622,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         render();
     }
 
-    /* ============================================================
-       RENDER
-       ============================================================ */
     function render() {
         renderKPIs();
         renderCharts();
-        renderApprovers();
         renderTable();
         renderPager();
         renderPrintTable();
@@ -627,19 +632,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     function renderKPIs() {
         const total = filteredRows.length;
-        let a = 0, p = 0, r = 0;
+        let approved = 0, pending = 0, rejected = 0, units = 0;
         filteredRows.forEach(function (row) {
             const s = normalizeStatus(row.status);
-            if (s === 'Approved') a++;
-            else if (s === 'Pending') p++;
-            else if (s === 'Rejected') r++;
+            if (s === 'Approved') approved++;
+            else if (s === 'Pending') pending++;
+            else if (s === 'Rejected') rejected++;
+            units += (row.total_units || 0);
         });
-        document.getElementById('kpiTotal').textContent     = total.toLocaleString();
-        document.getElementById('kpiApproved').textContent  = a.toLocaleString();
-        document.getElementById('kpiPending').textContent   = p.toLocaleString();
-        document.getElementById('kpiRejected').textContent  = r.toLocaleString();
+
+        document.getElementById('kpiTotal').textContent    = total.toLocaleString();
+        document.getElementById('kpiApproved').textContent = approved.toLocaleString();
+        document.getElementById('kpiPending').textContent  = pending.toLocaleString();
+        document.getElementById('kpiUnits').textContent    = units.toLocaleString(undefined, { maximumFractionDigits: 1 });
         document.getElementById('kpiApprovedPct').textContent =
-            (total > 0 ? Math.round((a / total) * 100) : 0) + '%';
+            (total > 0 ? Math.round((approved / total) * 100) : 0) + '%';
     }
 
     function renderCharts() {
@@ -666,20 +673,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             const d = parseDate(row.acted_at);
             if (!d) return;
             const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-            if (!monthMap[key]) monthMap[key] = { approved: 0, pending: 0, rejected: 0 };
-            const s = normalizeStatus(row.status);
-            if (s === 'Approved') monthMap[key].approved++;
-            else if (s === 'Pending') monthMap[key].pending++;
-            else if (s === 'Rejected') monthMap[key].rejected++;
+            if (!monthMap[key]) monthMap[key] = { units: 0, count: 0 };
+            monthMap[key].units += (row.total_units || 0);
+            monthMap[key].count++;
         });
         const mKeys = Object.keys(monthMap).sort();
-        const labels   = mKeys.map(function (k) {
+        const labels = mKeys.map(function (k) {
             const [y, m] = k.split('-');
             return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: 'numeric' });
         });
-        const approved = mKeys.map(function (k) { return monthMap[k].approved; });
-        const pending  = mKeys.map(function (k) { return monthMap[k].pending; });
-        const rejected = mKeys.map(function (k) { return monthMap[k].rejected; });
+        const units = mKeys.map(function (k) { return +monthMap[k].units.toFixed(1); });
 
         const trendEmpty = document.getElementById('trendEmpty');
         const trendCanvas = document.getElementById('trendChart');
@@ -698,19 +701,22 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 type: 'line',
                 data: {
                     labels: labels,
-                    datasets: [
-                        { label: 'Approved', data: approved, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.12)', tension: 0.35, fill: true, pointRadius: 4, pointHoverRadius: 6 },
-                        { label: 'Pending',  data: pending,  borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.10)', tension: 0.35, fill: true, pointRadius: 4, pointHoverRadius: 6 },
-                        { label: 'Rejected', data: rejected, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)',  tension: 0.35, fill: true, pointRadius: 4, pointHoverRadius: 6 }
-                    ]
+                    datasets: [{
+                        label: 'Units',
+                        data: units,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59,130,246,0.14)',
+                        tension: 0.35, fill: true,
+                        pointRadius: 4, pointHoverRadius: 6
+                    }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
-                    plugins: { legend: legendCfg },
+                    plugins: { legend: { display: false } },
                     scales: {
                         x: { grid: { display: false }, ticks: { color: c.text, font: { size: 11 } } },
-                        y: { beginAtZero: true, ticks: { precision: 0, color: c.text, font: { size: 11 } },
+                        y: { beginAtZero: true, ticks: { color: c.text, font: { size: 11 } },
                              grid: { color: c.grid } }
                     }
                 }
@@ -753,43 +759,46 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             });
         }
 
-        /* ---- Category ---- */
-        const catMap = {};
+        /* ---- Department ---- */
+        const deptMap = {};
         filteredRows.forEach(function (row) {
-            const k = row.category || 'Other';
-            catMap[k] = (catMap[k] || 0) + 1;
+            const k = row.dept || 'Unassigned';
+            deptMap[k] = (deptMap[k] || 0) + (row.total_units || 0);
         });
-        const catLabels = Object.keys(catMap);
-        const catCounts = catLabels.map(function (k) { return catMap[k]; });
+        const deptKeys = Object.keys(deptMap)
+            .map(function (k) { return { key: k, units: deptMap[k] }; })
+            .sort(function (a, b) { return b.units - a.units; })
+            .slice(0, 8);
+        const deptLabels = deptKeys.map(function (o) { return o.key; });
+        const deptUnits  = deptKeys.map(function (o) { return +o.units.toFixed(1); });
 
-        const categoryEmpty = document.getElementById('categoryEmpty');
-        const categoryCanvas = document.getElementById('categoryChart');
-        if (catLabels.length === 0) {
-            categoryEmpty.classList.remove('d-none');
-            categoryCanvas.style.visibility = 'hidden';
+        const deptEmpty = document.getElementById('deptEmpty');
+        const deptCanvas = document.getElementById('deptChart');
+        if (deptLabels.length === 0) {
+            deptEmpty.classList.remove('d-none');
+            deptCanvas.style.visibility = 'hidden';
         } else {
-            categoryEmpty.classList.add('d-none');
-            categoryCanvas.style.visibility = 'visible';
-            if (categoryChart) categoryChart.destroy();
-            categoryChart = new Chart(categoryCanvas.getContext('2d'), {
+            deptEmpty.classList.add('d-none');
+            deptCanvas.style.visibility = 'visible';
+            if (deptChart) deptChart.destroy();
+            const palette = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
+            deptChart = new Chart(deptCanvas.getContext('2d'), {
                 type: 'bar',
                 data: {
-                    labels: catLabels,
+                    labels: deptLabels,
                     datasets: [{
-                        label: 'Actions',
-                        data: catCounts,
-                        backgroundColor: catLabels.map(function (l) {
-                            return l === 'Clearance' ? '#3b82f6' : (l === 'Leave' ? '#06b6d4' : '#f59e0b');
-                        }),
-                        borderRadius: 8, borderSkipped: false, maxBarThickness: 64
+                        label: 'Units',
+                        data: deptUnits,
+                        backgroundColor: palette,
+                        borderRadius: 8, borderSkipped: false, maxBarThickness: 40
                     }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { grid: { display: false }, ticks: { color: c.text, font: { size: 11 } } },
-                        y: { beginAtZero: true, ticks: { precision: 0, color: c.text, font: { size: 11 } },
+                        x: { grid: { display: false }, ticks: { color: c.text, font: { size: 11 }, maxRotation: 40 } },
+                        y: { beginAtZero: true, ticks: { color: c.text, font: { size: 11 } },
                              grid: { color: c.grid } }
                     }
                 }
@@ -797,65 +806,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         }
     }
 
-    /* ============================================================
-       TOP APPROVERS — top 8 ranked list (no pagination)
-       ============================================================ */
-    function renderApprovers() {
-        const counts = {};
-        filteredRows.forEach(function (r) {
-            const key = r.actor_name || '';
-            if (!key || key === '—') return;
-            counts[key] = (counts[key] || 0) + 1;
-        });
-
-        const container = document.getElementById('approverBars');
-        const emptyEl = document.getElementById('approverEmpty');
-        const total = Object.values(counts).reduce(function (a, b) { return a + b; }, 0);
-
-        if (total === 0) {
-            container.innerHTML = '';
-            emptyEl.classList.remove('d-none');
-            return;
-        }
-        emptyEl.classList.add('d-none');
-
-        const entries = Object.entries(counts)
-            .sort(function (a, b) { return b[1] - a[1]; })
-            .slice(0, TOP_APPROVERS_LIMIT);
-        const max = entries[0][1];
-
-        container.innerHTML = entries.map(function (pair, idx) {
-            const label = pair[0], count = pair[1];
-            const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
-            const tone = ['success', 'info', 'primary', 'warning'][idx % 4];
-            const width = Math.max(4, (count / max) * 100);
-            return `
-                <div>
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="fw-semibold small text-truncate" style="max-width:65%;" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
-                        <span class="fw-bold small">${count.toLocaleString()} <span class="text-body-secondary fw-normal">(${pct}%)</span></span>
-                    </div>
-                    <div class="progress" style="height:8px;">
-                        <div class="progress-bar bg-${tone}" style="width:${width}%;"></div>
-                    </div>
-                </div>`;
-        }).join('');
-    }
-
-    /* ============================================================
-       TABLE — 10 rows per page
-       ============================================================ */
     function statusBadge(status) {
         const s = normalizeStatus(status);
-        if (s === 'Approved')  return 'text-bg-success';
-        if (s === 'Pending')   return 'text-bg-warning';
-        if (s === 'Rejected')  return 'text-bg-danger';
-        if (s === 'Cancelled') return 'text-bg-secondary';
-        return 'text-bg-secondary';
-    }
-    function categoryBadge(cat) {
-        if (cat === 'Clearance') return 'text-bg-primary';
-        if (cat === 'Leave')     return 'text-bg-info';
+        if (s === 'Approved') return 'text-bg-success';
+        if (s === 'Pending')  return 'text-bg-warning';
+        if (s === 'Rejected') return 'text-bg-danger';
         return 'text-bg-secondary';
     }
 
@@ -867,32 +822,32 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             const noFilter = !currentFilters.sy && !currentFilters.month && !currentFilters.week;
             if (TABLE_EMPTY || noFilter) {
                 tbody.innerHTML = `
-                    <tr><td colspan="7" class="text-center py-5">
+                    <tr><td colspan="5" class="text-center py-5">
                         <div class="d-inline-flex flex-column align-items-center">
                             <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
-                                 style="width:72px;height:72px;background:rgba(100,116,139,0.10);color:#64748b;font-size:1.9rem;">
-                                <i class="fas fa-clipboard-check"></i>
+                                 style="width:64px;height:64px;background:rgba(100,116,139,0.10);color:#64748b;font-size:1.6rem;">
+                                <i class="fas fa-layer-group"></i>
                             </div>
-                            <h6 class="fw-bold mb-1 text-body-emphasis">No approval history yet</h6>
-                            <p class="text-body-secondary small mb-0" style="max-width:360px;">
-                                This page will populate automatically once clearance or leave approvals are processed.
+                            <h6 class="fw-bold mb-1 text-body-emphasis">No teaching load history yet</h6>
+                            <p class="text-body-secondary small mb-0" style="max-width:320px;">
+                                This panel will populate once teaching loads are submitted or archived.
                             </p>
                         </div>
                     </td></tr>`;
             } else {
                 tbody.innerHTML = `
-                    <tr><td colspan="7" class="text-center py-5">
+                    <tr><td colspan="5" class="text-center py-5">
                         <div class="d-inline-flex flex-column align-items-center">
                             <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
-                                 style="width:72px;height:72px;background:rgba(100,116,139,0.10);color:#64748b;font-size:1.9rem;">
+                                 style="width:64px;height:64px;background:rgba(100,116,139,0.10);color:#64748b;font-size:1.6rem;">
                                 <i class="fas fa-filter-circle-xmark"></i>
                             </div>
                             <h6 class="fw-bold mb-1 text-body-emphasis">No records match your filters</h6>
-                            <p class="text-body-secondary small mb-3" style="max-width:360px;">
+                            <p class="text-body-secondary small mb-3" style="max-width:320px;">
                                 Try adjusting or clearing your filters.
                             </p>
                             <button class="btn btn-outline-secondary btn-sm" id="emptyResetBtn">
-                                <i class="fas fa-rotate-left me-1"></i> Clear all filters
+                                <i class="fas fa-rotate-left me-1"></i> Clear filters
                             </button>
                         </div>
                     </td></tr>`;
@@ -907,16 +862,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
         tbody.innerHTML = pageRows.map(function (r) {
             return '<tr>' +
-                '<td class="appr-history-identity">' +
+                '<td class="tl-history-identity">' +
                     '<div class="fw-semibold">' + escapeHtml(fullName(r)) + '</div>' +
                     '<div class="small text-body-secondary">' + escapeHtml(r.dept || '—') + '</div>' +
                 '</td>' +
-                '<td class="d-none d-md-table-cell"><span class="badge ' + categoryBadge(r.category) + '">' + escapeHtml(r.category) + '</span></td>' +
-                '<td>' + escapeHtml(r.subject || '—') + '</td>' +
-                '<td class="d-none d-lg-table-cell small text-body-secondary">' + escapeHtml(r.actor_name || '—') + '</td>' +
+                '<td class="d-none d-md-table-cell small text-body-secondary">' + escapeHtml(termLabel(r)) + '</td>' +
+                '<td class="d-none d-sm-table-cell text-center">' + (r.subject_count || 0) + '</td>' +
+                '<td class="text-center fw-bold">' + (r.total_units || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }) + '</td>' +
                 '<td><span class="badge ' + statusBadge(r.status) + '">' + escapeHtml(normalizeStatus(r.status)) + '</span></td>' +
-                '<td class="d-none d-sm-table-cell"><code>' + escapeHtml(r.ref_no || '—') + '</code></td>' +
-                '<td class="d-none d-lg-table-cell text-nowrap">' + fmtDate(r.acted_at) + '</td>' +
             '</tr>';
         }).join('');
     }
@@ -937,7 +890,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         info.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
 
         document.getElementById('recordsSubtitle').textContent =
-            'Showing ' + start + '–' + end + ' of ' + total + ' actions';
+            'Showing ' + start + '–' + end + ' of ' + total + ' records';
 
         if (totalPages <= 1) { pager.innerHTML = ''; return; }
 
@@ -964,12 +917,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 currentPage = p;
                 renderTable();
                 renderPager();
-                document.querySelector('.appr-history-table').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                document.querySelector('.tl-history-table').scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
         });
     }
 
-    /* ---- Print-only table ---- */
     function renderPrintTable() {
         const host = document.getElementById('printTable');
         if (!host) return;
@@ -978,11 +930,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const rows = filteredRows.map(function (r) {
             return '<tr>' +
                 '<td class="blur">' + escapeHtml(fullName(r)) + '</td>' +
-                '<td>' + escapeHtml(r.category) + '</td>' +
-                '<td>' + escapeHtml(r.subject || '—') + '</td>' +
-                '<td>' + escapeHtml(r.actor_name || '—') + '</td>' +
+                '<td>' + escapeHtml(termLabel(r)) + '</td>' +
+                '<td>' + (r.subject_count || 0) + '</td>' +
+                '<td>' + (r.total_units || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }) + '</td>' +
                 '<td>' + escapeHtml(normalizeStatus(r.status)) + '</td>' +
-                '<td>' + escapeHtml(r.ref_no || '—') + '</td>' +
+                '<td>' + escapeHtml(r.kind) + '</td>' +
                 '<td>' + fmtDate(r.acted_at) + '</td>' +
             '</tr>';
         }).join('');
@@ -991,23 +943,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <table>
                 <thead>
                     <tr>
-                        <th>Faculty</th><th>Category</th><th>Subject</th>
-                        <th>Approver</th><th>Status</th><th>Ref No.</th><th>Date</th>
+                        <th>Faculty</th><th>Term</th><th>Subjects</th>
+                        <th>Units</th><th>Status</th><th>Kind</th><th>Date</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
             </table>`;
     }
 
-    /* ============================================================
-       CSV
-       ============================================================ */
     function exportCsv() {
-        const headers = ['Faculty', 'Department', 'Category', 'Subject', 'Approver', 'Role', 'Status', 'Ref No', 'Action Date', 'Remarks'];
+        const headers = ['Faculty', 'Department', 'Term', 'Subjects', 'Total Units', 'Status', 'Kind', 'Date', 'Remarks'];
         const rows = filteredRows.map(function (r) {
             return [
-                fullName(r), r.dept, r.category, r.subject, r.actor_name, r.actor_role,
-                normalizeStatus(r.status), r.ref_no, r.acted_at, r.remarks
+                fullName(r), r.dept, termLabel(r),
+                r.subject_count || 0, r.total_units || 0,
+                normalizeStatus(r.status), r.kind, r.acted_at, r.remarks
             ];
         });
 
@@ -1019,16 +969,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = 'approval-history_' + new Date().toISOString().slice(0, 10) + '.csv';
+        link.download = 'teaching-load-history_' + new Date().toISOString().slice(0, 10) + '.csv';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
     }
 
-    /* ============================================================
-       BIND / INIT
-       ============================================================ */
     function bindFilters() {
         const map = { f_sy: 'sy', f_month: 'month', f_week: 'week' };
         Object.keys(map).forEach(function (id) {
@@ -1055,7 +1002,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         document.getElementById('printBtn').addEventListener('click', function () { window.print(); });
 
         const pt = document.getElementById('privacyModeToggle');
-        const KEY = 'smsApprovalHistoryPrivacyMode';
+        const KEY = 'smsTeachingLoadHistoryPrivacyMode';
         if (pt) {
             const apply = function (on) { document.body.classList.toggle('privacy-mode', on); };
             try {

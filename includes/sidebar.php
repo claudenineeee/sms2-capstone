@@ -146,7 +146,7 @@ $facultyAdministrator = [
                 ['slug' => 'attendance-history',     'href' => BASE_URL . '/modules/faculty/views/administrator/history-attendance.php',     'icon' => 'fa-calendar-check',  'label' => 'Attendance History'],
                 ['slug' => 'approval-history',       'href' => BASE_URL . '/modules/faculty/views/administrator/history-approval.php',       'icon' => 'fa-user-check',      'label' => 'Approval History'],
                 ['slug' => 'evaluation-history',     'href' => BASE_URL . '/modules/faculty/views/administrator/history-evaluation.php',     'icon' => 'fa-chart-pie',       'label' => 'Evaluation History'],
-                ['slug' => 'teaching-load-history',  'href' => BASE_URL . '/modules/faculty/views/administrator/history-load-teaching.php',  'icon' => 'fa-layer-group',     'label' => 'Teaching Load History'],
+                ['slug' => 'teaching-load-history',  'href' => BASE_URL . '/modules/faculty/views/administrator/history-teaching.php',  'icon' => 'fa-layer-group',     'label' => 'Teaching Load History'],
                 ['slug' => 'clearance-history',      'href' => BASE_URL . '/modules/faculty/views/administrator/history-clearance.php',      'icon' => 'fa-clipboard-list',  'label' => 'Clearance History'],
             ],
         ],
