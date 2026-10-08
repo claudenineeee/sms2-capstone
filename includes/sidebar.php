@@ -154,21 +154,38 @@ $facultyAdministrator = [
 ];
 
 $facultyDeanNavGroups = [
-    'Faculty Profiles' => [
+    'Overview' => [
+        ['slug' => 'department-overview', 'href' => BASE_URL . '/modules/faculty/views/dean/department-overview.php', 'icon' => 'fa-gauge-high', 'label' => 'Department Overview'],
+        ['slug' => 'department-analytics', 'href' => BASE_URL . '/modules/faculty/views/dean/department-analytics.php', 'icon' => 'fa-chart-line', 'label' => 'Department Analytics'],
+    ],
+    'Faculty Management' => [
         ['slug' => 'faculty-profile', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-profile.php', 'icon' => 'fa-id-badge', 'label' => 'Faculty Profile'],
         ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
+        ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-performance.php', 'icon' => 'fa-chart-simple', 'label' => 'Faculty Performance'],
+        ['slug' => 'committee-assignments', 'href' => BASE_URL . '/modules/faculty/views/dean/committee-assignments.php', 'icon' => 'fa-people-group', 'label' => 'Committee Assignments'],
+    ],
+    'Approvals' => [
+        ['slug' => 'pending-approvals', 'href' => BASE_URL . '/modules/faculty/views/dean/pending-approvals.php', 'icon' => 'fa-hourglass-half', 'label' => 'Pending Approvals'],
+        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/leave-application-approval.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Endorsement'],
+        ['slug' => 'clearance-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/clearance-approval.php', 'icon' => 'fa-clipboard-check', 'label' => 'Clearance Sign-off'],
+    ],
+    'Teaching & Load' => [
         ['slug' => 'teaching-history', 'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php', 'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
+        ['slug' => 'subject-assignments', 'href' => BASE_URL . '/modules/faculty/views/dean/subject-assignments.php', 'icon' => 'fa-book', 'label' => 'Subject Assignments'],
+        ['slug' => 'class-schedules', 'href' => BASE_URL . '/modules/faculty/views/dean/class-schedules.php', 'icon' => 'fa-calendar-days', 'label' => 'Class Schedules'],
     ],
     'Subject & Attendance' => [
-        // CHANGED: Subject Load Tracker moved to Secretary — entry removed from Dean
         ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-monitoring.php', 'icon' => 'fa-user-check', 'label' => 'Attendance Monitoring'],
-    ],
-    'Leave' => [
-        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/leave-application-approval.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Application & Approval'],
+        ['slug' => 'attendance-history', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-history.php', 'icon' => 'fa-clock-rotate-left', 'label' => 'Attendance History'],
     ],
     'Evaluation & Clearance' => [
         ['slug' => 'evaluation-summary', 'href' => BASE_URL . '/modules/faculty/views/dean/evaluation-summary.php', 'icon' => 'fa-chart-pie', 'label' => 'Evaluation Summary'],
+        ['slug' => 'evaluation-history', 'href' => BASE_URL . '/modules/faculty/views/dean/evaluation-history.php', 'icon' => 'fa-clock-rotate-left', 'label' => 'Evaluation History'],
         ['slug' => 'clearance-system', 'href' => BASE_URL . '/modules/faculty/views/dean/clearance-system.php', 'icon' => 'fa-clipboard-check', 'label' => 'Clearance System'],
+    ],
+    'Reports' => [
+        ['slug' => 'department-reports', 'href' => BASE_URL . '/modules/faculty/views/dean/department-reports.php', 'icon' => 'fa-file-lines', 'label' => 'Department Reports'],
+        ['slug' => 'submission-status', 'href' => BASE_URL . '/modules/faculty/views/dean/submission-status.php', 'icon' => 'fa-list-check', 'label' => 'Submission Status'],
     ],
 ];
 

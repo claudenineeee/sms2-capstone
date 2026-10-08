@@ -1,11 +1,14 @@
 <?php
 /**
- * SMS 2 - Dean Faculty Profile (View & Actions)
- * Matched with Admin Faculty Profile layout and features (Excluding inactive toggle function)
+ * SMS 2 - Faculty Profile (View & Admin Approvals)
+ * RBAC: getScopedFacultyList() in faculty-data.php applies the correct
+ * role-based scope (admin = all, dean = assigned depts, DH = own dept).
+ * This page does NOT re-filter — it trusts the helper.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 require_once __DIR__ . '/../../controllers/FacultyController.php';
+require_once __DIR__ . '/../../includes/dean_rbac.php';
 
 requireAuth();
 
@@ -15,37 +18,48 @@ $pdo = db();
 $message = '';
 $messageType = 'success';
 
-// 1. Process Approval or Rejection POST Requests
+// 1. Process Approval, Rejection, or Inactive/Active Toggle POST Requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $userId = (int)($_POST['user_id'] ?? 0);
 
-    if ($action === 'approve_account' && $userId > 0) {
-        $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'active' WHERE id = :user_id");
-        $res1 = $stmt1->execute([':user_id' => $userId]);
+    $statusMap = [
+        'approve_account' => 'active',
+        'restore_active'  => 'active',
+        'toggle_inactive' => 'inactive',
+        'reject_account'  => 'suspended',
+    ];
 
-        $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Active' WHERE user_id = :user_id");
-        $res2 = $stmt2->execute([':user_id' => $userId]);
+    $successMessages = [
+        'approve_account' => ['Faculty account has been approved and activated!', 'success'],
+        'restore_active'  => ['Faculty account has been restored to active status.', 'success'],
+        'toggle_inactive' => ['Faculty account has been marked as inactive and blocked from logging in.', 'warning'],
+        'reject_account'  => ['Faculty account request has been rejected.', 'warning'],
+    ];
 
-        if ($res1 && $res2) {
-            $message = 'Faculty account has been approved and activated!';
-            $messageType = 'success';
-        } else {
-            $message = 'Failed to approve account. Please try again.';
-            $messageType = 'danger';
-        }
-    } elseif ($action === 'reject_account' && $userId > 0) {
-        $stmt1 = $pdo->prepare("UPDATE sms2_db.users SET status = 'rejected' WHERE id = :user_id");
-        $res1 = $stmt1->execute([':user_id' => $userId]);
+    if (isset($statusMap[$action]) && $userId > 0) {
+        try {
+            $stmt = $pdo->prepare("UPDATE users SET status = :status WHERE id = :id");
+            $stmt->execute([':status' => $statusMap[$action], ':id' => $userId]);
+            $rowsAffected = $stmt->rowCount();
 
-        $stmt2 = $pdo->prepare("UPDATE faculty_profiles SET profile_status = 'Rejected' WHERE user_id = :user_id");
-        $res2 = $stmt2->execute([':user_id' => $userId]);
+            if ($rowsAffected > 0) {
+                [$message, $messageType] = $successMessages[$action];
+            } else {
+                $check = $pdo->prepare("SELECT status FROM users WHERE id = :id");
+                $check->execute([':id' => $userId]);
+                $current = $check->fetchColumn();
 
-        if ($res1 && $res2) {
-            $message = 'Faculty account request has been rejected.';
-            $messageType = 'warning';
-        } else {
-            $message = 'Failed to reject account.';
+                if ($current === false) {
+                    $message = 'Account not found in the system. Please refresh and try again.';
+                    $messageType = 'danger';
+                } else {
+                    [$message, $messageType] = $successMessages[$action];
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('[faculty-profile] Status update failed for user_id=' . $userId . ': ' . $e->getMessage());
+            $message = 'Failed to update account status. Please try again.';
             $messageType = 'danger';
         }
     } else {
@@ -55,37 +69,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 2. Retrieve directory list with Role-Based Scope (Enforced Dean Scope)
+// Check if we are viewing the Inactive list
+$showInactive = isset($_GET['view']) && $_GET['view'] === 'inactive';
+
+// 2. Retrieve directory list — already scoped by role inside the helper
 $rawProfiles = $controller->getDirectoryList();
 
-// Filter out inactive/resigned profiles for the Dean view
-$rawProfiles = array_filter($rawProfiles, function ($profile) {
-    $employmentStatus = ucwords(strtolower((string) ($profile['employment_status'] ?? '')));
-    $profileStatus = ucwords(strtolower((string) ($profile['profile_status'] ?? '')));
-    if ($employmentStatus === 'Inactive' || $profileStatus === 'Inactive' || $employmentStatus === 'Resigned') {
-        return false;
+// ---------- PATCH: sync profile_status with the real users.status ----------
+if (!empty($rawProfiles)) {
+    $userIds = array_values(array_filter(array_map(
+        fn($p) => (int)($p['user_id'] ?? 0),
+        $rawProfiles
+    )));
+
+    if (!empty($userIds)) {
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+        $statusStmt = $pdo->prepare("SELECT id, status FROM users WHERE id IN ($placeholders)");
+        $statusStmt->execute($userIds);
+        $realStatuses = $statusStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        foreach ($rawProfiles as &$p) {
+            $uid = (int)($p['user_id'] ?? 0);
+            if (isset($realStatuses[$uid])) {
+                $p['profile_status'] = $realStatuses[$uid];
+            }
+        }
+        unset($p);
     }
-    return true;
+}
+// ---------- /PATCH ----------
+
+// Filter profiles based on Active / Inactive view
+$rawProfiles = array_filter($rawProfiles, function ($profile) use ($showInactive) {
+    $rawStatus = $profile['profile_status']
+        ?? $profile['user_status']
+        ?? $profile['account_status']
+        ?? $profile['status']
+        ?? 'active';
+
+    $pStatus = strtolower(trim((string)$rawStatus));
+    $isInactive = in_array($pStatus, ['inactive', 'suspended', 'locked'], true);
+
+    return $showInactive ? $isInactive : !$isInactive;
 });
 
-$userRole       = strtolower($_SESSION['role'] ?? $_SESSION['user_role'] ?? 'dean');
-$userCollege    = strtoupper($_SESSION['college'] ?? $_SESSION['assigned_college'] ?? $_SESSION['college_code'] ?? 'CCS');
-$userDepartment = $_SESSION['department'] ?? $_SESSION['assigned_dept'] ?? $_SESSION['dept'] ?? $_SESSION['user_dept'] ?? '';
+// ============================================================
+// RBAC SCOPE
+// getScopedFacultyList() already applies:
+//   - admin       : all faculty
+//   - dean        : faculty from the dean's assigned departments
+//   - dept_head   : faculty from the DH's own department
+//   - secretary   : faculty from the secretary's department
+// So we trust its output directly — no re-filter.
+// ============================================================
+$userRole = strtolower($_SESSION['role'] ?? $_SESSION['user_role'] ?? '');
 
-$collegeScopes = [
-    'CCS'  => ['BSIT', 'BSCS', 'BSCpE', 'Information Technology'],
-    'CCJE' => ['BSCrim', 'Criminology'],
-    'CBM'  => ['BSEM', 'BSTM', 'Business Administration'],
-    'CED'  => ['BSED', 'Education'],
-];
-
-// Dean Scope Enforcement
-$allowedDepts = $collegeScopes[$userCollege] ?? ['BSIT', 'BSCS', 'BSCpE', 'Information Technology'];
-
-$facultyProfiles = array_filter($rawProfiles, function ($profile) use ($allowedDepts) {
-    $dept = $profile['designated_department'] ?? $profile['designated_dept'] ?? '';
-    return in_array($dept, $allowedDepts, true);
-});
+if ($userRole === 'dean' && function_exists('getDeanAssignedDepartments')) {
+    // Confirm the dean has departments (drives the "no departments" empty state)
+    $deanDepartments = getDeanAssignedDepartments(
+        $_SESSION['user_id'] ?? $_SESSION['external_user_id'] ?? null
+    );
+    $facultyProfiles = empty($deanDepartments) ? [] : $rawProfiles;
+} else {
+    $facultyProfiles = $rawProfiles;
+}
 
 $pageTitle    = 'Faculty Profile';
 $activeModule = 'faculty';
@@ -108,17 +155,45 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <div>
             <h1 class="h4 h3-md text-body fw-bold mb-1 d-flex align-items-center gap-2">
                 <i class="fas fa-chalkboard-teacher text-primary"></i>
-                <span>Faculty Profile (Dean Portal)</span>
+                <span>Faculty Profile</span>
             </h1>
-            <p class="text-body-secondary small mb-0">View credentials, update personnel ranks, and process account status clearance for your college.</p>
+            <p class="text-body-secondary small mb-0">View credentials, update personnel ranks, and process account status clearance.</p>
         </div>
     </div>
+
+    <!-- View Switcher Tabs / Buttons -->
+    <div class="d-flex gap-2 mb-4">
+        <a href="?view=active" class="btn btn-sm <?= !$showInactive ? 'btn-primary' : 'btn-outline-primary' ?> rounded-3 fw-bold">
+            <i class="fas fa-user-check me-1"></i> Active Profiles
+        </a>
+        <a href="?view=inactive" class="btn btn-sm <?= $showInactive ? 'btn-danger' : 'btn-outline-danger' ?> rounded-3 fw-bold">
+            <i class="fas fa-user-slash me-1"></i> Inactive Accounts
+        </a>
+    </div>
+
+    <?php if ($userRole === 'dean' && empty($deanDepartments ?? [])): ?>
+        <!-- No departments assigned empty state -->
+        <div class="card bg-body-tertiary border border-light-subtle shadow-sm rounded-4">
+            <div class="card-body text-center py-5">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                     style="width:84px;height:84px;background:rgba(100,116,139,0.10);color:#64748b;font-size:2.2rem;">
+                    <i class="fas fa-building-circle-xmark"></i>
+                </div>
+                <h4 class="fw-bold mb-2 text-body">No departments assigned</h4>
+                <p class="text-body-secondary mb-0" style="max-width:420px;margin:0 auto;">
+                    Your account doesn't have any department access yet. Contact your administrator
+                    to assign you one or more departments.
+                </p>
+            </div>
+        </div>
+        <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; exit; ?>
+    <?php endif; ?>
 
     <!-- Faculty List Section -->
     <div class="card bg-body-tertiary border border-light-subtle shadow-sm rounded-4">
         <div class="card-header bg-transparent border-bottom border-light-subtle py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
             <h6 class="card-title text-body mb-0 fw-bold fs-6">
-                <i class="fas fa-id-card text-info me-2"></i>Faculty Profiles & Credentials
+                <i class="fas fa-id-card text-info me-2"></i><?= $showInactive ? 'Inactive Faculty Accounts' : 'Faculty Profiles & Credentials' ?>
             </h6>
             <div class="col-12 col-sm-6 col-md-4 col-lg-3 ms-auto">
                 <div class="input-group input-group-sm">
@@ -150,13 +225,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <td colspan="7" class="text-center py-5 text-body-secondary">
                                     <i class="fas fa-users-slash fa-3x mb-3 text-body-tertiary d-block"></i>
                                     <h5 class="fs-6 fw-bold">No faculty profiles available</h5>
-                                    <p class="mb-0 fs-7">Registered personnel for your college will appear here.</p>
+                                    <p class="mb-0 fs-7">Registered personnel will appear here.</p>
                                 </td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($facultyProfiles as $profile): ?>
                                 <?php
                                     $fullName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['middle_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
+                                    if ($fullName === '') {
+                                        $fullName = trim((string) ($profile['full_name'] ?? ''));
+                                    }
                                     $departmentLabel = FacultyController::getDepartmentLabel((string) ($profile['designated_department'] ?? $profile['designated_dept'] ?? ''));
                                     $employmentStatus = ucwords(strtolower((string) ($profile['employment_status'] ?? '')));
                                     $profileStatus = ucwords(strtolower((string) ($profile['profile_status'] ?? '')));
@@ -169,7 +247,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     $hiredDate = trim((string) ($profile['hired_date'] ?? ''));
                                     $contractualEnd = trim((string) ($profile['contractual_end'] ?? ''));
                                     $userId = (int)($profile['user_id'] ?? 0);
-                                    
+
                                     $isPending = str_contains(strtolower($profileStatus), 'pending');
 
                                     $initials = '';
@@ -211,7 +289,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     </td>
                                     <td class="text-end">
                                         <div class="d-inline-flex gap-1 justify-content-end" role="group">
-                                            <!-- View Action Button -->
                                             <button type="button" class="btn btn-sm btn-outline-primary rounded-3 px-2 py-1 fs-7" onclick="viewFaculty(this)"
                                                 data-profile-id="<?= (int) ($profile['id'] ?? 0) ?>"
                                                 data-user-id="<?= $userId ?>"
@@ -233,7 +310,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                                 <i class="fas fa-eye"></i>
                                             </button>
 
-                                            <!-- Edit Action Button -->
                                             <button type="button" class="btn btn-sm btn-outline-warning rounded-3 px-2 py-1 fs-7" onclick="editFaculty(this)"
                                                 data-profile-id="<?= (int) ($profile['id'] ?? 0) ?>"
                                                 data-first-name="<?= htmlspecialchars(trim((string) ($profile['first_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
@@ -256,6 +332,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                                 title="Edit Profile">
                                                 <i class="fas fa-pen"></i>
                                             </button>
+
+                                            <?php if ($showInactive): ?>
+                                                <button type="button" class="btn btn-sm btn-outline-success rounded-3 px-2 py-1 fs-7" onclick="openActionModal('restore_active', <?= $userId ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>')" title="Restore Account">
+                                                    <i class="fas fa-user-check"></i>
+                                                </button>
+                                            <?php else: ?>
+                                                <button type="button" class="btn btn-sm btn-outline-danger rounded-3 px-2 py-1 fs-7" onclick="openActionModal('toggle_inactive', <?= $userId ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>')" title="Make Inactive">
+                                                    <i class="fas fa-user-slash"></i>
+                                                </button>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -272,9 +358,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 Showing 0 to 0 of 0 entries
             </div>
             <nav aria-label="Faculty Table Pagination">
-                <ul class="pagination pagination-sm mb-0" id="paginationList">
-                    <!-- Dynamic Page Buttons -->
-                </ul>
+                <ul class="pagination pagination-sm mb-0" id="paginationList"></ul>
             </nav>
         </div>
     </div>
@@ -295,7 +379,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- Custom Confirmation Modal using Bootstrap Native Theme Classes -->
+<!-- Custom Confirmation Modal -->
 <div class="modal fade" id="actionConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="max-width: 450px;">
         <div class="modal-content border border-light-subtle rounded-4 shadow bg-body text-body">
@@ -347,40 +431,28 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <dl class="row mb-0 g-2">
                             <dt class="col-sm-4 text-body-secondary">Faculty ID</dt>
                             <dd class="col-sm-8 text-body fw-bold" id="viewFacultyId">FAC-2026-001</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Department</dt>
                             <dd class="col-sm-8 text-body" id="viewDepartmentLabel">Information Technology</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Position</dt>
                             <dd class="col-sm-8 text-body" id="viewPositionLabel">Head</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Employment Status</dt>
                             <dd class="col-sm-8 text-body" id="viewEmploymentStatus">Active</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Profile Status</dt>
                             <dd class="col-sm-8 text-body" id="viewProfileStatus">Active</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Academic Rank</dt>
                             <dd class="col-sm-8 text-body" id="viewAcademicRank">Assistant Professor</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Tier</dt>
                             <dd class="col-sm-8 text-body" id="viewTier">Assistant Professor I</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Hired Date</dt>
                             <dd class="col-sm-8 text-body" id="viewHiredDate">2026-01-10</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Contractual End</dt>
                             <dd class="col-sm-8 text-body" id="viewContractualEnd">2026-12-31</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Birthdate</dt>
                             <dd class="col-sm-8 text-body" id="viewBirthdate">1990-07-28</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Sex</dt>
                             <dd class="col-sm-8 text-body" id="viewSex">Male</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Email</dt>
                             <dd class="col-sm-8 text-body" id="viewEmail">johndoe@university.edu</dd>
-
                             <dt class="col-sm-4 text-body-secondary">Phone</dt>
                             <dd class="col-sm-8 text-body" id="viewPhone">+63 912 345 6789</dd>
                         </dl>
@@ -419,8 +491,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <h6 class="text-primary border-bottom border-light-subtle pb-2 fw-bold fs-7 mb-3">Basic Information</h6>
                         <div class="row g-3">
                             <div class="col-12 col-md-4">
-                                <label for="facultyIdInput" class="form-label text-body-secondary small fw-bold">Faculty ID</label>
-                                <input type="text" id="facultyIdInput" class="form-control bg-body-tertiary text-body border-light-subtle fs-7 shadow-none" readonly>
+                                <label for="facultyId" class="form-label text-body-secondary small fw-bold">Faculty ID</label>
+                                <input type="text" id="facultyId" class="form-control bg-body-tertiary text-body border-light-subtle fs-7 shadow-none" readonly>
                             </div>
                             <div class="col-12 col-sm-6 col-md-4">
                                 <label for="firstname" class="form-label text-body-secondary small fw-bold">First Name <span class="text-danger">*</span></label>
@@ -518,11 +590,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
         const phpMessage = <?= json_encode($message) ?>;
         const messageType = <?= json_encode($messageType) ?>;
-        
+
         if (phpMessage && phpMessage.trim() !== '') {
             const toastEl = document.getElementById('liveToast');
             const toastIcon = document.getElementById('toastIcon');
-            
+
             if (messageType === 'success') {
                 toastEl.classList.add('border-success');
                 toastEl.style.backgroundColor = 'var(--bs-body-bg)';
@@ -547,11 +619,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     function initPagination() {
         const rows = Array.from(document.querySelectorAll('.faculty-row'));
         const filter = document.getElementById('facultySearch').value.toLowerCase().trim();
-
-        filteredRows = rows.filter(row => {
-            return row.textContent.toLowerCase().includes(filter);
-        });
-
+        filteredRows = rows.filter(row => row.textContent.toLowerCase().includes(filter));
         currentPage = 1;
         renderPage();
     }
@@ -584,7 +652,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         paginationInfo.textContent = `Showing ${showingStart} to ${endIndex} of ${totalItems} entries`;
 
         paginationList.innerHTML = '';
-
         if (totalPages <= 1) return;
 
         const prevLi = document.createElement('li');
@@ -605,14 +672,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         paginationList.appendChild(nextLi);
     }
 
-    function changePage(page) {
-        currentPage = page;
-        renderPage();
-    }
-
-    function onSearchInput() {
-        initPagination();
-    }
+    function changePage(page) { currentPage = page; renderPage(); }
+    function onSearchInput() { initPagination(); }
 
     function getModalInstance(id) {
         if (!window.bootstrap || !bootstrap.Modal) return null;
@@ -636,23 +697,33 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         if (action === 'approve_account') {
             titleEl.textContent = 'Approve Account Request';
             iconEl.className = 'fas fa-user-check text-success';
-            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account.`;
+            msgEl.innerHTML = `Are you sure you want to approve the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will activate their account, generate a temporary password, and email their login details.`;
             submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
             submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Yes, Approve';
+        } else if (action === 'restore_active') {
+            titleEl.textContent = 'Restore Account Request';
+            iconEl.className = 'fas fa-user-check text-success';
+            msgEl.innerHTML = `Are you sure you want to restore the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>?`;
+            submitBtn.className = 'btn btn-success btn-sm rounded-3 fw-bold px-3';
+            submitBtn.innerHTML = '<i class="fas fa-user-check me-1"></i> Yes, Restore';
         } else if (action === 'reject_account') {
             titleEl.textContent = 'Reject Account Request';
             iconEl.className = 'fas fa-user-times text-danger';
             msgEl.innerHTML = `Are you sure you want to reject the account request for <strong>${escapeHtml(userName || 'this faculty member')}</strong>?`;
             submitBtn.className = 'btn btn-danger btn-sm rounded-3 fw-bold px-3';
             submitBtn.innerHTML = '<i class="fas fa-times me-1"></i> Yes, Reject';
+        } else {
+            titleEl.textContent = 'Make Account Inactive';
+            iconEl.className = 'fas fa-user-slash text-danger';
+            msgEl.innerHTML = `Are you sure you want to make this account inactive for <strong>${escapeHtml(userName || 'this faculty member')}</strong>? This will hide them from the list and prevent them from logging in.`;
+            submitBtn.className = 'btn btn-danger btn-sm rounded-3 fw-bold px-3';
+            submitBtn.innerHTML = '<i class="fas fa-user-slash me-1"></i> Yes, Inactive';
         }
 
         const reviewModalEl = document.getElementById('facultyModal');
         if (reviewModalEl) {
             const reviewModal = bootstrap.Modal.getInstance(reviewModalEl);
-            if (reviewModal) {
-                reviewModal.hide();
-            }
+            if (reviewModal) reviewModal.hide();
         }
 
         const confirmModalEl = document.getElementById('actionConfirmModal');
@@ -686,7 +757,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         document.getElementById('viewSex').textContent = button.dataset.sex || '—';
         document.getElementById('viewEmail').textContent = button.dataset.email || '—';
         document.getElementById('viewPhone').textContent = button.dataset.phone || '—';
-
         modal?.show();
     }
 
@@ -694,11 +764,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         if (!selectEl) return;
         const value = (rawValue || '').trim();
         if (value === '') return;
-
-        const match = Array.from(selectEl.options).find(
-            opt => opt.value.toLowerCase() === value.toLowerCase()
-        );
-
+        const match = Array.from(selectEl.options).find(opt => opt.value.toLowerCase() === value.toLowerCase());
         if (match) {
             selectEl.value = match.value;
         } else if (value) {
@@ -713,7 +779,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     function editFaculty(button) {
         if (!button || !button.dataset) return;
         document.getElementById('profileId').value = button.dataset.profileId || '';
-        document.getElementById('facultyIdInput').value = button.dataset.facultyId || '';
+        document.getElementById('facultyId').value = button.dataset.facultyId || '';
         document.getElementById('firstname').value = button.dataset.firstName || '';
         document.getElementById('middlename').value = button.dataset.middleName || '';
         document.getElementById('lastname').value = button.dataset.lastName || '';
@@ -741,12 +807,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     function getInitials(fullName) {
-        return (fullName || '')
-            .split(' ')
-            .filter(Boolean)
-            .slice(0, 2)
-            .map(name => name.charAt(0).toUpperCase())
-            .join('') || 'NA';
+        return (fullName || '').split(' ').filter(Boolean).slice(0, 2)
+            .map(name => name.charAt(0).toUpperCase()).join('') || 'NA';
     }
 </script>
 
