@@ -5,6 +5,7 @@
  *   Row 1: Teaching Load Trend | Teaching Load Records
  *   Row 2: Status Distribution | Units by Department
  * Pagination: 10 per page. Responsive to 344px.
+ * Print: full report with header, KPI strip, all rows, blurred Faculty column.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
@@ -326,10 +327,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 
     <!-- ============================================================
-         ROW 1 — Teaching Load Trend (left) | Teaching Load Records (right)
+         ROW 1 — Teaching Load Trend | Teaching Load Records
          ============================================================ -->
     <div class="row g-3 mb-3">
-        <!-- Trend -->
         <div class="col-12 col-lg-6">
             <div class="card border shadow-sm h-100">
                 <div class="card-body d-flex flex-column">
@@ -352,7 +352,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
         </div>
 
-        <!-- Records -->
         <div class="col-12 col-lg-6">
             <div class="card border shadow-sm h-100 overflow-hidden d-flex flex-column">
                 <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-start flex-wrap gap-3 py-3 no-print">
@@ -399,10 +398,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 
     <!-- ============================================================
-         ROW 2 — Status Distribution (left) | Units by Department (right)
+         ROW 2 — Status Distribution | Units by Department
          ============================================================ -->
     <div class="row g-3">
-        <!-- Status -->
         <div class="col-12 col-lg-6">
             <div class="card border shadow-sm h-100">
                 <div class="card-body d-flex flex-column">
@@ -424,7 +422,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
         </div>
 
-        <!-- Department -->
         <div class="col-12 col-lg-6">
             <div class="card border shadow-sm h-100">
                 <div class="card-body d-flex flex-column">
@@ -448,7 +445,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- Print-only table -->
+<!-- Print-only report (rendered by JS) -->
 <div class="tl-print-only" id="printTable" aria-hidden="true"></div>
 
 <style>
@@ -472,11 +469,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     .tl-history-table thead th { white-space: nowrap; background: var(--sms-table-head-bg); }
     .tl-history-table tbody tr:hover td { background: var(--sms-dropdown-hover); }
 
-    .tl-print-only { display: none; }
-
-    /* Compact table cells so 10 rows fit comfortably in the card */
     .tl-history-table tbody td { padding: 0.6rem 0.75rem; font-size: 0.85rem; }
     .tl-history-table thead th { padding: 0.65rem 0.75rem; font-size: 0.7rem; }
+
+    .tl-print-only { display: none; }
 
     @media (max-width: 400px) {
         #tlPage { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
@@ -494,29 +490,133 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         .tl-history-table thead th { font-size: 0.68rem; padding: 0.45rem 0.3rem; }
     }
 
+    /* ============================================================
+       PRINT-ONLY REPORT
+       ============================================================ */
     @media print {
-        body { background: #fff !important; color: #000 !important; }
-        .no-print, nav, header, footer, .sidebar, .sms-sidebar, .sms-navbar,
-        .breadcrumb, .card-header, .card-footer, .btn, button, .modal { display: none !important; }
-        #tlPage { padding: 0 !important; }
-        .container-fluid { padding: 0 !important; }
-        .card { box-shadow: none !important; border: 1px solid #ccc !important;
-                background: #fff !important; backdrop-filter: none !important;
-                -webkit-backdrop-filter: none !important; border-radius: 8px !important; }
-        .table { font-size: 10pt; color: #000 !important; }
-        .table thead th { background: #f1f5f9 !important; color: #000 !important;
-                          border-color: #ccc !important; padding: 0.5rem 0.6rem !important; }
-        .table tbody td { color: #000 !important; border-color: #ddd !important;
-                          background: transparent !important; padding: 0.5rem 0.6rem !important; }
-        .table tbody tr:hover td { background: transparent !important; }
-        .badge { border: 1px solid #999 !important; background: #f3f4f6 !important; color: #000 !important; }
+        /* Kill all screen chrome */
+        body { background: #fff !important; color: #000 !important; margin: 0; padding: 0; }
+        .no-print,
+        nav, header, footer,
+        .sidebar, .sms-sidebar, .sms-navbar,
+        .breadcrumb,
+        .card-header, .card-footer,
+        .btn, button,
+        .modal,
+        .pagination,
+        #privacyModeToggle,
+        #exportCsvBtn,
+        #printBtn,
+        #resetFilters {
+            display: none !important;
+        }
 
-        .tl-history-table tbody td:nth-child(1) {
+        /* Reset outer layout */
+        #tlPage { padding: 0 !important; max-width: 100% !important; }
+        .container-fluid { padding: 0 !important; max-width: 100% !important; }
+
+        /* Hide the on-screen layout (charts, cards, records table) */
+        #tlPage { display: none !important; }
+
+        /* Show print-only report */
+        .tl-print-only {
+            display: block !important;
+            padding: 0.4in 0.35in;
+            font-family: 'Inter', Arial, sans-serif;
+            color: #000;
+        }
+        .tl-print-only .print-header {
+            text-align: center;
+            margin-bottom: 14px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+        .tl-print-only .print-header h3 {
+            font-size: 16pt;
+            font-weight: 800;
+            margin: 0 0 4px;
+        }
+        .tl-print-only .print-header .print-meta {
+            font-size: 9.5pt;
+            color: #333;
+            margin: 0;
+        }
+        .tl-print-only .print-filters {
+            font-size: 9pt;
+            color: #333;
+            text-align: center;
+            margin-bottom: 12px;
+            font-style: italic;
+        }
+        .tl-print-only .print-kpis {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding: 10px 12px;
+            border: 1px solid #999;
+            border-radius: 6px;
+            background: #f8f9fa;
+        }
+        .tl-print-only .print-kpi {
+            flex: 1;
+            text-align: center;
+        }
+        .tl-print-only .print-kpi-label {
+            font-size: 8pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #555;
+        }
+        .tl-print-only .print-kpi-value {
+            font-size: 14pt;
+            font-weight: 800;
+            color: #000;
+            line-height: 1.2;
+        }
+        .tl-print-only table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9.5pt;
+        }
+        .tl-print-only thead th {
+            background: #e5e7eb !important;
+            color: #000 !important;
+            border: 1px solid #999;
+            padding: 6px 8px;
+            text-align: left;
+            font-size: 8.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-weight: 700;
+        }
+        .tl-print-only tbody td {
+            border: 1px solid #ccc;
+            padding: 5px 8px;
+            color: #000 !important;
+            background: #fff !important;
+        }
+        .tl-print-only tbody tr:nth-child(even) td {
+            background: #f9fafb !important;
+        }
+        .tl-print-only .blur {
             filter: blur(6px) !important;
             -webkit-filter: blur(6px) !important;
             user-select: none !important;
             -webkit-user-select: none !important;
         }
+        .tl-print-only .print-footer {
+            margin-top: 14px;
+            font-size: 8pt;
+            color: #666;
+            text-align: center;
+            border-top: 1px solid #ccc;
+            padding-top: 8px;
+        }
+
+        .tl-print-only thead { display: table-header-group; }
+        .tl-print-only tbody tr { page-break-inside: avoid; }
     }
 </style>
 
@@ -526,7 +626,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     'use strict';
 
     const TL_ROWS = <?= json_encode($allRows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    const PAGE_SIZE = 10;             // ← 10 per page
+    const PAGE_SIZE = 10;
     const TABLE_EMPTY = <?= $totalRawCount === 0 ? 'true' : 'false' ?>;
 
     let currentFilters = { sy: '', month: '', week: '' };
@@ -922,33 +1022,128 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         });
     }
 
+    /* ============================================================
+       PRINT-ONLY REPORT BUILDER
+       Builds the full printable report with header, KPI strip,
+       all filtered rows, and footer. Faculty column is blurred.
+       ============================================================ */
     function renderPrintTable() {
         const host = document.getElementById('printTable');
         if (!host) return;
-        if (filteredRows.length === 0) { host.innerHTML = ''; return; }
 
+        /* --- KPI summary --- */
+        const total = filteredRows.length;
+        let approved = 0, pending = 0, rejected = 0, units = 0;
+        filteredRows.forEach(function (row) {
+            const s = normalizeStatus(row.status);
+            if (s === 'Approved') approved++;
+            else if (s === 'Pending') pending++;
+            else if (s === 'Rejected') rejected++;
+            units += (row.total_units || 0);
+        });
+
+        /* --- Filter summary --- */
+        const filterParts = [];
+        if (currentFilters.sy)    filterParts.push('School Year: ' + currentFilters.sy);
+        if (currentFilters.month) {
+            const mNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            filterParts.push('Month: ' + (mNames[+currentFilters.month - 1] || currentFilters.month));
+        }
+        if (currentFilters.week)  filterParts.push('Week: ' + currentFilters.week);
+        const filterLine = filterParts.length
+            ? 'Filters — ' + filterParts.join(' · ')
+            : 'No filters applied — showing all records';
+
+        /* --- Timestamp --- */
+        const now = new Date();
+        const generatedAt = now.toLocaleDateString('en-US', {
+            year: 'numeric', month: 'long', day: 'numeric'
+        }) + ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+        /* --- Empty case --- */
+        if (total === 0) {
+            host.innerHTML = `
+                <div class="print-header">
+                    <h3>Teaching Load History Report</h3>
+                    <p class="print-meta">Generated ${escapeHtml(generatedAt)}</p>
+                </div>
+                <p class="print-filters">${escapeHtml(filterLine)}</p>
+                <p style="text-align:center; font-size:10pt; color:#555; margin-top:40px;">
+                    No teaching load records match the current filters.
+                </p>
+                <div class="print-footer">
+                    SMS 2 · Faculty Module · Confidential
+                </div>`;
+            return;
+        }
+
+        /* --- All filtered rows --- */
         const rows = filteredRows.map(function (r) {
             return '<tr>' +
                 '<td class="blur">' + escapeHtml(fullName(r)) + '</td>' +
                 '<td>' + escapeHtml(termLabel(r)) + '</td>' +
-                '<td>' + (r.subject_count || 0) + '</td>' +
-                '<td>' + (r.total_units || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }) + '</td>' +
+                '<td>' + escapeHtml(r.dept || '—') + '</td>' +
+                '<td style="text-align:center;">' + (r.subject_count || 0) + '</td>' +
+                '<td style="text-align:center; font-weight:700;">' +
+                    (r.total_units || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }) +
+                '</td>' +
                 '<td>' + escapeHtml(normalizeStatus(r.status)) + '</td>' +
-                '<td>' + escapeHtml(r.kind) + '</td>' +
-                '<td>' + fmtDate(r.acted_at) + '</td>' +
+                '<td>' + escapeHtml(r.kind || '—') + '</td>' +
+                '<td>' + escapeHtml(fmtDate(r.acted_at)) + '</td>' +
             '</tr>';
         }).join('');
 
+        /* --- Assemble report --- */
         host.innerHTML = `
+            <div class="print-header">
+                <h3>Teaching Load History Report</h3>
+                <p class="print-meta">Generated ${escapeHtml(generatedAt)}</p>
+            </div>
+
+            <p class="print-filters">${escapeHtml(filterLine)}</p>
+
+            <div class="print-kpis">
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Total Loads</div>
+                    <div class="print-kpi-value">${total.toLocaleString()}</div>
+                </div>
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Approved / Done</div>
+                    <div class="print-kpi-value">${approved.toLocaleString()}</div>
+                </div>
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Pending</div>
+                    <div class="print-kpi-value">${pending.toLocaleString()}</div>
+                </div>
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Rejected</div>
+                    <div class="print-kpi-value">${rejected.toLocaleString()}</div>
+                </div>
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Total Units</div>
+                    <div class="print-kpi-value">${units.toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
+                </div>
+            </div>
+
             <table>
                 <thead>
                     <tr>
-                        <th>Faculty</th><th>Term</th><th>Subjects</th>
-                        <th>Units</th><th>Status</th><th>Kind</th><th>Date</th>
+                        <th>Faculty</th>
+                        <th>Term</th>
+                        <th>Department</th>
+                        <th style="text-align:center;">Subjects</th>
+                        <th style="text-align:center;">Units</th>
+                        <th>Status</th>
+                        <th>Kind</th>
+                        <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
-            </table>`;
+            </table>
+
+            <div class="print-footer">
+                SMS 2 · Faculty Module · ${total.toLocaleString()} record${total !== 1 ? 's' : ''} · Confidential — Faculty names blurred
+            </div>`;
     }
 
     function exportCsv() {

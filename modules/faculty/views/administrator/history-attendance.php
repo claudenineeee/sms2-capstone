@@ -1,7 +1,7 @@
 <?php
 /**
  * SMS 2 - Faculty Admin Dashboard
- * Attendance History — with per-user print PIN
+ * Attendance History — with Privacy Mode (no PIN)
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
@@ -17,21 +17,6 @@ $breadcrumbs  = [
     ['label' => 'Dashboard', 'url' => null],
 ];
 
-// Check if the current user already has a print PIN
-$attHasPinSet = false;
-try {
-    if (function_exists('facultyDb')) {
-        $userId = $_SESSION['user_id'] ?? ($_SESSION['external_user_id'] ?? null);
-        $attDb  = facultyDb();
-        if ($userId && $attDb instanceof PDO) {
-            $stmt = $attDb->prepare("SELECT pin_hash FROM user_pins WHERE external_user_id = ? LIMIT 1");
-            $stmt->execute([(string) $userId]);
-            $attRow = $stmt->fetch(PDO::FETCH_ASSOC);
-            $attHasPinSet = !empty($attRow['pin_hash']);
-        }
-    }
-} catch (Throwable $e) { /* silent */ }
-
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
@@ -41,30 +26,32 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <div class="container-fluid px-3 px-md-4 px-lg-5 py-4" id="attDashboard">
 
     <!-- ================= Page Header ================= -->
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4 no-print">
         <div class="min-w-0">
             <h1 class="h3 fw-bold mb-1 text-body-emphasis">Attendance History</h1>
             <p class="text-body-secondary mb-0">Track faculty presence, punctuality, and leave across the current school year.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <button class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" id="attManagePinBtn" type="button">
-                <i class="fas fa-key"></i>
-                <span><?= $attHasPinSet ? 'Change PIN' : 'Set Print PIN' ?></span>
-            </button>
+            <label class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 border bg-body-tertiary mb-0"
+                   for="privacyModeToggle" style="cursor:pointer;font-size:0.82rem;font-weight:600;">
+                <input type="checkbox" class="form-check-input mt-0" id="privacyModeToggle" role="switch">
+                <i class="fas fa-eye-slash"></i>
+                <span class="d-none d-sm-inline">Privacy</span>
+            </label>
             <button class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" id="attExportCsvBtn" type="button">
                 <i class="fas fa-file-csv"></i>
-                <span>Export CSV</span>
+                <span class="d-none d-sm-inline">Export CSV</span>
             </button>
             <button class="btn btn-primary d-inline-flex align-items-center gap-2" id="attPrintBtn" type="button">
                 <i class="fas fa-print"></i>
-                <span>Print</span>
+                <span class="d-none d-sm-inline">Print</span>
             </button>
         </div>
     </div>
 
     <!-- ================= KPI Cards ================= -->
-    <div class="row g-3 mb-4 att-no-print">
-        <div class="col-12 col-sm-6 col-xl-3">
+    <div class="row g-3 mb-4 no-print">
+        <div class="col-6 col-lg-3">
             <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#0d6efd;z-index:1;"></div>
                 <div class="card-body d-flex align-items-center ps-4 pe-5 py-3">
@@ -78,13 +65,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <small class="fw-semibold d-block mt-1" style="color:#0d6efd;font-size:0.72rem;">All-time entries</small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded-2 d-flex align-items-center justify-content-center border-secondary-subtle"
-                   style="width:28px;height:28px;font-size:0.75rem;" title="View all records">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
             </section>
         </div>
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-6 col-lg-3">
             <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#10b981;z-index:1;"></div>
                 <div class="card-body d-flex align-items-center ps-4 pe-5 py-3">
@@ -100,13 +83,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded-2 d-flex align-items-center justify-content-center border-secondary-subtle"
-                   style="width:28px;height:28px;font-size:0.75rem;" title="View present">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
             </section>
         </div>
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-6 col-lg-3">
             <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#f59e0b;z-index:1;"></div>
                 <div class="card-body d-flex align-items-center ps-4 pe-5 py-3">
@@ -122,13 +101,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded-2 d-flex align-items-center justify-content-center border-secondary-subtle"
-                   style="width:28px;height:28px;font-size:0.75rem;" title="View late">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
             </section>
         </div>
-        <div class="col-12 col-sm-6 col-xl-3">
+        <div class="col-6 col-lg-3">
             <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#ff4d4d;z-index:1;"></div>
                 <div class="card-body d-flex align-items-center ps-4 pe-5 py-3">
@@ -144,25 +119,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded-2 d-flex align-items-center justify-content-center border-secondary-subtle"
-                   style="width:28px;height:28px;font-size:0.75rem;" title="View absent / leave">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
             </section>
         </div>
     </div>
 
     <!-- ================= Filters ================= -->
-    <div class="card border shadow-sm mb-4 att-no-print">
-        <div class="card-body">
+    <div class="card border shadow-sm mb-4 no-print">
+        <div class="card-body py-3">
             <div class="row g-3 align-items-end">
                 <div class="col-6 col-md-3 col-lg-2">
                     <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="attFilterYear">School Year</label>
-                    <select class="form-select" id="attFilterYear"><option value="all">All years</option></select>
+                    <select class="form-select form-select-sm" id="attFilterYear"><option value="all">All years</option></select>
                 </div>
                 <div class="col-6 col-md-3 col-lg-2">
                     <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="attFilterMonth">Month</label>
-                    <select class="form-select" id="attFilterMonth">
+                    <select class="form-select form-select-sm" id="attFilterMonth">
                         <option value="all">All months</option>
                         <option value="1">January</option><option value="2">February</option>
                         <option value="3">March</option><option value="4">April</option>
@@ -174,7 +145,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div class="col-6 col-md-3 col-lg-2">
                     <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="attFilterWeek">Week</label>
-                    <select class="form-select" id="attFilterWeek">
+                    <select class="form-select form-select-sm" id="attFilterWeek">
                         <option value="all">All weeks</option>
                         <option value="1">Week 1 · 1–7</option><option value="2">Week 2 · 8–14</option>
                         <option value="3">Week 3 · 15–21</option><option value="4">Week 4 · 22–28</option>
@@ -182,7 +153,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </select>
                 </div>
                 <div class="col-6 col-md-3 col-lg-2 ms-lg-auto">
-                    <button class="btn btn-outline-secondary w-100 d-inline-flex align-items-center justify-content-center gap-2" id="attResetFilters" type="button">
+                    <button class="btn btn-outline-secondary btn-sm w-100 d-inline-flex align-items-center justify-content-center gap-2" id="attResetFilters" type="button">
                         <i class="fas fa-rotate-left"></i><span>Reset</span>
                     </button>
                 </div>
@@ -191,7 +162,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 
     <!-- ================= Charts ================= -->
-    <div class="row g-3 mb-4 att-no-print">
+    <div class="row g-3 mb-4 no-print">
         <div class="col-12 col-lg-6">
             <div class="card border shadow-sm h-100">
                 <div class="card-body">
@@ -222,11 +193,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     <!-- ================= Data Table ================= -->
     <div class="card border shadow-sm overflow-hidden">
-        <div class="d-none d-print-block text-center pt-3 px-3">
-            <h4 class="mb-1 fw-bold">Faculty Attendance History Report</h4>
-            <p class="small mb-0" id="attPrintFilterInfo"></p>
-        </div>
-        <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-start flex-wrap gap-3 py-3 att-no-print">
+        <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-start flex-wrap gap-3 py-3 no-print">
             <div>
                 <h5 class="card-title mb-1 fw-bold">Attendance Records</h5>
                 <p class="text-body-secondary small mb-0" id="attRecordCount">Loading…</p>
@@ -262,7 +229,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <tbody id="attTableBody"></tbody>
             </table>
         </div>
-        <div class="card-footer bg-transparent border-top d-flex justify-content-between align-items-center flex-wrap gap-3 py-3 att-no-print">
+        <div class="card-footer bg-transparent border-top d-flex justify-content-between align-items-center flex-wrap gap-3 py-3 no-print">
             <div class="small text-body-secondary">
                 Showing <span class="fw-bold text-body-emphasis" id="attPageStart">0</span>–<span class="fw-bold text-body-emphasis" id="attPageEnd">0</span>
                 of <span class="fw-bold text-body-emphasis" id="attPageTotal">0</span> records
@@ -274,99 +241,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- ================= Print PIN Modal ================= -->
-<div class="modal fade" id="attPrintPinModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-bottom">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="d-inline-flex align-items-center justify-content-center rounded-3"
-                          style="width:36px;height:36px;font-size:1rem;background:rgba(37,99,235,0.12);color:#2563eb;">
-                        <i class="fas fa-lock"></i>
-                    </span>
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0">Print Authorization</h5>
-                        <small class="text-body-secondary">Enter your PIN to continue</small>
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <label for="attPrintPinInput" class="form-label small text-uppercase fw-bold text-body-secondary">Security PIN</label>
-                <input type="password" class="form-control form-control-lg text-center fw-bold"
-                       id="attPrintPinInput" inputmode="numeric" autocomplete="off"
-                       maxlength="6" placeholder="••••" style="letter-spacing:0.5em;">
-                <div class="form-text small mt-2">
-                    <i class="fas fa-circle-info me-1"></i>
-                    Printed copies blur faculty names and notes.
-                </div>
-                <div class="alert alert-danger mt-3 mb-0 py-2 small d-none" id="attPrintPinError"></div>
-            </div>
-            <div class="modal-footer border-top">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2" id="attPrintPinSubmit">
-                    <i class="fas fa-print"></i><span>Authorize &amp; Print</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Print-only report -->
+<div class="att-print-only" id="attPrintTable" aria-hidden="true"></div>
 
-<!-- ================= Manage PIN Modal ================= -->
-<div class="modal fade" id="attManagePinModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-bottom">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="d-inline-flex align-items-center justify-content-center rounded-3"
-                          style="width:36px;height:36px;font-size:1rem;background:rgba(16,185,129,0.14);color:#10b981;">
-                        <i class="fas fa-key"></i>
-                    </span>
-                    <div>
-                        <h5 class="modal-title fw-bold mb-0" id="attManagePinTitle">
-                            <?= $attHasPinSet ? 'Change Print PIN' : 'Set Print PIN' ?>
-                        </h5>
-                        <small class="text-body-secondary">4–6 digits. Used to authorize printing.</small>
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3 <?= $attHasPinSet ? '' : 'd-none' ?>" id="attCurrentPinWrap">
-                    <label for="attCurrentPinInput" class="form-label small text-uppercase fw-bold text-body-secondary">Current PIN</label>
-                    <input type="password" class="form-control text-center fw-bold"
-                           id="attCurrentPinInput" inputmode="numeric" autocomplete="off"
-                           maxlength="6" placeholder="••••" style="letter-spacing:0.4em;">
-                </div>
-                <div class="mb-3">
-                    <label for="attNewPinInput" class="form-label small text-uppercase fw-bold text-body-secondary">New PIN</label>
-                    <input type="password" class="form-control text-center fw-bold"
-                           id="attNewPinInput" inputmode="numeric" autocomplete="off"
-                           maxlength="6" placeholder="••••" style="letter-spacing:0.4em;">
-                </div>
-                <div class="mb-0">
-                    <label for="attConfirmPinInput" class="form-label small text-uppercase fw-bold text-body-secondary">Confirm New PIN</label>
-                    <input type="password" class="form-control text-center fw-bold"
-                           id="attConfirmPinInput" inputmode="numeric" autocomplete="off"
-                           maxlength="6" placeholder="••••" style="letter-spacing:0.4em;">
-                </div>
-                <div class="alert alert-danger mt-3 mb-0 py-2 small d-none" id="attManagePinError"></div>
-                <div class="alert alert-success mt-3 mb-0 py-2 small d-none" id="attManagePinSuccess"></div>
-            </div>
-            <div class="modal-footer border-top">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2" id="attManagePinSubmit">
-                    <i class="fas fa-floppy-disk"></i><span>Save PIN</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- =========================================================
-     Minimal scoped styles
-     ========================================================= -->
 <style>
+    /* ============================================================
+       Status badges
+       ============================================================ */
     .att-badge {
         display: inline-flex; align-items: center; gap: 0.35rem;
         padding: 0.32rem 0.7rem; font-size: 0.78rem; font-weight: 650;
@@ -383,6 +264,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     [data-theme="dark"] .att-badge-absent  { background: rgba(248,113,113,0.16); color: #fca5a5; border-color: rgba(248,113,113,0.24); }
     [data-theme="dark"] .att-badge-leave   { background: rgba(56,189,248,0.16);  color: #7dd3fc; border-color: rgba(56,189,248,0.24); }
 
+    /* ============================================================
+       Pagination
+       ============================================================ */
     #attPagination .page-link {
         min-width: 36px; height: 36px;
         display: inline-flex; align-items: center; justify-content: center;
@@ -391,39 +275,119 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
     #attPagination .page-item.active .page-link { box-shadow: 0 4px 12px rgba(37,99,235,0.28); }
 
+    /* ============================================================
+       Privacy blur (screen toggle)
+       ============================================================ */
+    .privacy-mode .att-privacy-target {
+        filter: blur(5px); -webkit-filter: blur(5px);
+        user-select: none; transition: filter 0.15s ease;
+    }
+    .privacy-mode .att-privacy-target:hover { filter: blur(0); -webkit-filter: blur(0); }
+
+    /* ============================================================
+       Responsive
+       ============================================================ */
     @media (max-width: 640px) {
         #attDashboard .position-relative[style*="height:260px"] { height: 220px !important; }
     }
-    @media (max-width: 380px) {
+    @media (max-width: 400px) {
+        #attDashboard { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+        #attDashboard h1.h3 { font-size: 1.15rem; }
+        .stat-card .card-body { padding: 0.7rem 0.6rem 0.7rem 0.9rem !important; }
+        .stat-card h4 { font-size: 1.2rem !important; }
+        .stat-card h6 { font-size: 0.62rem !important; letter-spacing: 0.03em !important; }
+        .stat-card small { font-size: 0.65rem !important; }
+        .stat-card .card-body > div[style*="width:46px"] { width: 36px !important; height: 36px !important; font-size: 1rem !important; }
         #attDashboard .position-relative[style*="height:260px"] { height: 190px !important; }
         #attDashboard .card-title { font-size: 0.95rem; }
+        #attTable tbody td,
+        #attTable thead th { font-size: 0.72rem; padding: 0.5rem 0.4rem; }
+    }
+    @media (max-width: 360px) {
+        #attTable tbody td,
+        #attTable thead th { font-size: 0.68rem; padding: 0.45rem 0.3rem; }
     }
 
+    /* ============================================================
+       Print-only report
+       ============================================================ */
+    .att-print-only { display: none; }
+
     @media print {
-        body { background: #fff !important; color: #000 !important; }
-        .att-no-print, .breadcrumb, nav, header, footer,
-        .sidebar, .sms-sidebar, .sms-navbar, .btn, button,
-        .card-footer, .card-header, .modal { display: none !important; }
-        #attDashboard { padding: 0 !important; }
-        .container-fluid { padding: 0 !important; }
-        .card { box-shadow: none !important; border: 1px solid #ccc !important;
-                background: #fff !important; backdrop-filter: none !important;
-                -webkit-backdrop-filter: none !important; border-radius: 8px !important; }
-        .table { font-size: 10pt; color: #000 !important; }
-        .table thead th { background: #f1f5f9 !important; color: #000 !important;
-                          border-color: #ccc !important; padding: 0.5rem 0.6rem !important; }
-        .table tbody td { color: #000 !important; border-color: #ddd !important;
-                          background: transparent !important; padding: 0.5rem 0.6rem !important; }
-        .table tbody tr:hover td { background: transparent !important; }
-        .att-badge { border: 1px solid #999 !important; background: #f3f4f6 !important;
-                     color: #000 !important; padding: 0.2rem 0.5rem !important; }
-        .att-badge::before { background: #555 !important; }
-        #attTable tbody td:nth-child(2),
-        #attTable tbody td:nth-child(7) {
+        body { background: #fff !important; color: #000 !important; margin: 0; padding: 0; }
+        .no-print, .breadcrumb, nav, header, footer,
+        .sidebar, .sms-sidebar, .sms-navbar,
+        .card-footer, .card-header,
+        .btn, button, .modal,
+        .pagination,
+        #privacyModeToggle { display: none !important; }
+
+        #attDashboard { display: none !important; }
+
+        .att-print-only {
+            display: block !important;
+            padding: 0.4in 0.35in;
+            font-family: 'Inter', Arial, sans-serif;
+            color: #000;
+        }
+        .att-print-only .print-header {
+            text-align: center;
+            margin-bottom: 14px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+        .att-print-only .print-header h3 {
+            font-size: 16pt; font-weight: 800; margin: 0 0 4px;
+        }
+        .att-print-only .print-header .print-meta {
+            font-size: 9.5pt; color: #333; margin: 0;
+        }
+        .att-print-only .print-filters {
+            font-size: 9pt; color: #333; text-align: center;
+            margin-bottom: 12px; font-style: italic;
+        }
+        .att-print-only .print-kpis {
+            display: flex; justify-content: space-between; gap: 8px;
+            margin-bottom: 14px; padding: 10px 12px;
+            border: 1px solid #999; border-radius: 6px; background: #f8f9fa;
+        }
+        .att-print-only .print-kpi { flex: 1; text-align: center; }
+        .att-print-only .print-kpi-label {
+            font-size: 8pt; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.5px; color: #555;
+        }
+        .att-print-only .print-kpi-value {
+            font-size: 14pt; font-weight: 800; color: #000; line-height: 1.2;
+        }
+        .att-print-only table {
+            width: 100%; border-collapse: collapse; font-size: 9.5pt;
+        }
+        .att-print-only thead th {
+            background: #e5e7eb !important; color: #000 !important;
+            border: 1px solid #999; padding: 6px 8px;
+            text-align: left; font-size: 8.5pt;
+            text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700;
+        }
+        .att-print-only tbody td {
+            border: 1px solid #ccc; padding: 5px 8px;
+            color: #000 !important; background: #fff !important;
+        }
+        .att-print-only tbody tr:nth-child(even) td { background: #f9fafb !important; }
+
+        /* Blur on print — always, regardless of the Privacy toggle */
+        .att-print-only td.att-print-blur {
             filter: blur(6px) !important;
             -webkit-filter: blur(6px) !important;
             user-select: none !important;
+            -webkit-user-select: none !important;
         }
+
+        .att-print-only .print-footer {
+            margin-top: 14px; font-size: 8pt; color: #666;
+            text-align: center; border-top: 1px solid #ccc; padding-top: 8px;
+        }
+        .att-print-only thead { display: table-header-group; }
+        .att-print-only tbody tr { page-break-inside: avoid; }
     }
 </style>
 
@@ -433,9 +397,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     'use strict';
 
     /* ============================================================
-       Kill browser autofill on navbar search (page-scoped patch)
-       Runs immediately, then again at 300ms and 1000ms to catch
-       Chrome's delayed autofill behaviour.
+       Kill browser autofill on navbar search
+       — Also removes the native "clear" button so only the
+         theme's own × remains visible.
        ============================================================ */
     (function fixNavbarAutofill() {
         var selectors = [
@@ -454,7 +418,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 document.querySelectorAll(sel).forEach(function (el) {
                     if (inputs.indexOf(el) === -1) inputs.push(el);
                 });
-            } catch (e) { /* ignore invalid selectors */ }
+            } catch (e) { /* ignore */ }
         });
 
         function wipe() {
@@ -464,17 +428,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 input.setAttribute('autocapitalize', 'off');
                 input.setAttribute('spellcheck', 'false');
 
-                // Give it a non-login name so Chrome stops treating it as a username field
+                // Unique non-login name so Chrome stops treating it as a username field
                 if (!input.name || input.name === 'q' || input.name === 'search' || input.name === 's') {
                     input.name = 'sms2_global_search_' + Date.now();
                 }
 
-                // Strongest signal to the browser
-                if (input.type === 'text') {
-                    input.type = 'search';
+                // Change to type="text" to remove the native × clear button.
+                // The theme's own × is a separate element outside the input.
+                if (input.type === 'search') {
+                    input.type = 'text';
                 }
 
-                // Wipe any autofilled value that looks like an email
+                // Wipe any email-looking autofilled value
                 if (input.value && input.value.indexOf('@') !== -1) {
                     input.value = '';
                 }
@@ -482,12 +447,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         }
 
         wipe();
-
-        // Belt & braces — Chrome autofills after load sometimes
         setTimeout(wipe, 300);
         setTimeout(wipe, 1000);
 
-        // Also wipe on focus just in case
         inputs.forEach(function (input) {
             input.addEventListener('focus', function () {
                 if (this.value && this.value.indexOf('@') !== -1) this.value = '';
@@ -495,18 +457,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         });
     })();
 
-    /* ---------- Library guards ---------- */
-    var hasChart     = (typeof Chart !== 'undefined');
-    var hasBootstrap = (typeof bootstrap !== 'undefined');
+    /* ============================================================
+       DATA
+       ============================================================ */
+    var hasChart = (typeof Chart !== 'undefined');
+    if (!hasChart) console.warn('[attendance] Chart.js not loaded — charts disabled.');
 
-    if (!hasChart)     console.warn('[attendance] Chart.js not loaded — charts disabled.');
-    if (!hasBootstrap) console.warn('[attendance] Bootstrap JS not loaded — modals disabled.');
-
-    /* ---------- Endpoints ---------- */
-    const ATT_SET_PIN_URL    = '<?= BASE_URL ?>/modules/faculty/controllers/SetPrintPin.php';
-    const ATT_VERIFY_PIN_URL = '<?= BASE_URL ?>/modules/faculty/controllers/VerifyPrintPin.php';
-
-    /* ---------- Data ---------- */
     const attRawAttendance = [
         { attendance_id: 12, faculty_id: 101, attendance_date: '2026-09-22', time_in: null,       time_out: null,       status: 'Present',  hours_rendered: null, notes: null },
         { attendance_id: 13, faculty_id: 51,  attendance_date: '2026-09-23', time_in: '08:00:00', time_out: '17:00:00', status: 'Present',  hours_rendered: 8.0,  notes: 'Regular day' },
@@ -535,7 +491,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     let attStatusChartInstance = null;
     let attMonthChartInstance  = null;
 
-    /* ---------- Helpers ---------- */
+    /* ============================================================
+       HELPERS
+       ============================================================ */
     function attGetFacultyName(id) { return attFacultyMap[id] || ('Faculty #' + id); }
 
     function attFormatDate(dateStr) {
@@ -566,16 +524,27 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         return '<span class="att-badge ' + (map[status] || 'att-badge-present') + '">' + status + '</span>';
     }
 
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
     function attThemeColors() {
         const css = getComputedStyle(document.documentElement);
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+            || document.body.getAttribute('data-theme') === 'dark';
         return {
-            grid: css.getPropertyValue('--sms-chart-grid').trim() || 'rgba(15,33,88,0.06)',
-            text: css.getPropertyValue('--sms-chart-text').trim() || '#64748b',
-            doughnutBorder: css.getPropertyValue('--sms-chart-doughnut-border').trim() || '#ffffff'
+            grid: css.getPropertyValue('--sms-chart-grid').trim() || (isDark ? 'rgba(148,163,184,0.12)' : 'rgba(15,33,88,0.06)'),
+            text: css.getPropertyValue('--sms-chart-text').trim() || (isDark ? '#94a3b8' : '#64748b'),
+            textStrong: isDark ? '#e2e8f0' : '#0f172a',
+            doughnutBorder: css.getPropertyValue('--sms-chart-doughnut-border').trim() || (isDark ? '#121c34' : '#ffffff')
         };
     }
 
-    /* ---------- Filters ---------- */
+    /* ============================================================
+       FILTERS
+       ============================================================ */
     function attPopulateYearFilter() {
         const years = new Set();
         attRawAttendance.forEach(function (r) {
@@ -628,7 +597,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         attUpdateDashboard();
     }
 
-    /* ---------- Table ---------- */
+    /* ============================================================
+       TABLE
+       ============================================================ */
     function attRenderTable() {
         const tbody = document.getElementById('attTableBody');
         if (!tbody) return;
@@ -647,12 +618,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             tbody.innerHTML = pageData.map(function (r) {
                 return '<tr>' +
                     '<td class="text-nowrap">' + attFormatDate(r.attendance_date) + '</td>' +
-                    '<td class="fw-semibold">' + attGetFacultyName(r.faculty_id) + '</td>' +
+                    '<td class="fw-semibold att-privacy-target">' + attGetFacultyName(r.faculty_id) + '</td>' +
                     '<td>' + attStatusBadge(r.status) + '</td>' +
                     '<td class="text-nowrap">' + attFormatTime(r.time_in) + '</td>' +
                     '<td class="text-nowrap">' + attFormatTime(r.time_out) + '</td>' +
                     '<td class="text-center">' + (r.hours_rendered != null ? r.hours_rendered : '—') + '</td>' +
-                    '<td>' + (r.notes || '—') + '</td>' +
+                    '<td class="att-privacy-target">' + (r.notes || '—') + '</td>' +
                     '</tr>';
             }).join('');
         }
@@ -665,7 +636,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             (total ? ' · page ' + attCurrentPage + ' of ' + totalPages : '');
 
         attRenderPagination(totalPages);
-        attUpdatePrintSubtitle();
     }
 
     function attRenderPagination(totalPages) {
@@ -725,22 +695,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         return out;
     }
 
-    function attUpdatePrintSubtitle() {
-        const year  = document.getElementById('attFilterYear').value;
-        const month = document.getElementById('attFilterMonth').value;
-        const week  = document.getElementById('attFilterWeek').value;
-        const parts = [];
-        if (year !== 'all')  parts.push('Year: ' + year);
-        if (month !== 'all') {
-            const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            parts.push('Month: ' + mn[parseInt(month, 10) - 1]);
-        }
-        if (week !== 'all')  parts.push('Week: ' + week);
-        const el = document.getElementById('attPrintFilterInfo');
-        if (el) el.textContent = parts.length ? ('Filters: ' + parts.join(' · ')) : 'All records';
-    }
-
-    /* ---------- KPIs ---------- */
+    /* ============================================================
+       KPIs
+       ============================================================ */
     function attUpdateKPIs(data) {
         const total       = data.length;
         const present     = data.filter(function (r) { return r.status === 'Present'; }).length;
@@ -758,7 +715,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         document.getElementById('attKpiAbsentLeavePct').textContent = pct(absentLeave);
     }
 
-    /* ---------- Charts ---------- */
+    /* ============================================================
+       CHARTS
+       ============================================================ */
     function attUpdateCharts(data) {
         if (!hasChart) return;
         const colors = attThemeColors();
@@ -789,7 +748,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     plugins: {
                         legend: {
                             position: 'bottom',
-                            labels: { color: colors.text, boxWidth: 10, boxHeight: 10,
+                            labels: { color: colors.textStrong, boxWidth: 10, boxHeight: 10,
                                       usePointStyle: true, pointStyle: 'circle',
                                       padding: 14, font: { size: 12, weight: '600' } }
                         }
@@ -844,9 +803,120 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         attUpdateKPIs(attFilteredData);
         attRenderTable();
         attUpdateCharts(attFilteredData);
+        attRenderPrintTable();
     }
 
-    /* ---------- CSV ---------- */
+    /* ============================================================
+       PRINT-ONLY REPORT
+       Builds a complete printable report with header, KPI strip,
+       all filtered rows, and footer. Faculty + Notes are blurred.
+       ============================================================ */
+    function attRenderPrintTable() {
+        const host = document.getElementById('attPrintTable');
+        if (!host) return;
+
+        const total       = attFilteredData.length;
+        const present     = attFilteredData.filter(function (r) { return r.status === 'Present'; }).length;
+        const late        = attFilteredData.filter(function (r) { return r.status === 'Late'; }).length;
+        const absentLeave = attFilteredData.filter(function (r) { return r.status === 'Absent' || r.status === 'On Leave'; }).length;
+
+        const yEl = document.getElementById('attFilterYear');
+        const mEl = document.getElementById('attFilterMonth');
+        const wEl = document.getElementById('attFilterWeek');
+        const filterParts = [];
+        if (yEl && yEl.value !== 'all') filterParts.push('Year: ' + yEl.value);
+        if (mEl && mEl.value !== 'all') {
+            const mn = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            filterParts.push('Month: ' + mn[parseInt(mEl.value, 10) - 1]);
+        }
+        if (wEl && wEl.value !== 'all') filterParts.push('Week: ' + wEl.value);
+        const filterLine = filterParts.length
+            ? 'Filters — ' + filterParts.join(' · ')
+            : 'No filters applied — showing all records';
+
+        const now = new Date();
+        const generatedAt = now.toLocaleDateString('en-US', {
+            year: 'numeric', month: 'long', day: 'numeric'
+        }) + ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+        if (total === 0) {
+            host.innerHTML = `
+                <div class="print-header">
+                    <h3>Faculty Attendance History Report</h3>
+                    <p class="print-meta">Generated ${escapeHtml(generatedAt)}</p>
+                </div>
+                <p class="print-filters">${escapeHtml(filterLine)}</p>
+                <p style="text-align:center; font-size:10pt; color:#555; margin-top:40px;">
+                    No attendance records match the current filters.
+                </p>
+                <div class="print-footer">
+                    SMS 2 · Faculty Module · Confidential
+                </div>`;
+            return;
+        }
+
+        const rows = attFilteredData.map(function (r) {
+            return '<tr>' +
+                '<td>' + escapeHtml(attFormatDate(r.attendance_date)) + '</td>' +
+                '<td class="att-print-blur">' + escapeHtml(attGetFacultyName(r.faculty_id)) + '</td>' +
+                '<td>' + escapeHtml(r.status) + '</td>' +
+                '<td>' + escapeHtml(attFormatTime(r.time_in)) + '</td>' +
+                '<td>' + escapeHtml(attFormatTime(r.time_out)) + '</td>' +
+                '<td style="text-align:center;">' + (r.hours_rendered != null ? r.hours_rendered : '—') + '</td>' +
+                '<td class="att-print-blur">' + escapeHtml(r.notes || '—') + '</td>' +
+            '</tr>';
+        }).join('');
+
+        host.innerHTML = `
+            <div class="print-header">
+                <h3>Faculty Attendance History Report</h3>
+                <p class="print-meta">Generated ${escapeHtml(generatedAt)}</p>
+            </div>
+
+            <p class="print-filters">${escapeHtml(filterLine)}</p>
+
+            <div class="print-kpis">
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Total Records</div>
+                    <div class="print-kpi-value">${total.toLocaleString()}</div>
+                </div>
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Present</div>
+                    <div class="print-kpi-value">${present.toLocaleString()}</div>
+                </div>
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Late</div>
+                    <div class="print-kpi-value">${late.toLocaleString()}</div>
+                </div>
+                <div class="print-kpi">
+                    <div class="print-kpi-label">Absent / Leave</div>
+                    <div class="print-kpi-value">${absentLeave.toLocaleString()}</div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Faculty</th>
+                        <th>Status</th>
+                        <th>Time In</th>
+                        <th>Time Out</th>
+                        <th style="text-align:center;">Hours</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+
+            <div class="print-footer">
+                SMS 2 · Faculty Module · ${total.toLocaleString()} record${total !== 1 ? 's' : ''} · Confidential — Faculty names &amp; notes blurred
+            </div>`;
+    }
+
+    /* ============================================================
+       CSV
+       ============================================================ */
     function attExportCSV() {
         const headers = ['Date', 'Faculty', 'Status', 'Time In', 'Time Out', 'Hours', 'Notes'];
         const rows = attFilteredData.map(function (r) {
@@ -875,146 +945,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         document.body.removeChild(link);
     }
 
-    /* ---------- Print PIN ---------- */
-    const attPrintPinModalEl = document.getElementById('attPrintPinModal');
-    const attPrintPinInput   = document.getElementById('attPrintPinInput');
-    const attPrintPinError   = document.getElementById('attPrintPinError');
-    const attPrintPinSubmit  = document.getElementById('attPrintPinSubmit');
-    const attPrintPinModal   = hasBootstrap ? new bootstrap.Modal(attPrintPinModalEl) : null;
-
-    document.getElementById('attPrintBtn').addEventListener('click', function () {
-        if (!attPrintPinModal) { window.print(); return; }
-        attPrintPinInput.value = '';
-        attPrintPinError.classList.add('d-none');
-        attPrintPinModal.show();
-        setTimeout(function () { attPrintPinInput.focus(); }, 300);
-    });
-
-    function attVerifyPrintPin() {
-        const entered = (attPrintPinInput.value || '').trim();
-        if (!entered) return;
-
-        attPrintPinSubmit.disabled = true;
-
-        fetch(ATT_VERIFY_PIN_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ pin: entered })
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            attPrintPinSubmit.disabled = false;
-            if (data.ok) {
-                if (attPrintPinModal) attPrintPinModal.hide();
-                setTimeout(function () { window.print(); }, 350);
-            } else {
-                attPrintPinError.textContent = data.error || 'Incorrect PIN. Please try again.';
-                attPrintPinError.classList.remove('d-none');
-                attPrintPinInput.classList.add('is-invalid');
-                attPrintPinInput.value = '';
-                attPrintPinInput.focus();
-            }
-        })
-        .catch(function () {
-            attPrintPinSubmit.disabled = false;
-            attPrintPinError.textContent = 'Server error. Please try again.';
-            attPrintPinError.classList.remove('d-none');
-        });
-    }
-
-    attPrintPinSubmit.addEventListener('click', attVerifyPrintPin);
-    attPrintPinInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); attVerifyPrintPin(); }
-    });
-    attPrintPinInput.addEventListener('input', function () {
-        attPrintPinError.classList.add('d-none');
-        attPrintPinInput.classList.remove('is-invalid');
-    });
-    if (attPrintPinModalEl) {
-        attPrintPinModalEl.addEventListener('hidden.bs.modal', function () {
-            attPrintPinInput.value = '';
-            attPrintPinError.classList.add('d-none');
-            attPrintPinInput.classList.remove('is-invalid');
-        });
-    }
-
-    /* ---------- Manage PIN ---------- */
-    const attManagePinModalEl = document.getElementById('attManagePinModal');
-    const attManagePinModal   = hasBootstrap ? new bootstrap.Modal(attManagePinModalEl) : null;
-    const attCurrentPinInput  = document.getElementById('attCurrentPinInput');
-    const attNewPinInput      = document.getElementById('attNewPinInput');
-    const attConfirmPinInput  = document.getElementById('attConfirmPinInput');
-    const attManagePinError   = document.getElementById('attManagePinError');
-    const attManagePinSuccess = document.getElementById('attManagePinSuccess');
-    const attManagePinSubmit  = document.getElementById('attManagePinSubmit');
-
-    document.getElementById('attManagePinBtn').addEventListener('click', function () {
-        if (!attManagePinModal) {
-            alert('Bootstrap JS is not loaded — PIN modal unavailable.');
-            return;
-        }
-        attCurrentPinInput.value = '';
-        attNewPinInput.value = '';
-        attConfirmPinInput.value = '';
-        attManagePinError.classList.add('d-none');
-        attManagePinSuccess.classList.add('d-none');
-        attManagePinModal.show();
-    });
-
-    attManagePinSubmit.addEventListener('click', function () {
-        attManagePinError.classList.add('d-none');
-        attManagePinSuccess.classList.add('d-none');
-
-        const newPin     = (attNewPinInput.value || '').trim();
-        const confirmPin = (attConfirmPinInput.value || '').trim();
-        const currentPin = (attCurrentPinInput.value || '').trim();
-
-        if (!/^\d{4,6}$/.test(newPin)) {
-            attManagePinError.textContent = 'PIN must be 4–6 digits.';
-            attManagePinError.classList.remove('d-none');
-            return;
-        }
-        if (newPin !== confirmPin) {
-            attManagePinError.textContent = 'PINs do not match.';
-            attManagePinError.classList.remove('d-none');
-            return;
-        }
-
-        attManagePinSubmit.disabled = true;
-
-        fetch(ATT_SET_PIN_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ pin: newPin, current_pin: currentPin })
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            attManagePinSubmit.disabled = false;
-            if (data.ok) {
-                attManagePinSuccess.textContent = data.message || 'PIN saved.';
-                attManagePinSuccess.classList.remove('d-none');
-                const btn = document.getElementById('attManagePinBtn');
-                if (btn) btn.querySelector('span').textContent = 'Change PIN';
-                const title = document.getElementById('attManagePinTitle');
-                if (title) title.textContent = 'Change Print PIN';
-                const wrap = document.getElementById('attCurrentPinWrap');
-                if (wrap) wrap.classList.remove('d-none');
-                setTimeout(function () { if (attManagePinModal) attManagePinModal.hide(); }, 900);
-            } else {
-                attManagePinError.textContent = data.error || 'Could not save PIN.';
-                attManagePinError.classList.remove('d-none');
-            }
-        })
-        .catch(function () {
-            attManagePinSubmit.disabled = false;
-            attManagePinError.textContent = 'Server error. Please try again.';
-            attManagePinError.classList.remove('d-none');
-        });
-    });
-
-    /* ---------- Init ---------- */
+    /* ============================================================
+       INIT
+       ============================================================ */
     function attInit() {
         attPopulateYearFilter();
 
@@ -1042,8 +975,28 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         var csvBtn = document.getElementById('attExportCsvBtn');
         if (csvBtn) csvBtn.addEventListener('click', attExportCSV);
 
+        var printBtn = document.getElementById('attPrintBtn');
+        if (printBtn) printBtn.addEventListener('click', function () { window.print(); });
+
+        /* Privacy toggle (screen blur) */
+        var pt = document.getElementById('privacyModeToggle');
+        var KEY = 'smsAttendancePrivacyMode';
+        if (pt) {
+            var apply = function (on) { document.body.classList.toggle('privacy-mode', on); };
+            try {
+                var saved = localStorage.getItem(KEY) === '1';
+                pt.checked = saved;
+                apply(saved);
+            } catch (e) { /* ignore */ }
+            pt.addEventListener('change', function () {
+                apply(pt.checked);
+                try { localStorage.setItem(KEY, pt.checked ? '1' : '0'); } catch (e) { /* ignore */ }
+            });
+        }
+
         var observer = new MutationObserver(function () { attUpdateCharts(attFilteredData); });
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        observer.observe(document.body,            { attributes: true, attributeFilter: ['data-theme'] });
     }
 
     if (document.readyState === 'loading') {

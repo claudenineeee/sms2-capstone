@@ -292,86 +292,70 @@ require_once ROOT_PATH . '/includes/layout-start.php';
   /* KPI Cards */
   .fcm-kpi-card {
     background: #ffffff;
-    border: 1px solid #e8edf2;
-    border-left: 5px solid var(--kpi-accent, #2563eb);
-    border-radius: 10px;
-    padding: 14px 16px 14px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px 22px;
     position: relative;
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    transition: all 0.2s ease;
     cursor: pointer;
     height: 100%;
   }
 
   .fcm-kpi-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    border-color: #cbd5e1;
   }
 
   .fcm-kpi-card.active-kpi {
-    box-shadow: 0 0 0 2px var(--kpi-accent, #2563eb);
+    border: 2px solid #2563eb !important;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15);
   }
 
-  .fcm-kpi-link-icon {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 22px;
-    height: 22px;
-    border-radius: 5px;
-    background: #f1f5f9;
+  .fcm-kpi-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6rem;
-    color: #94a3b8;
-    transition: all 0.18s;
-  }
-
-  .fcm-kpi-card:hover .fcm-kpi-link-icon {
-    background: var(--kpi-accent, #2563eb);
-    color: #ffffff;
-  }
-
-  .fcm-kpi-body {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .fcm-kpi-icon-wrap {
-    flex-shrink: 0;
-    font-size: 1.7rem;
-    line-height: 1;
-  }
-
-  .fcm-kpi-text {
-    flex: 1;
-    min-width: 0;
+    font-size: 1.15rem;
+    margin-bottom: 14px;
   }
 
   .fcm-kpi-title {
-    font-size: 0.63rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #94a3b8;
-    margin-bottom: 2px;
-    padding-right: 26px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--fcm-text-muted);
+    margin-bottom: 4px;
   }
 
   .fcm-kpi-val {
     font-size: 2rem;
     font-weight: 800;
     color: #0f172a;
-    letter-spacing: -0.04em;
-    line-height: 1.05;
-    margin-bottom: 3px;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 8px;
   }
 
-  .fcm-kpi-sub {
-    font-size: 0.72rem;
-    font-weight: 500;
-    line-height: 1.3;
+  .fcm-kpi-footer {
+    font-size: 0.73rem;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .fcm-kpi-arrow {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    transition: transform 0.2s;
+  }
+
+  .fcm-kpi-card:hover .fcm-kpi-arrow {
+    color: #1d4ed8;
+    transform: translateX(3px);
   }
 
   /* Sections */
@@ -800,93 +784,89 @@ require_once ROOT_PATH . '/includes/layout-start.php';
   </div>
 
 
-  <!-- SUMMARY CARDS (6 CARDS) -->
+  <!-- SUMMARY CARDS (6 CARDS IN EXACT FIGMA ROW) -->
   <div class="row g-3 mb-4">
     <!-- 1. Total -->
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="fcm-kpi-card" style="--kpi-accent:#2563eb" onclick="filterByStatus('all')">
-        <div class="fcm-kpi-link-icon"><i class="fas fa-external-link-alt"></i></div>
-        <div class="fcm-kpi-body">
-          <div class="fcm-kpi-icon-wrap" style="color:#2563eb"><i class="fas fa-users"></i></div>
-          <div class="fcm-kpi-text">
-            <div class="fcm-kpi-title">Total Faculty</div>
-            <div class="fcm-kpi-val" id="kpi-total-val"><?= (int) $totalClearances ?></div>
-            <div class="fcm-kpi-sub" style="color:#2563eb" id="kpi-total-sub">Registered personnel</div>
-          </div>
+      <div class="fcm-kpi-card" onclick="filterByStatus('all')">
+        <div class="fcm-kpi-icon" style="background:#eff6ff;color:#2563eb">
+          <i class="fas fa-clipboard-list"></i>
+        </div>
+        <div class="fcm-kpi-title">Total Faculty Clearances</div>
+        <div class="fcm-kpi-val" id="kpi-total-val"><?= (int) $totalClearances ?></div>
+        <div class="fcm-kpi-footer">
+          <span id="kpi-total-sub"><?= (int) $totalClearances ?> total faculty</span>
+          <span class="fcm-kpi-arrow">&rarr;</span>
         </div>
       </div>
     </div>
     <!-- 2. Pending -->
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="fcm-kpi-card" style="--kpi-accent:#d97706" onclick="filterByStatus('pending')">
-        <div class="fcm-kpi-link-icon"><i class="fas fa-external-link-alt"></i></div>
-        <div class="fcm-kpi-body">
-          <div class="fcm-kpi-icon-wrap" style="color:#d97706"><i class="fas fa-hourglass-half"></i></div>
-          <div class="fcm-kpi-text">
-            <div class="fcm-kpi-title">Pending</div>
-            <div class="fcm-kpi-val" id="kpi-pending-val"><?= (int) $pendingCount ?></div>
-            <div class="fcm-kpi-sub" style="color:#d97706" id="kpi-pending-sub"><?= (int) $pendingCount ?> awaiting
-              action</div>
-          </div>
+      <div class="fcm-kpi-card" onclick="filterByStatus('pending')">
+        <div class="fcm-kpi-icon" style="background:#fffbeb;color:#d97706">
+          <i class="fas fa-clock"></i>
+        </div>
+        <div class="fcm-kpi-title">Pending</div>
+        <div class="fcm-kpi-val" id="kpi-pending-val"><?= (int) $pendingCount ?></div>
+        <div class="fcm-kpi-footer">
+          <span id="kpi-pending-sub"><?= (int) $pendingCount ?> awaiting action</span>
+          <span class="fcm-kpi-arrow">&rarr;</span>
         </div>
       </div>
     </div>
-    <!-- 3. For Verification -->
+    <!-- 3. For Verification (Active highlighted) -->
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="fcm-kpi-card active-kpi" style="--kpi-accent:#0891b2" onclick="filterByStatus('for-verification')">
-        <div class="fcm-kpi-link-icon"><i class="fas fa-external-link-alt"></i></div>
-        <div class="fcm-kpi-body">
-          <div class="fcm-kpi-icon-wrap" style="color:#0891b2"><i class="fas fa-file-alt"></i></div>
-          <div class="fcm-kpi-text">
-            <div class="fcm-kpi-title">For Verification</div>
-            <div class="fcm-kpi-val" id="kpi-verify-val"><?= (int) $forVerificationCount ?></div>
-            <div class="fcm-kpi-sub" style="color:#0891b2" id="kpi-verify-sub"><?= (int) $forVerificationCount ?> to
-              verify</div>
-          </div>
+      <div class="fcm-kpi-card active-kpi" onclick="filterByStatus('for-verification')">
+        <div class="fcm-kpi-icon" style="background:#ecfeff;color:#0891b2">
+          <i class="fas fa-file-alt"></i>
+        </div>
+        <div class="fcm-kpi-title">For Verification</div>
+        <div class="fcm-kpi-val" id="kpi-verify-val"><?= (int) $forVerificationCount ?></div>
+        <div class="fcm-kpi-footer">
+          <span id="kpi-verify-sub"><?= (int) $forVerificationCount ?> to verify</span>
+          <span class="fcm-kpi-arrow">&rarr;</span>
         </div>
       </div>
     </div>
     <!-- 4. Returned -->
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="fcm-kpi-card" style="--kpi-accent:#ea580c" onclick="filterByStatus('returned')">
-        <div class="fcm-kpi-link-icon"><i class="fas fa-external-link-alt"></i></div>
-        <div class="fcm-kpi-body">
-          <div class="fcm-kpi-icon-wrap" style="color:#ea580c"><i class="fas fa-undo"></i></div>
-          <div class="fcm-kpi-text">
-            <div class="fcm-kpi-title">Returned</div>
-            <div class="fcm-kpi-val" id="kpi-returned-val"><?= (int) $returnedCount ?></div>
-            <div class="fcm-kpi-sub" style="color:#ea580c" id="kpi-returned-sub"><?= (int) $returnedCount ?> with
-              deficiency</div>
-          </div>
+      <div class="fcm-kpi-card" onclick="filterByStatus('returned')">
+        <div class="fcm-kpi-icon" style="background:#fff7ed;color:#ea580c">
+          <i class="fas fa-undo"></i>
+        </div>
+        <div class="fcm-kpi-title">Returned</div>
+        <div class="fcm-kpi-val" id="kpi-returned-val"><?= (int) $returnedCount ?></div>
+        <div class="fcm-kpi-footer">
+          <span id="kpi-returned-sub"><?= (int) $returnedCount ?> with deficiency</span>
+          <span class="fcm-kpi-arrow">&rarr;</span>
         </div>
       </div>
     </div>
     <!-- 5. Ready for Final Approval -->
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="fcm-kpi-card" style="--kpi-accent:#7c3aed" onclick="filterByStatus('ready')">
-        <div class="fcm-kpi-link-icon"><i class="fas fa-external-link-alt"></i></div>
-        <div class="fcm-kpi-body">
-          <div class="fcm-kpi-icon-wrap" style="color:#7c3aed"><i class="fas fa-shield-alt"></i></div>
-          <div class="fcm-kpi-text">
-            <div class="fcm-kpi-title">Ready for Approval</div>
-            <div class="fcm-kpi-val" id="kpi-ready-val"><?= (int) $readyCount ?></div>
-            <div class="fcm-kpi-sub" style="color:#7c3aed" id="kpi-ready-sub"> endorsed</div>
-          </div>
+      <div class="fcm-kpi-card" onclick="filterByStatus('ready')">
+        <div class="fcm-kpi-icon" style="background:#faf5ff;color:#7c3aed">
+          <i class="fas fa-shield-alt"></i>
+        </div>
+        <div class="fcm-kpi-title">Ready for Final Approval</div>
+        <div class="fcm-kpi-val" id="kpi-ready-val"><?= (int) $readyCount ?></div>
+        <div class="fcm-kpi-footer">
+          <span id="kpi-ready-sub"><?= (int) $readyCount ?> endorsed</span>
+          <span class="fcm-kpi-arrow">&rarr;</span>
         </div>
       </div>
     </div>
     <!-- 6. Cleared -->
     <div class="col-6 col-md-4 col-xl-2">
-      <div class="fcm-kpi-card" style="--kpi-accent:#16a34a" onclick="filterByStatus('cleared')">
-        <div class="fcm-kpi-link-icon"><i class="fas fa-external-link-alt"></i></div>
-        <div class="fcm-kpi-body">
-          <div class="fcm-kpi-icon-wrap" style="color:#16a34a"><i class="fas fa-check-circle"></i></div>
-          <div class="fcm-kpi-text">
-            <div class="fcm-kpi-title">Cleared</div>
-            <div class="fcm-kpi-val" id="kpi-cleared-val"><?= (int) $clearedCount ?></div>
-            <div class="fcm-kpi-sub" style="color:#16a34a" id="kpi-cleared-sub"><?= $completionRate ?>% completion rate
-            </div>
-          </div>
+      <div class="fcm-kpi-card" onclick="filterByStatus('cleared')">
+        <div class="fcm-kpi-icon" style="background:#f0fdf4;color:#16a34a">
+          <i class="fas fa-check"></i>
+        </div>
+        <div class="fcm-kpi-title">Cleared</div>
+        <div class="fcm-kpi-val" id="kpi-cleared-val"><?= (int) $clearedCount ?></div>
+        <div class="fcm-kpi-footer">
+          <span id="kpi-cleared-sub"><?= $completionRate ?>% completion rate</span>
+          <span class="fcm-kpi-arrow">&rarr;</span>
         </div>
       </div>
     </div>
@@ -923,8 +903,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         <option value="all">All departments</option>
         <?php foreach ($departmentsList as $d): ?>
           <option value="<?= strtolower(htmlspecialchars((string) $d['code'])) ?>">
-            <?= htmlspecialchars((string) $d['name']) ?> (<?= htmlspecialchars((string) $d['code']) ?>)
-          </option>
+            <?= htmlspecialchars((string) $d['name']) ?> (<?= htmlspecialchars((string) $d['code']) ?>)</option>
         <?php endforeach; ?>
       </select>
       <button class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 px-3 py-2 fw-semibold rounded-3"
@@ -1012,8 +991,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                   <div>
                     <div class="fw-bold text-dark" style="font-size:0.86rem"><?= htmlspecialchars($item['name']) ?></div>
                     <div class="text-muted" style="font-size:0.75rem"><?= htmlspecialchars($item['dept']) ?> &middot;
-                      <?= htmlspecialchars($item['statusLabel']) ?>
-                    </div>
+                      <?= htmlspecialchars($item['statusLabel']) ?></div>
                   </div>
                 </div>
                 <button class="fcm-attn-btn" onclick="openDrawer(<?= (int) $item['profile_id'] ?>)">Review</button>
@@ -1056,8 +1034,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                   <div>
                     <div class="fw-bold text-dark" style="font-size:0.84rem"><?= htmlspecialchars($actName) ?></div>
                     <div class="text-muted" style="font-size:0.74rem"><?= htmlspecialchars($officeName) ?> &middot;
-                      <?= htmlspecialchars($facName) ?>
-                    </div>
+                      <?= htmlspecialchars($facName) ?></div>
                   </div>
                 </div>
                 <span class="text-muted" style="font-size:0.73rem"><?= htmlspecialchars($timeStr) ?></span>
@@ -1253,8 +1230,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
       <div class="d-flex align-items-center justify-content-between mb-3">
         <div>
           <h4 class="fw-bold mb-1 text-dark" style="font-size:1.05rem">Requirements Status</h4>
-          <p class="text-muted small mb-0">Track requirement approval and deficiency status across all clearance
-            offices.</p>
+          <p class="text-muted small mb-0">Track requirement approval and deficiency status across all clearance offices.</p>
         </div>
         <span class="badge bg-light text-primary border px-3 py-2 rounded-pill fw-bold" id="dr-complete-badge"
           style="font-size:0.73rem">0 of 6 approved</span>
@@ -1307,10 +1283,8 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         </div>
         <div>
           <div class="fw-bold" id="dr-warn-title" style="color:#854d0e;font-size:0.9rem">Clearance In Progress</div>
-          <div class="fw-bold mb-1" id="dr-warn-sub" style="color:#713f12;font-size:0.83rem">0 of 6 requirements
-            approved</div>
-          <div class="small" id="dr-warn-desc" style="color:#854d0e;line-height:1.4">Tracking individual office
-            verification and requirement approval statuses.</div>
+          <div class="fw-bold mb-1" id="dr-warn-sub" style="color:#713f12;font-size:0.83rem">0 of 6 requirements approved</div>
+          <div class="small" id="dr-warn-desc" style="color:#854d0e;line-height:1.4">Tracking individual office verification and requirement approval statuses.</div>
         </div>
       </div>
     </div>
@@ -1328,8 +1302,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
   <div class="offcanvas-footer border-top p-3 px-4 bg-light d-flex justify-content-between">
     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="offcanvas">Close Drawer</button>
     <div class="d-flex gap-2">
-      <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadReport('pdf')"><i
-          class="fas fa-file-pdf me-1"></i>Export PDF</button>
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadReport('pdf')"><i class="fas fa-file-pdf me-1"></i>Export PDF</button>
       <button type="button" class="btn btn-sm btn-primary" onclick="openForwardModal('Dr. Amelia Santos')"><i
           class="fas fa-share me-1"></i>Forward to Dean / VPAA</button>
     </div>
@@ -1342,26 +1315,19 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden" style="height: 88vh;">
       <div class="modal-header py-2.5 px-3 bg-light border-bottom d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center gap-2.5 text-truncate me-3">
-          <div
-            style="width:34px;height:34px;border-radius:8px;background:#fef2f2;color:#dc2626;display:flex;align-items:center;justify-content:center;font-size:0.95rem;flex-shrink:0">
+          <div style="width:34px;height:34px;border-radius:8px;background:#fef2f2;color:#dc2626;display:flex;align-items:center;justify-content:center;font-size:0.95rem;flex-shrink:0">
             <i class="fas fa-file-pdf"></i>
           </div>
           <div class="text-truncate">
-            <div id="docPreviewTitle" class="fw-bold text-dark text-truncate" style="font-size: 0.92rem;">Document
-              Preview</div>
-            <div id="docPreviewSub" class="text-muted small" style="font-size: 0.72rem;">Clearance Requirement
-              Attachment</div>
+            <div id="docPreviewTitle" class="fw-bold text-dark text-truncate" style="font-size: 0.92rem;">Document Preview</div>
+            <div id="docPreviewSub" class="text-muted small" style="font-size: 0.72rem;">Clearance Requirement Attachment</div>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2 flex-shrink-0">
-          <a id="docPreviewOpenTab" href="#" target="_blank" rel="noopener noreferrer"
-            class="btn btn-sm btn-outline-secondary py-1 px-2.5 d-inline-flex align-items-center gap-1.5"
-            style="font-size: 0.75rem;">
+          <a id="docPreviewOpenTab" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary py-1 px-2.5 d-inline-flex align-items-center gap-1.5" style="font-size: 0.75rem;">
             <i class="fas fa-external-link-alt"></i><span>Open in New Tab</span>
           </a>
-          <a id="docPreviewDownload" href="#"
-            class="btn btn-sm btn-primary py-1 px-2.5 d-inline-flex align-items-center gap-1.5"
-            style="font-size: 0.75rem;">
+          <a id="docPreviewDownload" href="#" class="btn btn-sm btn-primary py-1 px-2.5 d-inline-flex align-items-center gap-1.5" style="font-size: 0.75rem;">
             <i class="fas fa-download"></i><span>Download</span>
           </a>
           <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1372,8 +1338,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
           <i class="fas fa-circle-notch fa-spin fa-2x mb-2 text-light opacity-75"></i>
           <div class="small opacity-75">Loading uploaded document...</div>
         </div>
-        <iframe id="docPreviewFrame" src="" style="width: 100%; height: 100%; border: none;"
-          onload="const l=document.getElementById('docPreviewLoading');if(l)l.classList.add('d-none');"></iframe>
+        <iframe id="docPreviewFrame" src="" style="width: 100%; height: 100%; border: none;" onload="const l=document.getElementById('docPreviewLoading');if(l)l.classList.add('d-none');"></iframe>
       </div>
     </div>
   </div>
@@ -1746,7 +1711,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         if (Array.isArray(parsed.passed) && passed.length === 0) passed = parsed.passed;
         if (Array.isArray(parsed.failed) && failed.length === 0) failed = parsed.failed;
         if (parsed.locked || parsed.confirmed) isScopeLocked = true;
-      } catch (e) { }
+      } catch (e) {}
       text = text.replace(/<!--SCOPE_STATE:.*?-->/gs, '');
     }
 
@@ -1760,7 +1725,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     return rem.replace(/<!--SCOPE_STATE:.*?-->/gs, '').replace(/<!--.*?-->/gs, '').trim();
   }
 
-  function renderDrawerRequirementsOLD(items) {
+  function renderDrawerRequirementsOLD_REPLACED(items) {
     const container = document.getElementById('dr-reqs-list');
     if (!container) return;
 
@@ -1971,52 +1936,52 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     }
 
     const officeMeta = {
-      'Academic Clearance': { office: 'Academic Affairs & Registrar', icon: 'fa-graduation-cap' },
-      'Library Clearance': { office: 'University Library', icon: 'fa-book-bookmark' },
-      'Financial Clearance': { office: 'Accounting & Finance Office', icon: 'fa-receipt' },
-      'Property Clearance': { office: 'Property & Custodian Office', icon: 'fa-boxes-stacked' },
-      'HR Clearance': { office: 'Human Resources Office', icon: 'fa-user-check' },
-      'Department Clearance': { office: 'Department Head & Dean', icon: 'fa-building-columns' }
+      'Academic Clearance':   { office: 'Academic Affairs & Registrar',      icon: 'fa-graduation-cap' },
+      'Library Clearance':    { office: 'University Library',                 icon: 'fa-book-bookmark' },
+      'Financial Clearance':  { office: 'Accounting & Finance Office',        icon: 'fa-receipt' },
+      'Property Clearance':   { office: 'Property & Custodian Office',        icon: 'fa-boxes-stacked' },
+      'HR Clearance':         { office: 'Human Resources Office',             icon: 'fa-user-check' },
+      'Department Clearance': { office: 'Department Head & Dean',             icon: 'fa-building-columns' }
     };
 
     const approvals = (currentReviewData && currentReviewData.clearance && currentReviewData.clearance.office_approvals) || {};
 
     container.innerHTML = items.map(it => {
-      const isApproved = ['Cleared', 'Approved', 'Verified', 'Signed'].includes(it.status);
-      const isDenied = ['Denied', 'Hold', 'With Deficiency', 'On Hold', 'Rejected', 'Returned'].includes(it.status);
-      const isUnderReview = ['Pending Review', 'Under Verification', 'Pending Verification', 'Submitted'].includes(it.status);
-      const hasFile = Boolean(it.file_name || it.original_name || it.file_path);
-      const rawFileName = it.file_name || it.original_name || (it.file_path ? it.file_path.split('/').pop() : 'clearance-document.pdf');
+      const isApproved    = ['Cleared','Approved','Verified','Signed'].includes(it.status);
+      const isDenied      = ['Denied','Hold','With Deficiency','On Hold','Rejected','Returned'].includes(it.status);
+      const isUnderReview = ['Pending Review','Under Verification','Pending Verification','Submitted'].includes(it.status);
+      const hasFile       = Boolean(it.file_name || it.original_name || it.file_path);
+      const rawFileName   = it.file_name || it.original_name || (it.file_path ? it.file_path.split('/').pop() : 'clearance-document.pdf');
 
-      const meta = officeMeta[it.name] || { office: 'Clearance Office', icon: 'fa-file-alt' };
-      const officeApp = approvals[it.name] || {};
+      const meta        = officeMeta[it.name] || { office: 'Clearance Office', icon: 'fa-file-alt' };
+      const officeApp   = approvals[it.name] || {};
       const approverName = officeApp.approver_name || '';
-      const clearedAt = it.cleared_at || officeApp.cleared_at || '';
-      const remInfo = parseItemRemarks(it.remarks, it.scope_data);
+      const clearedAt   = it.cleared_at || officeApp.cleared_at || '';
+      const remInfo     = parseItemRemarks(it.remarks, it.scope_data);
       const cleanRemarks = remInfo.text;
 
       // --- status badge & card theming ---
       let statusBadge, iconBg, iconColor, icon, cardBorder;
       if (isApproved) {
-        statusBadge = `<span style="display:inline-flex;align-items:center;gap:5px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:0.73rem;padding:3px 10px;border-radius:20px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;flex-shrink:0"></span>Completed</span>`;
+        statusBadge  = `<span style="display:inline-flex;align-items:center;gap:5px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:0.73rem;padding:3px 10px;border-radius:20px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;flex-shrink:0"></span>Completed</span>`;
         icon = 'fa-check'; iconBg = '#f0fdf4'; iconColor = '#16a34a'; cardBorder = '#bbf7d0';
       } else if (isDenied) {
-        statusBadge = `<span style="display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-size:0.73rem;padding:3px 10px;border-radius:20px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0"></span>Returned</span>`;
+        statusBadge  = `<span style="display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-size:0.73rem;padding:3px 10px;border-radius:20px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0"></span>Returned</span>`;
         icon = 'fa-times'; iconBg = '#fef2f2'; iconColor = '#dc2626'; cardBorder = '#fecaca';
       } else if (hasFile || isUnderReview) {
-        statusBadge = `<span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-size:0.73rem;padding:3px 10px;border-radius:20px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>For Verification</span>`;
+        statusBadge  = `<span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-size:0.73rem;padding:3px 10px;border-radius:20px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>For Verification</span>`;
         icon = 'fa-clock'; iconBg = '#eff6ff'; iconColor = '#2563eb'; cardBorder = '#bfdbfe';
       } else {
-        statusBadge = `<span style="display:inline-flex;align-items:center;gap:5px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;font-size:0.73rem;padding:3px 10px;border-radius:20px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;flex-shrink:0"></span>Pending</span>`;
+        statusBadge  = `<span style="display:inline-flex;align-items:center;gap:5px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;font-size:0.73rem;padding:3px 10px;border-radius:20px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;flex-shrink:0"></span>Pending</span>`;
         icon = meta.icon; iconBg = '#fffbeb'; iconColor = '#d97706'; cardBorder = '#e2e8f0';
       }
 
       // file URLs
-      const fileViewUrl = it.file_path
-        ? `${clearanceApi}?action=file&path=${encodeURIComponent(it.file_path)}&item_id=${it.id || 0}&filename=${encodeURIComponent(rawFileName)}`
+      const fileViewUrl     = it.file_path
+        ? `${clearanceApi}?action=file&path=${encodeURIComponent(it.file_path)}&item_id=${it.id||0}&filename=${encodeURIComponent(rawFileName)}`
         : (it.id ? `${clearanceApi}?action=file&item_id=${it.id}&filename=${encodeURIComponent(rawFileName)}` : '#');
       const fileDownloadUrl = it.file_path
-        ? `${clearanceApi}?action=file&download=1&path=${encodeURIComponent(it.file_path)}&item_id=${it.id || 0}&filename=${encodeURIComponent(rawFileName)}`
+        ? `${clearanceApi}?action=file&download=1&path=${encodeURIComponent(it.file_path)}&item_id=${it.id||0}&filename=${encodeURIComponent(rawFileName)}`
         : (it.id ? `${clearanceApi}?action=file&download=1&item_id=${it.id}&filename=${encodeURIComponent(rawFileName)}` : '#');
 
       // sub-info line
@@ -2031,11 +1996,12 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         subInfo = `<span class="text-muted" style="font-size:0.73rem">Awaiting faculty document submission &middot; No document submitted</span>`;
       }
 
-      const eViewUrl = escapeHtml(fileViewUrl);
-      const eDlUrl = escapeHtml(fileDownloadUrl);
-      const eName = escapeHtml(rawFileName);
-      const eReqName = escapeHtml(it.name);
-      const itemId = parseInt(it.id) || 0;
+      // escaped strings for inline onclick attrs
+      const eViewUrl  = escapeHtml(fileViewUrl);
+      const eDlUrl    = escapeHtml(fileDownloadUrl);
+      const eName     = escapeHtml(rawFileName);
+      const eReqName  = escapeHtml(it.name);
+      const itemId    = parseInt(it.id) || 0;
 
       return `
       <div style="border:1px solid ${cardBorder};background:#ffffff;border-radius:12px;padding:14px 16px;margin-bottom:10px;transition:box-shadow 0.18s"
@@ -2060,7 +2026,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
               <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size:0.8rem">
                 ${hasFile ? `<li><a class="dropdown-item" href="javascript:void(0)" onclick="previewClearanceDoc('${eViewUrl}','${eDlUrl}','${eName}','${eReqName}')"><i class="fas fa-eye me-2 text-primary"></i>View Document</a></li>` : ''}
                 <li><a class="dropdown-item" href="javascript:void(0)" onclick="verifyRequirement(${itemId},'${eReqName}')"><i class="fas fa-check me-2 text-success"></i>Verify</a></li>
-                <li><a class="dropdown-item" href="javascript:void(0)" onclick="openReturnReqModal(${itemId},'${eReqName}')"><i class="fas fa-undo me-2 text-danger"></i>Return</a></li>
+                <li><a class="dropdown-item" href="javascript:void(0)" onclick="openReturnModal(${itemId},'${eReqName}')"><i class="fas fa-undo me-2 text-danger"></i>Return</a></li>
                 <li><a class="dropdown-item" href="javascript:void(0)" onclick="openRemarkModal(${itemId},'${eReqName}')"><i class="fas fa-comment me-2 text-muted"></i>Add Remarks</a></li>
               </ul>
             </div>
@@ -2085,7 +2051,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             <i class="fas fa-check"></i> Verify
           </button>
           <span class="text-muted mx-1" style="font-size:0.7rem">&bull;</span>
-          <button type="button" onclick="openReturnReqModal(${itemId},'${eReqName}')"
+          <button type="button" onclick="openReturnModal(${itemId},'${eReqName}')"
             class="fcm-req-action-btn" style="color:#ea580c">
             <i class="fas fa-undo"></i> Return
           </button>
@@ -2228,6 +2194,9 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     const modal = document.getElementById('returnReqModal');
     if (modal) bootstrap.Modal.getOrCreateInstance(modal).show();
   }
+
+  // Alias for card action buttons
+  function openReturnModal(itemId, reqName) { openReturnReqModal(itemId, reqName); }
 
   async function confirmReturnReq() {
     const reason = document.getElementById('ret-modal-reason')?.value || 'Requirement flagged with deficiency';
