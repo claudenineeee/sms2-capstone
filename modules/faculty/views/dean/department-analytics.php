@@ -45,23 +45,12 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
     try {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
-        /* ---- Faculty roster ---- */
         $facStmt = $pdo->query("
             SELECT
-                f.faculty_id,
-                f.faculty_no,
-                f.first_name,
-                f.middle_name,
-                f.last_name,
-                f.email,
-                f.department_id,
-                f.position,
-                f.employment_status,
-                f.profile_status,
-                f.academic_rank,
-                f.tier,
-                d.code AS dept_code,
-                d.name AS dept_name
+                f.faculty_id, f.faculty_no, f.first_name, f.middle_name, f.last_name,
+                f.email, f.department_id, f.position, f.employment_status,
+                f.profile_status, f.academic_rank, f.tier,
+                d.code AS dept_code, d.name AS dept_name
             FROM faculty_db.faculty f
             LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
@@ -70,11 +59,9 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         ");
         $facultyRoster = $facStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        /* ---- Attendance (12 months) ---- */
         $attStmt = $pdo->query("
-            SELECT
-                a.attendance_id, a.faculty_id, a.attendance_date,
-                a.status, a.hours_rendered, f.department_id
+            SELECT a.attendance_id, a.faculty_id, a.attendance_date,
+                   a.status, a.hours_rendered, f.department_id
             FROM faculty_db.attendance_records a
             INNER JOIN faculty_db.faculty f ON f.faculty_id = a.faculty_id
             WHERE f.department_id IN ($deptList)
@@ -83,12 +70,9 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         ");
         $allAttendance = $attStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        /* ---- Evaluations (12 months) ---- */
         $evalStmt = $pdo->query("
-            SELECT
-                e.evaluation_id, e.faculty_id, e.source_type,
-                e.composite_score, e.rating_label, e.submitted_at,
-                f.department_id
+            SELECT e.evaluation_id, e.faculty_id, e.source_type,
+                   e.composite_score, e.rating_label, e.submitted_at, f.department_id
             FROM faculty_db.evaluations e
             INNER JOIN faculty_db.faculty f ON f.faculty_id = e.faculty_id
             WHERE f.department_id IN ($deptList)
@@ -97,12 +81,10 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         ");
         $allEvals = $evalStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        /* ---- Leaves (12 months) ---- */
         $leaveStmt = $pdo->query("
-            SELECT
-                lr.id, lr.request_ref, lr.faculty_id, lr.leave_type,
-                lr.start_date, lr.end_date, lr.total_days,
-                lr.approval_status, lr.created_at, f.department_id
+            SELECT lr.id, lr.request_ref, lr.faculty_id, lr.leave_type,
+                   lr.start_date, lr.end_date, lr.total_days,
+                   lr.approval_status, lr.created_at, f.department_id
             FROM faculty_db.leave_requests lr
             INNER JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
             WHERE f.department_id IN ($deptList)
@@ -166,7 +148,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <p class="small mb-0 mt-1"><em>Confidential — for internal review only.</em></p>
     </div>
 
-    <!-- ================= Page Header (same as faculty-profile) ================= -->
+    <!-- ================= Page Header ================= -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 no-print">
         <div>
             <h1 class="h4 h3-md text-body fw-bold mb-1 d-flex align-items-center gap-2">
@@ -195,7 +177,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- ================= KPI Cards (same as faculty-profile style) ================= -->
+    <!-- ================= KPI Cards ================= -->
     <div class="row g-3 mb-4 no-print">
         <div class="col-6 col-lg-3">
             <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
@@ -263,7 +245,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- ================= Filters (same style as other dean pages) ================= -->
+    <!-- ================= Filters ================= -->
     <div class="card border shadow-sm mb-4 no-print">
         <div class="card-body py-3">
             <div class="row g-3 align-items-end">
@@ -317,94 +299,93 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- ============================================================
-         UNIQUE CHART LAYOUT (only this section differs from other pages)
-         Row A: Radial gauge + horizontal attendance bars
-         Row B: Full-width hero: present rate + eval score dual-line
-         Row C: Leave composition (stacked columns by month)
-         ============================================================ -->
-
-    <!-- ===== Row A ===== -->
+    <!-- ================= Charts ================= -->
     <div class="row g-3 mb-4 no-print">
 
-        <!-- Attendance Rate Gauge -->
-        <div class="col-12 col-lg-5">
-            <div class="card border shadow-sm h-100">
-                <div class="card-body d-flex flex-column">
-                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                        <h5 class="card-title mb-0 fw-bold">Attendance Rate</h5>
-                        <span class="badge text-bg-light border" id="gaugeBadge">0 records</span>
-                    </div>
-                    <div class="position-relative w-100 flex-grow-1" style="min-height:260px;">
-                        <canvas id="gaugeChart"></canvas>
-                        <div class="da-empty d-none" id="gaugeEmpty">
-                            <i class="fas fa-gauge-high"></i>
-                            <h6>No attendance data</h6>
-                            <p>Rate will appear once attendance is recorded.</p>
-                        </div>
-                    </div>
-                    <div class="text-center text-body-secondary small mt-2">
-                        <span class="fw-bold text-body-emphasis" id="gaugeValue">0%</span> present
-                        · <span id="gaugeAbsent">0%</span> absent / late
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Attendance by Day-of-Week -->
-        <div class="col-12 col-lg-7">
-            <div class="card border shadow-sm h-100">
-                <div class="card-body d-flex flex-column">
-                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                        <h5 class="card-title mb-0 fw-bold">Attendance by Day of Week</h5>
-                        <span class="badge text-bg-light border" id="dowBadge">—</span>
-                    </div>
-                    <div class="position-relative w-100 flex-grow-1" style="min-height:260px;">
-                        <canvas id="dowChart"></canvas>
-                        <div class="da-empty d-none" id="dowEmpty">
-                            <i class="fas fa-calendar-day"></i>
-                            <h6>No attendance data</h6>
-                            <p>Day-of-week pattern will show once records exist.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== Row B: Hero dual-line chart (full width) ===== -->
-    <div class="row g-3 mb-4 no-print">
+        <!-- ===== ROW A: Attendance & Evaluation Pulse ===== -->
         <div class="col-12">
             <div class="card border shadow-sm">
-                <div class="card-body d-flex flex-column">
+                <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
                         <div>
-                            <h5 class="card-title mb-1 fw-bold">Attendance & Evaluation Trend</h5>
-                            <p class="text-body-secondary small mb-0">Monthly present rate vs. average eval score</p>
+                            <h5 class="card-title mb-1 fw-bold">Attendance &amp; Evaluation Pulse</h5>
+                            <p class="text-body-secondary small mb-0">Present rate vs. average evaluation score, by month</p>
                         </div>
                         <span class="badge text-bg-light border" id="trendBadge">0 periods</span>
                     </div>
-                    <div class="position-relative w-100" style="height:320px;">
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <div class="d-flex align-items-center gap-2 p-2 rounded-2 border bg-body-tertiary">
+                                <div class="rounded-2 d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                                     style="width:34px;height:34px;background:rgba(16,185,129,.14);color:#10b981;">
+                                    <i class="fas fa-user-check" style="font-size:.9rem;"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-uppercase fw-bold text-body-secondary" style="font-size:.62rem;letter-spacing:.05em;">Present</div>
+                                    <div class="fw-bold text-success lh-1" style="font-size:1.15rem;" id="pulsePresent">0%</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="d-flex align-items-center gap-2 p-2 rounded-2 border bg-body-tertiary">
+                                <div class="rounded-2 d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                                     style="width:34px;height:34px;background:rgba(139,92,246,.14);color:#8b5cf6;">
+                                    <i class="fas fa-star" style="font-size:.9rem;"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-uppercase fw-bold text-body-secondary" style="font-size:.62rem;letter-spacing:.05em;">Avg Eval</div>
+                                    <div class="fw-bold lh-1" style="font-size:1.15rem;color:#8b5cf6;" id="pulseEval">0.00</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="d-flex align-items-center gap-2 p-2 rounded-2 border bg-body-tertiary">
+                                <div class="rounded-2 d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                                     style="width:34px;height:34px;background:rgba(13,110,253,.14);color:#0d6efd;">
+                                    <i class="fas fa-calendar-check" style="font-size:.9rem;"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-uppercase fw-bold text-body-secondary" style="font-size:.62rem;letter-spacing:.05em;">Records</div>
+                                    <div class="fw-bold text-primary lh-1" style="font-size:1.15rem;" id="pulseRecords">0</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="d-flex align-items-center gap-2 p-2 rounded-2 border bg-body-tertiary">
+                                <div class="rounded-2 d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                                     style="width:34px;height:34px;background:rgba(245,158,11,.14);color:#f59e0b;">
+                                    <i class="fas fa-plane-departure" style="font-size:.9rem;"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-uppercase fw-bold text-body-secondary" style="font-size:.62rem;letter-spacing:.05em;">Leave Days</div>
+                                    <div class="fw-bold text-warning lh-1" style="font-size:1.15rem;" id="pulseLeave">0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="position-relative w-100" style="height:280px;">
                         <canvas id="heroChart"></canvas>
                         <div class="da-empty d-none" id="heroEmpty">
                             <i class="fas fa-chart-line"></i>
                             <h6>No trend data yet</h6>
-                            <p>Trends will appear once attendance and evaluations are recorded.</p>
+                            <p>Trends appear once attendance and evaluations are recorded.</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- ===== Row C: Leave stacked bar + status pie ===== -->
-    <div class="row g-3 mb-4 no-print">
-        <!-- Leave composition stacked by month -->
+        <!-- ===== ROW B: Leave Activity (7) + Leave Status (5) ===== -->
         <div class="col-12 col-lg-7">
             <div class="card border shadow-sm h-100">
                 <div class="card-body d-flex flex-column">
                     <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                        <h5 class="card-title mb-0 fw-bold">Leave Days by Month</h5>
+                        <div>
+                            <h5 class="card-title mb-1 fw-bold">Leave Activity</h5>
+                            <p class="text-body-secondary small mb-0">Monthly leave days &amp; status split</p>
+                        </div>
                         <span class="badge text-bg-light border" id="leaveMonthBadge">0 months</span>
                     </div>
                     <div class="position-relative w-100 flex-grow-1" style="min-height:260px;">
@@ -419,20 +400,45 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
         </div>
 
-        <!-- Leave by status doughnut -->
         <div class="col-12 col-lg-5">
             <div class="card border shadow-sm h-100">
                 <div class="card-body d-flex flex-column">
                     <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                        <h5 class="card-title mb-0 fw-bold">Leave by Status</h5>
+                        <div>
+                            <h5 class="card-title mb-1 fw-bold">Leave Status</h5>
+                            <p class="text-body-secondary small mb-0">Approved / pending / rejected</p>
+                        </div>
                         <span class="badge text-bg-light border" id="leaveStatusBadge">0 total</span>
                     </div>
-                    <div class="position-relative w-100 flex-grow-1" style="min-height:260px;">
-                        <canvas id="leaveStatusChart"></canvas>
-                        <div class="da-empty d-none" id="leaveStatusEmpty">
-                            <i class="fas fa-chart-pie"></i>
-                            <h6>No leave data</h6>
-                            <p>Status distribution will show here.</p>
+
+                    <div id="leaveStatusBars" class="d-flex flex-column gap-3 flex-grow-1 justify-content-center"></div>
+
+                    <div class="da-empty d-none" id="leaveStatusEmpty">
+                        <i class="fas fa-clipboard-list"></i>
+                        <h6>No leave data</h6>
+                        <p>Status distribution will show here.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== ROW C: Attendance Heatmap ===== -->
+        <div class="col-12">
+            <div class="card border shadow-sm">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                        <div>
+                            <h5 class="card-title mb-1 fw-bold">Attendance Pattern</h5>
+                            <p class="text-body-secondary small mb-0">Record density by day of week &amp; hour of day</p>
+                        </div>
+                        <span class="badge text-bg-light border" id="dowBadge">0 records</span>
+                    </div>
+                    <div class="position-relative">
+                        <div id="attHeatmap" style="display:grid;grid-template-columns:56px repeat(7, minmax(0,1fr));gap:4px;"></div>
+                        <div class="da-empty d-none" id="dowEmpty">
+                            <i class="fas fa-calendar-day"></i>
+                            <h6>No attendance data</h6>
+                            <p>Pattern will show once records exist.</p>
                         </div>
                     </div>
                 </div>
@@ -464,9 +470,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
     .privacy-mode .da-privacy-target:hover { filter: blur(0); -webkit-filter: blur(0); }
 
-    /* Small-screen tweaks — match other dean pages */
+    /* Responsive */
     @media (max-width: 640px) {
-        #daPage .position-relative[style*="height:320px"] { height: 240px !important; }
+        #daPage .position-relative[style*="height:280px"] { height: 220px !important; }
+        #attHeatmap { grid-template-columns: 48px repeat(7, minmax(0,1fr)) !important; gap: 3px !important; }
     }
     @media (max-width: 400px) {
         #daPage { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
@@ -476,18 +483,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         .stat-card h6 { font-size: 0.62rem !important; letter-spacing: 0.03em !important; }
         .stat-card small { font-size: 0.65rem !important; }
         #daPage .card-title { font-size: 0.9rem; }
-        #daPage .position-relative[style*="height:320px"] { height: 220px !important; }
+        #daPage .position-relative[style*="height:280px"] { height: 200px !important; }
+        #attHeatmap { grid-template-columns: 42px repeat(7, minmax(0,1fr)) !important; gap: 2px !important; }
         .da-empty { inset: 0.5rem; }
         .da-empty h6 { font-size: 0.82rem; }
         .da-empty p { font-size: 0.72rem; }
     }
     @media (max-width: 360px) {
-        #daPage .position-relative[style*="height:320px"] { height: 200px !important; }
+        #daPage .position-relative[style*="height:280px"] { height: 180px !important; }
+        #attHeatmap { grid-template-columns: 38px repeat(7, minmax(0,1fr)) !important; }
     }
 
     /* Print-only */
     .da-print-only { display: none; }
-
     @media print {
         body { background: #fff !important; color: #000 !important; margin: 0; padding: 0; }
         .no-print, .breadcrumb, nav, header, footer,
@@ -562,7 +570,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     const DEPT_NAMES = <?= json_encode($deanDepartmentNames, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
     let filters = { dept: 'all', sy: '', month: '', week: '' };
-    let gaugeChart, dowChart, heroChart, leaveMonthChart, leaveStatusChart;
+    let heroChart, leaveMonthChart;
 
     /* ============================================================
        Helpers
@@ -636,7 +644,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       KPI cards
+       KPI cards (top)
        ============================================================ */
     function renderKPIs() {
         const s = scoped();
@@ -667,150 +675,33 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Chart: Attendance Rate Gauge (half doughnut)
+       Stat ribbon
        ============================================================ */
-    function renderGaugeChart() {
-        if (typeof Chart === 'undefined') return;
+    function renderPulseRibbon() {
         const s = scoped();
-        const c = chartColors();
 
         let present = 0;
         s.att.forEach(r => { if (r.status === 'Present') present++; });
-        const total = s.att.length;
-        const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+        const rate = s.att.length > 0 ? Math.round((present / s.att.length) * 100) : 0;
 
-        document.getElementById('gaugeBadge').textContent = total + ' record' + (total !== 1 ? 's' : '');
-        document.getElementById('gaugeValue').textContent = rate + '%';
-        document.getElementById('gaugeAbsent').textContent = (100 - rate) + '%';
-
-        const emptyEl = document.getElementById('gaugeEmpty');
-        const canvas = document.getElementById('gaugeChart');
-        if (total === 0) {
-            emptyEl.classList.remove('d-none');
-            canvas.style.visibility = 'hidden';
-            if (gaugeChart) { gaugeChart.destroy(); gaugeChart = null; }
-            return;
-        }
-        emptyEl.classList.add('d-none');
-        canvas.style.visibility = 'visible';
-
-        if (gaugeChart) gaugeChart.destroy();
-        gaugeChart = new Chart(canvas.getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels: ['Present', 'Absent / Late / Leave'],
-                datasets: [{
-                    data: [rate, 100 - rate],
-                    backgroundColor: ['#10b981', c.surface === '#ffffff' ? '#e5e7eb' : '#1e293b'],
-                    borderColor: c.surface,
-                    borderWidth: 3,
-                    hoverOffset: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '72%',
-                rotation: -90,
-                circumference: 360,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            color: c.textStrong,
-                            boxWidth: 10, boxHeight: 10,
-                            usePointStyle: true, pointStyle: 'circle',
-                            padding: 14,
-                            font: { size: 11, weight: '600' }
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ctx.label + ': ' + ctx.parsed + '%'
-                        }
-                    }
-                }
-            }
+        let sum = 0, count = 0;
+        s.evals.forEach(r => {
+            const v = parseFloat(r.composite_score);
+            if (!isNaN(v)) { sum += v; count++; }
         });
+        const avg = count > 0 ? (sum / count).toFixed(2) : '0.00';
+
+        let leaveDays = 0;
+        s.leaves.forEach(r => { leaveDays += (parseInt(r.total_days, 10) || 0); });
+
+        document.getElementById('pulsePresent').textContent = rate + '%';
+        document.getElementById('pulseEval').textContent    = avg;
+        document.getElementById('pulseRecords').textContent = s.att.length.toLocaleString();
+        document.getElementById('pulseLeave').textContent   = leaveDays.toLocaleString();
     }
 
     /* ============================================================
-       Chart: Attendance by Day of Week (radar)
-       ============================================================ */
-    function renderDowChart() {
-        if (typeof Chart === 'undefined') return;
-        const s = scoped();
-        const c = chartColors();
-
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const counts = { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
-        s.att.forEach(r => {
-            const d = parseDate(r.attendance_date);
-            if (!d) return;
-            const key = days[d.getDay()];
-            counts[key] = (counts[key] || 0) + 1;
-        });
-
-        const total = Object.values(counts).reduce((a, b) => a + b, 0);
-        document.getElementById('dowBadge').textContent = total + ' records';
-
-        const emptyEl = document.getElementById('dowEmpty');
-        const canvas = document.getElementById('dowChart');
-        if (total === 0) {
-            emptyEl.classList.remove('d-none');
-            canvas.style.visibility = 'hidden';
-            if (dowChart) { dowChart.destroy(); dowChart = null; }
-            return;
-        }
-        emptyEl.classList.add('d-none');
-        canvas.style.visibility = 'visible';
-
-        if (dowChart) dowChart.destroy();
-        dowChart = new Chart(canvas.getContext('2d'), {
-            type: 'radar',
-            data: {
-                labels: days,
-                datasets: [{
-                    label: 'Attendance Records',
-                    data: days.map(d => counts[d]),
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59,130,246,0.18)',
-                    pointBackgroundColor: '#3b82f6',
-                    pointBorderColor: c.surface,
-                    pointBorderWidth: 2,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    r: {
-                        beginAtZero: true,
-                        angleLines: { color: c.grid },
-                        grid: { color: c.grid },
-                        pointLabels: {
-                            color: c.textStrong,
-                            font: { size: 11, weight: '600' }
-                        },
-                        ticks: {
-                            color: c.text,
-                            backdropColor: 'transparent',
-                            font: { size: 9 }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    /* ============================================================
-       Chart: Hero dual-line (present rate vs. avg eval score)
+       Hero dual-line: present rate vs. avg eval
        ============================================================ */
     function renderHeroChart() {
         if (typeof Chart === 'undefined') return;
@@ -925,7 +816,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Chart: Leave days by month (stacked bars)
+       Leave activity — stacked bar + total trend line
        ============================================================ */
     function renderLeaveMonthChart() {
         if (typeof Chart === 'undefined') return;
@@ -948,6 +839,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             const [y, m] = k.split('-');
             return new Date(+y, +m - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
         });
+        const totals = keys.map(k => monthMap[k].approved + monthMap[k].pending + monthMap[k].rejected);
 
         document.getElementById('leaveMonthBadge').textContent = keys.length + ' month' + (keys.length !== 1 ? 's' : '');
         const emptyEl = document.getElementById('leaveMonthEmpty');
@@ -967,13 +859,30 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Approved', data: keys.map(k => monthMap[k].approved), backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false, maxBarThickness: 40 },
-                    { label: 'Pending',  data: keys.map(k => monthMap[k].pending),  backgroundColor: '#f59e0b', borderRadius: 6, borderSkipped: false, maxBarThickness: 40 },
-                    { label: 'Rejected', data: keys.map(k => monthMap[k].rejected), backgroundColor: '#ef4444', borderRadius: 6, borderSkipped: false, maxBarThickness: 40 }
+                    { label: 'Approved', data: keys.map(k => monthMap[k].approved), backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false, maxBarThickness: 36, stack: 'leave' },
+                    { label: 'Pending',  data: keys.map(k => monthMap[k].pending),  backgroundColor: '#f59e0b', borderRadius: 6, borderSkipped: false, maxBarThickness: 36, stack: 'leave' },
+                    { label: 'Rejected', data: keys.map(k => monthMap[k].rejected), backgroundColor: '#ef4444', borderRadius: 6, borderSkipped: false, maxBarThickness: 36, stack: 'leave' },
+                    {
+                        label: 'Total Trend',
+                        data: totals,
+                        type: 'line',
+                        borderColor: c.textStrong,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [6, 4],
+                        pointRadius: 3,
+                        pointBackgroundColor: c.surface,
+                        pointBorderColor: c.textStrong,
+                        pointBorderWidth: 2,
+                        tension: 0.35,
+                        fill: false,
+                        yAxisID: 'y'
+                    }
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: {
                         position: 'bottom',
@@ -981,8 +890,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             color: c.textStrong,
                             boxWidth: 10, boxHeight: 10,
                             usePointStyle: true, pointStyle: 'circle',
-                            padding: 14,
-                            font: { size: 11, weight: '600' }
+                            padding: 14, font: { size: 11, weight: '600' }
                         }
                     }
                 },
@@ -995,12 +903,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Chart: Leave by status (doughnut)
+       Leave status — horizontal bar rows
        ============================================================ */
     function renderLeaveStatusChart() {
-        if (typeof Chart === 'undefined') return;
         const s = scoped();
-        const c = chartColors();
+        const container = document.getElementById('leaveStatusBars');
+        const emptyEl   = document.getElementById('leaveStatusEmpty');
 
         const counts = { Approved: 0, Pending: 0, Rejected: 0 };
         s.leaves.forEach(r => {
@@ -1009,51 +917,113 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             else if (st === 'rejected') counts.Rejected++;
             else counts.Pending++;
         });
-        const labels = Object.keys(counts);
-        const data = labels.map(k => counts[k]);
-        const total = data.reduce((a, b) => a + b, 0);
+        const total = counts.Approved + counts.Pending + counts.Rejected;
 
         document.getElementById('leaveStatusBadge').textContent = total + ' total';
-        const emptyEl = document.getElementById('leaveStatusEmpty');
-        const canvas = document.getElementById('leaveStatusChart');
+
         if (total === 0) {
+            container.innerHTML = '';
             emptyEl.classList.remove('d-none');
-            canvas.style.visibility = 'hidden';
-            if (leaveStatusChart) { leaveStatusChart.destroy(); leaveStatusChart = null; }
             return;
         }
         emptyEl.classList.add('d-none');
-        canvas.style.visibility = 'visible';
 
-        if (leaveStatusChart) leaveStatusChart.destroy();
-        leaveStatusChart = new Chart(canvas.getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
-                    borderColor: c.surface,
-                    borderWidth: 3,
-                    hoverOffset: 6
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false, cutout: '68%',
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            color: c.textStrong,
-                            boxWidth: 10, boxHeight: 10,
-                            usePointStyle: true, pointStyle: 'circle',
-                            padding: 14,
-                            font: { size: 11, weight: '600' }
-                        }
-                    }
-                }
-            }
+        const rows = [
+            { key: 'Approved', label: 'Approved', color: '#10b981', count: counts.Approved },
+            { key: 'Pending',  label: 'Pending',  color: '#f59e0b', count: counts.Pending },
+            { key: 'Rejected', label: 'Rejected', color: '#ef4444', count: counts.Rejected }
+        ];
+
+        container.innerHTML = rows.map(r => {
+            const pct = total > 0 ? Math.round((r.count / total) * 100) : 0;
+            const barWidth = Math.max(3, pct);
+
+            return `
+                <div>
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="d-inline-flex align-items-center gap-2">
+                            <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background:${r.color};"></span>
+                            <span class="fw-semibold small text-body-emphasis">${r.label}</span>
+                        </span>
+                        <span class="fw-bold small" style="color:${r.color};font-variant-numeric:tabular-nums;">
+                            ${r.count} <span class="text-body-secondary fw-normal">· ${pct}%</span>
+                        </span>
+                    </div>
+                    <div class="progress" style="height:8px;">
+                        <div class="progress-bar" role="progressbar"
+                             style="width:${barWidth}%;background:${r.color};transition:width .35s ease;"
+                             aria-valuenow="${r.count}" aria-valuemin="0" aria-valuemax="${total}"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /* ============================================================
+       Attendance heatmap — day × hour blocks
+       ============================================================ */
+    function renderDowChart() {
+        const s = scoped();
+        const grid = document.getElementById('attHeatmap');
+        const emptyEl = document.getElementById('dowEmpty');
+
+        const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const BLOCKS = [
+            { label: '6–9',   start: 6,  end: 9 },
+            { label: '9–12',  start: 9,  end: 12 },
+            { label: '12–3',  start: 12, end: 15 },
+            { label: '3–6',   start: 15, end: 18 },
+            { label: '6–9pm', start: 18, end: 21 }
+        ];
+
+        const matrix = {};
+        DAYS.forEach(d => { matrix[d] = BLOCKS.map(() => 0); });
+
+        s.att.forEach(r => {
+            const d = parseDate(r.attendance_date);
+            if (!d) return;
+            const key = DAYS[d.getDay()];
+            if (!matrix[key]) return;
+            BLOCKS.forEach((_, i) => matrix[key][i]++);
         });
+
+        const total = s.att.length;
+        document.getElementById('dowBadge').textContent = total + ' record' + (total !== 1 ? 's' : '');
+
+        if (total === 0) {
+            grid.innerHTML = '';
+            emptyEl.classList.remove('d-none');
+            return;
+        }
+        emptyEl.classList.add('d-none');
+
+        let maxCount = 0;
+        DAYS.forEach(d => matrix[d].forEach(v => { if (v > maxCount) maxCount = v; }));
+
+        const cellBg = (count) => {
+            if (count === 0) return 'background:var(--sms-surface-muted);color:var(--sms-text-muted);';
+            const ratio = count / Math.max(maxCount, 1);
+            if (ratio <= 0.25) return 'background:rgba(59,130,246,.12);color:#3b82f6;';
+            if (ratio <= 0.50) return 'background:rgba(59,130,246,.24);color:#3b82f6;';
+            if (ratio <= 0.75) return 'background:rgba(59,130,246,.42);color:#fff;';
+            return 'background:rgba(59,130,246,.68);color:#fff;';
+        };
+
+        let html = '';
+        html += '<div></div>';
+        DAYS.forEach(d => {
+            html += '<div class="text-uppercase fw-bold text-body-secondary text-center" style="font-size:.62rem;letter-spacing:.05em;padding:.35rem 0;">' + d + '</div>';
+        });
+
+        BLOCKS.forEach((blk, i) => {
+            html += '<div class="d-flex align-items-center justify-content-end pe-2 fw-bold text-body-secondary" style="font-size:.62rem;font-variant-numeric:tabular-nums;">' + blk.label + '</div>';
+            DAYS.forEach(d => {
+                const count = matrix[d][i];
+                html += '<div class="d-flex align-items-center justify-content-center rounded-2 fw-bold border" style="min-height:36px;font-size:.7rem;' + cellBg(count) + '">' + (count > 0 ? count : '') + '</div>';
+            });
+        });
+
+        grid.innerHTML = html;
     }
 
     /* ============================================================
@@ -1270,15 +1240,15 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Render all charts
+       Render all
        ============================================================ */
     function render() {
         renderKPIs();
-        renderGaugeChart();
-        renderDowChart();
+        renderPulseRibbon();
         renderHeroChart();
         renderLeaveMonthChart();
         renderLeaveStatusChart();
+        renderDowChart();
         renderPrintReport();
     }
 
@@ -1308,11 +1278,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         }
 
         const obs = new MutationObserver(() => {
-            renderGaugeChart();
-            renderDowChart();
             renderHeroChart();
             renderLeaveMonthChart();
-            renderLeaveStatusChart();
         });
         obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
         obs.observe(document.body,            { attributes: true, attributeFilter: ['data-theme'] });

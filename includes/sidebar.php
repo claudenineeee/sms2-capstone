@@ -162,7 +162,6 @@ $facultyDeanNavGroups = [
         ['slug' => 'faculty-profile', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-profile.php', 'icon' => 'fa-id-badge', 'label' => 'Faculty Profile'],
         ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
         ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-performance.php', 'icon' => 'fa-chart-simple', 'label' => 'Faculty Performance'],
-        ['slug' => 'committee-assignments', 'href' => BASE_URL . '/modules/faculty/views/dean/committee-assignments.php', 'icon' => 'fa-people-group', 'label' => 'Committee Assignments'],
     ],
     'Approvals' => [
         ['slug' => 'pending-approvals', 'href' => BASE_URL . '/modules/faculty/views/dean/pending-approvals.php', 'icon' => 'fa-hourglass-half', 'label' => 'Pending Approvals'],
