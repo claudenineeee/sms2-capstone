@@ -7,6 +7,7 @@
  *  - email: enter emailed code; button → switch back to authenticator
  *
  * Wrong codes / resends are rate-limited (temporary lock).
+ * Email OTP expires 5 minutes after it is issued.
  */
 require_once __DIR__ . '/../config/config.php';
 require_once ROOT_PATH . '/includes/authentication.php';
@@ -33,6 +34,11 @@ $error = '';
 $info = '';
 $otpDev = '';
 $purpose = 'login_2fa';
+
+/* Email OTP TTL — 5 minutes */
+if (!defined('SMS_EMAIL_OTP_TTL_MINUTES')) {
+    define('SMS_EMAIL_OTP_TTL_MINUTES', 5);
+}
 
 if (!empty($_SESSION['flash_2fa_error'])) {
     $error = (string) $_SESSION['flash_2fa_error'];
@@ -88,13 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'use_email') {
         $_SESSION['pending_2fa']['method'] = 'email';
-        $issued = smsIssueOtpToEmail($userId, $purpose, 'System', 10, 'login verification');
+        $issued = smsIssueOtpToEmail($userId, $purpose, 'System', SMS_EMAIL_OTP_TTL_MINUTES, 'login verification');
         if (!empty($issued['ok'])) {
             if (!empty($issued['show_local']) && !empty($issued['code'])) {
                 $_SESSION['flash_2fa_otp'] = (string) $issued['code'];
             }
             $_SESSION['flash_2fa_info'] = !empty($issued['emailed'])
-                ? 'A login code was emailed to ' . $issued['to'] . '. Enter that email code below.'
+                ? 'A login code was emailed to ' . $issued['to'] . '. It expires in ' . SMS_EMAIL_OTP_TTL_MINUTES . ' minutes.'
                 : 'Could not email OTP' . ($issued['error'] !== '' ? ': ' . $issued['error'] : '')
                     . '. Use the on-screen code if shown.';
         } else {
@@ -184,6 +190,9 @@ require_once ROOT_PATH . '/includes/header.php';
 ?>
 <link href="<?= BASE_URL ?>/assets/css/auth-pages.css" rel="stylesheet">
 <style>
+/* ============================================================
+   BACKGROUND — untouched. Navy + video overlay preserved as-is.
+   ============================================================ */
 body.login-page {
     background: #071c48 !important;
     background-image: none !important;
@@ -207,7 +216,6 @@ body.login-page {
     filter: saturate(1.05) brightness(0.92);
 }
 
-/* Keep video visible behind the glassy verify card */
 .verify-video-bg::after {
     content: "";
     position: absolute;
@@ -225,6 +233,112 @@ body.login-page {
 .auth-footer {
     position: relative;
     z-index: 1;
+}
+
+/* ============================================================
+   OTP INPUT BOXES — force LIGHT in both light and dark mode.
+   Only the individual code boxes are affected. Nothing else.
+   ============================================================ */
+body.login-page .otp-input,
+body.login-page .otp-box,
+body.login-page .otp-digit,
+body.login-page .otp-field,
+body.login-page input.otp-input,
+body.login-page input.otp-box,
+body.login-page input.otp-digit,
+body.login-page input[inputmode="numeric"][maxlength="1"],
+body.login-page .auth-card .otp-input,
+body.login-page .auth-card .otp-box,
+body.login-page .auth-card .otp-digit,
+body.login-page .auth-card input.otp-input,
+body.login-page .auth-card input.otp-box,
+body.login-page .auth-card input[inputmode="numeric"][maxlength="1"] {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border: 1.5px solid #cbd5e1 !important;
+    caret-color: #0d6efd !important;
+    box-shadow: none !important;
+}
+
+/* Focused box */
+body.login-page .otp-input:focus,
+body.login-page .otp-box:focus,
+body.login-page .otp-digit:focus,
+body.login-page .otp-field:focus,
+body.login-page input.otp-input:focus,
+body.login-page input.otp-box:focus,
+body.login-page input[inputmode="numeric"][maxlength="1"]:focus,
+body.login-page .auth-card input[inputmode="numeric"][maxlength="1"]:focus {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.18) !important;
+    outline: none !important;
+}
+
+/* Filled box — subtle tint so digits stay readable */
+body.login-page .otp-input.is-filled,
+body.login-page .otp-box.is-filled,
+body.login-page .otp-digit.is-filled,
+body.login-page input.otp-input.filled,
+body.login-page input.otp-box.filled,
+body.login-page input[inputmode="numeric"][maxlength="1"].filled,
+body.login-page input[inputmode="numeric"][maxlength="1"].is-filled {
+    background: #f8fafc !important;
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+}
+
+/* Invalid box */
+body.login-page .otp-input.is-invalid,
+body.login-page .otp-box.is-invalid,
+body.login-page .otp-digit.is-invalid,
+body.login-page input.otp-input.is-invalid,
+body.login-page input.otp-box.is-invalid,
+body.login-page input[inputmode="numeric"][maxlength="1"].is-invalid {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.18) !important;
+}
+
+/* Dark-mode override — same as above, pinned to light regardless of theme flag */
+[data-theme="dark"] body.login-page .otp-input,
+[data-theme="dark"] body.login-page .otp-box,
+[data-theme="dark"] body.login-page .otp-digit,
+[data-theme="dark"] body.login-page input.otp-input,
+[data-theme="dark"] body.login-page input.otp-box,
+[data-theme="dark"] body.login-page input[inputmode="numeric"][maxlength="1"],
+body.dark-mode.login-page .otp-input,
+body.dark-mode.login-page .otp-box,
+body.dark-mode.login-page .otp-digit,
+body.dark-mode.login-page input.otp-input,
+body.dark-mode.login-page input.otp-box,
+body.dark-mode.login-page input[inputmode="numeric"][maxlength="1"],
+html.dark body.login-page .otp-input,
+html.dark body.login-page .otp-box,
+html.dark body.login-page .otp-digit,
+html.dark body.login-page input[inputmode="numeric"][maxlength="1"] {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border: 1.5px solid #cbd5e1 !important;
+    box-shadow: none !important;
+}
+
+/* Keep the OTP label + hint readable on the white card (they already are,
+   but pin them in case dark mode tried to lighten them) */
+body.login-page label,
+body.login-page .form-label,
+body.login-page .otp-label {
+    color: #334155 !important;
+}
+
+body.login-page .form-text,
+body.login-page .otp-hint {
+    color: #64748b !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -260,6 +374,7 @@ body.login-page {
             <p class="auth-lead">
                 Enter the 6-digit code we sent to your <strong>email</strong>.
                 This is an email code — not your Authenticator app code.
+                It expires in <strong><?= (int) SMS_EMAIL_OTP_TTL_MINUTES ?> minutes</strong>.
             </p>
         <?php else: ?>
             <p class="auth-lead">
@@ -309,7 +424,7 @@ body.login-page {
                     'autofocus' => true,
                     'label' => $isEmailMode ? 'Email code' : 'Authenticator code',
                     'hint' => $isEmailMode
-                        ? 'Use the 6-digit code from your email inbox.'
+                        ? 'Use the 6-digit code from your email inbox. Expires in ' . (int) SMS_EMAIL_OTP_TTL_MINUTES . ' minutes.'
                         : 'Use the 6-digit code from your Authenticator app.',
                 ]) ?>
             </div>
