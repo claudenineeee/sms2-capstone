@@ -33,18 +33,18 @@ try {
 
     $userId = (int) getCurrentUserId();
     $profile = facultyClearanceProfile($db, $userId);
-    $role = getCurrentUserRoleKey();
+    $role = strtolower(trim((string) getCurrentUserRoleKey()));
     if (empty($role)) {
-        $role = strtolower((string) ($_SESSION['user_role_key'] ?? $_SESSION['role'] ?? $_SESSION['user_role'] ?? ''));
+        $role = strtolower(trim((string) ($_SESSION['user_role_key'] ?? $_SESSION['role'] ?? $_SESSION['user_role'] ?? '')));
     }
     $action = (string) ($_GET['action'] ?? $_POST['action'] ?? 'summary');
 
     // Helper flag & assigned departments check
     $isDeptHead = in_array($role, ['department_head', 'dept_head'], true);
     // All clearance-office roles that can review clearance records
-    $isClearanceOffice = in_array($role, ['department_head', 'dept_head', 'hr', 'hr_clearance', 'faculty_admin', 'dean', 'registrar_clearance', 'registrar', 'finance_office', 'finance', 'library_clearance', 'library', 'property_custodian_office', 'property', 'admin', 'super_admin'], true);
+    $isClearanceOffice = in_array($role, ['department_head', 'dept_head', 'hr', 'hr_clearance', 'faculty_admin', 'dean', 'registrar_clearance', 'registrar', 'finance_office', 'finance', 'library_clearance', 'library', 'property_custodian_office', 'property', 'admin', 'super_admin', 'superadmin', 'administrator'], true);
     // Roles that bypass department isolation — they see ALL departments
-    $isAdminScope = in_array($role, ['admin', 'super_admin', 'faculty_admin', 'dean'], true);
+    $isAdminScope = in_array($role, ['admin', 'super_admin', 'superadmin', 'administrator', 'faculty_admin', 'dean'], true);
     $assignedDepartments = facultyClearanceAssignedDepartments($profile ?: [], $db);
 
     if ($action === 'file') {
@@ -84,8 +84,13 @@ try {
             http_response_code(403);
             exit('Access denied.');
         }
-        $base = realpath(ROOT_PATH . '/storage/uploads/faculty-clearance');
-        $path = realpath(ROOT_PATH . '/storage/uploads/' . ltrim($targetRelPath, '/'));
+        if (str_starts_with($targetRelPath, 'storage/uploads/')) {
+            $targetRelPath = substr($targetRelPath, strlen('storage/uploads/'));
+        } elseif (str_starts_with($targetRelPath, 'uploads/')) {
+            $targetRelPath = substr($targetRelPath, strlen('uploads/'));
+        }
+        $base = str_replace('\\', '/', (string) realpath(ROOT_PATH . '/storage/uploads/faculty-clearance'));
+        $path = str_replace('\\', '/', (string) realpath(ROOT_PATH . '/storage/uploads/' . ltrim($targetRelPath, '/')));
         if (!$base || !$path || strncmp($path, $base, strlen($base)) !== 0 || !is_file($path)) {
             http_response_code(404);
             exit('File not found.');
@@ -115,6 +120,9 @@ try {
         header('Content-Length: ' . (string) filesize($path));
         header('Content-Disposition: ' . $disposition . '; filename="' . $downloadName . '"');
         header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
         readfile($path);
         exit;
     }
