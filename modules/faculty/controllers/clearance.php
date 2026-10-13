@@ -656,7 +656,14 @@ function facultyClearanceGetApprovalHistory(PDO $db, int $clearanceId): array
     try {
         $stmt = $db->prepare("SELECT * FROM clearance_approval_history WHERE clearance_id = ? ORDER BY created_at ASC, id ASC");
         $stmt->execute([$clearanceId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$r) {
+            if (!empty($r['remarks'])) {
+                $r['remarks'] = trim(preg_replace('/<!--SCOPE_STATE:.*?-->/s', '', (string) $r['remarks']));
+            }
+        }
+        unset($r);
+        return $rows;
     } catch (Throwable $e) {
         return [];
     }
@@ -1070,6 +1077,12 @@ function facultyClearanceJson(?array $request): array
         'submitted_at' => $request['submitted_at'] ?? null,
         'updated_at' => $request['updated_at'] ?? null,
         'items' => array_values(array_map(static function (array $item): array {
+            $rawRemarks = (string) ($item['remarks'] ?? '');
+            $cleanRemarks = trim(preg_replace('/<!--SCOPE_STATE:.*?-->/s', '', $rawRemarks));
+            $scopeData = null;
+            if (preg_match('/<!--SCOPE_STATE:(.*?)-->/s', $rawRemarks, $mScope)) {
+                $scopeData = json_decode($mScope[1], true);
+            }
             return [
                 'id' => (int) $item['clearance_item_id'],
                 'office_id' => (int) $item['clearance_office_id'],
@@ -1079,7 +1092,10 @@ function facultyClearanceJson(?array $request): array
                 'can_resubmit' => facultyClearanceCanResubmit($item),
                 'file_name' => !empty($item['original_name']) ? $item['original_name'] : ($item['file_path'] ? basename($item['file_path']) : null),
                 'original_name' => $item['original_name'] ?? null,
-                'remarks' => $item['remarks'],
+                'file_path' => $item['file_path'] ?? null,
+                'remarks' => $cleanRemarks,
+                'raw_remarks' => $rawRemarks,
+                'scope_data' => $scopeData,
                 'cleared_at' => $item['cleared_at'],
             ];
         }, $request['items'] ?? [])),
