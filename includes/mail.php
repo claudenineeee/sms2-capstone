@@ -176,7 +176,12 @@ function smsSendOtpEmail(array $user, string $code, string $purposeLabel = 'pass
         $name = 'User';
     }
 
+    // FORCE 5 MINUTES for login verification, otherwise use passed value
+    if (stripos($purposeLabel, 'login') !== false) {
+        $ttlMinutes = 5;
+    }
     $ttlMinutes  = max(1, $ttlMinutes);
+    
     $subject     = (defined('APP_SHORT_NAME') ? APP_SHORT_NAME : 'SMS') . ' verification code';
     $safeName    = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
     $safeCode    = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
