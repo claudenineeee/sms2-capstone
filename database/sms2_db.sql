@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 26, 2026 at 07:26 PM
+-- Generation Time: Oct 16, 2026 at 07:51 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -1955,7 +1955,209 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `user_name`, `role_key`, `action`,
 (1902, 255, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 00:57:53'),
 (1903, 256, 'Alfred Joseph Alcantara', 'monitoring_officer', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 00:58:24'),
 (1904, 256, 'Monitoring Officer', 'monitoring_officer', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 00:59:13'),
-(1905, 256, 'Monitoring Officer', 'monitoring_officer', 'password_change', 'System', 'Password changed by user', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 00:59:30');
+(1905, 256, 'Monitoring Officer', 'monitoring_officer', 'password_change', 'System', 'Password changed by user', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 00:59:30'),
+(1906, 256, 'Monitoring Officer', 'monitoring_officer', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 01:36:26'),
+(1907, 255, 'Earl Salvame', 'secretary', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 01:37:11'),
+(1908, 149, 'Jean Espejo', 'department_head', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 01:38:56'),
+(1909, 255, 'Earl Salvame', 'secretary', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 01:51:39'),
+(1910, 255, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 01:51:58'),
+(1911, 255, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:04:54'),
+(1912, 229, 'Property Custodian User', 'registrar_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:05:11'),
+(1913, 229, 'Property Custodian User', 'registrar_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:06:48'),
+(1914, 229, 'Property Custodian User', 'registrar_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:07:32'),
+(1915, 220, 'Registrar Officer Name', 'registrar', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:07:55'),
+(1916, 250, 'Light Yagami', 'faculty', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:11:45'),
+(1917, 250, 'Light Yagami', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:11:59'),
+(1918, 250, 'Light Yagami', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:42:55'),
+(1919, 220, 'Registrar Officer Name', 'registrar', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:43:19'),
+(1920, 220, 'Registrar Officer Name', 'registrar', 'login', 'enrollment', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:43:48'),
+(1921, 220, 'Registrar Officer Name', 'registrar', 'logout', 'enrollment', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:48:22'),
+(1922, 230, 'Library User', 'library_clearance', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:48:35'),
+(1923, 230, 'Library User', 'library_clearance', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:48:51'),
+(1924, 230, 'Library User', 'library_clearance', 'lockout', 'System', 'Login locked after failed attempts', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:52:30'),
+(1925, 230, 'Library User', 'library_clearance', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:52:30'),
+(1926, 234, 'Finance Office User', 'finance_office', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:52:59'),
+(1927, 234, 'Finance Office User', 'finance_office', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:53:54'),
+(1928, 234, 'Finance Office User', 'finance_office', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:54:06'),
+(1929, 227, 'HR User', 'hr_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:54:48'),
+(1930, 227, 'HR User', 'hr_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:55:04'),
+(1931, 227, 'HR User', 'hr_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:55:10'),
+(1932, 229, 'Property Custodian User', 'registrar_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:55:27'),
+(1933, 229, 'Property Custodian User', 'registrar_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:56:09'),
+(1934, 229, 'Property Custodian User', 'registrar_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:56:15'),
+(1935, 220, 'Registrar Officer Name', 'registrar', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:56:46'),
+(1936, 220, 'Registrar Officer Name', 'registrar', 'login', 'enrollment', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:57:17'),
+(1937, 220, 'Registrar Officer Name', 'registrar', 'logout', 'enrollment', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:57:44'),
+(1938, 230, 'Library User', 'library_clearance', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:57:59'),
+(1939, 230, 'Library User', 'library_clearance', 'password_reset_request', 'System', 'Password reset link emailed', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:58:24'),
+(1940, 230, NULL, NULL, 'password_reset', 'System', 'Password reset via token', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 02:59:50'),
+(1941, 230, 'Library User', 'library_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:00:13'),
+(1942, 230, 'Library User', 'library_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:00:52'),
+(1943, 230, 'Library User', 'library_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:04:50'),
+(1944, 149, 'Jean Espejo', 'department_head', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:21:46'),
+(1945, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:23:03'),
+(1946, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:25:48'),
+(1947, 149, 'Jean Espejo', 'department_head', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:26:07'),
+(1948, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:26:32'),
+(1949, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:32:32'),
+(1950, 149, 'Jean Espejo', 'department_head', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:35:04'),
+(1951, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 03:36:58'),
+(1952, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:17:55'),
+(1953, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:18:15'),
+(1954, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:18:32'),
+(1955, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:24:34'),
+(1956, 262, 'Jorge Lucero', 'dean', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:24:52'),
+(1957, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:25:30'),
+(1958, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:26:01');
+INSERT INTO `activity_logs` (`id`, `user_id`, `user_name`, `role_key`, `action`, `module_key`, `detail`, `ip_address`, `user_agent`, `created_at`) VALUES
+(1959, 262, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:28:41'),
+(1960, 255, 'Earl Salvame', 'secretary', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:29:05'),
+(1961, 255, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:29:45'),
+(1962, 255, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:38:04'),
+(1963, 256, 'Alfred Joseph Alcantara', 'monitoring_officer', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:38:58'),
+(1964, 256, 'Monitoring Officer', 'monitoring_officer', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:39:24'),
+(1965, 256, 'Monitoring Officer', 'monitoring_officer', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:48:18'),
+(1966, 250, 'Light Yagami', 'faculty', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:48:43'),
+(1967, 250, 'Light Yagami', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:49:13'),
+(1968, 250, 'Light Yagami', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:54:16'),
+(1969, 229, 'Property Custodian User', 'registrar_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:54:30'),
+(1970, 229, 'Property Custodian User', 'registrar_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:56:18'),
+(1971, 229, 'Property Custodian User', 'registrar_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:56:28'),
+(1972, 220, 'Registrar Officer Name', 'registrar', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:56:46'),
+(1973, 220, 'Registrar Officer Name', 'registrar', 'login', 'enrollment', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:57:42'),
+(1974, 220, 'Registrar Officer Name', 'registrar', 'logout', 'enrollment', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:58:09'),
+(1975, 230, 'Library User', 'library_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:58:29'),
+(1976, 230, 'Library User', 'library_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:58:54'),
+(1977, 230, 'Library User', 'library_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:59:29'),
+(1978, 234, 'Finance Office User', 'finance_office', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 04:59:50'),
+(1979, 234, 'Finance Office User', 'finance_office', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 05:00:14'),
+(1980, 234, 'Finance Office User', 'finance_office', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 05:00:20'),
+(1981, 227, 'HR User', 'hr_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-27 05:00:38'),
+(1982, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 09:41:46'),
+(1983, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 09:42:06'),
+(1984, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:16:37'),
+(1985, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:16:59'),
+(1986, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:17:29'),
+(1987, 262, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:18:04'),
+(1988, 149, 'Jean Espejo', 'department_head', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:18:15'),
+(1989, 149, 'Jean Espejo', 'department_head', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:18:30'),
+(1990, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:18:52'),
+(1991, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:19:20'),
+(1992, 255, 'Earl Salvame', 'secretary', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:19:39'),
+(1993, 255, 'Secretary', 'secretary', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:27:53'),
+(1994, 255, 'Secretary', 'secretary', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:28:08'),
+(1995, 256, 'Alfred Joseph Alcantara', 'monitoring_officer', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:28:27'),
+(1996, 256, 'Monitoring Officer', 'monitoring_officer', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:30:23'),
+(1997, 256, 'Monitoring Officer', 'monitoring_officer', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:30:34'),
+(1998, 250, 'Light Yagami', 'faculty', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:30:52'),
+(1999, 250, 'Light Yagami', 'faculty', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:31:04'),
+(2000, 250, 'Light Yagami', 'faculty', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:43:41'),
+(2001, 149, 'Jean Espejo', 'department_head', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:44:01'),
+(2002, 149, 'Department Head', 'department_head', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:44:56'),
+(2003, 149, 'Department Head', 'department_head', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:45:50'),
+(2004, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:46:10'),
+(2005, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 10:46:27'),
+(2006, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 15:02:14'),
+(2007, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-29 15:02:45'),
+(2008, 151, 'Faculty Admin', 'faculty_admin', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 17:06:13'),
+(2009, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 17:06:40'),
+(2010, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 17:06:57'),
+(2011, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:28:14'),
+(2012, 220, 'Registrar Officer Name', 'registrar', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:28:54'),
+(2013, 220, 'Registrar Officer Name', 'registrar', 'login', 'enrollment', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:29:10'),
+(2014, 220, 'Registrar Officer Name', 'registrar', 'logout', 'enrollment', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:33:23'),
+(2015, 229, 'Property Custodian User', 'registrar_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:33:40'),
+(2016, 229, 'Property Custodian User', 'registrar_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:33:51'),
+(2017, 229, 'Property Custodian User', 'registrar_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:48:05'),
+(2018, 220, 'Registrar Officer Name', 'registrar_clearance', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:48:25'),
+(2019, 220, 'Registrar Officer Name', 'registrar_clearance', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:48:35'),
+(2020, 220, 'Registrar Officer Name', 'registrar_clearance', 'lockout', 'System', 'Login locked after failed attempts', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:48:49'),
+(2021, 220, 'Registrar Officer Name', 'registrar_clearance', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:48:49'),
+(2022, 220, 'Registrar Officer Name', 'registrar_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:51:00'),
+(2023, 220, 'Registrar Officer Name', 'registrar_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:51:11'),
+(2024, 220, 'Registrar Officer Name', 'registrar_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:55:40'),
+(2025, 229, 'Property Custodian User', 'property_custodian_office', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:55:58'),
+(2026, 229, 'Property Custodian User', 'property_custodian_office', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:56:19'),
+(2027, 229, 'Property Custodian User', 'property_custodian_office', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:56:24'),
+(2028, 230, 'Library User', 'library_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:57:42'),
+(2029, 230, 'Library User', 'library_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:57:57'),
+(2030, 230, 'Library User', 'library_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:58:01'),
+(2031, 227, 'HR User', 'hr_clearance', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:58:17'),
+(2032, 227, 'HR User', 'hr_clearance', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:58:36'),
+(2033, 227, 'HR User', 'hr_clearance', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 18:58:41'),
+(2034, 234, 'Finance Office User', 'finance_office', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:03:30'),
+(2035, 234, 'Finance Office User', 'finance_office', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:04:12'),
+(2036, 234, 'Finance Office User', 'finance_office', 'lockout', 'System', 'Login locked after failed attempts', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:04:33'),
+(2037, 234, 'Finance Office User', 'finance_office', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:04:34'),
+(2038, NULL, 'Unknown', NULL, 'login_failed', 'System', 'Invalid login attempt (unknown credentials)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:04:54'),
+(2039, 234, 'Finance Office User', 'finance_office', 'login_failed', 'System', 'Invalid password', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:05:37'),
+(2040, 234, 'Finance Office User', 'finance_office', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:06:20'),
+(2041, 234, 'Finance Office User', 'finance_office', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:06:51'),
+(2042, 234, 'Finance Office User', 'finance_office', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:11:39'),
+(2043, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:11:55'),
+(2044, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 19:12:21'),
+(2045, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 21:13:21'),
+(2046, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 21:13:57'),
+(2047, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 22:01:06'),
+(2048, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 22:02:10'),
+(2049, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-09-30 22:02:23'),
+(2050, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-02 08:41:44'),
+(2051, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-02 08:42:05'),
+(2052, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-02 10:07:33'),
+(2053, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-02 10:07:58'),
+(2054, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-06 15:29:48'),
+(2055, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-06 15:30:01'),
+(2056, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-06 17:16:25'),
+(2057, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-06 17:16:51'),
+(2058, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-06 17:17:22'),
+(2059, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-06 17:55:01'),
+(2060, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-06 17:55:16'),
+(2061, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-07 20:50:01'),
+(2062, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36', '2026-10-07 20:50:19'),
+(2063, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 19:20:01'),
+(2064, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 19:20:21'),
+(2065, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 19:20:31'),
+(2066, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 19:20:46'),
+(2067, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 19:35:50'),
+(2068, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 19:36:08'),
+(2069, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 19:36:42'),
+(2070, 262, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 20:11:09'),
+(2071, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 20:11:20'),
+(2072, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 20:11:36'),
+(2073, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 20:31:55'),
+(2074, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 20:33:00'),
+(2075, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-08 20:33:21'),
+(2076, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 08:05:33'),
+(2077, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 08:06:05'),
+(2078, 151, 'Faculty Admin', 'faculty_admin', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 08:06:25'),
+(2079, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 08:06:45'),
+(2080, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 08:06:58'),
+(2081, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 10:18:42'),
+(2082, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 10:19:44'),
+(2083, 262, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 10:59:36'),
+(2084, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 11:00:11'),
+(2085, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 11:07:36'),
+(2086, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 11:07:59'),
+(2087, 262, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-09 11:08:02'),
+(2088, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-13 16:14:57'),
+(2089, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-13 16:15:55'),
+(2090, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-13 17:00:54'),
+(2091, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-13 17:01:19'),
+(2092, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-13 18:14:18'),
+(2093, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-13 18:14:59'),
+(2094, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-14 23:21:49'),
+(2095, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-14 23:22:03'),
+(2096, 262, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-14 23:34:37'),
+(2097, 151, 'Faculty Admin', 'faculty_admin', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-14 23:34:48'),
+(2098, 151, 'Faculty Admin', 'faculty_admin', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-14 23:35:14'),
+(2099, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-15 23:12:59'),
+(2100, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-15 23:13:40'),
+(2101, 262, 'Dean', 'dean', 'logout', 'faculty', 'Logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-16 00:27:34'),
+(2102, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-16 00:27:53'),
+(2103, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-16 00:28:48'),
+(2104, 262, 'Jorge Lucero', 'dean', 'login_2fa_initiated', 'System', 'User initiated login 2FA (email OTP)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-16 12:46:16'),
+(2105, 262, 'Dean', 'dean', 'login', 'faculty', 'Logged in successfully', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-16 12:47:02'),
+(2106, NULL, 'Unknown', NULL, 'login_failed', 'System', 'Invalid login attempt (unknown credentials)', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36', '2026-10-16 13:50:10');
 
 -- --------------------------------------------------------
 
@@ -1964,16 +2166,20 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `user_name`, `role_key`, `action`,
 --
 
 CREATE TABLE `login_throttles` (
-  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id` int(10) UNSIGNED NOT NULL,
   `throttle_key` char(64) NOT NULL,
   `ip_address` varchar(45) NOT NULL,
   `attempts` int(10) UNSIGNED NOT NULL DEFAULT 0,
   `locked_until` datetime DEFAULT NULL,
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_throttle_key` (`throttle_key`),
-  KEY `idx_ip_address` (`ip_address`)
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `login_throttles`
+--
+
+INSERT INTO `login_throttles` (`id`, `throttle_key`, `ip_address`, `attempts`, `locked_until`, `updated_at`) VALUES
+(21, '477d9f64244a7f8802a7420c5f1a61284f55ad262f7211bf8d99f71ec448df14', '::1', 1, NULL, '2026-10-16 13:50:10');
 
 -- --------------------------------------------------------
 
@@ -1999,7 +2205,8 @@ INSERT INTO `password_resets` (`id`, `user_id`, `token_hash`, `expires_at`, `use
 (2, 1, '550d259303762ee9ce8b5378b3b6b1e212a4b5cf796b005404689bb4c5596866', '2026-08-06 14:05:55', '2026-08-06 13:06:28', '::1', '2026-08-06 13:05:55'),
 (3, 9, '691edab739335bc353c7ecaa7d183393ea51e47def723d4f3e68adccdd10fcb9', '2026-08-06 14:18:23', '2026-08-06 13:18:33', '::1', '2026-08-06 13:18:23'),
 (4, 9, '55eabae148518a30c44e17552b678572afdda8d79fc2c59f95152780545da52b', '2026-08-06 14:18:33', NULL, '::1', '2026-08-06 13:18:33'),
-(6, 151, 'e2e84bcf60bb38ed031ac3c6c6fc2669beb771b818ded66493021a693680a0ef', '2026-09-26 18:02:10', '2026-09-26 17:05:07', '::1', '2026-09-26 17:02:10');
+(6, 151, 'e2e84bcf60bb38ed031ac3c6c6fc2669beb771b818ded66493021a693680a0ef', '2026-09-26 18:02:10', '2026-09-26 17:05:07', '::1', '2026-09-26 17:02:10'),
+(7, 230, 'd21e52fce9f56e9dbeacfedc14337964f8e39aa1419f5ede49e69ce7e369f4f4', '2026-09-27 03:58:18', '2026-09-27 02:59:50', '::1', '2026-09-27 02:58:18');
 
 -- --------------------------------------------------------
 
@@ -2197,7 +2404,78 @@ INSERT INTO `security_otps` (`id`, `user_id`, `purpose`, `code_hash`, `module_ke
 (65, 149, 'login_2fa', 'b2eb0a47338ee6ba5c5e6ad32dee2063b11132e78c8b12fbd2f52e4ddc3fea22', 'System', '2026-09-27 00:51:33', '2026-09-27 00:43:29', '2026-09-27 00:41:33'),
 (66, 149, 'login_2fa', '93edc8396575fdde7cb9e4cb1b622c6d1ae5a1e3213bdf6a34cf79b3e5817a78', 'System', '2026-09-27 01:00:11', '2026-09-27 00:50:59', '2026-09-27 00:50:11'),
 (67, 255, 'login_2fa', '61b63fe68540e65b6dbe44211da53e439634f09504f58c07b72ecfecb25e507a', 'System', '2026-09-27 01:04:08', '2026-09-27 00:55:06', '2026-09-27 00:54:08'),
-(68, 256, 'login_2fa', '824856bb44b76a40d481fbe98c5d3588d7859c32082a237f9aed0d0dbb8f40ac', 'System', '2026-09-27 01:08:19', '2026-09-27 00:59:13', '2026-09-27 00:58:19');
+(68, 256, 'login_2fa', '824856bb44b76a40d481fbe98c5d3588d7859c32082a237f9aed0d0dbb8f40ac', 'System', '2026-09-27 01:08:19', '2026-09-27 00:59:13', '2026-09-27 00:58:19'),
+(69, 255, 'login_2fa', '9f0221aff2f0b9c691deb8dd99a5256f28d3b54f6fb3a0eaf2648cf6ae16121a', 'System', '2026-09-27 01:47:11', '2026-09-27 01:38:20', '2026-09-27 01:37:11'),
+(70, 255, 'login_2fa', '8e432989ac57bec61152d9399d5b4e1c429f9f198dffaec6c025cba20f1106a6', 'System', '2026-09-27 01:48:20', '2026-09-27 01:51:33', '2026-09-27 01:38:20'),
+(71, 149, 'login_2fa', '5e75d11be1a51c0bb0c954d3774906071b8d307a24b34607cbb697dff67de0a4', 'System', '2026-09-27 01:48:56', '2026-09-27 01:40:27', '2026-09-27 01:38:56'),
+(72, 149, 'login_2fa', '1379444f5a501223020c68b065fe5f161afcc608b3fcc92dcff3a6d419119570', 'System', '2026-09-27 01:50:27', '2026-09-27 03:21:35', '2026-09-27 01:40:27'),
+(73, 255, 'login_2fa', '9707654ec13a773caf478915097ad99023b1252606a7bde6cc05309c9c16e315', 'System', '2026-09-27 02:01:33', '2026-09-27 01:51:58', '2026-09-27 01:51:33'),
+(74, 229, 'login_2fa', '2c46a9eb0d717d570088dec6cc0d1906dfb65c5b82c0d518dc971c162f90bd23', 'System', '2026-09-27 02:15:06', '2026-09-27 02:06:47', '2026-09-27 02:05:06'),
+(75, 220, 'login_2fa', '5a43e6ba3c3d055455fbe96f41cd83eab458b97710c57ddc2059f8b0856cee7f', 'System', '2026-09-27 02:17:47', '2026-09-27 02:43:14', '2026-09-27 02:07:47'),
+(76, 250, 'login_2fa', '2e632aba7298adaf0e379cb25ac9cc91fb42790b360ee60814665292fdc0b182', 'System', '2026-09-27 02:21:41', '2026-09-27 02:11:59', '2026-09-27 02:11:41'),
+(77, 220, 'login_2fa', '3e7d34809d593acd2947d8339a0ed9161db631d0a1c91bb0be8c2c913f676520', 'System', '2026-09-27 02:53:14', '2026-09-27 02:43:48', '2026-09-27 02:43:14'),
+(78, 234, 'login_2fa', '5927cd2af47841e53190454ab36a391ef2f41cc0d93ac37eb72822f379947be7', 'System', '2026-09-27 03:02:54', '2026-09-27 02:53:54', '2026-09-27 02:52:54'),
+(79, 227, 'login_2fa', '0ee51a0f63a3bb8e8d3160cf9d175b666f3a6fb939d9957fed06848e9f8b4eaa', 'System', '2026-09-27 03:04:43', '2026-09-27 02:55:03', '2026-09-27 02:54:43'),
+(80, 229, 'login_2fa', 'd19035ccdf52a4af2efcbd78003219e6b21c1166a020c7bacad011cda07b6463', 'System', '2026-09-27 03:05:21', '2026-09-27 02:56:09', '2026-09-27 02:55:21'),
+(81, 220, 'login_2fa', '48e439a271865d75b591a9d7dc9abf88fde94fba339d2afb14ebb7bdaee10345', 'System', '2026-09-27 03:06:42', '2026-09-27 02:57:16', '2026-09-27 02:56:42'),
+(82, 230, 'login_2fa', '26ae347d187b26ebaf71fe68b3eeba0e1f7c4cc22c3ed4455b79aa5088dda42c', 'System', '2026-09-27 03:10:06', '2026-09-27 03:00:52', '2026-09-27 03:00:06'),
+(83, 149, 'login_2fa', '2c764b422194e615e36902be805d7ee0cf4fc25305552ddb703e7fdf1dcfb304', 'System', '2026-09-27 03:31:35', '2026-09-27 03:23:03', '2026-09-27 03:21:35'),
+(84, 149, 'login_2fa', 'c3d81c9ff77d90a56df290aee2ce1f8e69024aa0d8e03ead9011bb054e2e0a12', 'System', '2026-09-27 03:36:02', '2026-09-27 03:26:32', '2026-09-27 03:26:02'),
+(85, 149, 'login_2fa', 'da726dd0a0b7fa7d9197fcf5554d8414a2b460a4c2531553d41067cf2d5d8ebf', 'System', '2026-09-27 03:44:58', '2026-09-27 03:36:58', '2026-09-27 03:34:58'),
+(86, 151, 'login_2fa', '90fe209b535b074a94e3eab6ea8862b71ebc6d6f8026c78865ecc0f0d45b22e4', 'System', '2026-09-27 04:28:09', '2026-09-27 04:18:32', '2026-09-27 04:18:09'),
+(87, 262, 'login_2fa', '76712ab60b4a55c95277ed77612d81d8f4b4c3134d998a41c47877b18a8f3e4f', 'System', '2026-09-27 04:35:25', '2026-09-27 04:26:00', '2026-09-27 04:25:25'),
+(88, 255, 'login_2fa', 'e3b3fde3f8dfd96259f0c333c7141531c630a632f0fe1eb1dd3bfe5a629e3d35', 'System', '2026-09-27 04:38:59', '2026-09-27 04:29:45', '2026-09-27 04:28:59'),
+(89, 256, 'login_2fa', '6d736f72c4a4c041c61c337828b1f58aa00213e6f50ebb7b9c040014c8159ebe', 'System', '2026-09-27 04:48:52', '2026-09-27 04:39:24', '2026-09-27 04:38:52'),
+(90, 250, 'login_2fa', 'd148cf76e9cb1368f5e08e3ccd5aca02e2b732ac12097cb044cc225a484840af', 'System', '2026-09-27 04:58:37', '2026-09-27 04:49:13', '2026-09-27 04:48:37'),
+(91, 229, 'login_2fa', '862826e2c7526610958b48553d53adffe918bcb7afc7e322d028bdb28f9045f2', 'System', '2026-09-27 05:04:25', '2026-09-27 04:56:18', '2026-09-27 04:54:25'),
+(92, 220, 'login_2fa', '4fb838cc00001d6b2cea1dbe9c563c68a161599e027ea410faef63eb88feeb67', 'System', '2026-09-27 05:06:41', '2026-09-27 04:57:42', '2026-09-27 04:56:41'),
+(93, 230, 'login_2fa', 'fe8442e960c740b22adda10dbc930fa268e2d0486feccdec0069d599f0c645a9', 'System', '2026-09-27 05:08:25', '2026-09-27 04:58:53', '2026-09-27 04:58:25'),
+(94, 234, 'login_2fa', '1ddf1839be68b7d1e1ea8769cd70e52cc6cc7922eafa06abda2af0f1f1efb704', 'System', '2026-09-27 05:09:44', '2026-09-27 05:00:14', '2026-09-27 04:59:44'),
+(95, 227, 'login_2fa', '6e2573e7011223cfa658ae1c7d1c4c56b062b09c65062dfb36a456a415e59162', 'System', '2026-09-27 05:10:33', '2026-09-30 18:58:12', '2026-09-27 05:00:33'),
+(96, 151, 'login_2fa', 'b8a190b6bea96012b0f0c6c5b51a5026b570bbee066433674c2e55aa5721edd7', 'System', '2026-09-29 09:51:41', '2026-09-29 09:42:06', '2026-09-29 09:41:41'),
+(97, 262, 'login_2fa', 'e4537dbc662b5361215c6dbf48ca1b75e30ca4bb9e406f784d84765f745e31a6', 'System', '2026-09-29 10:26:54', '2026-09-29 10:17:28', '2026-09-29 10:16:54'),
+(98, 149, 'login_2fa', '0f3daa0a32b549543629c1431811ac7eac84f9a7e36230abf6a0ddb58eafd537', 'System', '2026-09-29 10:28:25', '2026-09-29 10:18:52', '2026-09-29 10:18:25'),
+(99, 255, 'login_2fa', 'be80baac46166b5a5267b449123bf94da5dc9dabc478343379130334cc3bb282', 'System', '2026-09-29 10:29:34', '2026-09-29 10:27:53', '2026-09-29 10:19:34'),
+(100, 256, 'login_2fa', 'a2e1e6630c9bee9756fc45d5448904b1bf60f9b60eabbe06c3a35f00e676c9b1', 'System', '2026-09-29 10:38:21', '2026-09-29 10:30:23', '2026-09-29 10:28:21'),
+(101, 250, 'login_2fa', 'a7fe08438cb95484ada35338313287843a9d26f04a3ae1af73d7ffdaeda80467', 'System', '2026-09-29 10:40:46', '2026-09-29 10:31:04', '2026-09-29 10:30:46'),
+(102, 149, 'login_2fa', '179df886ae9d8a8904d6a5d40768a112028101117ef90e698d36f78e6b79689a', 'System', '2026-09-29 10:53:56', '2026-09-29 10:44:56', '2026-09-29 10:43:56'),
+(103, 151, 'login_2fa', '5a6f48fe0804a7befa63d5d659cc867ec12ff84ea9c25e11fa44bd94acbebe54', 'System', '2026-09-29 10:56:06', '2026-09-29 10:46:27', '2026-09-29 10:46:06'),
+(104, 151, 'login_2fa', '625391ccf7d023c7f797749ad4b16732908830ce01234c2b44d36d0ca31b02b5', 'System', '2026-09-29 15:12:09', '2026-09-29 15:02:45', '2026-09-29 15:02:09'),
+(105, 151, 'login_2fa', 'ab518999659d947b1c41e7d67466cb46e645129e6385315a3b641782f4d4f765', 'System', '2026-09-30 17:16:36', '2026-09-30 17:06:57', '2026-09-30 17:06:36'),
+(106, 220, 'login_2fa', '03ced2ac974bb43fcccf1f40fbe43614a5a5895114f8a4312180602866f76a91', 'System', '2026-09-30 18:38:49', '2026-09-30 18:29:10', '2026-09-30 18:28:49'),
+(107, 229, 'login_2fa', '560020735b5f245756872529379a559d75c954f88c3bb74e4d35393acc4fc395', 'System', '2026-09-30 18:43:35', '2026-09-30 18:33:50', '2026-09-30 18:33:35'),
+(108, 220, 'login_2fa', '2d11475f7c32ed51f1a6ce9851586d391cd426bdb748046d5170cd9e9b8841ce', 'System', '2026-09-30 19:00:54', '2026-09-30 18:51:11', '2026-09-30 18:50:54'),
+(109, 229, 'login_2fa', '115edfcc8cdfe03d1271824ce5798805bc198256d515f0b020a881efa5e769d2', 'System', '2026-09-30 19:05:54', '2026-09-30 18:56:19', '2026-09-30 18:55:54'),
+(110, 230, 'login_2fa', 'da58eade37cb5091ab3a578e19ea8db5343e262bc2982dd346aecf5605677993', 'System', '2026-09-30 19:07:37', '2026-09-30 18:57:57', '2026-09-30 18:57:37'),
+(111, 227, 'login_2fa', 'c57c6f85ec0c7e082109ac02c4829846c1a2755e28e2fd134756c046211dd71c', 'System', '2026-09-30 19:08:12', '2026-09-30 18:58:36', '2026-09-30 18:58:12'),
+(112, 234, 'login_2fa', '1bf0e7c7fc365d0d149c107202eb745bd2968a7e281d4c5d3e01515cdff1dae1', 'System', '2026-09-30 19:16:16', '2026-09-30 19:06:51', '2026-09-30 19:06:16'),
+(113, 151, 'login_2fa', 'e5fdbe4b24f4021e1c7f7bba9b1f6a906fddfcb4ab80cc627f320b1886cd864b', 'System', '2026-09-30 19:21:51', '2026-09-30 19:12:21', '2026-09-30 19:11:51'),
+(114, 151, 'login_2fa', 'ea2b98eb025c615965f1152580eb986efa35028fc61c0cf9155fd520b823866f', 'System', '2026-09-30 21:23:16', '2026-09-30 21:13:57', '2026-09-30 21:13:16'),
+(115, 151, 'login_2fa', 'bfbe3d3bf6dbe182527cc77bdc259a945339c89b265e3a9206366f7414527542', 'System', '2026-09-30 22:11:54', '2026-09-30 22:02:23', '2026-09-30 22:01:54'),
+(116, 151, 'login_2fa', '61ce182781f19acd95a5161a2e87da042a29ae47fef47a3bf94d085cc0866bb3', 'System', '2026-10-02 08:51:40', '2026-10-02 08:42:05', '2026-10-02 08:41:40'),
+(117, 151, 'login_2fa', '4d0f52a3c9164b4e1d957727128442da730c0bd94a664fcb670790324769eac7', 'System', '2026-10-02 10:17:28', '2026-10-02 10:07:57', '2026-10-02 10:07:28'),
+(118, 151, 'login_2fa', '91b304f11bd650dbf6aa68892490859773b5899004ed58f06101d4d38663293f', 'System', '2026-10-06 15:39:37', '2026-10-06 15:30:01', '2026-10-06 15:29:37'),
+(119, 151, 'login_2fa', '1706d0aa267e85fceabf76ee96aa34d2fe81b711f72b0f81406f4a7b516c3439', 'System', '2026-10-06 17:26:46', '2026-10-06 17:17:22', '2026-10-06 17:16:46'),
+(120, 151, 'login_2fa', '953870f44aa47a98370b7ce9d03e8f7496c91666a7a32c7f90ed03ea25e571da', 'System', '2026-10-06 18:04:56', '2026-10-06 17:55:15', '2026-10-06 17:54:56'),
+(121, 151, 'login_2fa', '1358f4f1974e1e95c682339af13a349c119e5153939bb1ddda03c4e1b709c3f3', 'System', '2026-10-07 20:59:57', '2026-10-07 20:50:19', '2026-10-07 20:49:57'),
+(122, 151, 'login_2fa', '42540e7cd0aae8cda63f7cfdf94c928835e490265298a760c0f09151ce3496e4', 'System', '2026-10-08 19:29:56', '2026-10-08 19:20:21', '2026-10-08 19:19:56'),
+(123, 151, 'login_2fa', '991872cd2455f2af7d2b26a073f40df4e8e21406d4f78243e0ef70a87d027df1', 'System', '2026-10-08 19:30:26', '2026-10-08 19:20:45', '2026-10-08 19:20:26'),
+(124, 262, 'login_2fa', '0e3c52f9a3a10bd5b3be1ba3a02cbb72b43f2ee52511dd493180e136c638007a', 'System', '2026-10-08 19:46:04', '2026-10-08 19:36:42', '2026-10-08 19:36:04'),
+(125, 151, 'login_2fa', 'b727121a96e8cff2dc7ceb78ecbd33370da6285e31d0dfb051fbc8da0abae506', 'System', '2026-10-08 20:21:15', '2026-10-08 20:11:36', '2026-10-08 20:11:15'),
+(126, 262, 'login_2fa', '977664d5899a5108b5353de95a55be83bc1f6170371c278d00fa79439aaf9402', 'System', '2026-10-08 20:42:56', '2026-10-08 20:33:21', '2026-10-08 20:32:56'),
+(127, 151, 'login_2fa', '0ecc996ca1d884a2eadca8db93484064af3133d5a402c73d8dfa2d5c15dc23ca', 'System', '2026-10-09 08:15:29', '2026-10-09 08:06:05', '2026-10-09 08:05:29'),
+(128, 262, 'login_2fa', '93c567f7392c87cbc7ae14116b0885b25fd0ac511f2346e29c687211e933a226', 'System', '2026-10-09 08:16:41', '2026-10-09 08:06:58', '2026-10-09 08:06:41'),
+(129, 262, 'login_2fa', 'd2b7b1e6d74b3ef37452f17e77c9987bae8bf520f7aa7bd30dcaf2b94af1fdf6', 'System', '2026-10-09 10:28:37', '2026-10-09 10:19:44', '2026-10-09 10:18:37'),
+(130, 151, 'login_2fa', 'bdf35151d6f620948ade1e205224b787d898e5dbd3c87668fd9625e05c4782d6', 'System', '2026-10-09 11:10:06', '2026-10-13 16:14:52', '2026-10-09 11:00:06'),
+(131, 262, 'login_2fa', '0f5bf20baf7fea907e6049fd58e473648936b72bda236be2b13ad5322f0a1508', 'System', '2026-10-09 11:17:31', '2026-10-09 11:07:59', '2026-10-09 11:07:31'),
+(132, 151, 'login_2fa', 'f2487338015332582bc8767e5f0c1b55fb1215866b1e995d025d6313339945a3', 'System', '2026-10-13 16:24:52', '2026-10-13 16:15:54', '2026-10-13 16:14:52'),
+(133, 151, 'login_2fa', 'bfdc22161246bbba414abcd19d185eb0f77975c47e6785a9c5fb60ad8205e659', 'System', '2026-10-13 17:10:49', '2026-10-13 17:01:19', '2026-10-13 17:00:49'),
+(134, 262, 'login_2fa', '01767207f54fe2a76396bca82070b4fd0105d01c7988308a09751b9c6bd3bbb7', 'System', '2026-10-13 18:24:11', '2026-10-13 18:14:59', '2026-10-13 18:14:11'),
+(135, 262, 'login_2fa', '8cd9ea8e7bd5ff510c6070c70026046acf07d5f0049659f825add70a5771d74c', 'System', '2026-10-14 23:31:43', '2026-10-14 23:22:03', '2026-10-14 23:21:43'),
+(136, 151, 'login_2fa', 'c51fd32c5721f89cd5e8b92c5e2fddec43176a5fabfdfda2955cbbf073e01366', 'System', '2026-10-14 23:44:44', '2026-10-14 23:35:13', '2026-10-14 23:34:44'),
+(137, 262, 'login_2fa', '32a3267b79c3339ce9f2ceca51924310a10d2e35d771f5e3386037e365c526fb', 'System', '2026-10-15 23:22:53', '2026-10-15 23:13:40', '2026-10-15 23:12:53'),
+(138, 262, 'login_2fa', '205083d0de3ee6660cbc179926393b59dacfda9c7f172b70ea2df58197027b1b', 'System', '2026-10-16 00:37:49', '2026-10-16 00:28:48', '2026-10-16 00:27:49'),
+(139, 262, 'login_2fa', '7cdae562ed2fd2634fc374a4c21813026c15983b1b1048b1005da36874862167', 'System', '2026-10-16 12:56:10', '2026-10-16 12:47:01', '2026-10-16 12:46:10');
 
 -- --------------------------------------------------------
 
@@ -2283,25 +2561,26 @@ INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `r
 (44, 'departmenthead', 'departmenthead@bestlink.edu.ph', '$2y$10$zetuMf6PPbFBs9KybGEap.RwJc59VdWoUIseM7fvfQg2pKgaN463e', 'Department Head', 'department_head', NULL, 'active', 0, 0, NULL, '2026-08-10 01:52:53', '2026-08-14 13:51:11', NULL, '::1', NULL, '2026-08-10 01:31:00', '2026-08-14 13:53:18'),
 (45, 'secretary', 'secretary@bestlink.edu.ph', '$2y$10$fKm8UsVAwGoQoo.1h8smw.7pnuxX0937LzFMPqRxyKT9wt2T7m5ye', 'Secretary', 'secretary', NULL, 'active', 0, 0, NULL, '2026-08-10 01:53:27', '2026-08-16 02:58:15', NULL, '::1', NULL, '2026-08-10 01:31:00', '2026-08-16 02:59:02'),
 (46, 'faculty', 'faculty@bestlink.edu.ph', '$2y$10$R1uQbxKRilhWkaEeCMnNne6LsgMhRTt.i5F9Izk5N6ufS8WJUdDr.', 'Jean Claude', 'faculty', NULL, 'active', 0, 0, NULL, '2026-08-10 01:54:02', '2026-08-16 02:59:16', '2026-08-16 03:19:40', '::1', NULL, '2026-08-10 01:31:00', '2026-08-16 03:19:40'),
-(149, 'claudeespejo@gmail.com', 'claudeespejo@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Jean Espejo', 'department_head', NULL, 'active', 0, 0, NULL, '2026-08-14 11:59:29', '2026-09-27 00:50:59', NULL, '::1', NULL, '2026-08-14 11:58:31', '2026-09-27 00:52:33'),
-(151, 'facultyadmin', 'gitirene6@gmail.com', '$2y$10$OB99jFDNiuB2z5ag2LTfj.npSx2gzctwJ3hNtrzFXc59JDk7TsBgW', 'Faculty Admin', 'faculty_admin', NULL, 'active', 0, 0, NULL, '2026-09-26 17:05:07', '2026-09-26 23:24:40', NULL, '::1', NULL, '2026-08-15 01:14:06', '2026-09-26 23:50:47'),
+(149, 'claudeespejo@gmail.com', 'claudeespejo@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Jean Espejo', 'department_head', NULL, 'active', 0, 0, NULL, '2026-08-14 11:59:29', '2026-09-29 10:44:56', NULL, '::1', NULL, '2026-08-14 11:58:31', '2026-09-29 10:45:50'),
+(151, 'facultyadmin', 'gitirene6@gmail.com', '$2y$10$OB99jFDNiuB2z5ag2LTfj.npSx2gzctwJ3hNtrzFXc59JDk7TsBgW', 'Faculty Admin', 'faculty_admin', NULL, 'active', 0, 0, NULL, '2026-09-26 17:05:07', '2026-10-14 23:35:13', '2026-10-15 00:07:06', '::1', NULL, '2026-08-15 01:14:06', '2026-10-15 00:07:06'),
 (152, 'monitoring', 'monitoring@bestlink.edu.ph', '$2y$10$VA/SJ7ZDJfaphs4elb5O7O1FxgCV2gakN7tMqG49T0UUf83OJmdO.', 'Monitoring Officer', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-15 01:41:50', '2026-08-17 00:45:17', NULL, '::1', NULL, '2026-08-15 01:14:06', '2026-08-17 01:32:54'),
 (158, 'asdfghjkl@gmail.com', 'asdfghjkl@gmail.com', '$2y$10$krRJZwchT6S4kL9sEoiOy.mp4XhL1THTugqcDFJk5wOtOCNWFOxB2', 'dwadsadwa Qwerty', 'secretary', NULL, 'active', 0, 0, NULL, '2026-08-17 00:22:48', '2026-09-24 01:11:06', NULL, '::1', NULL, '2026-08-17 00:21:59', '2026-09-24 01:11:21'),
 (159, 'jeanie@gmail.com', 'jeanie@gmail.com', '$2y$10$XT67xyI5B6ebSjLVKaXwoOHmmGsD79vo6GJX11HYYlBiPqgJr9MM6', 'Claude Claude', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-08-17 01:42:24', '2026-09-26 15:03:21', NULL, '::1', NULL, '2026-08-17 01:40:22', '2026-09-26 15:05:33'),
 (219, 'registrar_head', 'registrar.head@bestlink.edu.ph', '$2y$10$PLACEHOLDER', 'Registrar Head Name', 'registrar', NULL, 'active', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-06 21:51:08', '2026-09-06 21:51:08'),
-(220, 'registrar_officer_01', 'jr.aban23@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Registrar Officer Name', 'registrar', NULL, 'active', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-06 21:51:08', '2026-09-27 01:25:35'),
+(220, 'registrar_officer_01', 'jr.aban23@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Registrar Officer Name', 'registrar_clearance', NULL, 'active', 0, 0, NULL, NULL, '2026-09-30 18:51:11', NULL, '::1', NULL, '2026-09-06 21:51:08', '2026-09-30 18:55:40'),
 (221, 'hr_manager', 'hr.manager@bestlink.edu.ph', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'HR Manager Name', 'hr', NULL, 'active', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-06 21:51:08', '2026-09-27 01:25:45'),
 (222, 'hr_officer_01', 'hr.officer01@bestlink.edu.ph', '$2y$10$PLACEHOLDER', 'HR Officer Name', 'hr', NULL, 'active', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-06 21:51:08', '2026-09-06 21:51:08'),
-(227, 'hr', 'brianbrix002@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'HR User', 'hr_clearance', NULL, 'active', 0, 0, NULL, NULL, '2026-09-24 08:24:52', NULL, '::1', NULL, '2026-09-06 22:41:32', '2026-09-27 01:20:46'),
-(229, 'property_custodian', 'xcross0105@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Property Custodian User', 'registrar_clearance', NULL, 'active', 0, 0, NULL, NULL, '2026-09-24 08:24:10', NULL, '::1', NULL, '2026-09-06 22:41:32', '2026-09-27 01:20:18'),
-(230, 'library', 'diosdado.rocero.aban@gmail.com', '$2y$10$q0d8MsCulEkFYl0N1zSDNe0ToXMWTtXFCHftbvYdePuP8Orjs2lYO$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Library User', 'library_clearance', NULL, 'active', 0, 0, NULL, NULL, '2026-09-24 08:23:59', NULL, '::1', NULL, '2026-09-06 22:41:32', '2026-09-27 01:20:23'),
-(234, 'finance_office', 'robletone23@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Finance Office User', 'finance_office', NULL, 'active', 0, 2, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-07 20:10:23', '2026-09-27 01:20:26'),
-(250, 'whitybrix@gmail.com', 'whitybrix@gmail.com', '$2y$10$e2ljqEJnXNpnkmz12ScPlOkoWj0KwF6xem4.rUXIB1kcrf15GMJtC', 'Light Yagami', 'faculty', NULL, 'active', 0, 0, NULL, '2026-09-27 00:39:37', '2026-09-26 23:52:14', NULL, '::1', NULL, '2026-09-11 02:12:42', '2026-09-27 00:41:04'),
-(255, 'bardpanget2025@gmail.com', 'bardpanget2025@gmail.com', '$2y$10$KpZ4LECpPi8Bh8xe5yvBwuqTPbQw7Ik6eJUr.ye4hljbWsUmTVhwG', 'Earl Salvame', 'secretary', NULL, 'active', 0, 0, NULL, '2026-09-27 00:55:32', '2026-09-27 00:55:06', NULL, '::1', NULL, '2026-09-24 08:34:28', '2026-09-27 00:57:53'),
-(256, 'mingthecat002@gmail.com', 'mingthecat002@gmail.com', '$2y$10$qMtpnrJLl7c3oyO/CPaTduob/8vIW9m3czkVyA46Ru8Mx/VWp7Uc6', 'Alfred Joseph Alcantara', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-09-27 00:59:30', '2026-09-27 00:59:13', '2026-09-27 01:22:19', '::1', NULL, '2026-09-24 08:45:01', '2026-09-27 01:22:19'),
+(227, 'hr', 'brianbrix002@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'HR User', 'hr_clearance', NULL, 'active', 0, 0, NULL, NULL, '2026-09-30 18:58:36', NULL, '::1', NULL, '2026-09-06 22:41:32', '2026-09-30 18:58:41'),
+(229, 'property_custodian', 'espejo.jeanclaude.obsania002@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Property Custodian User', 'property_custodian_office', NULL, 'active', 0, 0, NULL, NULL, '2026-09-30 18:56:19', NULL, '::1', NULL, '2026-09-06 22:41:32', '2026-09-30 18:56:25'),
+(230, 'library', 'diosdado.rocero.aban@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Library User', 'library_clearance', NULL, 'active', 0, 0, NULL, '2026-09-27 02:59:50', '2026-09-30 18:57:57', NULL, '::1', NULL, '2026-09-06 22:41:32', '2026-09-30 19:06:05'),
+(234, 'finance_office', 'lonzbert12@gmail.com', '$2y$10$AH1cgkTlRtsxB0fQVU7UB.sINBL0iSTehtLnY3.KwA27plquRX2SS', 'Finance Office User', 'finance_office', NULL, 'active', 0, 0, NULL, NULL, '2026-09-30 19:06:51', NULL, '::1', NULL, '2026-09-07 20:10:23', '2026-09-30 19:11:39'),
+(250, 'whitybrix@gmail.com', 'whitybrix@gmail.com', '$2y$10$e2ljqEJnXNpnkmz12ScPlOkoWj0KwF6xem4.rUXIB1kcrf15GMJtC', 'Light Yagami', 'faculty', NULL, 'active', 0, 0, NULL, '2026-09-27 00:39:37', '2026-09-29 10:31:04', NULL, '::1', NULL, '2026-09-11 02:12:42', '2026-09-29 16:21:35'),
+(255, 'bardpanget2025@gmail.com', 'bardpanget2025@gmail.com', '$2y$10$KpZ4LECpPi8Bh8xe5yvBwuqTPbQw7Ik6eJUr.ye4hljbWsUmTVhwG', 'Earl Salvame', 'secretary', NULL, 'active', 0, 0, NULL, '2026-09-27 00:55:32', '2026-09-29 10:27:53', NULL, '::1', NULL, '2026-09-24 08:34:28', '2026-09-29 16:21:16'),
+(256, 'mingthecat002@gmail.com', 'mingthecat002@gmail.com', '$2y$10$qMtpnrJLl7c3oyO/CPaTduob/8vIW9m3czkVyA46Ru8Mx/VWp7Uc6', 'Alfred Joseph Alcantara', 'monitoring_officer', NULL, 'active', 0, 0, NULL, '2026-09-27 00:59:30', '2026-09-29 10:30:23', NULL, '::1', NULL, '2026-09-24 08:45:01', '2026-09-29 10:30:34'),
 (260, 'midnightgaming099@gmail.com', 'midnightgaming099@gmail.com', '$2y$10$H6ZLXcmoILKClSelab7PkO4mNqAZreyQ6s2aMFzIPYqkOq8rYpkNy', 'Jorge Lucero', 'department_head', NULL, 'active', 0, 0, NULL, '2026-09-26 18:34:59', '2026-09-26 18:34:43', NULL, '::1', NULL, '2026-09-26 18:30:51', '2026-09-26 18:35:47'),
-(261, 'idkwhoistonio@gmail.com', 'idkwhoistonio@gmail.com', '$2y$10$3fdBTxfIX3Jd6Pz15mScCeGjQnM/Y8PCDj.JSB/1s7RkSIim89dVO', 'Sofia Reyes', 'faculty', NULL, 'active', 0, 0, NULL, '2026-09-26 22:55:36', '2026-09-26 22:55:22', NULL, '::1', NULL, '2026-09-26 22:49:46', '2026-09-26 22:57:28'),
-(262, 'jcespejo002@gmail.com', 'jcespejo002@gmail.com', '$2y$10$XTAELrWVNuDaMAt5aMFGuu4VuN1I/NP9b8oH/3Yrz3UEYX4waM9He', 'Jorge Lucero', 'dean', NULL, 'active', 0, 0, NULL, '2026-09-26 23:22:59', '2026-09-26 23:22:41', NULL, '::1', NULL, '2026-09-26 23:21:19', '2026-09-26 23:23:44');
+(261, 'idkwhoistonio@gmail.com', 'idkwhoistonio@gmail.com', '$2y$10$3fdBTxfIX3Jd6Pz15mScCeGjQnM/Y8PCDj.JSB/1s7RkSIim89dVO', 'Sofia Reyes', 'faculty', NULL, 'active', 0, 0, NULL, '2026-09-26 22:55:36', '2026-09-26 22:55:22', NULL, '::1', NULL, '2026-09-26 22:49:46', '2026-10-08 22:34:48'),
+(262, 'jcespejo002@gmail.com', 'jcespejo002@gmail.com', '$2y$10$XTAELrWVNuDaMAt5aMFGuu4VuN1I/NP9b8oH/3Yrz3UEYX4waM9He', 'Jorge Lucero', 'dean', NULL, 'active', 0, 0, NULL, '2026-09-26 23:22:59', '2026-10-16 12:47:01', '2026-10-16 12:51:12', '::1', NULL, '2026-09-26 23:21:19', '2026-10-16 12:51:12'),
+(263, 'leriqwe27@gmail.com', 'leriqwe27@gmail.com', '$2y$10$0upP25pfXjnHwaqRuXTT7.6m5hvG4VjxZzpRFS9PJ4njDZ3FLKOrm', '', 'department_head', NULL, 'active', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-27 04:24:13', '2026-09-29 16:21:11');
 
 -- --------------------------------------------------------
 
@@ -2434,19 +2713,19 @@ ALTER TABLE `user_passkeys`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1906;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2107;
 
 --
 -- AUTO_INCREMENT for table `login_throttles`
 --
 ALTER TABLE `login_throttles`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT for table `password_resets`
 --
 ALTER TABLE `password_resets`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `password_reset_requests`
@@ -2470,13 +2749,13 @@ ALTER TABLE `role_permissions`
 -- AUTO_INCREMENT for table `security_otps`
 --
 ALTER TABLE `security_otps`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=69;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=140;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=263;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=264;
 
 --
 -- AUTO_INCREMENT for table `user_authenticators`

@@ -1,8 +1,11 @@
 <?php
 /**
- * SMS 2 - Dean - Clearance Sign-off
- * Dean signs off the Department Clearance office for faculty in their departments.
- * RBAC scoped server-side. Unique card layout grouped by faculty.
+ * SMS 2 - Dean - Clearance Sign-off (Track 2)
+ * 
+ * Final Institutional Sign-off.
+ * Only shows clearances that the Admin has audited and endorsed to the Dean.
+ * Once 6/6 offices are cleared + Admin endorsed + Declaration signed, the Dean
+ * can grant final sign-off. This archives the record and routes it to HR.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
@@ -19,6 +22,12 @@ $deanDepartments     = getDeanAssignedDepartments($deanUserId);
 $deanDepartmentNames = getDeanDepartmentNames($deanDepartments);
 $hasDeanDepartments  = !empty($deanDepartments);
 
+$currentUserId      = (int) ($_SESSION['user_id'] ?? 0);
+$currentUserName    = trim((string) ($_SESSION['full_name'] ?? $_SESSION['username'] ?? 'Dean'));
+$currentUserRoleLbl = (string) ($_SESSION['role_label'] ?? 'Dean');
+
+$GATE_OFFICE_IDS = [5005, 5006, 5007, 5008, 5009, 5010];
+
 /* ============================================================
    DATABASE
    ============================================================ */
@@ -32,54 +41,148 @@ if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof
 }
 
 /* ============================================================
-   HANDLE ACTION — sign off or return a Department Clearance item
-   Server-side RBAC re-check before any write.
+   HANDLE ACTION — Final Sign-off or Return to Admin
    ============================================================ */
 $actionMessage = '';
 $actionType = 'success';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'sign_clearance') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'dean_signoff') {
     if (!$hasDeanDepartments) {
         $actionMessage = 'No departments assigned.';
         $actionType = 'danger';
     } else {
         try {
-            $itemId   = (int) ($_POST['item_id'] ?? 0);
-            $decision = (string) ($_POST['decision'] ?? '');
-            $remarks  = trim((string) ($_POST['remarks'] ?? ''));
-            $deptList = implode(',', array_map('intval', $deanDepartments));
+            $clearanceId = (int) ($_POST['clearance_id'] ?? 0);
+            $decision    = (string) ($_POST['decision'] ?? '');
+            $remarks     = trim((string) ($_POST['remarks'] ?? ''));
+            $deptList    = implode(',', array_map('intval', $deanDepartments));
 
             if (!in_array($decision, ['approve','return'], true)) {
                 throw new InvalidArgumentException('Invalid decision.');
             }
 
-            $newStatus = $decision === 'approve' ? 'Cleared' : 'Hold';
+            // Fetch clearance + faculty details
             $stmt = $pdo->prepare("
-                UPDATE faculty_db.clearance_items ci
-                INNER JOIN faculty_db.clearance_requests cr ON cr.clearance_id = ci.clearance_id
-                INNER JOIN faculty_db.clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
+                SELECT cr.*, f.faculty_no, f.first_name, f.middle_name, f.last_name, f.email,
+                       f.department_id, d.name AS dept_name, at.academic_year, at.semester
+                FROM faculty_db.clearance_requests cr
                 INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
-                SET ci.status = :st,
-                    ci.remarks = :cm,
-                    ci.cleared_by_external_id = :uid,
-                    ci.cleared_at = NOW()
-                WHERE ci.clearance_item_id = :id
-                  AND f.department_id IN ($deptList)
-                  AND co.name LIKE '%Department%'
+                LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+                LEFT JOIN faculty_db.academic_terms at ON at.term_id = cr.term_id
+                WHERE cr.clearance_id = ? AND f.department_id IN ($deptList)
+                LIMIT 1
             ");
-            $stmt->execute([
-                ':st'  => $newStatus,
-                ':cm'  => $remarks,
-                ':uid' => (string) $deanUserId,
-                ':id'  => $itemId,
-            ]);
-            if ($stmt->rowCount() === 0) throw new RuntimeException('Item not found or out of scope.');
+            $stmt->execute([$clearanceId]);
+            $cl = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $actionMessage = $decision === 'approve' ? 'Clearance signed off.' : 'Clearance returned for revision.';
-            $actionType = 'success';
+            if (!$cl) throw new RuntimeException('Clearance not found or out of scope.');
+
+            $facultyId = (int) $cl['faculty_id'];
+            $facultyName = trim(($cl['first_name'] ?? '') . ' ' . ($cl['last_name'] ?? ''));
+
+            if ($decision === 'return') {
+                // Return to Admin
+                if ($remarks === '') throw new InvalidArgumentException('Please provide a reason for returning.');
+
+                $ins = $pdo->prepare("
+                    INSERT INTO faculty_db.clearance_approval_history
+                        (clearance_id, office, action, performed_by_id, performed_by_name, performed_by_role, remarks)
+                    VALUES (?, 'Dean', 'Returned by Dean — Deficiency', ?, ?, ?, ?)
+                ");
+                $ins->execute([$clearanceId, $currentUserId, $currentUserName, $currentUserRoleLbl, $remarks]);
+
+                // Update overall status back to 'In Progress' so Admin sees it
+                $upd = $pdo->prepare("UPDATE faculty_db.clearance_requests SET overall_status = 'In Progress' WHERE clearance_id = ?");
+                $upd->execute([$clearanceId]);
+
+                // Notify Admin (Faculty Admin)
+                $notif = $pdo->prepare("
+                    INSERT INTO faculty_db.notifications (faculty_id, title, message, priority, notification_type, is_read)
+                    VALUES (?, ?, ?, 'High Priority', 'clearance', 0)
+                ");
+                // Note: in a real system this should notify the Admin user, but for now we log it against the faculty
+                $notif->execute([$facultyId, 'Clearance Returned by Dean', "Your clearance was returned by the Dean. Reason: " . $remarks]);
+
+                $actionMessage = 'Clearance returned to Admin for correction.';
+                $actionType = 'warning';
+
+            } elseif ($decision === 'approve') {
+                // Verify Gate: 6/6 offices cleared + Admin endorsed
+                $officeStmt = $pdo->prepare("SELECT clearance_office_id, status FROM faculty_db.clearance_items WHERE clearance_id = ?");
+                $officeStmt->execute([$clearanceId]);
+                $offices = $officeStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+                
+                $allCleared = true;
+                foreach ($GATE_OFFICE_IDS as $oid) {
+                    $st = strtolower($offices[$oid] ?? 'missing');
+                    if ($st !== 'cleared' && $st !== 'approved by dean') {
+                        $allCleared = false;
+                        break;
+                    }
+                }
+
+                $adminStmt = $pdo->prepare("SELECT COUNT(*) FROM faculty_db.clearance_approval_history WHERE clearance_id = ? AND office = 'Admin' AND action = 'Endorsed to Dean'");
+                $adminStmt->execute([$clearanceId]);
+                $isEndorsed = (int) $adminStmt->fetchColumn() > 0;
+
+                if (!$allCleared || !$isEndorsed || !$cl['faculty_declared']) {
+                    throw new RuntimeException('Gate not met: All 6 offices must be cleared, Admin must endorse, and faculty must sign declaration.');
+                }
+
+                $pdo->beginTransaction();
+
+                // 1. Insert Dean Signature
+                $ref = 'DFS-' . $clearanceId . '-' . date('YmdHis');
+                $sigStmt = $pdo->prepare("
+                    INSERT INTO faculty_db.clearance_signatures
+                        (clearance_id, faculty_id, office, office_key, signatory_type, approval_ref, signer_user_id, signer_name, signer_role, signature_data, remarks, status, signed_at)
+                    VALUES (?, ?, 'Dean Final Sign-off', 'dean_final_clearance', 'dean', ?, ?, ?, ?, ?, ?, 'Signed', NOW())
+                    ON DUPLICATE KEY UPDATE signer_user_id = VALUES(signer_user_id), signed_at = NOW()
+                ");
+                $sigData = 'data:text/plain;base64,' . base64_encode($currentUserName . ' — ' . date('Y-m-d H:i:s'));
+                $sigStmt->execute([$clearanceId, $facultyId, $ref, $currentUserId, $currentUserName, $currentUserRoleLbl, $sigData, $remarks]);
+
+                // 2. Update overall status
+                $upd = $pdo->prepare("UPDATE faculty_db.clearance_requests SET overall_status = 'Cleared', form_status = 'Approved' WHERE clearance_id = ?");
+                $upd->execute([$clearanceId]);
+
+                // 3. Insert History
+                $ins = $pdo->prepare("
+                    INSERT INTO faculty_db.clearance_approval_history
+                        (clearance_id, office, action, performed_by_id, performed_by_name, performed_by_role, remarks)
+                    VALUES (?, 'Dean', 'Final Sign-off Granted', ?, ?, ?, ?)
+                ");
+                $ins->execute([$clearanceId, $currentUserId, $currentUserName, $currentUserRoleLbl, $remarks ?: 'Cleared and endorsed.']);
+
+                // 4. Insert to Archives (Snapshot)
+                $itemsJson = json_encode($offices);
+                $archStmt = $pdo->prepare("
+                    INSERT INTO faculty_db.faculty_clearance_archives
+                        (clearance_id, faculty_id, term_id, faculty_no, first_name, middle_name, last_name, email, position, academic_year, semester, intent_type, overall_status, items_json, completed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Cleared', ?, NOW())
+                ");
+                $archStmt->execute([
+                    $clearanceId, $facultyId, $cl['term_id'], $cl['faculty_no'], $cl['first_name'], $cl['middle_name'], $cl['last_name'], 
+                    $cl['email'], 'Faculty Professor', $cl['academic_year'], $cl['semester'], $cl['intent_type'], $itemsJson
+                ]);
+
+                // 5. Notify HR and Faculty
+                $notif = $pdo->prepare("
+                    INSERT INTO faculty_db.notifications (faculty_id, title, message, priority, notification_type, is_read)
+                    VALUES (?, ?, ?, 'Medium', 'clearance', 0)
+                ");
+                $intentMsg = $cl['intent_type'] === 'renewal' ? 'contract renewal' : ($cl['intent_type'] === 'regularization' ? 'regularization' : 'offboarding');
+                $notif->execute([$facultyId, 'Clearance Finalized', "Your clearance is complete. Reference: $ref. Endorsed for $intentMsg."]);
+
+                $pdo->commit();
+
+                $actionMessage = 'Final Dean Clearance Sign-off granted successfully.';
+                $actionType = 'success';
+            }
 
         } catch (Throwable $e) {
-            error_log('[clearance-approval] action failed: ' . $e->getMessage());
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[dean-clearance] action failed: ' . $e->getMessage());
             $actionMessage = $e->getMessage();
             $actionType = 'danger';
         }
@@ -87,41 +190,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'sign_
 }
 
 /* ============================================================
-   LOAD CLEARANCE DATA — scoped to dean's departments
+   LOAD CLEARANCES — only those endorsed to the Dean
    ============================================================ */
-$facultyClearances = [];   // grouped: faculty_id => list of items
+$facultyClearances = [];
 $loadError = null;
 
 if ($hasDeanDepartments && $pdo instanceof PDO) {
     try {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
-        /* Load every clearance request + items for the dean's departments */
+        // We only pull clearances where the Admin has logged 'Endorsed to Dean'
         $stmt = $pdo->query("
             SELECT
-                cr.clearance_id,
-                cr.clearance_no,
-                cr.faculty_id,
-                cr.term_id,
-                cr.intent_type,
-                cr.overall_status,
-                cr.submitted_at,
-                at.academic_year,
-                at.semester,
+                cr.clearance_id, cr.clearance_no, cr.faculty_id, cr.intent_type, cr.overall_status, cr.faculty_declared,
                 f.faculty_no, f.first_name, f.middle_name, f.last_name,
-                f.department_id,
-                d.code AS dept_code, d.name AS dept_name,
-
-                ci.clearance_item_id,
-                ci.clearance_office_id,
-                ci.status AS item_status,
-                ci.remarks AS item_remarks,
-                ci.file_path,
-                ci.original_name,
-                ci.cleared_at,
-
-                co.name AS office_name,
-                co.sequence_order
+                d.name AS dept_name,
+                at.academic_year, at.semester,
+                ci.clearance_office_id, ci.status AS item_status,
+                co.name AS office_name
             FROM faculty_db.clearance_requests cr
             INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
             LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
@@ -129,12 +215,14 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
             LEFT JOIN faculty_db.clearance_items ci ON ci.clearance_id = cr.clearance_id
             LEFT JOIN faculty_db.clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
             WHERE f.department_id IN ($deptList)
-            ORDER BY cr.submitted_at DESC, co.sequence_order ASC
-            LIMIT 500
+              AND cr.clearance_id IN (
+                  SELECT clearance_id FROM faculty_db.clearance_approval_history 
+                  WHERE office = 'Admin' AND action = 'Endorsed to Dean'
+              )
+            ORDER BY cr.submitted_at DESC
         ");
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        /* Group by clearance_id */
         $byClearance = [];
         foreach ($rows as $r) {
             $cid = (int) $r['clearance_id'];
@@ -145,27 +233,20 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                     'faculty_id'      => (int) $r['faculty_id'],
                     'faculty_no'      => $r['faculty_no'] ?? '',
                     'faculty_name'    => trim(($r['first_name'] ?? '') . ' ' . ($r['middle_name'] ?? '') . ' ' . ($r['last_name'] ?? '')),
-                    'department_id'   => (int) $r['department_id'],
-                    'dept_name'       => $r['dept_name'] ?: ($r['dept_code'] ?: '—'),
+                    'dept_name'       => $r['dept_name'] ?: '—',
                     'academic_year'   => $r['academic_year'] ?: '',
                     'semester'        => $r['semester'] ?: '',
                     'intent_type'     => $r['intent_type'] ?: 'renewal',
                     'overall_status'  => $r['overall_status'] ?: 'In Progress',
-                    'submitted_at'    => $r['submitted_at'] ?: '',
+                    'declared'        => (bool) $r['faculty_declared'],
                     'items'           => [],
                 ];
             }
-            if (!empty($r['clearance_item_id'])) {
+            if (!empty($r['clearance_office_id'])) {
                 $byClearance[$cid]['items'][] = [
-                    'clearance_item_id' => (int) $r['clearance_item_id'],
-                    'office_name'       => $r['office_name'] ?: 'Office',
-                    'office_id'         => (int) $r['clearance_office_id'],
-                    'sequence_order'    => (int) $r['sequence_order'],
-                    'status'            => $r['item_status'] ?: 'Missing',
-                    'remarks'           => $r['item_remarks'] ?: '',
-                    'file_path'         => $r['file_path'] ?: '',
-                    'original_name'     => $r['original_name'] ?: '',
-                    'cleared_at'        => $r['cleared_at'] ?: '',
+                    'office_id'   => (int) $r['clearance_office_id'],
+                    'office_name' => $r['office_name'] ?: 'Office',
+                    'status'      => $r['item_status'] ?: 'Missing',
                 ];
             }
         }
@@ -178,9 +259,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
     }
 }
 
-/* ============================================================
-   Page config
-   ============================================================ */
+/* Page config */
 $pageTitle    = 'Clearance Sign-off';
 $activeModule = 'faculty';
 $activePage   = 'clearance-approval';
@@ -222,9 +301,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <?php endif; ?>
 
     <?php if ($actionMessage): ?>
-        <div class="alert alert-<?= htmlspecialchars($actionType) ?> d-flex align-items-center gap-2 mb-3" role="alert">
+        <div class="alert alert-<?= htmlspecialchars($actionType) ?> alert-dismissible fade show d-flex align-items-center gap-2 mb-3" role="alert">
             <i class="fas fa-<?= $actionType === 'success' ? 'check-circle' : 'exclamation-triangle' ?>"></i>
             <div><?= htmlspecialchars($actionMessage) ?></div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
 
@@ -234,7 +314,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <p class="small mb-0 mt-1"><em>Confidential — faculty names are blurred in print.</em></p>
     </div>
 
-    <!-- ================= Page Header ================= -->
+    <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 no-print">
         <div>
             <h1 class="h4 h3-md text-body fw-bold mb-1 d-flex align-items-center gap-2">
@@ -242,7 +322,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <span>Clearance Sign-off</span>
             </h1>
             <p class="text-body-secondary small mb-0">
-                Review each faculty's clearance and sign off on the Department Clearance office.
+                Final institutional sign-off for clearances audited and endorsed by the Admin.
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
@@ -263,9 +343,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- ================= KPI Cards ================= -->
+        <!-- KPI Cards -->
     <div class="row g-3 mb-4 no-print">
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-lg-6">
             <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#0d6efd;z-index:1;"></div>
                 <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
@@ -274,30 +354,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <i class="fas fa-clipboard-list"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Clearances</h6>
+                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Awaiting Sign-off</h6>
                         <h4 class="mb-0 fw-bold" style="color:#0d6efd;" id="kpiTotal">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#0d6efd;font-size:0.7rem;">In your scope</small>
+                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#0d6efd;font-size:0.7rem;">Endorsed to you</small>
                     </div>
                 </div>
             </section>
         </div>
-        <div class="col-6 col-lg-3">
-            <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
-                <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#f59e0b;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(245,158,11,0.14);color:#f59e0b;">
-                        <i class="fas fa-hourglass-half"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Pending Sign-off</h6>
-                        <h4 class="mb-0 fw-bold" style="color:#f59e0b;" id="kpiPending">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#f59e0b;font-size:0.7rem;">Needs your action</small>
-                    </div>
-                </div>
-            </section>
-        </div>
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-lg-6">
             <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#10b981;z-index:1;"></div>
                 <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
@@ -306,63 +370,23 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <i class="fas fa-check-circle"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Signed Off</h6>
+                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Ready to Sign</h6>
                         <h4 class="mb-0 fw-bold" style="color:#10b981;" id="kpiCleared">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#10b981;font-size:0.7rem;">Completed by you</small>
-                    </div>
-                </div>
-            </section>
-        </div>
-        <div class="col-6 col-lg-3">
-            <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
-                <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#ff4d4d;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(255,77,77,0.14);color:#ff4d4d;">
-                        <i class="fas fa-circle-pause"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Blocked</h6>
-                        <h4 class="mb-0 fw-bold" style="color:#ff4d4d;" id="kpiBlocked">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#ff4d4d;font-size:0.7rem;">Waiting on other offices</small>
+                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#10b981;font-size:0.7rem;">6/6 Offices Cleared</small>
                     </div>
                 </div>
             </section>
         </div>
     </div>
 
-    <!-- ================= Filters ================= -->
+    <!-- Filters -->
     <div class="card border shadow-sm mb-4 no-print">
         <div class="card-body py-3">
             <div class="row g-3 align-items-end">
-                <?php if (count($deanDepartments) > 1): ?>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_dept">Department</label>
-                    <select class="form-select form-select-sm" id="f_dept" data-filter="dept">
-                        <option value="all">All my departments</option>
-                        <?php foreach ($deanDepartments as $deptId): ?>
-                            <option value="<?= (int) $deptId ?>">
-                                <?= htmlspecialchars($deanDepartmentNames[$deptId] ?? ('Dept #' . $deptId)) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <?php endif; ?>
-
                 <div class="col-6 col-md-3 col-lg-2">
                     <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_term">Term</label>
                     <select class="form-select form-select-sm" id="f_term" data-filter="term">
                         <option value="all">All terms</option>
-                    </select>
-                </div>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_status">Status</label>
-                    <select class="form-select form-select-sm" id="f_status" data-filter="status">
-                        <option value="all">All statuses</option>
-                        <option value="pending">Pending Sign-off</option>
-                        <option value="ready">Ready for Sign-off</option>
-                        <option value="blocked">Blocked</option>
-                        <option value="cleared">Signed Off</option>
                     </select>
                 </div>
                 <div class="col-6 col-md-3 col-lg-2">
@@ -378,7 +402,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- ================= Cards grid ================= -->
+    <!-- Cards grid -->
     <div class="ca-grid" id="clearanceGrid"></div>
 
     <div class="card border shadow-sm overflow-hidden no-print">
@@ -407,16 +431,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <form method="POST" action="">
                 <div class="modal-body p-4">
-                    <input type="hidden" name="action" value="sign_clearance">
-                    <input type="hidden" name="item_id" id="caItemId" value="">
+                    <input type="hidden" name="action" value="dean_signoff">
+                    <input type="hidden" name="clearance_id" id="caClearanceId" value="">
                     <input type="hidden" name="decision" id="caDecision" value="">
 
                     <p class="text-body-secondary mb-3" id="caModalMessage"></p>
 
                     <label class="form-label small text-uppercase fw-bold text-body-secondary" for="caRemarks">
-                        Remarks (optional)
+                        Remarks <span id="caRemarksRequired" class="text-danger d-none">*</span>
                     </label>
-                    <textarea class="form-control" id="caRemarks" name="remarks" rows="3" placeholder="Add notes for the faculty…"></textarea>
+                    <textarea class="form-control" id="caRemarks" name="remarks" rows="3" placeholder="Add notes for the record…"></textarea>
                 </div>
                 <div class="modal-footer border-top border-light-subtle py-2 px-4">
                     <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">Cancel</button>
@@ -453,10 +477,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         box-shadow: var(--sms-shadow-sm);
         border-color: rgba(59,130,246,0.3);
     }
-    .ca-card--cleared { border-left: 4px solid #10b981; }
-    .ca-card--pending { border-left: 4px solid #f59e0b; }
-    .ca-card--blocked { border-left: 4px solid #ef4444; }
     .ca-card--ready   { border-left: 4px solid #3b82f6; }
+    .ca-card--blocked { border-left: 4px solid #ef4444; }
 
     .ca-card__head {
         display: flex;
@@ -500,14 +522,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         border: 1px solid transparent;
         flex-shrink: 0;
     }
-    .ca-badge--cleared { background: rgba(16,185,129,0.14); color: #059669; border-color: rgba(16,185,129,0.24); }
-    .ca-badge--pending { background: rgba(245,158,11,0.16); color: #b45309; border-color: rgba(245,158,11,0.28); }
+    .ca-badge--ready { background: rgba(59,130,246,0.14); color: #2563eb; border-color: rgba(59,130,246,0.24); }
     .ca-badge--blocked { background: rgba(239,68,68,0.14);  color: #dc2626; border-color: rgba(239,68,68,0.24); }
-    .ca-badge--ready   { background: rgba(59,130,246,0.14); color: #2563eb; border-color: rgba(59,130,246,0.24); }
-    [data-theme="dark"] .ca-badge--cleared { color: #6ee7b7; }
-    [data-theme="dark"] .ca-badge--pending { color: #fcd34d; }
-    [data-theme="dark"] .ca-badge--blocked { color: #fca5a5; }
-    [data-theme="dark"] .ca-badge--ready   { color: #93c5fd; }
 
     /* Office progress strip */
     .ca-strip {
@@ -530,15 +546,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         border: 1px solid transparent;
     }
     .ca-office--cleared  { background: rgba(16,185,129,0.12); color: #059669; border-color: rgba(16,185,129,0.22); }
-    .ca-office--pending  { background: rgba(59,130,246,0.12); color: #2563eb; border-color: rgba(59,130,246,0.22); }
     .ca-office--missing  { background: rgba(148,163,184,0.14); color: #64748b; border-color: rgba(148,163,184,0.26); }
-    .ca-office--hold     { background: rgba(239,68,68,0.12);  color: #dc2626; border-color: rgba(239,68,68,0.22); }
-    .ca-office--dept     { background: rgba(139,92,246,0.14); color: #7c3aed; border-color: rgba(139,92,246,0.26); font-weight: 800; }
-    [data-theme="dark"] .ca-office--cleared { color: #6ee7b7; }
-    [data-theme="dark"] .ca-office--pending { color: #93c5fd; }
-    [data-theme="dark"] .ca-office--missing { color: #cbd5e1; }
-    [data-theme="dark"] .ca-office--hold    { color: #fca5a5; }
-    [data-theme="dark"] .ca-office--dept    { color: #c4b5fd; }
 
     .ca-card__footer {
         display: flex;
@@ -585,12 +593,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         border-color: rgba(220,38,38,0.3);
     }
     .ca-btn--return:hover { background: rgba(220,38,38,0.10); }
-    .ca-btn--view {
-        background: transparent;
-        color: var(--sms-text-muted);
-        border-color: var(--sms-border);
-    }
-    .ca-btn--view:hover { color: var(--sms-primary); border-color: var(--sms-primary); }
     .ca-btn--disabled {
         background: var(--sms-surface-muted);
         color: var(--sms-text-faint);
@@ -636,7 +638,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     /* Print-only */
     .ca-print-only { display: none; }
-
     @media print {
         body { background: #fff !important; color: #000 !important; margin: 0; padding: 0; }
         .no-print, .breadcrumb, nav, header, footer,
@@ -706,7 +707,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     const PAGE_SIZE = 9;
 
-    let filters = { dept: 'all', term: 'all', status: 'all', q: '' };
+    let filters = { term: 'all', q: '' };
     let currentPage = 1;
     let filteredRows = [];
 
@@ -730,46 +731,36 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Compute a card's overall status
-       - cleared: the Department office is 'Cleared' (dean signed off)
-       - blocked: another office has 'Hold' status
-       - ready:   all non-dept offices cleared AND dept is not yet signed
-       - pending: some non-dept offices still pending
+       Compute a card's overall status for Track 2
+       - cleared: overall_status is Cleared
+       - ready: 6/6 offices cleared + Admin endorsed + Declared
+       - blocked: missing offices or declaration
        ============================================================ */
     function computeCardStatus(card) {
-        const items = card.items || [];
-        const deptItem = items.find(i => /department/i.test(i.office_name));
-        const otherItems = items.filter(i => !/department/i.test(i.office_name));
+        if (card.overall_status === 'Cleared') return 'cleared';
 
-        if (deptItem && String(deptItem.status).toLowerCase() === 'cleared') {
-            return 'cleared';
-        }
-        if (otherItems.some(i => String(i.status).toLowerCase() === 'hold')) {
-            return 'blocked';
-        }
-        const allOthersCleared = otherItems.length > 0 &&
-            otherItems.every(i => String(i.status).toLowerCase() === 'cleared');
-        if (allOthersCleared && (!deptItem || String(deptItem.status).toLowerCase() !== 'cleared')) {
+        const items = card.items || [];
+        const gateIds = [5005, 5006, 5007, 5008, 5009, 5010];
+        let clearedCount = 0;
+
+        items.forEach(i => {
+            if (gateIds.includes(i.office_id) && String(i.status).toLowerCase() === 'cleared') {
+                clearedCount++;
+            }
+        });
+
+        if (clearedCount === 6 && card.declared) {
             return 'ready';
         }
-        return 'pending';
+        return 'blocked';
     }
 
     /* ============================================================
        Filters
        ============================================================ */
-    function deptMatches(row) {
-        if (filters.dept === 'all') return true;
-        return String(row.department_id) === String(filters.dept);
-    }
     function termMatches(row) {
         if (filters.term === 'all') return true;
         return (row.academic_year + '|' + row.semester) === filters.term;
-    }
-    function statusMatches(row) {
-        if (filters.status === 'all') return true;
-        const s = computeCardStatus(row);
-        return s === filters.status;
     }
     function qMatches(row) {
         if (!filters.q) return true;
@@ -785,17 +776,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
        Render KPIs
        ============================================================ */
     function renderKPIs(rows) {
-        let pending = 0, cleared = 0, blocked = 0;
+        let ready = 0;
         rows.forEach(r => {
-            const s = computeCardStatus(r);
-            if (s === 'cleared') cleared++;
-            else if (s === 'blocked') blocked++;
-            else pending++;   // pending + ready both count as "pending sign-off"
+            if (computeCardStatus(r) === 'ready') ready++;
         });
-        document.getElementById('kpiTotal').textContent     = rows.length.toLocaleString();
-        document.getElementById('kpiPending').textContent   = pending.toLocaleString();
-        document.getElementById('kpiCleared').textContent   = cleared.toLocaleString();
-        document.getElementById('kpiBlocked').textContent   = blocked.toLocaleString();
+        document.getElementById('kpiTotal').textContent   = rows.length.toLocaleString();
+        document.getElementById('kpiCleared').textContent = ready.toLocaleString();
     }
 
     /* ============================================================
@@ -809,8 +795,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             host.innerHTML = `
                 <div class="ca-empty">
                     <i class="fas fa-clipboard-check"></i>
-                    <h6>No clearances in your scope</h6>
-                    <p>When faculty in your departments submit their clearance, they'll appear here for your sign-off.</p>
+                    <h6>No clearances awaiting final sign-off</h6>
+                    <p>When the Admin audits a clearance and endorses it to you, it will appear here.</p>
                 </div>`;
             document.getElementById('gridSubtitle').textContent = '0 clearances';
             document.getElementById('gridPager').innerHTML = '';
@@ -825,35 +811,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
         host.innerHTML = page.map(card => {
             const status = computeCardStatus(card);
-            const statusBadgeClass = 'ca-badge--' + status;
-            const statusLabel = {
-                cleared: 'Signed Off',
-                ready: 'Ready for Sign-off',
-                pending: 'Pending',
-                blocked: 'Blocked'
-            }[status];
-
-            const deptItem = (card.items || []).find(i => /department/i.test(i.office_name));
-            const canSign = (status === 'ready' || status === 'pending') && deptItem;
-
-            const officeChips = (card.items || []).map(item => {
-                const itemStatus = String(item.status || '').toLowerCase();
-                let cls = 'ca-office--missing';
-                if (itemStatus === 'cleared') cls = 'ca-office--cleared';
-                else if (itemStatus === 'pending') cls = 'ca-office--pending';
-                else if (itemStatus === 'hold') cls = 'ca-office--hold';
-                if (/department/i.test(item.office_name)) cls += ' ca-office--dept';
-
-                const icon = itemStatus === 'cleared' ? 'fa-check'
-                           : itemStatus === 'hold' ? 'fa-xmark'
-                           : itemStatus === 'pending' ? 'fa-hourglass-half'
-                           : 'fa-circle';
+            const statusLabel = status === 'ready' ? 'Ready for Final Sign-off' : 'Blocked';
+            const statusBadgeClass = status === 'ready' ? 'ca-badge--ready' : 'ca-badge--blocked';
+            
+            // Group 6 offices
+            const gateIds = [5005, 5006, 5007, 5008, 5009, 5010];
+            const gateItems = card.items.filter(i => gateIds.includes(i.office_id));
+            
+            const officeChips = gateItems.map(item => {
+                const isCleared = String(item.status).toLowerCase() === 'cleared';
+                const cls = isCleared ? 'ca-office--cleared' : 'ca-office--missing';
+                const icon = isCleared ? 'fa-check' : 'fa-xmark';
                 return `<span class="ca-office ${cls}"><i class="fas ${icon}"></i>${escapeHtml(item.office_name)}</span>`;
             }).join('');
 
-            const submitted = parseDate(card.submitted_at);
-            const daysOld = submitted ? daysBetween(submitted, new Date()) : 0;
-            const termLabel = (card.academic_year || '—') + ' · ' + (card.semester || '—');
+            const canSign = (status === 'ready');
 
             return `
                 <div class="ca-card ca-card--${status}">
@@ -863,7 +835,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <div class="min-w-0">
                                 <div class="ca-card__name ca-privacy-target">${escapeHtml(card.faculty_name)}</div>
                                 <div class="ca-card__meta">${escapeHtml(card.faculty_no || '—')} · ${escapeHtml(card.dept_name)}</div>
-                                <div class="ca-card__meta">${escapeHtml(termLabel)} · ${escapeHtml(card.clearance_no)}</div>
+                                <div class="ca-card__meta">${escapeHtml((card.academic_year || '—') + ' · ' + (card.semester || '—'))} · ${escapeHtml(card.clearance_no)}</div>
                             </div>
                         </div>
                         <span class="ca-badge ${statusBadgeClass}">${escapeHtml(statusLabel)}</span>
@@ -875,35 +847,27 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
                     <div class="ca-card__footer">
                         <div class="ca-card__note">
-                            ${status === 'cleared'
-                                ? 'You signed off on ' + (deptItem && deptItem.cleared_at ? escapeHtml(deptItem.cleared_at.split(' ')[0]) : '—')
-                                : status === 'blocked'
-                                    ? 'Waiting on another office before you can sign off.'
-                                    : status === 'ready'
-                                        ? 'All offices cleared. Ready for your sign-off.'
-                                        : 'Pending ' + (daysOld > 0 ? daysOld + 'd ago' : 'today')}
+                            ${status === 'ready'
+                                ? 'All 6 offices cleared and Admin endorsed. Ready for your final sign-off.'
+                                : 'Waiting on missing offices or faculty declaration.'}
                         </div>
                         <div class="ca-actions">
-                            ${status === 'cleared'
-                                ? `<button type="button" class="ca-btn ca-btn--view" data-action="view" data-id="${card.clearance_id}">
-                                     <i class="fas fa-eye"></i> View
+                            ${canSign
+                                ? `<button type="button" class="ca-btn ca-btn--return"
+                                        data-action="return"
+                                        data-id="${card.clearance_id}"
+                                        data-name="${escapeHtml(card.faculty_name)}">
+                                     <i class="fas fa-rotate-left"></i> Return
+                                   </button>
+                                   <button type="button" class="ca-btn ca-btn--approve"
+                                        data-action="approve"
+                                        data-id="${card.clearance_id}"
+                                        data-name="${escapeHtml(card.faculty_name)}">
+                                     <i class="fas fa-stamp"></i> Sign Final
                                    </button>`
-                                : canSign
-                                    ? `<button type="button" class="ca-btn ca-btn--return"
-                                            data-action="return"
-                                            data-id="${deptItem.clearance_item_id}"
-                                            data-name="${escapeHtml(card.faculty_name)}">
-                                         <i class="fas fa-rotate-left"></i> Return
-                                       </button>
-                                       <button type="button" class="ca-btn ca-btn--approve"
-                                            data-action="approve"
-                                            data-id="${deptItem.clearance_item_id}"
-                                            data-name="${escapeHtml(card.faculty_name)}">
-                                         <i class="fas fa-check"></i> Sign Off
-                                       </button>`
-                                    : `<button type="button" class="ca-btn ca-btn--disabled" disabled>
-                                         <i class="fas fa-lock"></i> Blocked
-                                       </button>`
+                                : `<button type="button" class="ca-btn ca-btn--disabled" disabled>
+                                     <i class="fas fa-lock"></i> Blocked
+                                   </button>`
                             }
                         </div>
                     </div>
@@ -918,10 +882,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             const action = btn.dataset.action;
             if (action === 'approve' || action === 'return') {
                 btn.addEventListener('click', () => openActionModal(btn, action));
-            } else if (action === 'view') {
-                btn.addEventListener('click', () => {
-                    // Could open a detail modal; for now jump nowhere
-                });
             }
         });
     }
@@ -957,149 +917,37 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Print report
-       ============================================================ */
-    function renderPrintReport(rows) {
-        const host = document.getElementById('printReport');
-        if (!host) return;
-
-        const filterParts = [];
-        if (filters.dept !== 'all') filterParts.push('Department: ' + (DEPT_NAMES[filters.dept] || ('Dept #' + filters.dept)));
-        if (filters.term !== 'all') filterParts.push('Term: ' + filters.term.replace('|', ' · '));
-        if (filters.status !== 'all') filterParts.push('Status: ' + filters.status);
-        if (filters.q) filterParts.push('Search: "' + filters.q + '"');
-        const filterLine = filterParts.length ? 'Filters — ' + filterParts.join(' · ') : 'No filters applied';
-
-        const now = new Date();
-        const generatedAt = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-            + ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-
-        const kTotal = rows.length;
-        let kCleared = 0, kPending = 0, kBlocked = 0;
-        rows.forEach(r => {
-            const s = computeCardStatus(r);
-            if (s === 'cleared') kCleared++;
-            else if (s === 'blocked') kBlocked++;
-            else kPending++;
-        });
-
-        const bodyRows = rows.map((r, idx) => {
-            const status = computeCardStatus(r);
-            const deptItem = (r.items || []).find(i => /department/i.test(i.office_name));
-            const items = (r.items || []).map(i => i.office_name + ': ' + i.status).join(' | ');
-            return '<tr>' +
-                '<td>' + (idx + 1) + '</td>' +
-                '<td class="ca-print-blur">' + escapeHtml(r.faculty_name) + '</td>' +
-                '<td>' + escapeHtml(r.faculty_no || '—') + '</td>' +
-                '<td>' + escapeHtml(r.dept_name) + '</td>' +
-                '<td>' + escapeHtml((r.academic_year || '—') + ' · ' + (r.semester || '—')) + '</td>' +
-                '<td>' + escapeHtml(r.clearance_no) + '</td>' +
-                '<td>' + escapeHtml(items) + '</td>' +
-                '<td>' + escapeHtml(status === 'cleared' ? 'Signed Off' : (status === 'ready' ? 'Ready' : (status === 'blocked' ? 'Blocked' : 'Pending'))) + '</td>' +
-            '</tr>';
-        }).join('');
-
-        host.innerHTML = `
-            <div class="print-header">
-                <h3>Clearance Sign-off Report</h3>
-                <p class="print-meta">Generated ${escapeHtml(generatedAt)}</p>
-            </div>
-            <p class="print-filters">${escapeHtml(filterLine)}</p>
-            <div class="print-kpis">
-                <div class="print-kpi">
-                    <div class="print-kpi-label">Total</div>
-                    <div class="print-kpi-value">${kTotal}</div>
-                </div>
-                <div class="print-kpi">
-                    <div class="print-kpi-label">Signed Off</div>
-                    <div class="print-kpi-value">${kCleared}</div>
-                </div>
-                <div class="print-kpi">
-                    <div class="print-kpi-label">Pending</div>
-                    <div class="print-kpi-value">${kPending}</div>
-                </div>
-                <div class="print-kpi">
-                    <div class="print-kpi-label">Blocked</div>
-                    <div class="print-kpi-value">${kBlocked}</div>
-                </div>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th><th>Faculty</th><th>Faculty No</th>
-                        <th>Department</th><th>Term</th><th>Clearance No</th>
-                        <th>Offices</th><th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>${bodyRows || '<tr><td colspan="8" style="text-align:center;">No clearances in scope.</td></tr>'}</tbody>
-            </table>
-            <div class="print-footer">
-                SMS 2 · Faculty Module · ${kTotal} clearance${kTotal !== 1 ? 's' : ''} · Confidential — Faculty names blurred
-            </div>`;
-    }
-
-    /* ============================================================
-       CSV
-       ============================================================ */
-    function exportCsv(rows) {
-        const headers = ['#', 'Faculty', 'Faculty No', 'Department', 'Term', 'Clearance No', 'Offices', 'Status'];
-        const lines = rows.map((r, idx) => {
-            const status = computeCardStatus(r);
-            const items = (r.items || []).map(i => i.office_name + ': ' + i.status).join(' | ');
-            return [
-                idx + 1,
-                r.faculty_name,
-                r.faculty_no || '',
-                r.dept_name,
-                (r.academic_year || '—') + ' · ' + (r.semester || '—'),
-                r.clearance_no,
-                items,
-                status === 'cleared' ? 'Signed Off' : (status === 'ready' ? 'Ready' : (status === 'blocked' ? 'Blocked' : 'Pending'))
-            ];
-        });
-
-        let csv = '\uFEFF' + headers.join(',') + '\n';
-        lines.forEach(e => {
-            csv += e.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',') + '\n';
-        });
-
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'clearance_signoff_' + new Date().toISOString().slice(0, 10) + '.csv';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-    }
-
-    /* ============================================================
        Action modal
        ============================================================ */
     let caModal = null;
 
     function openActionModal(btn, action) {
-        const itemId = btn.dataset.id;
+        const clrId = btn.dataset.id;
         const name = btn.dataset.name;
 
-        document.getElementById('caItemId').value   = itemId;
-        document.getElementById('caDecision').value = action;
-        document.getElementById('caRemarks').value  = '';
+        document.getElementById('caClearanceId').value = clrId;
+        document.getElementById('caDecision').value    = action;
+        document.getElementById('caRemarks').value     = '';
 
         const title = document.getElementById('caModalTitle');
         const msg = document.getElementById('caModalMessage');
         const submit = document.getElementById('caModalSubmit');
+        const remarksReq = document.getElementById('caRemarksRequired');
 
         if (action === 'approve') {
-            title.innerHTML = '<i class="fas fa-check-circle text-success"></i><span>Sign Off Clearance</span>';
-            msg.innerHTML = 'Sign off the Department Clearance for <strong>' + escapeHtml(name) + '</strong>? This confirms the faculty has no pending academic or departmental responsibilities.';
+            title.innerHTML = '<i class="fas fa-stamp text-success"></i><span>Grant Final Sign-off</span>';
+            msg.innerHTML = 'Grant final institutional clearance to <strong>' + escapeHtml(name) + '</strong>? This will archive the record, generate the final reference number, and notify HR.';
             submit.className = 'btn btn-success btn-sm rounded-3 px-4 fw-bold';
-            submit.innerHTML = '<i class="fas fa-check me-1"></i> Sign Off';
+            submit.innerHTML = '<i class="fas fa-check me-1"></i> Grant Sign-off';
+            remarksReq.classList.add('d-none');
+            document.getElementById('caRemarks').required = false;
         } else {
-            title.innerHTML = '<i class="fas fa-times-circle text-danger"></i><span>Return Clearance</span>';
-            msg.innerHTML = 'Return the clearance to <strong>' + escapeHtml(name) + '</strong>? Please note the reason in the remarks field so they know what to fix.';
+            title.innerHTML = '<i class="fas fa-times-circle text-danger"></i><span>Return to Admin</span>';
+            msg.innerHTML = 'Return this clearance back to the Admin for <strong>' + escapeHtml(name) + '</strong>? Please note the reason so they know what to fix.';
             submit.className = 'btn btn-danger btn-sm rounded-3 px-4 fw-bold';
-            submit.innerHTML = '<i class="fas fa-rotate-left me-1"></i> Return';
+            submit.innerHTML = '<i class="fas fa-rotate-left me-1"></i> Return Record';
+            remarksReq.classList.remove('d-none');
+            document.getElementById('caRemarks').required = true;
         }
 
         if (!caModal) {
@@ -1109,12 +957,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Filters
+       Filters & Print
        ============================================================ */
     function applyFilters() {
-        return CLEARANCES.filter(r =>
-            deptMatches(r) && termMatches(r) && statusMatches(r) && qMatches(r)
-        );
+        return CLEARANCES.filter(r => termMatches(r) && qMatches(r));
     }
 
     function populateTermFilter() {
@@ -1135,10 +981,73 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         });
     }
 
+    function renderPrintReport(rows) {
+        const host = document.getElementById('printReport');
+        if (!host) return;
+
+        const now = new Date();
+        const generatedAt = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+            + ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+        const bodyRows = rows.map((r, idx) => {
+            const status = computeCardStatus(r);
+            return '<tr>' +
+                '<td>' + (idx + 1) + '</td>' +
+                '<td class="ca-print-blur">' + escapeHtml(r.faculty_name) + '</td>' +
+                '<td>' + escapeHtml(r.faculty_no || '—') + '</td>' +
+                '<td>' + escapeHtml(r.dept_name) + '</td>' +
+                '<td>' + escapeHtml((r.academic_year || '—') + ' · ' + (r.semester || '—')) + '</td>' +
+                '<td>' + escapeHtml(r.clearance_no) + '</td>' +
+                '<td>' + escapeHtml(status === 'ready' ? 'Ready for Final Sign-off' : 'Blocked') + '</td>' +
+            '</tr>';
+        }).join('');
+
+        host.innerHTML = `
+            <div class="print-header">
+                <h3>Clearance Sign-off Report</h3>
+                <p class="print-meta">Generated ${escapeHtml(generatedAt)}</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th><th>Faculty</th><th>Faculty No</th>
+                        <th>Department</th><th>Term</th><th>Clearance No</th><th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>${bodyRows || '<tr><td colspan="7" style="text-align:center;">No clearances in scope.</td></tr>'}</tbody>
+            </table>
+            <div class="print-footer">
+                SMS 2 · Faculty Module · ${rows.length} clearance${rows.length !== 1 ? 's' : ''} · Confidential — Faculty names blurred
+            </div>`;
+    }
+
+    function exportCsv(rows) {
+        const headers = ['#', 'Faculty', 'Faculty No', 'Department', 'Term', 'Clearance No', 'Status'];
+        const lines = rows.map((r, idx) => [
+            idx + 1, r.faculty_name, r.faculty_no || '', r.dept_name,
+            (r.academic_year || '—') + ' · ' + (r.semester || '—'),
+            r.clearance_no, computeCardStatus(r) === 'ready' ? 'Ready for Final Sign-off' : 'Blocked'
+        ]);
+
+        let csv = '\uFEFF' + headers.join(',') + '\n';
+        lines.forEach(e => {
+            csv += e.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',') + '\n';
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'clearance_signoff_' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+    }
+
     function render() {
         filteredRows = applyFilters();
         currentPage = 1;
-        renderKPIs(CLEARANCES);
+        renderKPIs(filteredRows);
         renderGrid(filteredRows);
         renderPrintReport(filteredRows);
     }
@@ -1162,7 +1071,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     function resetAllFilters() {
-        filters = { dept: 'all', term: 'all', status: 'all', q: '' };
+        filters = { term: 'all', q: '' };
         document.querySelectorAll('#caPage [data-filter]').forEach(el => {
             el.value = el.tagName === 'SELECT' ? 'all' : '';
         });
