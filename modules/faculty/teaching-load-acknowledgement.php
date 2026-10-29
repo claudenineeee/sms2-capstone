@@ -1,0 +1,33 @@
+<?php
+/**
+ * Teaching Load Acknowledgement
+ * CHANGED: small entry page for this role. All logic lives in includes/teaching-load-controller.php,
+ * all markup lives in views/partials/teaching-load/.
+ */
+declare(strict_types=1);
+
+require_once __DIR__ . '/../../../../config/config.php';
+
+// CHANGED: tell the shared controller which page/roles this is BEFORE including it
+$teachingLoadPageUrl = BASE_URL . '/modules/faculty/views/faculty/teaching-load-acknowledgement.php';
+$teachingLoadPageRoles = ['faculty'];
+require_once __DIR__ . '/../../includes/teaching-load-controller.php';
+
+$teachingLoadHeading = 'Teaching Load Acknowledgement';
+$teachingLoadSubtitle = 'Review and acknowledge your approved teaching load.';
+$pageTitle = 'Teaching Load Acknowledgement';
+$activeModule = 'faculty';
+$activePage = 'teaching-load-workflow';
+$breadcrumbs = [
+    ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
+    ['label' => 'Teaching Load Acknowledgement', 'url' => null],
+];
+require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
+require_once __DIR__ . '/../../../../includes/layout-start.php';
+
+require __DIR__ . '/../partials/teaching-load/styles.php';
+renderBreadcrumbs($breadcrumbs);
+require __DIR__ . '/../partials/teaching-load/header.php';
+require __DIR__ . '/../partials/teaching-load/request-queue.php';
+
+require_once __DIR__ . '/../../../../includes/layout-end.php';

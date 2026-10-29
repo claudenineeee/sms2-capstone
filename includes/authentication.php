@@ -131,6 +131,8 @@ function getCurrentUserName(): string
         'faculty_admin'      => 'Faculty Admin',
         'admin'              => 'Faculty Admin',
         'dean'               => 'Dean',
+        'program_chair'      => 'Program Chair',
+        'vpaa'               => 'VP for Academic Affairs',
         'department_head'    => 'Department Head',
         'dept_head'          => 'Department Head',
         'secretary'          => 'Secretary',
@@ -444,6 +446,10 @@ function smsFacultySidebarPages(): array
 function smsPostLoginRedirectUrl(): string
 {
     $roleKey = getCurrentUserRoleKey();
+
+    if (in_array($roleKey, ['program_chair', 'vpaa'], true)) {
+        return BASE_URL . '/modules/faculty/views/teaching-load-workflow.php';
+    }
 
     // Direct role-based redirection to designated Faculty subsystem views
     if ($roleKey === 'faculty_admin') {

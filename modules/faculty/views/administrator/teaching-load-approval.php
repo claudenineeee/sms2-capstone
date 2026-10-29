@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/../teaching-load-workflow.php';
+exit;
+
 /**
  * Teaching Load Approval
  * Purpose: Review and approve/reject proposed teaching loads

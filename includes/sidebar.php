@@ -132,7 +132,7 @@ $facultyAdministrator = [
     ],
     'Clearance &amp; Teaching Load' => [
         ['slug' => 'faculty-clearance',        'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-clearance.php',        'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
-        ['slug' => 'teaching-load-approval',   'href' => BASE_URL . '/modules/faculty/views/administrator/teaching-load-approval.php',   'icon' => 'fa-layer-group',     'label' => 'Teaching Load'],
+        ['slug' => 'teaching-load-workflow',   'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php',   'icon' => 'fa-layer-group',     'label' => 'Teaching Load'],
     ],
     'History' => [
         [
@@ -169,6 +169,7 @@ $facultyDeanNavGroups = [
         ['slug' => 'clearance-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/clearance-approval.php', 'icon' => 'fa-clipboard-check', 'label' => 'Clearance Sign-off'],
     ],
     'Teaching & Load' => [
+        ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
         ['slug' => 'teaching-history', 'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php', 'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
         ['slug' => 'subject-assignments', 'href' => BASE_URL . '/modules/faculty/views/dean/subject-assignments.php', 'icon' => 'fa-book', 'label' => 'Subject Assignments'],
         ['slug' => 'class-schedules', 'href' => BASE_URL . '/modules/faculty/views/dean/class-schedules.php', 'icon' => 'fa-calendar-days', 'label' => 'Class Schedules'],
@@ -196,7 +197,7 @@ $facultyDepartmentHeadNavGroups = [
     ],
     'Schedule & Load' => [
         ['slug' => 'schedule-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/schedule-approval.php', 'icon' => 'fa-calendar-check', 'label' => 'Schedule Approval'],
-        ['slug' => 'teaching-load-approval', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-load-approval.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load Approval'],
+        ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
     ],
     'Attendance & Teaching-History' => [
         ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/attendance-summary.php', 'icon' => 'fa-user-check', 'label' => 'Attendance'],
@@ -251,7 +252,7 @@ $facultyTeacherNavGroups = [
     ],
     'Documents & Leave' => [
         ['slug' => 'leave-request', 'href' => BASE_URL . '/modules/faculty/views/faculty/leave-request.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Request'],
-        ['slug' => 'teaching-load', 'href' => BASE_URL . '/modules/faculty/views/faculty/teaching-load.php', 'icon' => 'fa-book-open', 'label' => 'Teaching Load'],
+        ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-book-open', 'label' => 'Teaching Load'],
         [
             'slug' => 'my-clearance',
             'href' => BASE_URL . '/modules/faculty/views/faculty/my-clearance.php',
@@ -283,8 +284,23 @@ $facultyTeacherNavGroups = [
 
 // NEW ROLES ADDDED
 $facultyRegistrarClearance = [
+    'Teaching Load' => [
+        ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
+    ],
     'Clearance' => [
         ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/registrar/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance Portal'],
+    ],
+];
+
+$facultyProgramChairNavGroups = [
+    'Teaching Load' => [
+        ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
+    ],
+];
+
+$facultyVpaaNavGroups = [
+    'Academic Affairs' => [
+        ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
     ],
 ];
 
@@ -458,6 +474,15 @@ $facultyScheduleOfficerNavGroups = [
                 <?php endforeach; ?>
 
                 <!-- DEPARTMENT HEAD -->
+            <?php elseif (in_array($roleKey, ['program_chair'], true)): ?>
+                <?php foreach ($facultyProgramChairNavGroups as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label"><span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span></li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <li class="nav-item"><a class="nav-link sidebar-sub <?= ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : '' ?>" href="<?= htmlspecialchars($item['href']) ?>" data-title="<?= htmlspecialchars($item['label']) ?>" title="<?= htmlspecialchars($item['label']) ?>"><i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i><span><?= htmlspecialchars($item['label']) ?></span></a></li>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
+
+                <!-- DEPARTMENT HEAD -->
             <?php elseif (in_array($roleKey, ['department_head', 'department-head', 'dept_head', 'depthead'], true)): ?>
                 <?php foreach ($facultyDepartmentHeadNavGroups as $groupLabel => $groupItems): ?>
                     <li class="nav-item sidebar-group-label">
@@ -618,6 +643,15 @@ $facultyScheduleOfficerNavGroups = [
                                 </span>
                             </a>
                         </li>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
+
+                <!-- VP FOR ACADEMIC AFFAIRS -->
+            <?php elseif (in_array($roleKey, ['vpaa'], true)): ?>
+                <?php foreach ($facultyVpaaNavGroups as $groupLabel => $groupItems): ?>
+                    <li class="nav-item sidebar-group-label"><span class="nav-link sidebar-group-heading"><?= htmlspecialchars($groupLabel) ?></span></li>
+                    <?php foreach ($groupItems as $item): ?>
+                        <li class="nav-item"><a class="nav-link sidebar-sub <?= ($activeModule === 'faculty' && $activePage === $item['slug']) ? 'active' : '' ?>" href="<?= htmlspecialchars($item['href']) ?>" data-title="<?= htmlspecialchars($item['label']) ?>" title="<?= htmlspecialchars($item['label']) ?>"><i class="fas <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i><span><?= htmlspecialchars($item['label']) ?></span></a></li>
                     <?php endforeach; ?>
                 <?php endforeach; ?>
 

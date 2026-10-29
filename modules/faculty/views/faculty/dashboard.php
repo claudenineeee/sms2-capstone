@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../config/database.php';
 
 $pageTitle    = 'Faculty Dashboard';
 $activeModule = 'faculty';
@@ -17,103 +18,187 @@ $breadcrumbs  = [
 
 requireAuth();
 
-// Get current user's faculty_id from database
-$pdo = db();
-$currentUserId = $_SESSION['user_id'] ?? 0;
-$facultyId = null;
+// Resolve the logged-in account to its faculty record in the faculty database.
+$facultyPdo = facultyDb();
+$currentUserId = (int) (getCurrentUserId() ?? 0);
+$facultyId = 0;
 $facultyName = 'Faculty';
-
-// Fetch faculty_id and name from faculty_profiles
-try {
-    $stmt = $pdo->prepare("SELECT fp.id, fp.faculty_id, fp.first_name, fp.last_name FROM faculty_profiles fp WHERE fp.user_id = :user_id LIMIT 1");
-    $stmt->execute([':user_id' => $currentUserId]);
-    $profileData = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($profileData) {
-        $facultyId = $profileData['id']; // Use the internal id for queries
-        $facultyName = trim(($profileData['first_name'] ?? '') . ' ' . ($profileData['last_name'] ?? ''));
-    }
-} catch (Exception $e) {
-    error_log('Faculty profile fetch error: ' . $e->getMessage());
-}
-
-// Initialize metrics
-$teachingLoad = 0;
+$teachingLoad = 0.0;
 $classesToday = 0;
+$todaySchedule = [];
+$dashboardNotifications = [];
+$pendingLoadAcknowledgements = 0;
+$dashboardTermLabel = '';
 $rating = 0;
 $ratingLabel = 'No Rating';
 $leaveRequests = [];
 
-// Fetch Teaching Load, Rating, and Leave Requests from database
-if ($facultyId) {
-    try {
-        // Get current term first (or latest term)
-        $termStmt = $pdo->prepare("SELECT term_id FROM academic_terms WHERE status = 'Active' LIMIT 1");
-        $termStmt->execute();
-        $termData = $termStmt->fetch(PDO::FETCH_ASSOC);
-        $currentTermId = $termData['term_id'] ?? null;
-        
-        if ($currentTermId) {
-            // Fetch teaching load for current term
-            $loadStmt = $pdo->prepare("SELECT total_units FROM teaching_load_history WHERE faculty_id = :faculty_id AND term_id = :term_id LIMIT 1");
-            $loadStmt->execute([':faculty_id' => $facultyId, ':term_id' => $currentTermId]);
-            $loadData = $loadStmt->fetch(PDO::FETCH_ASSOC);
-            $teachingLoad = $loadData ? (int)$loadData['total_units'] : 0;
-        }
-        
-        // Fetch average rating from evaluations
-        $ratingStmt = $pdo->prepare("SELECT AVG(composite_score) as avg_rating FROM evaluations WHERE faculty_id = :faculty_id AND composite_score IS NOT NULL");
-        $ratingStmt->execute([':faculty_id' => $facultyId]);
-        $ratingData = $ratingStmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($ratingData && $ratingData['avg_rating']) {
-            $rating = round($ratingData['avg_rating'], 2);
-            if ($rating >= 4.5) $ratingLabel = 'Excellent';
-            elseif ($rating >= 4.0) $ratingLabel = 'Very Good';
-            elseif ($rating >= 3.5) $ratingLabel = 'Good';
-            elseif ($rating >= 3.0) $ratingLabel = 'Satisfactory';
-            else $ratingLabel = 'Needs Improvement';
-        }
-
-        // Fetch the 5 most recent leave requests for this faculty member
-        // (Adjust table name 'leave_requests' and column names if they differ in your database schema)
-        $leaveStmt = $pdo->prepare("
-            SELECT leave_type, start_date, end_date, status, created_at 
-            FROM faculty_db.leave_requests 
-            WHERE faculty_id = :faculty_id 
-            ORDER BY created_at DESC 
-            LIMIT 5
-        ");
-        $leaveStmt->execute([':faculty_id' => $facultyId]);
-        $rawLeaves = $leaveStmt->fetchAll(PDO::FETCH_ASSOC);
-
-        foreach ($rawLeaves as $lr) {
-            $status = $lr['status'] ?? 'Pending';
-            $badgeClass = 'badge-status-pending';
-            
-            if (strcasecmp($status, 'Approved') === 0) {
-                $badgeClass = 'badge-status-approved';
-            } elseif (strcasecmp($status, 'Rejected') === 0) {
-                $badgeClass = 'badge-status-rejected';
-            } elseif (strcasecmp($status, 'Returned') === 0) {
-                $badgeClass = 'badge-status-returned';
+function smsFacultyDashboardDays(?string $pattern): array
+{
+    $normalized = strtoupper(preg_replace('/[^A-Z]/i', '', (string) $pattern));
+    $days = [];
+    foreach ([
+        'Mon' => ['MONDAY', 'MON'], 'Tue' => ['TUESDAY', 'TUE'], 'Wed' => ['WEDNESDAY', 'WED'],
+        'Thu' => ['THURSDAY', 'THU'], 'Fri' => ['FRIDAY', 'FRI'], 'Sat' => ['SATURDAY', 'SAT'], 'Sun' => ['SUNDAY', 'SUN'],
+    ] as $day => $tokens) {
+        foreach ($tokens as $token) {
+            if (str_contains($normalized, $token)) {
+                $days[] = $day;
+                $normalized = str_replace($token, '', $normalized);
+                break;
             }
+        }
+    }
+    if (str_contains($normalized, 'TTH')) {
+        $days[] = 'Tue';
+        $days[] = 'Thu';
+        $normalized = str_replace('TTH', '', $normalized);
+    }
+    if (str_contains($normalized, 'TH')) {
+        $days[] = 'Thu';
+        $normalized = str_replace('TH', '', $normalized);
+    }
+    foreach (str_split($normalized) as $letter) {
+        $day = ['M' => 'Mon', 'T' => 'Tue', 'W' => 'Wed', 'R' => 'Thu', 'F' => 'Fri', 'S' => 'Sat', 'U' => 'Sun'][$letter] ?? null;
+        if ($day !== null) {
+            $days[] = $day;
+        }
+    }
+    return array_values(array_unique($days));
+}
 
-            // Format date range nicely
-            $startDate = date('M d, Y', strtotime($lr['start_date']));
-            $endDate = !empty($lr['end_date']) && $lr['end_date'] !== $lr['start_date'] ? date('M d, Y', strtotime($lr['end_date'])) : '';
-            $dateFormatted = $endDate ? strtoupper($startDate . ' - ' . $endDate) : strtoupper($startDate);
+function smsFacultyDashboardTime(?string $time): string
+{
+    if (!$time) {
+        return 'Time not set';
+    }
+    $timestamp = strtotime($time);
+    return $timestamp === false ? $time : date('g:i A', $timestamp);
+}
 
-            $leaveRequests[] = [
-                'date' => $dateFormatted,
-                'type' => $lr['leave_type'] ?? 'Leave',
-                'status' => $status,
-                'badge' => $badgeClass
+if ($facultyPdo instanceof PDO && $currentUserId > 0) {
+    try {
+        $profileStmt = $facultyPdo->prepare("SELECT fp.first_name, fp.last_name, f.faculty_id
+            FROM faculty_profiles fp
+            LEFT JOIN faculty f ON f.faculty_id = (
+                SELECT f2.faculty_id FROM faculty f2
+                WHERE (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(fp.email) = LOWER(f2.email))
+                   OR f2.faculty_no = fp.faculty_id
+                ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(fp.email) = LOWER(f2.email)) DESC
+                LIMIT 1
+            )
+            WHERE fp.user_id = ? LIMIT 1");
+        $profileStmt->execute([$currentUserId]);
+        $profileData = $profileStmt->fetch(PDO::FETCH_ASSOC);
+        if ($profileData) {
+            $facultyId = (int) ($profileData['faculty_id'] ?? 0);
+            $facultyName = trim(($profileData['first_name'] ?? '') . ' ' . ($profileData['last_name'] ?? '')) ?: 'Faculty';
+        }
+
+        $loadStmt = $facultyPdo->prepare("SELECT fr.total_units, fr.assignments_json,
+                fr.finalized_at, t.academic_year, t.semester
+            FROM teaching_load_final_records fr
+            JOIN teaching_load_requests r ON r.load_request_id = fr.load_request_id
+            JOIN academic_terms t ON t.term_id = fr.term_id
+            WHERE r.faculty_user_id = ? AND r.workflow_stage = 'completed' AND r.status = 'Approved'
+            ORDER BY t.is_current DESC, fr.finalized_at DESC, fr.final_record_id DESC LIMIT 1");
+        $loadStmt->execute([$currentUserId]);
+        $loadRecord = $loadStmt->fetch(PDO::FETCH_ASSOC);
+        if ($loadRecord) {
+            $teachingLoad = (float) $loadRecord['total_units'];
+            $dashboardTermLabel = $loadRecord['academic_year'] . ' · ' . $loadRecord['semester'];
+            $assignments = json_decode((string) $loadRecord['assignments_json'], true);
+            $todayKey = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][(int) date('N') - 1];
+            foreach (is_array($assignments) ? $assignments : [] as $assignment) {
+                if (!in_array($todayKey, smsFacultyDashboardDays($assignment['day_pattern'] ?? null), true)) {
+                    continue;
+                }
+                $assignment['display_time'] = smsFacultyDashboardTime($assignment['time_start'] ?? null)
+                    . ' - ' . smsFacultyDashboardTime($assignment['time_end'] ?? null);
+                $assignment['display_room'] = trim((string) ($assignment['room'] ?? '')) ?: 'Not set';
+                $todaySchedule[] = $assignment;
+            }
+            usort($todaySchedule, static fn(array $a, array $b): int => strcmp((string) ($a['time_start'] ?? ''), (string) ($b['time_start'] ?? '')));
+            $classesToday = count($todaySchedule);
+            $dashboardNotifications[] = [
+                'title' => 'Teaching load finalized',
+                'msg' => 'Your ' . $dashboardTermLabel . ' teaching load has been acknowledged.',
+                'time' => date('M j, g:i A', strtotime((string) $loadRecord['finalized_at']) ?: time()),
             ];
         }
 
+        $pendingStmt = $facultyPdo->prepare("SELECT COUNT(*) FROM teaching_load_requests
+            WHERE faculty_user_id = ? AND workflow_stage = 'faculty_acknowledgement' AND status = 'Pending'");
+        $pendingStmt->execute([$currentUserId]);
+        $pendingLoadAcknowledgements = (int) $pendingStmt->fetchColumn();
+
+        if ($facultyId > 0) {
+            $ratingStmt = $facultyPdo->prepare('SELECT AVG(composite_score) AS avg_rating
+                FROM evaluations WHERE faculty_id = ? AND composite_score IS NOT NULL');
+            $ratingStmt->execute([$facultyId]);
+            $ratingData = $ratingStmt->fetch(PDO::FETCH_ASSOC);
+            if (!empty($ratingData['avg_rating'])) {
+                $rating = round((float) $ratingData['avg_rating'], 2);
+                if ($rating >= 4.5) $ratingLabel = 'Excellent';
+                elseif ($rating >= 4.0) $ratingLabel = 'Very Good';
+                elseif ($rating >= 3.5) $ratingLabel = 'Good';
+                elseif ($rating >= 3.0) $ratingLabel = 'Satisfactory';
+                else $ratingLabel = 'Needs Improvement';
+            }
+
+            $leaveStmt = $facultyPdo->prepare("
+            SELECT leave_type, start_date, end_date, status, created_at 
+            FROM leave_requests
+            WHERE faculty_id = :faculty_id
+            ORDER BY created_at DESC 
+            LIMIT 5
+            ");
+            $leaveStmt->execute([':faculty_id' => $facultyId]);
+            $rawLeaves = $leaveStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($rawLeaves as $lr) {
+                $status = $lr['status'] ?? 'Pending';
+                $badgeClass = 'badge-status-pending';
+                if (strcasecmp($status, 'Approved') === 0) {
+                    $badgeClass = 'badge-status-approved';
+                } elseif (strcasecmp($status, 'Rejected') === 0) {
+                    $badgeClass = 'badge-status-rejected';
+                } elseif (strcasecmp($status, 'Returned') === 0) {
+                    $badgeClass = 'badge-status-returned';
+                }
+
+                $startDate = date('M d, Y', strtotime($lr['start_date']));
+                $endDate = !empty($lr['end_date']) && $lr['end_date'] !== $lr['start_date'] ? date('M d, Y', strtotime($lr['end_date'])) : '';
+                $dateFormatted = $endDate ? strtoupper($startDate . ' - ' . $endDate) : strtoupper($startDate);
+
+                $leaveRequests[] = [
+                    'date' => $dateFormatted,
+                    'type' => $lr['leave_type'] ?? 'Leave',
+                    'status' => $status,
+                    'badge' => $badgeClass,
+                ];
+                $dashboardNotifications[] = [
+                    'title' => 'Leave request ' . strtolower($status),
+                    'msg' => ($lr['leave_type'] ?? 'Leave') . ' · ' . $dateFormatted,
+                    'time' => date('M j, g:i A', strtotime((string) ($lr['created_at'] ?? 'now')) ?: time()),
+                ];
+            }
+        }
+
+        $notificationStmt = $facultyPdo->prepare('SELECT title, message, created_at
+            FROM notifications WHERE faculty_id = ? ORDER BY created_at DESC LIMIT 5');
+        $notificationStmt->execute([$facultyId]);
+        foreach ($notificationStmt->fetchAll(PDO::FETCH_ASSOC) as $notification) {
+            $dashboardNotifications[] = [
+                'title' => (string) $notification['title'],
+                'msg' => (string) $notification['message'],
+                'time' => date('M j, g:i A', strtotime((string) $notification['created_at']) ?: time()),
+            ];
+        }
+        usort($dashboardNotifications, static fn(array $a, array $b): int => strtotime($b['time']) <=> strtotime($a['time']));
+        $dashboardNotifications = array_slice($dashboardNotifications, 0, 5);
     } catch (Exception $e) {
-        error_log('Dashboard data fetch error: ' . $e->getMessage());
+        error_log('Faculty dashboard data fetch error: ' . $e->getMessage());
     }
 }
 
@@ -129,14 +214,24 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
         <h1 class="h3 fw-bold mb-1"><i class="fas fa-user text-purple me-2"></i>Faculty Dashboard</h1>
-        <p class="text-muted mb-0 small">Welcome, Prof. <?= htmlspecialchars($facultyName) ?></p>
+        <p class="text-muted mb-0 small">Welcome, Prof. <?= htmlspecialchars($facultyName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-dark btn-sm fw-medium" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/views/faculty/my-schedule.php'">
+        <button class="btn btn-dark btn-sm fw-medium" type="button" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/views/faculty/my-schedule.php'">
             <i class="fas fa-calendar me-1"></i>My Schedule
+        </button>
+        <button class="btn btn-outline-primary btn-sm fw-medium" type="button" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/views/teaching-load-workflow.php'">
+            <i class="fas fa-book-open me-1"></i>Teaching Load
         </button>
     </div>
 </div>
+
+<?php if ($pendingLoadAcknowledgements > 0): ?>
+    <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
+        <span><?= $pendingLoadAcknowledgements ?> teaching load<?= $pendingLoadAcknowledgements === 1 ? ' is' : 's are' ?> waiting for your acknowledgement.</span>
+        <a class="btn btn-sm btn-primary" href="<?= BASE_URL ?>/modules/faculty/views/teaching-load-workflow.php">Review load</a>
+    </div>
+<?php endif; ?>
 
 <div class="container-fluid px-0 py-2">
     <!-- Stat Metric Cards -->
@@ -149,7 +244,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Teaching Load</h6>
-                        <h4 class="mb-0 fw-bold fs-5"><?= $teachingLoad > 0 ? $teachingLoad : '—' ?> <small class="text-muted fs-6"><?= $teachingLoad > 0 ? 'units' : '' ?></small></h4>
+                        <h4 class="mb-0 fw-bold fs-5"><?= $teachingLoad > 0 ? htmlspecialchars(number_format($teachingLoad, 1), ENT_QUOTES, 'UTF-8') : '—' ?> <small class="text-muted fs-6"><?= $teachingLoad > 0 ? 'units' : '' ?></small></h4>
+                        <?php if ($dashboardTermLabel !== ''): ?><small class="text-muted"><?= htmlspecialchars($dashboardTermLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></small><?php endif; ?>
                     </div>
                 </div>
             </section>
@@ -163,7 +259,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </div>
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Classes Today</h6>
-                        <h4 class="mb-0 fw-bold fs-5">0</h4>
+                        <h4 class="mb-0 fw-bold fs-5"><?= $classesToday ?></h4>
                     </div>
                 </div>
             </section>
@@ -197,9 +293,30 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </h6>
                 <span class="badge custom-badge bg-secondary-subtle text-dark border fw-medium"><?= date('F j, Y') ?></span>
             </div>
-            <div class="card-body p-4 text-center text-muted">
-                <i class="fas fa-calendar-times fs-3 mb-2 text-secondary"></i>
-                <p class="mb-0 small">No schedules available for today.</p>
+            <div class="card-body p-0">
+                <?php if ($todaySchedule === []): ?>
+                    <div class="p-4 text-center text-muted">
+                        <i class="fas fa-calendar-times fs-3 mb-2 text-secondary"></i>
+                        <p class="mb-0 small">No finalized classes scheduled for today.</p>
+                    </div>
+                <?php else: ?>
+                    <ul class="list-group list-group-flush">
+                        <?php foreach ($todaySchedule as $class): ?>
+                            <li class="list-group-item d-flex align-items-start justify-content-between gap-3 py-3 px-3">
+                                <div>
+                                    <strong class="text-primary"><?= htmlspecialchars((string) ($class['code'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></strong>
+                                    <span><?= htmlspecialchars((string) ($class['title'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                                    <div class="small text-secondary">
+                                        Section <?= htmlspecialchars((string) ($class['section'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                        · <?= htmlspecialchars((string) ($class['units'] ?? '0'), ENT_QUOTES, 'UTF-8') ?> units
+                                        · Room <?= htmlspecialchars((string) ($class['display_room'] ?? 'Not set'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                    </div>
+                                </div>
+                                <span class="badge text-bg-primary text-nowrap"><?= htmlspecialchars((string) ($class['display_time'] ?? 'Time not set'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -209,7 +326,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <h6 class="fw-bold text-dark mb-0">
                     <i class="fas fa-plane-departure text-primary me-2"></i>Leave Requests
                 </h6>
-                <button class="btn btn-sm btn-outline-primary fw-medium" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/views/faculty/leave-request.php'">
+                <button class="btn btn-sm btn-outline-primary fw-medium" type="button" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/views/faculty/leave-request.php'">
                     <i class="fas fa-plus me-1"></i>Submit Leave
                 </button>
             </div>
@@ -246,27 +363,23 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <h6 class="fw-bold text-dark mb-0">
                     <i class="far fa-bell text-primary me-2"></i>Recent Notifications
                 </h6>
-                <button class="btn btn-sm btn-link text-primary text-decoration-none p-0 small" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/users/faculty/pages/notifications.php'">
+                <button class="btn btn-sm btn-link text-primary text-decoration-none p-0 small" type="button" onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/views/faculty/notifications.php'">
                     View All
                 </button>
             </div>
             <div class="card-body p-0">
                 <ul class="list-group list-group-flush">
-                    <?php
-                    $notifications = [
-                        ['title' => 'Schedule Change', 'msg' => 'CS301 schedule changed to Room 302', 'time' => '1h ago'],
-                        ['title' => 'Leave Approved', 'msg' => 'Your recent leave request status has been updated', 'time' => '2h ago'],
-                        ['title' => 'Performance Update', 'msg' => 'Your evaluation summary is available', 'time' => '1d ago']
-                    ];
-                    foreach ($notifications as $n): ?>
+                    <?php if ($dashboardNotifications === []): ?>
+                        <li class="list-group-item p-3 text-center text-muted small">No recent updates.</li>
+                    <?php else: foreach ($dashboardNotifications as $notification): ?>
                         <li class="list-group-item p-3 border-bottom">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <strong class="small text-dark"><?= $n['title'] ?></strong>
-                                <span class="text-muted" style="font-size: 0.75rem;"><?= $n['time'] ?></span>
+                            <div class="d-flex justify-content-between align-items-center mb-1 gap-2">
+                                <strong class="small text-dark"><?= htmlspecialchars($notification['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></strong>
+                                <span class="text-muted text-nowrap" style="font-size: 0.75rem;"><?= htmlspecialchars($notification['time'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
                             </div>
-                            <p class="mb-0 small text-secondary"><?= $n['msg'] ?></p>
+                            <p class="mb-0 small text-secondary"><?= htmlspecialchars($notification['msg'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
                         </li>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </ul>
             </div>
         </div>

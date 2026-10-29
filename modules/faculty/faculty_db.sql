@@ -1168,7 +1168,10 @@ CREATE TABLE `teaching_load_requests` (
   `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
   `reviewed_by_external_id` varchar(64) DEFAULT NULL,
   `reviewed_at` datetime DEFAULT NULL,
-  `comments` text DEFAULT NULL
+  `comments` text DEFAULT NULL,
+  `workflow_stage` varchar(40) NOT NULL DEFAULT 'dean_review',
+  `faculty_user_id` int(10) UNSIGNED DEFAULT NULL,
+  `submitted_by_external_id` varchar(64) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -1180,7 +1183,44 @@ CREATE TABLE `teaching_load_requests` (
 CREATE TABLE `teaching_load_request_items` (
   `load_request_item_id` int(10) UNSIGNED NOT NULL,
   `load_request_id` int(10) UNSIGNED NOT NULL,
-  `class_schedule_id` int(10) UNSIGNED NOT NULL
+  `class_schedule_id` int(10) UNSIGNED NOT NULL,
+  `created_for_request` tinyint(1) NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `teaching_load_workflow_history`
+--
+
+CREATE TABLE `teaching_load_workflow_history` (
+  `history_id` int(10) UNSIGNED NOT NULL,
+  `load_request_id` int(10) UNSIGNED NOT NULL,
+  `stage` varchar(40) NOT NULL,
+  `action` varchar(40) NOT NULL,
+  `performed_by_external_id` varchar(64) DEFAULT NULL,
+  `performed_by_role` varchar(80) NOT NULL,
+  `performed_by_name` varchar(150) NOT NULL,
+  `remarks` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `teaching_load_final_records`
+--
+
+CREATE TABLE `teaching_load_final_records` (
+  `final_record_id` int(10) UNSIGNED NOT NULL,
+  `load_request_id` int(10) UNSIGNED NOT NULL,
+  `faculty_id` int(10) UNSIGNED NOT NULL,
+  `term_id` int(10) UNSIGNED NOT NULL,
+  `total_units` decimal(5,1) NOT NULL DEFAULT 0.0,
+  `subject_count` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `assignments_json` longtext NOT NULL,
+  `acknowledged_by_external_id` varchar(64) NOT NULL,
+  `finalized_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -1541,6 +1581,22 @@ ALTER TABLE `teaching_load_request_items`
   ADD KEY `fk_load_items_schedule` (`class_schedule_id`);
 
 --
+-- Indexes for table `teaching_load_workflow_history`
+--
+ALTER TABLE `teaching_load_workflow_history`
+  ADD PRIMARY KEY (`history_id`),
+  ADD KEY `idx_load_workflow_request` (`load_request_id`),
+  ADD KEY `idx_load_workflow_stage` (`stage`);
+
+--
+-- Indexes for table `teaching_load_final_records`
+--
+ALTER TABLE `teaching_load_final_records`
+  ADD PRIMARY KEY (`final_record_id`),
+  ADD UNIQUE KEY `uq_final_record_request` (`load_request_id`),
+  ADD KEY `idx_final_record_faculty_term` (`faculty_id`,`term_id`);
+
+--
 -- AUTO_INCREMENT for dumped tables
 --
 
@@ -1789,6 +1845,18 @@ ALTER TABLE `teaching_load_requests`
 --
 ALTER TABLE `teaching_load_request_items`
   MODIFY `load_request_item_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `teaching_load_workflow_history`
+--
+ALTER TABLE `teaching_load_workflow_history`
+  MODIFY `history_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `teaching_load_final_records`
+--
+ALTER TABLE `teaching_load_final_records`
+  MODIFY `final_record_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- Constraints for dumped tables
