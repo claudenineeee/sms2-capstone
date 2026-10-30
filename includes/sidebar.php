@@ -131,7 +131,6 @@ $facultyAdministrator = [
         ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/administrator/leave-application-approval.php', 'icon' => 'fa-file-signature',  'label' => 'Leave Application'],
     ],
     'Clearance &amp; Teaching Load' => [
-feature/teaching-load-updates
         ['slug' => 'faculty-clearance',        'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-clearance.php',        'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
         ['slug' => 'teaching-load-workflow',   'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php',   'icon' => 'fa-layer-group',     'label' => 'Teaching Load'],
         ['slug' => 'faculty-clearance',          'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-clearance.php',          'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
@@ -140,7 +139,6 @@ feature/teaching-load-updates
     ],
     'System' => [
         ['slug' => 'term-rollover', 'href' => BASE_URL . '/modules/faculty/views/administrator/term-rollover.php', 'icon' => 'fa-arrows-rotate', 'label' => 'Term Rollover'],
- main
     ],
     'History' => [
         [
