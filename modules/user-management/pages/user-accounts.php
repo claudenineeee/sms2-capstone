@@ -35,7 +35,9 @@ if ($pdo) {
                 ('admission', 'Admission', 'Admission office access', 1),
                 ('research_coordinator', 'Research Coordinator', 'Research coordination access', 1),
                 ('adviser', 'Adviser', 'Research adviser faculty account', 1),
-                ('panel', 'Panel', 'Research panel faculty account', 1)"
+                ('panel', 'Panel', 'Research panel faculty account', 1),
+                ('program_chair', 'Program Chair', 'Creates and submits teaching-load assignments', 1),
+                ('vpaa', 'VP for Academic Affairs', 'Final teaching-load approval', 1)"
         )->execute();
         $pdo->prepare(
             "UPDATE roles
@@ -108,6 +110,9 @@ if ($pdo) {
         );
         foreach (['adviser', 'panel'] as $facultyRole) {
             $insFacultyPerm->execute([$facultyRole]);
+        }
+        foreach (['program_chair', 'vpaa'] as $workflowRole) {
+            $insFacultyPerm->execute([$workflowRole]);
         }
     } catch (Throwable $e) {
         error_log('Default user account ensure failed: ' . $e->getMessage());
@@ -199,7 +204,7 @@ function umRoleBadgeClass(string $role, string $label = ''): string
 $avatarColors = ['a', 'b', 'c', 'd', 'e', 'f'];
 $csrf = csrfToken();
 $total = count($users);
-$facultyAccountRoles = ['hr', 'adviser', 'panel', 'department_head', 'secretary', 'faculty'];
+$facultyAccountRoles = ['hr', 'adviser', 'panel', 'program_chair', 'department_head', 'secretary', 'faculty'];
 $facultyUsers = array_values(array_filter($users, fn($u) => in_array($u['role'], $facultyAccountRoles, true)));
 $studentUsers = array_values(array_filter($users, fn($u) => $u['role'] === 'student'));
 $systemUsers = array_values(array_filter($users, fn($u) => !in_array($u['role'], array_merge($facultyAccountRoles, ['student']), true)));
@@ -514,6 +519,8 @@ $currentUserId = (int) getCurrentUserId();
                                 <option value="panel">Panel</option>
                                 <option value="it_office">IT Office</option>
                                 <option value="department_head">Department Head</option>
+                                <option value="program_chair">Program Chair</option>
+                                <option value="vpaa">VP for Academic Affairs</option>
                                 <option value="secretary">Secretary</option>
                                 <option value="faculty">Faculty</option>
                                 <option value="osa">OSA</option>

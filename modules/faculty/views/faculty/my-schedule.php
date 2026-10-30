@@ -4,6 +4,11 @@
  * Purpose: View personal class schedule
  */
 require_once __DIR__ . '/../../../../config/config.php';
+require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../../../includes/security.php';
+require_once __DIR__ . '/../../config/database.php';
+
+requireAuth();
 
 $pageTitle    = 'My Schedule';
 $activeModule = 'faculty';
@@ -14,19 +19,135 @@ $breadcrumbs  = [
     ['label' => 'My Schedule', 'url' => null],
 ];
 
-// ==========================================
-// FUTURE REST API INTEGRATION POINT:
-// Fetch summary stats, weekly/daily schedules, 
-// and assigned subjects dynamically via API/database.
-// ==========================================
 $teachingLoadUnits = 0;
 $totalSubjectsCount = 0;
 $totalSectionsCount = 0;
 $classesTodayCount = 0;
+$weeklyScheduleData = array_fill_keys(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], []);
+$dailyScheduleData = [];
+$assignedSubjects = [];
+$availableTerms = [];
+$selectedTermId = (int) ($_GET['term_id'] ?? 0);
+$selectedTerm = null;
+$pendingAcknowledgement = false;
+$scheduleError = '';
+$currentUserId = (int) (getCurrentUserId() ?? 0);
+$todayKey = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][(int) date('N') - 1];
+$todayName = date('l, F j, Y');
 
-$weeklyScheduleData = []; // To be populated via API
-$dailyScheduleData  = []; // To be populated via API
-$assignedSubjects   = []; // To be populated via API
+function smsMyScheduleWeekdays(?string $pattern): array
+{
+    $normalized = strtoupper(preg_replace('/[^A-Z]/i', '', (string) $pattern));
+    $days = [];
+    $wordDays = [
+        'Mon' => ['MONDAY', 'MON'],
+        'Tue' => ['TUESDAY', 'TUE'],
+        'Wed' => ['WEDNESDAY', 'WED'],
+        'Thu' => ['THURSDAY', 'THU'],
+        'Fri' => ['FRIDAY', 'FRI'],
+        'Sat' => ['SATURDAY', 'SAT'],
+        'Sun' => ['SUNDAY', 'SUN'],
+    ];
+    foreach ($wordDays as $day => $tokens) {
+        foreach ($tokens as $token) {
+            if (str_contains($normalized, $token)) {
+                $days[] = $day;
+                $normalized = str_replace($token, '', $normalized);
+                break;
+            }
+        }
+    }
+
+    if (str_contains($normalized, 'TTH')) {
+        $days[] = 'Tue';
+        $days[] = 'Thu';
+        $normalized = str_replace('TTH', '', $normalized);
+    }
+    if (str_contains($normalized, 'TH')) {
+        $days[] = 'Thu';
+        $normalized = str_replace('TH', '', $normalized);
+    }
+    foreach (str_split($normalized) as $letter) {
+        $letterDay = ['M' => 'Mon', 'T' => 'Tue', 'W' => 'Wed', 'R' => 'Thu', 'F' => 'Fri', 'S' => 'Sat', 'U' => 'Sun'][$letter] ?? null;
+        if ($letterDay !== null) {
+            $days[] = $letterDay;
+        }
+    }
+    return array_values(array_unique($days));
+}
+
+function smsMyScheduleTime(?string $time): string
+{
+    if (!$time) {
+        return 'Time not set';
+    }
+    $timestamp = strtotime($time);
+    return $timestamp === false ? $time : date('g:i A', $timestamp);
+}
+
+try {
+    $pdo = getFacultyDatabaseConnection();
+    $termsStmt = $pdo->prepare("SELECT DISTINCT t.term_id, t.academic_year, t.semester, t.is_current
+        FROM teaching_load_final_records fr
+        JOIN teaching_load_requests r ON r.load_request_id = fr.load_request_id
+        JOIN academic_terms t ON t.term_id = fr.term_id
+        WHERE r.faculty_user_id = ? AND r.workflow_stage = 'completed' AND r.status = 'Approved'
+        ORDER BY t.is_current DESC, t.academic_year DESC, t.semester ASC");
+    $termsStmt->execute([$currentUserId]);
+    $availableTerms = $termsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($availableTerms !== []) {
+        $termIds = array_map(static fn(array $term): int => (int) $term['term_id'], $availableTerms);
+        if (!in_array($selectedTermId, $termIds, true)) {
+            $selectedTermId = $termIds[0];
+        }
+        foreach ($availableTerms as $term) {
+            if ((int) $term['term_id'] === $selectedTermId) {
+                $selectedTerm = $term;
+                break;
+            }
+        }
+
+        $loadStmt = $pdo->prepare("SELECT fr.total_units, fr.subject_count, fr.assignments_json,
+                fr.finalized_at, t.academic_year, t.semester
+            FROM teaching_load_final_records fr
+            JOIN teaching_load_requests r ON r.load_request_id = fr.load_request_id
+            JOIN academic_terms t ON t.term_id = fr.term_id
+            WHERE r.faculty_user_id = ? AND r.term_id = ?
+              AND r.workflow_stage = 'completed' AND r.status = 'Approved'
+            ORDER BY fr.finalized_at DESC, fr.final_record_id DESC LIMIT 1");
+        $loadStmt->execute([$currentUserId, $selectedTermId]);
+        $loadRecord = $loadStmt->fetch(PDO::FETCH_ASSOC);
+        if ($loadRecord) {
+            $decodedAssignments = json_decode((string) $loadRecord['assignments_json'], true);
+            $assignedSubjects = is_array($decodedAssignments) ? $decodedAssignments : [];
+            $teachingLoadUnits = (float) $loadRecord['total_units'];
+            $totalSubjectsCount = count($assignedSubjects);
+            $totalSectionsCount = count(array_unique(array_filter(array_column($assignedSubjects, 'section'))));
+            foreach ($assignedSubjects as &$subject) {
+                $subject['display_time'] = smsMyScheduleTime($subject['time_start'] ?? null)
+                    . ' - ' . smsMyScheduleTime($subject['time_end'] ?? null);
+                $subject['display_schedule'] = trim((string) ($subject['day_pattern'] ?? ''));
+                $subject['display_room'] = trim((string) ($subject['room'] ?? '')) ?: 'Not set';
+                $subject['weekdays'] = smsMyScheduleWeekdays($subject['day_pattern'] ?? null);
+                foreach ($subject['weekdays'] as $day) {
+                    $weeklyScheduleData[$day][] = $subject;
+                }
+            }
+            unset($subject);
+            $dailyScheduleData = $weeklyScheduleData[$todayKey] ?? [];
+            $classesTodayCount = count($dailyScheduleData);
+        }
+    }
+
+    $pendingStmt = $pdo->prepare("SELECT COUNT(*) FROM teaching_load_requests
+        WHERE faculty_user_id = ? AND workflow_stage = 'faculty_acknowledgement' AND status = 'Pending'");
+    $pendingStmt->execute([$currentUserId]);
+    $pendingAcknowledgement = (int) $pendingStmt->fetchColumn() > 0;
+} catch (Throwable $exception) {
+    $scheduleError = 'Your teaching schedule could not be loaded. Please try again later.';
+    error_log('Faculty my-schedule load failed: ' . $exception->getMessage());
+}
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
@@ -36,6 +157,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
+<?php if ($scheduleError !== ''): ?><div class="alert alert-danger" role="alert"><?= e($scheduleError) ?></div><?php endif; ?>
+<?php if ($pendingAcknowledgement): ?>
+    <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
+        <span>A teaching load is waiting for your acknowledgement.</span>
+        <a class="btn btn-sm btn-primary" href="<?= BASE_URL ?>/modules/faculty/views/teaching-load-workflow.php">Review teaching load</a>
+    </div>
+<?php endif; ?>
+
 <!-- Page Header -->
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
@@ -43,8 +172,20 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <p class="text-muted mb-0">View your personal class schedule</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-outline-secondary"><i class="fas fa-print me-1"></i>Print</button>
-        <button class="btn btn-outline-success"><i class="fas fa-file-pdf me-1"></i>Download PDF</button>
+        <?php if ($availableTerms !== []): ?>
+            <form method="get" class="d-flex align-items-center gap-2">
+                <label for="termChoice" class="visually-hidden">Academic term</label>
+                <select class="form-select form-select-sm" id="termChoice" name="term_id" onchange="this.form.submit()">
+                    <?php foreach ($availableTerms as $term): ?>
+                        <option value="<?= (int) $term['term_id'] ?>" <?= (int) $term['term_id'] === $selectedTermId ? 'selected' : '' ?>>
+                            <?= e($term['academic_year'] . ' · ' . $term['semester']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+        <?php endif; ?>
+        <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+        <button class="btn btn-outline-success" type="button" onclick="window.print()"><i class="fas fa-file-pdf me-1"></i>Save as PDF</button>
     </div>
 </div>
 
@@ -59,8 +200,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Teaching Load</h6>
-                    <!-- TODO: Output API data for teaching load units -->
-                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= $teachingLoadUnits ?> <small class="text-muted fs-6">units</small></h4>
+                    <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= e(number_format($teachingLoadUnits, 1)) ?> <small class="text-muted fs-6">units</small></h4>
                 </div>
             </div>
         </section>
@@ -75,7 +215,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Subjects</h6>
-                    <!-- TODO: Output API data for total subjects -->
                     <h4 class="mb-0 fw-bold" style="color: #28a745;"><?= $totalSubjectsCount ?></h4>
                 </div>
             </div>
@@ -91,7 +230,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Sections</h6>
-                    <!-- TODO: Output API data for total sections -->
                     <h4 class="mb-0 fw-bold" style="color: #0dcaf0;"><?= $totalSectionsCount ?></h4>
                 </div>
             </div>
@@ -107,7 +245,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Classes Today</h6>
-                    <!-- TODO: Output API data for classes today -->
                     <h4 class="mb-0 fw-bold" style="color: #ffc107;"><?= $classesTodayCount ?></h4>
                 </div>
             </div>
@@ -122,11 +259,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <!-- Weekly Calendar View -->
         <div class="card border-0 shadow-sm rounded-3 h-100" id="weeklyView">
             <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h6 class="mb-0 fw-semibold text-primary">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <h6 class="mb-0 fw-semibold text-primary">
                     <i class="fas fa-calendar-week me-2"></i>Weekly Calendar
-                </h6>
+                    </h6>
+                    <label class="visually-hidden" for="viewType">Schedule view</label>
+                    <select class="form-select form-select-sm w-auto" id="viewType" onchange="changeView()">
+                        <option value="weekly" selected>Weekly</option>
+                        <option value="daily">Today</option>
+                    </select>
+                </div>
                 <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-medium">
-                    Week 1: August 1-7, 2025
+                    <?= $selectedTerm ? e($selectedTerm['academic_year'] . ' · ' . $selectedTerm['semester']) : 'No finalized load' ?>
                 </span>
             </div>
             <div class="card-body p-0">
@@ -134,38 +278,33 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <table class="table table-bordered align-middle mb-0 text-center">
                         <thead class="table-light">
                             <tr>
-                                <th style="width: 90px;" class="text-body-secondary fw-semibold small">Time</th>
-                                <th class="text-body-secondary fw-semibold small">Mon</th>
-                                <th class="text-body-secondary fw-semibold small">Tue</th>
-                                <th class="text-body-secondary fw-semibold small">Wed</th>
-                                <th class="text-body-secondary fw-semibold small">Thu</th>
-                                <th class="text-body-secondary fw-semibold small">Fri</th>
-                                <th class="text-body-secondary fw-semibold small">Sat</th>
-                                <th class="text-body-secondary fw-semibold small">Sun</th>
+                                <th style="width: 100px;" class="text-body-secondary fw-semibold small">Day</th>
+                                <th class="text-body-secondary fw-semibold small">Classes</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php
-                            $times = ['7:00-8:00','8:00-9:30','9:30-11:00','10:00-11:30','11:30-1:00','1:00-2:30','1:00-3:00','2:00-4:00','3:00-4:30','4:30-6:00'];
-                            foreach ($times as $t) {
-                                echo "<tr>";
-                                echo "<td class='table-light fw-medium small text-body-secondary align-middle'>$t</td>";
-                                
-                                // Expanded to 7 days ($d from 0 to 6, where 0=Mon, ..., 5=Sat, 6=Sun)
-                                for ($d = 0; $d < 7; $d++) {
-                                    $badge = '';
-                                    
-                                    // ==========================================
-                                    // FUTURE REST API INTEGRATION POINT:
-                                    // Check $weeklyScheduleData from API for a class matching time slot ($t) and day index ($d).
-                                    // Example: if (isset($weeklyScheduleData[$t][$d])) { $badge = renderBadge($weeklyScheduleData[$t][$d]); }
-                                    // ==========================================
-
-                                    echo "<td class='p-1' style='height: 60px;'>$badge</td>";
-                                }
-                                echo "</tr>";
-                            }
-                            ?>
+                            <?php foreach ($weeklyScheduleData as $day => $classes): ?>
+                                <tr>
+                                    <th scope="row" class="table-light fw-semibold small text-body-secondary align-middle"><?= e($day) ?></th>
+                                    <td class="p-2">
+                                        <?php if ($classes === []): ?>
+                                            <span class="small text-body-secondary">No classes</span>
+                                        <?php else: ?>
+                                            <div class="d-flex flex-column gap-2">
+                                                <?php foreach ($classes as $class): ?>
+                                                    <div class="p-2 rounded border bg-primary bg-opacity-10 text-start">
+                                                        <strong class="text-primary"><?= e($class['code'] ?? '') ?></strong>
+                                                        <span class="small"><?= e($class['title'] ?? '') ?></span>
+                                                        <div class="small text-body-secondary">
+                                                            <?= e($class['display_time']) ?> · Section <?= e($class['section'] ?? '') ?> · <?= e((string) ($class['units'] ?? '0')) ?> units
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
@@ -179,43 +318,30 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <i class="fas fa-calendar-day me-2"></i>Daily Schedule
                 </h6>
                 <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-medium">
-                    Monday, August 1, 2025
+                    <?= e($todayName) ?>
                 </span>
             </div>
             <div class="card-body">
                 <div class="d-flex flex-column gap-3">
-                    <?php
-                    // ==========================================
-                    // FUTURE REST API INTEGRATION POINT:
-                    // Populate $dailyScheduleData via API call to fetch today's agenda.
-                    // ==========================================
-                    if (empty($dailyScheduleData)) {
-                        echo '<div class="text-center text-muted py-4 small">No classes scheduled for today.</div>';
-                    } else {
-                        foreach ($dailyScheduleData as $s) {
-                            $bgTheme = $s['isBreak'] ? 'bg-secondary bg-opacity-10 border-secondary' : 'bg-primary bg-opacity-10 border-primary';
-                            $badgeTheme = $s['isBreak'] ? 'bg-secondary' : 'bg-primary';
-
-                            echo <<<HTML
-                            <div class="d-flex align-items-center gap-3 p-3 rounded-3 border border-opacity-25 $bgTheme">
+                    <?php if ($dailyScheduleData === []): ?>
+                        <div class="text-center text-muted py-4 small">No finalized classes scheduled for today.</div>
+                    <?php else: ?>
+                        <?php foreach ($dailyScheduleData as $class): ?>
+                            <article class="d-flex align-items-start gap-3 p-3 rounded border bg-primary bg-opacity-10">
                                 <div class="fw-bold text-body-secondary small text-nowrap">
-                                    <i class="far fa-clock me-1"></i>{$s['time']}
+                                    <i class="far fa-clock me-1"></i><?= e($class['display_time']) ?>
                                 </div>
                                 <div class="flex-grow-1">
-                                    <h6 class="mb-1 fw-bold fs-6">{$s['subject']}</h6>
-                                    <div class="d-flex gap-3 text-body-secondary small" style="font-size: 12px;">
-                                        <span><i class="fas fa-door-open me-1"></i>Room {$s['room']}</span>
-                                        <span><i class="fas fa-users me-1"></i>Section {$s['section']}</span>
+                                    <h3 class="h6 mb-1 fw-bold"><?= e($class['code'] ?? '') ?> · <?= e($class['title'] ?? '') ?></h3>
+                                    <div class="d-flex flex-wrap gap-3 text-body-secondary small">
+                                        <span>Section <?= e($class['section'] ?? '') ?></span>
+                                        <span><?= e((string) ($class['units'] ?? '0')) ?> units</span>
+                                        <span>Room <?= e($class['display_room']) ?></span>
                                     </div>
                                 </div>
-                                <div>
-                                    <span class="badge $badgeTheme rounded-pill">{$s['section']}</span>
-                                </div>
-                            </div>
-                            HTML;
-                        }
-                    }
-                    ?>
+                            </article>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -244,28 +370,22 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php
-                            // ==========================================
-                            // FUTURE REST API INTEGRATION POINT:
-                            // Fetch assigned subjects payload from remote module API and loop through results.
-                            // ==========================================
-                            if (empty($assignedSubjects)) {
-                                echo '<tr><td colspan="6" class="text-center text-muted py-4 small">No assigned subjects found.</td></tr>';
-                            } else {
-                                foreach ($assignedSubjects as $s) {
-                                    echo <<<HTML
+                            <?php if ($assignedSubjects === []): ?>
+                                <tr><td colspan="6" class="text-center text-muted py-4 small">No finalized subjects found for this term.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($assignedSubjects as $subject): ?>
                                     <tr>
-                                        <td class="ps-3 fw-bold text-primary small">{$s['code']}</td>
-                                        <td class="fw-medium small">{$s['subject']}</td>
-                                        <td><span class="badge bg-light text-dark border">{$s['section']}</span></td>
-                                        <td><span class="badge bg-primary bg-opacity-10 text-primary">{$s['units']}</span></td>
-                                        <td class="small text-body-secondary" style="font-size: 12px;">{$s['schedule']}</td>
-                                        <td class="pe-3"><span class="badge bg-secondary bg-opacity-10 text-secondary">{$s['room']}</span></td>
+                                        <td class="ps-3 fw-bold text-primary small"><?= e((string) ($subject['code'] ?? '')) ?></td>
+                                        <td class="fw-medium small"><?= e((string) ($subject['title'] ?? '')) ?></td>
+                                        <td><span class="badge bg-light text-dark border"><?= e((string) ($subject['section'] ?? '')) ?></span></td>
+                                        <td><span class="badge bg-primary bg-opacity-10 text-primary"><?= e((string) ($subject['units'] ?? '0')) ?></span></td>
+                                        <td class="small text-body-secondary" style="font-size: 12px;">
+                                            <?= e((string) ($subject['display_schedule'] ?: 'Days not set')) ?> · <?= e($subject['display_time']) ?>
+                                        </td>
+                                        <td class="pe-3"><span class="badge bg-secondary bg-opacity-10 text-secondary"><?= e($subject['display_room']) ?></span></td>
                                     </tr>
-                                    HTML;
-                                }
-                            }
-                            ?>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -277,11 +397,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <script>
 function changeView() {
-    const viewType = document.getElementById('viewType').value;
-    document.getElementById('weeklyView').classList.add('d-none');
-    document.getElementById('dailyView').classList.add('d-none');
-    
-    document.getElementById(viewType + 'View').classList.remove('d-none');
+    const viewType = document.getElementById('viewType')?.value;
+    document.getElementById('weeklyView')?.classList.toggle('d-none', viewType !== 'weekly');
+    document.getElementById('dailyView')?.classList.toggle('d-none', viewType !== 'daily');
 }
 </script>
 

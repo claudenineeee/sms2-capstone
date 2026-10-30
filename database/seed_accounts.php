@@ -102,6 +102,8 @@ $roles = [
     ['student', 'Student', 'Student portal only'],
     ['dean', 'Dean', 'Dean faculty administration'],
     ['department_head', 'Department Head', 'Department head oversight'],
+    ['program_chair', 'Program Chair', 'Creates and submits teaching-load assignments'],
+    ['vpaa', 'VP for Academic Affairs', 'Final teaching-load approval'],
     ['secretary', 'Secretary', 'Department secretary records'],
     ['faculty', 'Faculty', 'Faculty teacher portal'],
 ];
@@ -137,6 +139,8 @@ $perms = [
     'student' => ['student_portal'],
     'dean' => ['faculty'],
     'department_head' => ['faculty'],
+    'program_chair' => ['faculty'],
+    'vpaa' => ['faculty'],
     'secretary' => ['faculty'],
     'faculty' => ['faculty'],
 ];
