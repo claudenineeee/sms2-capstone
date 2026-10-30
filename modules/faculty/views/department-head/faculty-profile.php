@@ -2,58 +2,93 @@
 /**
  * Faculty Profile (View Details) — Department Head
  * Purpose: Detailed view of individual faculty member, scoped to the
- * logged-in department head's own department via the shared FacultyModel.
+ * logged-in department head's own department.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 
+// We still need the controller for the getDepartmentLabel() function
 require_once __DIR__ . '/../../controllers/FacultyController.php';
 $facultyController = new FacultyController();
+
+// Load the data controller that contains loadFacultyProfiles()
+if (file_exists(__DIR__ . '/../../controllers/faculty-data.php')) {
+    require_once __DIR__ . '/../../controllers/faculty-data.php';
+}
 
 $currentUserId = getCurrentUserId();
 $currentUserEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
 
-$rawProfiles = $facultyController->getDirectoryList();
-
-// Filter out inactive/resigned, rejected accounts, deans, and the logged-in department head themselves
-$facultyProfiles = array_values(array_filter($rawProfiles, function ($profile) use ($currentUserId, $currentUserEmail) {
-    $employmentStatus = strtolower(trim((string) ($profile['employment_status'] ?? '')));
-    $profileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
-    $accountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
-    $position = strtolower(trim((string) ($profile['position'] ?? '')));
-    $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
-    $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
-
-    // Check if inactive, resigned, or rejected
-    $isInactiveOrRejected = (
-        $employmentStatus === 'inactive' || 
-        $profileStatus === 'inactive' || 
-        $accountStatus === 'inactive' ||
-        $employmentStatus === 'resigned' || 
-        $profileStatus === 'resigned' || 
-        strpos($profileStatus, 'rejected') !== false || 
-        strpos($accountStatus, 'rejected') !== false ||
-        strpos($accountStatus, 'disabled') !== false
-    );
-
-    // Check if dean
-    $isDean = (strpos($position, 'dean') !== false);
-
-    // Check if the profile belongs to the currently logged-in user (department head)
-    $isSelf = (
-        ($currentUserId !== null && $profileUserId === (int) $currentUserId) ||
-        ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)
-    );
-
-    return !$isInactiveOrRejected && !$isDean && !$isSelf;
-}));
-
+// 1. DETERMINE THE HEAD'S DEPARTMENT DIRECTLY FROM THE DB (Like in faculty-directory.php)
 $headDepartmentCode = '';
-$headDepartmentLabel = '';
-if (!empty($facultyProfiles)) {
-    $headDepartmentCode = (string) ($facultyProfiles[0]['designated_department'] ?? '');
-    $headDepartmentLabel = FacultyController::getDepartmentLabel($headDepartmentCode);
+try {
+    $pdo = db();
+    if ($pdo) {
+        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
+        $stmt->execute([':user_id' => $currentUserId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($row && !empty($row['designated_department'])) {
+            $headDepartmentCode = strtoupper(trim($row['designated_department']));
+        }
+    }
+} catch (Throwable $e) {
+    // Silently fail and fallback to BSIT below
+}
+
+// Fallback if the department wasn't found
+if (empty($headDepartmentCode)) {
+    $headDepartmentCode = 'BSIT';
+}
+$headDepartmentLabel = FacultyController::getDepartmentLabel($headDepartmentCode);
+
+// 2. FETCH AND FILTER THE PROFILES
+$facultyProfiles = [];
+if (function_exists('loadFacultyProfiles')) {
+    foreach (loadFacultyProfiles() as $profile) {
+        // Extract department safely (matches faculty-directory.php logic)
+        $profileDept = trim((string) ($profile['designated_dept'] ?? $profile['designated_department'] ?? ''));
+        $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
+        $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
+        $profilePosition = strtolower(trim((string) ($profile['position'] ?? '')));
+        
+        $rawProfileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
+        $rawAccountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
+
+        // A. Exclude inactive, disabled, or rejected accounts
+        if (
+            strpos($rawAccountStatus, 'inactive') !== false ||
+            strpos($rawAccountStatus, 'disabled') !== false ||
+            strpos($rawAccountStatus, 'rejected') !== false ||
+            strpos($rawProfileStatus, 'inactive') !== false ||
+            strpos($rawProfileStatus, 'rejected') !== false
+        ) {
+            continue;
+        }
+
+        // B. Exclude the currently logged-in Department Head
+        if (
+            ($currentUserId !== null && $profileUserId === (int) $currentUserId) ||
+            ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)
+        ) {
+            continue;
+        }
+
+        // C. Exclude Deans
+        if (strpos($profilePosition, 'dean') !== false) {
+            continue;
+        }
+
+        // D. Must match the Head's Department
+        // We check if the profile's department matches the head's code OR label
+        if (
+            strcasecmp($profileDept, $headDepartmentCode) === 0 ||
+            strcasecmp($profileDept, $headDepartmentLabel) === 0
+        ) {
+            $facultyProfiles[] = $profile;
+        }
+    }
 }
 
 $pageTitle    = 'Faculty Profile';
@@ -80,12 +115,10 @@ function computeAge(string $birthdate): int
     if ($birthdate === '') {
         return 0;
     }
-
     $birth = DateTime::createFromFormat('Y-m-d', $birthdate);
     if (!$birth) {
         return 0;
     }
-
     $today = new DateTime('today');
     $age = $birth->diff($today)->y;
     return $age >= 0 ? $age : 0;
@@ -111,33 +144,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         $updateMessage = 'Faculty profile updated successfully.';
         $updateMessageType = 'success';
         
-        $rawProfiles = $facultyController->getDirectoryList(); // refresh after edit
-        $facultyProfiles = array_values(array_filter($rawProfiles, function ($profile) use ($currentUserId, $currentUserEmail) {
-            $employmentStatus = strtolower(trim((string) ($profile['employment_status'] ?? '')));
-            $profileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
-            $accountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
-            $position = strtolower(trim((string) ($profile['position'] ?? '')));
+        // Refresh after edit
+        $facultyProfiles = [];
+        foreach (loadFacultyProfiles() as $profile) {
+            $profileDept = trim((string) ($profile['designated_dept'] ?? $profile['designated_department'] ?? ''));
             $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
             $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
+            $profilePosition = strtolower(trim((string) ($profile['position'] ?? '')));
+            $rawProfileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
+            $rawAccountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
 
-            $isInactiveOrRejected = (
-                $employmentStatus === 'inactive' || 
-                $profileStatus === 'inactive' || 
-                $accountStatus === 'inactive' ||
-                $employmentStatus === 'resigned' || 
-                $profileStatus === 'resigned' || 
-                strpos($profileStatus, 'rejected') !== false || 
-                strpos($accountStatus, 'rejected') !== false ||
-                strpos($accountStatus, 'disabled') !== false
-            );
-            $isDean = (strpos($position, 'dean') !== false);
-            $isSelf = (
-                ($currentUserId !== null && $profileUserId === (int) $currentUserId) ||
-                ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)
-            );
-
-            return !$isInactiveOrRejected && !$isDean && !$isSelf;
-        }));
+            if (strpos($rawAccountStatus, 'inactive') !== false || strpos($rawAccountStatus, 'disabled') !== false || strpos($rawAccountStatus, 'rejected') !== false || strpos($rawProfileStatus, 'inactive') !== false || strpos($rawProfileStatus, 'rejected') !== false) continue;
+            if (($currentUserId !== null && $profileUserId === (int) $currentUserId) || ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)) continue;
+            if (strpos($profilePosition, 'dean') !== false) continue;
+            
+            if (strcasecmp($profileDept, $headDepartmentCode) === 0 || strcasecmp($profileDept, $headDepartmentLabel) === 0) {
+                $facultyProfiles[] = $profile;
+            }
+        }
     } else {
         $updateMessage = 'Unable to update faculty profile.';
         $updateMessageType = 'danger';
@@ -145,12 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
 }
 
 $totalFaculty = count($facultyProfiles);
-
 $regularCount = count(array_filter($facultyProfiles, function ($profile) {
     $status = strtolower(trim((string) ($profile['employment_status'] ?? '')));
     return $status === 'regular' || $status === 'active' || $status === 'full-time';
 }));
-
 $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
     $status = strtolower(trim((string) ($profile['employment_status'] ?? '')));
     return $status === 'part-time' || $status === 'contractual';
@@ -172,107 +194,73 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
 <div class="container-fluid py-4">
     <!-- Top Stats Bar -->
     <div class="row g-3 mb-4">
-        <!-- Card 1: Total Faculty -->
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card primary border shadow-sm position-relative h-100">
                 <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-primary fs-4">
-                        <i class="fas fa-users"></i>
-                    </div>
+                    <div class="stat-icon me-3 text-primary fs-4"><i class="fas fa-users"></i></div>
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Faculty</h6>
                         <h4 class="mb-0 fw-bold"><?= $totalFaculty ?></h4>
-                        <small class="text-success fw-semibold" style="font-size: 0.75rem;">
-                            <i class="fas fa-arrow-trend-up me-1"></i>+2.5% <span class="text-muted fw-normal">from last month</span>
-                        </small>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>+2.5% <span class="text-muted fw-normal">from last month</span></small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
+                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details"><i class="fas fa-arrow-up-right-from-square"></i></a>
             </section>
         </div>
 
-        <!-- Card 2: Full-Time / Regular -->
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card success border shadow-sm position-relative h-100">
                 <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-success fs-4">
-                        <i class="fas fa-user-check"></i>
-                    </div>
+                    <div class="stat-icon me-3 text-success fs-4"><i class="fas fa-user-check"></i></div>
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Full-Time / Regular</h6>
                         <h4 class="mb-0 fw-bold"><?= $regularCount ?></h4>
-                        <small class="text-success fw-semibold" style="font-size: 0.75rem;">
-                            <i class="fas fa-arrow-trend-up me-1"></i>Active <span class="text-muted fw-normal">status</span>
-                        </small>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>Active <span class="text-muted fw-normal">status</span></small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
+                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details"><i class="fas fa-arrow-up-right-from-square"></i></a>
             </section>
         </div>
 
-        <!-- Card 3: Part-Time / Contract -->
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card warning border shadow-sm position-relative h-100">
                 <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-warning fs-4">
-                        <i class="fas fa-book-reader"></i>
-                    </div>
+                    <div class="stat-icon me-3 text-warning fs-4"><i class="fas fa-book-reader"></i></div>
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Part-Time / Contract</h6>
                         <h4 class="mb-0 fw-bold"><?= $partTimeCount ?></h4>
-                        <small class="text-muted fw-normal" style="font-size: 0.75rem;">
-                            Updated this term
-                        </small>
+                        <small class="text-muted fw-normal" style="font-size: 0.75rem;">Updated this term</small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
+                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details"><i class="fas fa-arrow-up-right-from-square"></i></a>
             </section>
         </div>
 
-        <!-- Card 4: Dept Avg Rating -->
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card info border shadow-sm position-relative h-100">
                 <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-info fs-4">
-                        <i class="fas fa-star"></i>
-                    </div>
+                    <div class="stat-icon me-3 text-info fs-4"><i class="fas fa-star"></i></div>
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Dept Avg Rating</h6>
                         <h4 class="mb-0 fw-bold">4.52</h4>
-                        <small class="text-success fw-semibold" style="font-size: 0.75rem;">
-                            <i class="fas fa-arrow-trend-up me-1"></i>+0.3 <span class="text-muted fw-normal">vs last term</span>
-                        </small>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>+0.3 <span class="text-muted fw-normal">vs last term</span></small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
-                    <i class="fas fa-arrow-up-right-from-square"></i>
-                </a>
+                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details"><i class="fas fa-arrow-up-right-from-square"></i></a>
             </section>
         </div>
     </div>
 
-    <!-- Main Content Card (Contains Search, Filters, Table & Pagination) -->
+    <!-- Main Content Card -->
     <div class="card border-0 shadow-sm">
-        <!-- Directory Controls: Search & Filters -->
         <div class="card-body border-bottom p-3">
             <div class="row g-2 align-items-center">
-                <!-- Search Input -->
                 <div class="col-12 col-md-5">
                     <div class="input-group">
-                        <span class="input-group-text bg-body-tertiary border-end-0">
-                            <i class="fas fa-search text-muted"></i>
-                        </span>
+                        <span class="input-group-text bg-body-tertiary border-end-0"><i class="fas fa-search text-muted"></i></span>
                         <input id="directorySearch" type="text" class="form-control border-start-0 bg-body-tertiary" placeholder="Search by name, ID, or email...">
                     </div>
                 </div>
-
-                <!-- Employment Type Filter -->
                 <div class="col-6 col-md-4 col-lg-3">
                     <select id="statusFilter" class="form-select bg-body-tertiary">
                         <option value="all">All Statuses</option>
@@ -284,7 +272,6 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
             </div>
         </div>
 
-        <!-- Faculty Member Table -->
         <div class="card-body p-0">
             <?php if (count($facultyProfiles) === 0): ?>
                 <div class="alert alert-info rounded-3 m-3">
@@ -307,10 +294,8 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                         <tbody id="facultyTableBody">
                             <?php foreach ($facultyProfiles as $profile): ?>
                                 <?php
-                                    $fullName = function_exists('buildFacultyFullName')
-                                        ? buildFacultyFullName($profile)
-                                        : trim((string) ($profile['first_name'] ?? '') . ' ' . (string) ($profile['middle_name'] ?? '') . ' ' . (string) ($profile['last_name'] ?? ''));
-                                    $rawDept = (string) ($profile['designated_department'] ?? $profile['designated_dept'] ?? '');
+                                    $fullName = function_exists('buildFacultyFullName') ? buildFacultyFullName($profile) : trim((string) ($profile['first_name'] ?? '') . ' ' . (string) ($profile['middle_name'] ?? '') . ' ' . (string) ($profile['last_name'] ?? ''));
+                                    $rawDept = (string) ($profile['designated_dept'] ?? $profile['designated_department'] ?? '');
                                     $departmentLabel = getDepartmentLabel($rawDept);
                                     $employmentStatus = ucwords(strtolower((string) ($profile['employment_status'] ?? '')));
                                     $profileStatus = ucwords(strtolower((string) ($profile['profile_status'] ?? '')));
@@ -322,12 +307,8 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                                     $hiredDate = trim((string) ($profile['hired_date'] ?? ''));
                                     $contractualEnd = trim((string) ($profile['contractual_end'] ?? ''));
                                     $age = $birthdate !== '' ? computeAge($birthdate) : 0;
-                                    $initials = implode('', array_slice(array_map(function ($part) {
-                                        return strtoupper(substr($part, 0, 1));
-                                    }, array_filter(explode(' ', $fullName))), 0, 2));
-                                    if ($initials === '') {
-                                        $initials = 'NA';
-                                    }
+                                    $initials = implode('', array_slice(array_map(function ($part) { return strtoupper(substr($part, 0, 1)); }, array_filter(explode(' ', $fullName))), 0, 2));
+                                    if ($initials === '') { $initials = 'NA'; }
                                 ?>
                                 <tr class="faculty-row" 
                                     data-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>" 
@@ -397,16 +378,11 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
             <?php endif; ?>
         </div>
 
-        <!-- Pagination Controls Footer -->
         <?php if (count($facultyProfiles) > 0): ?>
             <div class="card-footer bg-white border-top p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div class="text-muted small" id="paginationInfo">
-                    Showing 0 to 0 of 0 entries
-                </div>
+                <div class="text-muted small" id="paginationInfo">Showing 0 to 0 of 0 entries</div>
                 <nav aria-label="Faculty pagination">
-                    <ul class="pagination pagination-sm mb-0" id="paginationControls">
-                        <!-- Pagination JS dynamically populates items here -->
-                    </ul>
+                    <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
                 </nav>
             </div>
         <?php endif; ?>
@@ -437,40 +413,28 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                         <dl class="row mb-3">
                             <dt class="col-sm-4 text-muted small">Faculty ID</dt>
                             <dd class="col-sm-8" id="viewFacultyId">FAC-2026-001</dd>
-
                             <dt class="col-sm-4 text-muted small">Department</dt>
                             <dd class="col-sm-8" id="viewDepartmentLabel">Information Technology</dd>
-
                             <dt class="col-sm-4 text-muted small">Position</dt>
                             <dd class="col-sm-8" id="viewPositionLabel">Head</dd>
-
                             <dt class="col-sm-4 text-muted small">Academic Rank</dt>
                             <dd class="col-sm-8" id="viewAcademicRank">Assistant Professor</dd>
-
                             <dt class="col-sm-4 text-muted small">Tier</dt>
                             <dd class="col-sm-8" id="viewTier">Assistant Professor I</dd>
-
                             <dt class="col-sm-4 text-muted small">Status</dt>
                             <dd class="col-sm-8" id="viewEmploymentStatus">Active</dd>
-
                             <dt class="col-sm-4 text-muted small">Profile Status</dt>
                             <dd class="col-sm-8" id="viewProfileStatus">Active</dd>
-
                             <dt class="col-sm-4 text-muted small">Hired Date</dt>
                             <dd class="col-sm-8" id="viewHiredDate">2026-01-10</dd>
-
                             <dt class="col-sm-4 text-muted small">Contractual End</dt>
                             <dd class="col-sm-8" id="viewContractualEnd">2026-12-31</dd>
-
                             <dt class="col-sm-4 text-muted small">Birthdate</dt>
                             <dd class="col-sm-8" id="viewBirthdate">1990-07-28</dd>
-
                             <dt class="col-sm-4 text-muted small">Sex</dt>
                             <dd class="col-sm-8" id="viewSex">Male</dd>
-
                             <dt class="col-sm-4 text-muted small">Email</dt>
                             <dd class="col-sm-8" id="viewEmail">johndoe@university.edu</dd>
-
                             <dt class="col-sm-4 text-muted small">Phone</dt>
                             <dd class="col-sm-8" id="viewPhone">+63 912 345 6789</dd>
                         </dl>
@@ -496,7 +460,6 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                 <input type="hidden" name="action" value="update_faculty">
                 <input type="hidden" name="profile_id" id="profileId" value="">
                 <div class="modal-body">
-                    <!-- Basic Information -->
                     <div class="mb-4">
                         <h6 class="text-primary border-bottom pb-2 fw-bold mb-3">Basic Information</h6>
                         <div class="row g-3">
@@ -530,8 +493,6 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                             </div>
                         </div>
                     </div>
-
-                    <!-- Contact Information -->
                     <div class="mb-4">
                         <h6 class="text-primary border-bottom pb-2 fw-bold mb-3">Contact Information</h6>
                         <div class="row g-3">
@@ -545,8 +506,6 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                             </div>
                         </div>
                     </div>
-
-                    <!-- Role & Status -->
                     <div class="mb-4">
                         <h6 class="text-primary border-bottom pb-2 fw-bold mb-3">Role & Status</h6>
                         <div class="row g-3">
@@ -581,83 +540,14 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
 
 <script>
     function getModalInstance(id) {
-        if (!window.bootstrap || !bootstrap.Modal) {
-            console.warn('Bootstrap modal API is not available.');
-            return null;
-        }
-
+        if (!window.bootstrap || !bootstrap.Modal) return null;
         const modalEl = document.getElementById(id);
-        if (!modalEl) {
-            console.warn('Modal element not found:', id);
-            return null;
-        }
-
+        if (!modalEl) return null;
         return bootstrap.Modal.getOrCreateInstance(modalEl);
     }
 
-    const academicRankSelect = document.getElementById('academicRank');
-    const tierSelect = document.getElementById('tier');
-
-    const tierOptions = {
-        instructor: [
-            { value: 'Instructor I', label: 'Instructor I' },
-            { value: 'Instructor II', label: 'Instructor II' },
-            { value: 'Instructor III', label: 'Instructor III' },
-        ],
-        assistant_professor: [
-            { value: 'Assistant Professor I', label: 'Assistant Professor I' },
-            { value: 'Assistant Professor II', label: 'Assistant Professor II' },
-            { value: 'Assistant Professor III', label: 'Assistant Professor III' },
-            { value: 'Assistant Professor IV', label: 'Assistant Professor IV' },
-        ],
-        associate_professor: [
-            { value: 'Associate Professor I', label: 'Associate Professor I' },
-            { value: 'Associate Professor II', label: 'Associate Professor II' },
-            { value: 'Associate Professor III', label: 'Associate Professor III' },
-            { value: 'Associate Professor IV', label: 'Associate Professor IV' },
-            { value: 'Associate Professor V', label: 'Associate Professor V' },
-        ],
-        professor: [
-            { value: 'Professor I', label: 'Professor I' },
-            { value: 'Professor II', label: 'Professor II' },
-            { value: 'Professor III', label: 'Professor III' },
-            { value: 'Professor IV', label: 'Professor IV' },
-            { value: 'Professor V', label: 'Professor V' },
-            { value: 'Professor VI', label: 'Professor VI' },
-        ],
-    };
-
-    function populateTierOptions(selectedTier = '') {
-        if (!academicRankSelect || !tierSelect) {
-            return;
-        }
-
-        const selectedRank = academicRankSelect.value;
-        const options = tierOptions[selectedRank] || [];
-
-        tierSelect.innerHTML = '';
-        options.forEach(item => {
-            const opt = document.createElement('option');
-            opt.value = item.value;
-            opt.textContent = item.label;
-            tierSelect.appendChild(opt);
-        });
-
-        if (selectedTier && options.some(item => item.value === selectedTier)) {
-            tierSelect.value = selectedTier;
-        } else if (options.length > 0) {
-            tierSelect.value = options[0].value;
-        }
-    }
-
-    if (academicRankSelect) {
-        academicRankSelect.addEventListener('change', () => populateTierOptions(tierSelect.value));
-    }
-
     function viewFaculty(button) {
-        if (!button || !button.dataset) {
-            return;
-        }
+        if (!button || !button.dataset) return;
         const modal = getModalInstance('facultyModal');
         document.getElementById('viewInitials').textContent = getInitials(button.dataset.fullName || 'NA');
         document.getElementById('viewFullName').textContent = button.dataset.fullName || 'Unknown';
@@ -679,14 +569,11 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
         document.getElementById('viewSex').textContent = button.dataset.sex || '';
         document.getElementById('viewEmail').textContent = button.dataset.email || '';
         document.getElementById('viewPhone').textContent = button.dataset.phone || '';
-
         modal?.show();
     }
 
     function editFaculty(button) {
-        if (!button || !button.dataset) {
-            return;
-        }
+        if (!button || !button.dataset) return;
         document.getElementById('profileId').value = button.dataset.profileId || '';
         document.getElementById('firstname').value = button.dataset.firstName || '';
         document.getElementById('middlename').value = button.dataset.middleName || '';
@@ -699,44 +586,28 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
         document.getElementById('hiredDate').value = button.dataset.hiredDate || '';
         document.getElementById('contractualEnd').value = button.dataset.contractualEnd || '';
         document.getElementById('employmentStatus').value = button.dataset.status || 'Active';
-
         getModalInstance('facultyFormModal')?.show();
     }
 
     function badgeColorClass(status) {
         const value = (status || '').toLowerCase();
-        if (value.includes('active')) {
-            return 'bg-success';
-        }
-        if (value.includes('probationary')) {
-            return 'bg-warning text-dark';
-        }
-        if (value.includes('part-time')) {
-            return 'bg-info text-dark';
-        }
-        if (value.includes('inactive') || value.includes('resigned')) {
-            return 'bg-secondary';
-        }
+        if (value.includes('active')) return 'bg-success';
+        if (value.includes('probationary')) return 'bg-warning text-dark';
+        if (value.includes('part-time')) return 'bg-info text-dark';
+        if (value.includes('inactive') || value.includes('resigned')) return 'bg-secondary';
         return 'bg-primary';
     }
 
     function getInitials(fullName) {
-        return (fullName || '')
-            .split(' ')
-            .filter(Boolean)
-            .slice(0, 2)
-            .map(name => name.charAt(0).toUpperCase())
-            .join('') || 'NA';
+        return (fullName || '').split(' ').filter(Boolean).slice(0, 2).map(name => name.charAt(0).toUpperCase()).join('') || 'NA';
     }
 
-    // --- SEARCH, FILTERS & PAGINATION LOGIC ---
     document.addEventListener('DOMContentLoaded', function () {
         const rowsPerPage = 10;
         let currentPage = 1;
         let filteredRows = [];
 
         const searchInput = document.getElementById('directorySearch');
-        const rankFilter = document.getElementById('rankFilter');
         const statusFilter = document.getElementById('statusFilter');
         const allRows = Array.from(document.querySelectorAll('.faculty-row'));
         const paginationControls = document.getElementById('paginationControls');
@@ -744,23 +615,16 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
 
         function filterRows() {
             const searchTerm = (searchInput ? searchInput.value : '').toLowerCase().trim();
-            const selectedRank = rankFilter ? rankFilter.value.toLowerCase() : 'all';
             const selectedStatus = statusFilter ? statusFilter.value.toLowerCase() : 'all';
 
             filteredRows = allRows.filter(row => {
                 const name = (row.dataset.name || '').toLowerCase();
                 const email = (row.dataset.email || '').toLowerCase();
                 const id = (row.dataset.id || '').toLowerCase();
-                const academicRank = (row.dataset.academicRank || '').toLowerCase();
                 const status = (row.dataset.status || '').toLowerCase();
 
-                // Search match
                 const matchesSearch = !searchTerm || name.includes(searchTerm) || email.includes(searchTerm) || id.includes(searchTerm);
                 
-                // Rank match
-                const matchesRank = selectedRank === 'all' || academicRank.includes(selectedRank);
-
-                // Status match
                 let matchesStatus = selectedStatus === 'all';
                 if (!matchesStatus) {
                     if (selectedStatus === 'regular') {
@@ -770,7 +634,7 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                     }
                 }
 
-                return matchesSearch && matchesRank && matchesStatus;
+                return matchesSearch && matchesStatus;
             });
 
             currentPage = 1;
@@ -780,77 +644,46 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
         function renderPagination() {
             const totalRows = filteredRows.length;
             const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
-
             if (currentPage > totalPages) currentPage = totalPages;
 
             const startIndex = (currentPage - 1) * rowsPerPage;
             const endIndex = Math.min(startIndex + rowsPerPage, totalRows);
 
-            // Hide all rows, then show only slice for current page
             allRows.forEach(row => row.style.display = 'none');
             filteredRows.slice(startIndex, endIndex).forEach(row => row.style.display = '');
 
-            // Update Info text
             if (paginationInfo) {
-                if (totalRows === 0) {
-                    paginationInfo.textContent = 'Showing 0 entries';
-                } else {
-                    paginationInfo.textContent = `Showing ${startIndex + 1} to ${endIndex} of ${totalRows} entries`;
-                }
+                paginationInfo.textContent = totalRows === 0 ? 'Showing 0 entries' : `Showing ${startIndex + 1} to ${endIndex} of ${totalRows} entries`;
             }
 
-            // Build page numbers
             if (!paginationControls) return;
             paginationControls.innerHTML = '';
-
             if (totalPages <= 1) return;
 
-            // Previous Button
             const prevLi = document.createElement('li');
             prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
             prevLi.innerHTML = `<a class="page-link" href="#" aria-label="Previous">&laquo;</a>`;
-            prevLi.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (currentPage > 1) {
-                    currentPage--;
-                    renderPagination();
-                }
-            });
+            prevLi.addEventListener('click', (e) => { e.preventDefault(); if (currentPage > 1) { currentPage--; renderPagination(); } });
             paginationControls.appendChild(prevLi);
 
-            // Numbered Buttons
             for (let i = 1; i <= totalPages; i++) {
                 const li = document.createElement('li');
                 li.className = `page-item ${i === currentPage ? 'active' : ''}`;
                 li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
-                li.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    currentPage = i;
-                    renderPagination();
-                });
+                li.addEventListener('click', (e) => { e.preventDefault(); currentPage = i; renderPagination(); });
                 paginationControls.appendChild(li);
             }
 
-            // Next Button
             const nextLi = document.createElement('li');
             nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
             nextLi.innerHTML = `<a class="page-link" href="#" aria-label="Next">&raquo;</a>`;
-            nextLi.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    renderPagination();
-                }
-            });
+            nextLi.addEventListener('click', (e) => { e.preventDefault(); if (currentPage < totalPages) { currentPage++; renderPagination(); } });
             paginationControls.appendChild(nextLi);
         }
 
-        // Attach Event Listeners
         if (searchInput) searchInput.addEventListener('input', filterRows);
-        if (rankFilter) rankFilter.addEventListener('change', filterRows);
         if (statusFilter) statusFilter.addEventListener('change', filterRows);
 
-        // Initial Run
         filterRows();
     });
 </script>

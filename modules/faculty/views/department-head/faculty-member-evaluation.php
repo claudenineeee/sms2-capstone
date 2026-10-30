@@ -169,6 +169,7 @@ if ($isDeptHead && $userDept !== '') {
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:department)
           AND fp.id != :profile_id
           AND (fp.user_id != :current_user_id OR fp.user_id IS NULL)
+          AND LOWER(TRIM(fp.position)) = :teaching_position
         ORDER BY
             CASE
                 WHEN f.faculty_id IS NULL THEN 2
@@ -188,6 +189,8 @@ if ($isDeptHead && $userDept !== '') {
         'profile_id'        => $evaluatorProfileId,
         'evaluator_id'      => $evaluatorFacultyId ?? 0,
         'evaluator_id_2'    => $evaluatorFacultyId ?? 0,
+        // Only teaching staff can be evaluated (no Dean, Secretary, Monitoring Officer, etc.)
+        'teaching_position' => 'faculty professor',
     ]);
 
     $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);

@@ -23,12 +23,6 @@ if (!$pdo) {
 
 /* ------------------------------------------------------------------
  | 2. Identify the logged-in user's department (self-healing)
- |
- | faculty_profiles.user_id is the canonical link, but that column can
- | be stale after imports/merges. We try:
- |   a) faculty_profiles.user_id = session user_id
- |   b) faculty_profiles.email   = session email  (repairs user_id on hit)
- |   c) faculty.external_user_id = session user_id
  * ------------------------------------------------------------------ */
 $currentUserId = (int) ($_SESSION['user_id'] ?? $_SESSION['id'] ?? 0);
 $sessionEmail  = trim((string) ($_SESSION['user_email'] ?? $_SESSION['email'] ?? ''));
@@ -139,10 +133,6 @@ error_log('[EvalSummary] user_id=' . $currentUserId
 
 /* ------------------------------------------------------------------
  | 3. Fetch Faculty Members from the SAME Department Only
- |
- | We fetch everyone in the department (either by code or by full name),
- | then bridge each profile to its real faculty.faculty_id in a separate
- | query so a NULL join doesn't silently drop rows.
  * ------------------------------------------------------------------ */
 $facultyMembers = [];
 
@@ -154,6 +144,8 @@ if ($deptHeadDept !== '' || $departmentName !== '') {
         ])));
 
         $placeholders = implode(',', array_fill(0, max(1, count($acceptedDepts)), '?'));
+        
+        // ADDED: Exclude administrative roles so only teachers show up
         $stmt = $pdo->prepare("
             SELECT fp.id,
                    fp.faculty_id            AS profile_faculty_no,
@@ -164,6 +156,7 @@ if ($deptHeadDept !== '' || $departmentName !== '') {
                    fp.email
             FROM faculty_profiles fp
             WHERE LOWER(TRIM(fp.designated_department)) IN ($placeholders)
+              AND LOWER(TRIM(fp.position)) NOT IN ('dean', 'department head', 'department secretary', 'faculty secretary', 'attendance monitoring officer')
             ORDER BY fp.last_name ASC, fp.first_name ASC
         ");
         $stmt->execute(count($acceptedDepts) ? $acceptedDepts : ['__none__']);
@@ -438,10 +431,6 @@ require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
 
-<!-- ================= ALL ORIGINAL HTML FROM HERE DOWN ================= -->
-<!-- The entire <style> block, header, cards, faculty list, tabs, tables,
-     and <script> section stay identical to your existing file. -->
-
 <style>
     .custom-scrollbar {
         scrollbar-width: thin;
@@ -691,7 +680,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <?php else: ?>
                             <div class="text-center py-4 text-muted">
                                 <i class="fas fa-user-slash fs-4 mb-2 d-block opacity-50"></i>
-                                <span class="small">No department faculty found.</span>
+                                <span class="small">No teaching faculty found.</span>
                             </div>
                         <?php endif; ?>
                     </div>

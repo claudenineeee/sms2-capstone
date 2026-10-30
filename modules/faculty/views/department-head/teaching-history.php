@@ -52,17 +52,19 @@ if (empty($deptHeadDept)) {
 // 2. Fetch Faculty Members from the SAME Department Only
 $facultyMembers = [];
 
+// MODIFIED: Added condition to only show actual teaching faculty (excluding admin/heads/deans)
 $facultyQuerySql = "
     SELECT fp.id, fp.faculty_id AS profile_faculty_no, fp.first_name, fp.last_name,
            fp.designated_department, fp.position, fp.email,
            f.faculty_id AS real_faculty_id
     FROM faculty_db.faculty_profiles fp
     LEFT JOIN faculty_db.faculty f ON f.faculty_id = fp.id
+    WHERE LOWER(TRIM(fp.position)) NOT IN ('dean', 'department head', 'department secretary', 'faculty secretary', 'attendance monitoring officer')
 ";
 
 if (!empty($deptHeadDept)) {
     $stmt = $pdo->prepare($facultyQuerySql . "
-        WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:dept)
+        AND LOWER(TRIM(fp.designated_department)) = LOWER(:dept)
         ORDER BY fp.last_name ASC
     ");
     $stmt->execute(['dept' => $deptHeadDept]);
@@ -295,7 +297,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <?php else: ?>
                             <div class="text-center py-4 text-muted">
                                 <i class="fas fa-user-slash fs-4 mb-2 d-block opacity-50"></i>
-                                <span class="small">No department faculty found.</span>
+                                <span class="small">No teaching faculty found.</span>
                             </div>
                         <?php endif; ?>
                     </div>
