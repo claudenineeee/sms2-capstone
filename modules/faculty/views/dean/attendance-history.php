@@ -1,8 +1,12 @@
 <?php
 /**
- * SMS 2 - Dean - Attendance History
- * Faculty Professor attendance log, RBAC-scoped to the dean's departments.
- * Same topography as faculty-profile.php / department-overview.php.
+ * SMS 2 - Dean - Attendance History (merged with Attendance Monitoring)
+ *
+ * Two tabs:
+ *   - Attendance History     (daily attendance_records — Present/Late/Absent/Leave)
+ *   - Attendance Monitoring  (class session attendance — from AttendanceModel)
+ *
+ * RBAC: every query scoped to dean's assigned departments.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
@@ -37,29 +41,22 @@ if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof
 }
 
 /* ============================================================
-   LOAD DATA — scoped to dean's departments AND teaching positions
+   LOAD DATA — TAB 1: Attendance History (daily records)
    ============================================================ */
-$allAttendance   = [];
-$facultyRoster   = [];
-$loadError       = null;
+$allAttendance = [];
+$facultyRoster = [];
+$loadError     = null;
 
 if ($hasDeanDepartments && $pdo instanceof PDO) {
     try {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
-        /* ---- Faculty roster (Faculty Professor only) ---- */
         $positionIn = implode(',', array_fill(0, count($teachingPositions), '?'));
         $facStmt = $pdo->prepare("
             SELECT
-                f.faculty_id,
-                f.faculty_no,
-                f.first_name,
-                f.middle_name,
-                f.last_name,
-                f.department_id,
-                f.position,
-                d.code AS dept_code,
-                d.name AS dept_name
+                f.faculty_id, f.faculty_no, f.first_name, f.middle_name, f.last_name,
+                f.department_id, f.position,
+                d.code AS dept_code, d.name AS dept_name
             FROM faculty_db.faculty f
             LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
@@ -73,28 +70,22 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $facultyMap = [];
         foreach ($facultyRoster as $f) {
             $facultyMap[(int) $f['faculty_id']] = [
-                'faculty_id' => (int) $f['faculty_id'],
-                'faculty_no' => $f['faculty_no'] ?? '',
-                'name'       => trim(($f['first_name'] ?? '') . ' ' . ($f['last_name'] ?? '')),
+                'faculty_id'    => (int) $f['faculty_id'],
+                'faculty_no'    => $f['faculty_no'] ?? '',
+                'name'          => trim(($f['first_name'] ?? '') . ' ' . ($f['last_name'] ?? '')),
                 'department_id' => (int) $f['department_id'],
-                'dept_name'  => $f['dept_name'] ?: ($f['dept_code'] ?: '—'),
+                'dept_name'     => $f['dept_name'] ?: ($f['dept_code'] ?: '—'),
             ];
         }
 
-        /* ---- Attendance rows for those faculty (last 12 months) ---- */
         $facultyIds = array_keys($facultyMap);
         if (!empty($facultyIds)) {
             $facultyIdList = implode(',', array_map('intval', $facultyIds));
             $attStmt = $pdo->query("
                 SELECT
-                    a.attendance_id,
-                    a.faculty_id,
-                    a.attendance_date,
-                    a.time_in,
-                    a.time_out,
-                    a.status,
-                    a.hours_rendered,
-                    a.notes,
+                    a.attendance_id, a.faculty_id, a.attendance_date,
+                    a.time_in, a.time_out, a.status,
+                    a.hours_rendered, a.notes,
                     f.department_id
                 FROM faculty_db.attendance_records a
                 INNER JOIN faculty_db.faculty f ON f.faculty_id = a.faculty_id
@@ -106,13 +97,12 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
             $allAttendance = $attStmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        /* Attach faculty info */
         foreach ($allAttendance as &$row) {
             $fid = (int) $row['faculty_id'];
             $f   = $facultyMap[$fid] ?? null;
-            $row['faculty_name']   = $f ? $f['name'] : ('Faculty #' . $fid);
-            $row['faculty_no']     = $f ? $f['faculty_no'] : '';
-            $row['faculty_dept']   = $f ? $f['dept_name'] : '—';
+            $row['faculty_name']   = $f ? $f['name']          : ('Faculty #' . $fid);
+            $row['faculty_no']     = $f ? $f['faculty_no']    : '';
+            $row['faculty_dept']   = $f ? $f['dept_name']     : '—';
             $row['department_id']  = $f ? $f['department_id'] : (int) $row['department_id'];
         }
         unset($row);
@@ -120,6 +110,155 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
     } catch (Throwable $e) {
         error_log('Dean attendance history load failed: ' . $e->getMessage());
         $loadError = 'Some data could not be loaded. Try again later.';
+    }
+}
+
+/* ============================================================
+   LOAD DATA — TAB 2: Attendance Monitoring (class sessions)
+   ============================================================
+   The monitoring tab is derived from the SAME facultyRoster
+   (RBAC-scoped) and reads class_attendance_sessions. We compute
+   per-faculty summaries and three time-window rates.
+   ============================================================ */
+$selectedPeriod = $_GET['period'] ?? '7days';
+$selectedMonth  = $_GET['month']  ?? date('Y-m');
+
+$today      = date('Y-m-d');
+$weekStart  = date('Y-m-d', strtotime('-7 days'));
+$monthStart = $selectedMonth . '-01';
+$monthEnd   = date('Y-m-t', strtotime($monthStart));
+
+$facultySummaries   = [];
+$todayDetailRows    = [];
+$weeklyDetailRows   = [];
+$monthlyDetailRows  = [];
+$summaryMetrics     = [
+    'today_present' => 0, 'today_total' => 0, 'today_percentage' => 0,
+    'weekly_present' => 0, 'weekly_total' => 0, 'weekly_percentage' => 0,
+    'monthly_present' => 0, 'monthly_total' => 0, 'monthly_percentage' => 0,
+];
+
+if ($hasDeanDepartments && $pdo instanceof PDO) {
+    try {
+        $facultyIds    = array_map('intval', array_column($facultyRoster, 'faculty_id'));
+        $facultyIdList = !empty($facultyIds) ? implode(',', $facultyIds) : '0';
+
+        /* Filename map for detail rows */
+        $facultyNameById = [];
+        foreach ($facultyRoster as $fac) {
+            $facultyNameById[(string) $fac['faculty_id']] = trim(($fac['first_name'] ?? '') . ' ' . ($fac['last_name'] ?? ''));
+        }
+
+        /* Bulk load class sessions for the widest range */
+        $fetchStart = min($monthStart, $weekStart, $today);
+        $fetchEnd   = max($monthEnd, $today);
+
+        $sessionStmt = $pdo->prepare("
+            SELECT
+                s.session_id, s.faculty_id, s.subject_id,
+                s.session_date, s.status,
+                sub.code AS subject_code,
+                r.room_code
+            FROM faculty_db.class_attendance_sessions s
+            LEFT JOIN faculty_db.subjects sub ON sub.subject_id = s.subject_id
+            LEFT JOIN faculty_db.rooms r ON r.room_id = s.room_id
+            WHERE s.faculty_id IN ($facultyIdList)
+              AND s.session_date BETWEEN ? AND ?
+            ORDER BY s.session_date DESC
+        ");
+        $sessionStmt->execute([$fetchStart, $fetchEnd]);
+        $allSessions = $sessionStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $sessionsByFaculty = [];
+        foreach ($allSessions as $s) {
+            $sessionsByFaculty[(string) $s['faculty_id']][] = $s;
+        }
+
+        $presentStatuses = ['Present', 'Late'];
+
+        foreach ($allSessions as $log) {
+            $d = $log['session_date'];
+            $isPresent = in_array($log['status'], $presentStatuses, true);
+            if ($d === $today) {
+                $summaryMetrics['today_total']++;
+                if ($isPresent) $summaryMetrics['today_present']++;
+            }
+            if ($d >= $weekStart && $d <= $today) {
+                $summaryMetrics['weekly_total']++;
+                if ($isPresent) $summaryMetrics['weekly_present']++;
+            }
+            if ($d >= $monthStart && $d <= $monthEnd) {
+                $summaryMetrics['monthly_total']++;
+                if ($isPresent) $summaryMetrics['monthly_present']++;
+            }
+        }
+
+        $summaryMetrics['today_percentage']   = $summaryMetrics['today_total']   > 0 ? ($summaryMetrics['today_present']   / $summaryMetrics['today_total'])   * 100 : 0;
+        $summaryMetrics['weekly_percentage']  = $summaryMetrics['weekly_total']  > 0 ? ($summaryMetrics['weekly_present']  / $summaryMetrics['weekly_total'])  * 100 : 0;
+        $summaryMetrics['monthly_percentage'] = $summaryMetrics['monthly_total'] > 0 ? ($summaryMetrics['monthly_present'] / $summaryMetrics['monthly_total']) * 100 : 0;
+
+        /* Per-faculty summary respecting the selected time period */
+        $dateRangeStart = $today;
+        $dateRangeEnd   = $today;
+        if ($selectedPeriod === '7days') {
+            $dateRangeStart = $weekStart;
+        } elseif ($selectedPeriod === 'monthly') {
+            $dateRangeStart = $monthStart;
+            $dateRangeEnd   = $monthEnd;
+        }
+
+        foreach ($facultyRoster as $fac) {
+            $fullName = trim(($fac['first_name'] ?? '') . ' ' . ($fac['last_name'] ?? ''));
+            $logs = array_filter(
+                $sessionsByFaculty[(string) $fac['faculty_id']] ?? [],
+                function ($s) use ($dateRangeStart, $dateRangeEnd) {
+                    return $s['session_date'] >= $dateRangeStart && $s['session_date'] <= $dateRangeEnd;
+                }
+            );
+
+            $present = $late = $absent = 0;
+            foreach ($logs as $log) {
+                if ($log['status'] === 'Present')      $present++;
+                elseif ($log['status'] === 'Late')     $late++;
+                elseif ($log['status'] === 'Absent')   $absent++;
+            }
+            $total = count($logs);
+            $rate  = $total > 0 ? (($present + $late) / $total) * 100 : 0;
+
+            $facultySummaries[] = [
+                'name'          => $fullName,
+                'total_classes' => $total,
+                'present_count' => $present,
+                'late_count'    => $late,
+                'absent_count'  => $absent,
+                'rate'          => $rate,
+            ];
+        }
+
+        /* Detail rows for the three modal windows */
+        $buildDetail = function(array $sessions, $start, $end) use ($facultyNameById) {
+            $rows = [];
+            foreach ($sessions as $s) {
+                if ($s['session_date'] < $start || $s['session_date'] > $end) continue;
+                $rows[] = [
+                    'date'    => $s['session_date'],
+                    'faculty' => $facultyNameById[(string) $s['faculty_id']] ?? 'Unknown',
+                    'subject' => $s['subject_code'] ?? 'N/A',
+                    'room'    => $s['room_code'] ?? 'N/A',
+                    'status'  => $s['status'],
+                ];
+            }
+            usort($rows, fn($a, $b) => strcmp($b['date'], $a['date']));
+            return $rows;
+        };
+
+        $todayDetailRows   = $buildDetail($allSessions, $today,      $today);
+        $weeklyDetailRows  = $buildDetail($allSessions, $weekStart,  $today);
+        $monthlyDetailRows = $buildDetail($allSessions, $monthStart, $monthEnd);
+
+    } catch (Throwable $e) {
+        error_log('Dean attendance monitoring load failed: ' . $e->getMessage());
+        if (!$loadError) $loadError = 'Some monitoring data could not be loaded.';
     }
 }
 
@@ -133,6 +272,9 @@ $breadcrumbs  = [
     ['label' => 'Dean', 'url' => null],
     ['label' => 'Attendance History', 'url' => null],
 ];
+
+$initialTab = strtolower((string) ($_GET['tab'] ?? 'history'));
+if (!in_array($initialTab, ['history', 'monitoring'], true)) $initialTab = 'history';
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
@@ -201,242 +343,480 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
     </div>
 
-    <!-- ================= KPI Cards ================= -->
-    <div class="row g-3 mb-4 no-print">
-        <div class="col-6 col-lg-3">
-            <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
-                <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#0d6efd;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(13,110,253,0.12);color:#0d6efd;">
-                        <i class="fas fa-clipboard-list"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Total Records</h6>
-                        <h4 class="mb-0 fw-bold" style="color:#0d6efd;" id="kpiTotal">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#0d6efd;font-size:0.7rem;">Last 12 months</small>
-                    </div>
-                </div>
-            </section>
-        </div>
-        <div class="col-6 col-lg-3">
-            <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
-                <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#10b981;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(16,185,129,0.14);color:#10b981;">
-                        <i class="fas fa-user-check"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Present</h6>
-                        <h4 class="mb-0 fw-bold" style="color:#10b981;" id="kpiPresent">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#10b981;font-size:0.7rem;">
-                            <span id="kpiPresentPct">0%</span> of total
-                        </small>
-                    </div>
-                </div>
-            </section>
-        </div>
-        <div class="col-6 col-lg-3">
-            <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
-                <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#f59e0b;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(245,158,11,0.14);color:#f59e0b;">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Late</h6>
-                        <h4 class="mb-0 fw-bold" style="color:#f59e0b;" id="kpiLate">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#f59e0b;font-size:0.7rem;">
-                            <span id="kpiLatePct">0%</span> of total
-                        </small>
-                    </div>
-                </div>
-            </section>
-        </div>
-        <div class="col-6 col-lg-3">
-            <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
-                <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#ff4d4d;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(255,77,77,0.14);color:#ff4d4d;">
-                        <i class="fas fa-user-times"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Absent / Leave</h6>
-                        <h4 class="mb-0 fw-bold" style="color:#ff4d4d;" id="kpiAbsentLeave">0</h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#ff4d4d;font-size:0.7rem;">
-                            <span id="kpiAbsentLeavePct">0%</span> of total
-                        </small>
-                    </div>
-                </div>
-            </section>
-        </div>
-    </div>
+    <!-- ================= Tabs ================= -->
+    <ul class="nav nav-tabs mb-3 no-print" id="ahTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $initialTab === 'history' ? 'active' : '' ?>" id="tab-history-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-history" type="button" role="tab">
+                <i class="fas fa-clipboard-list me-1"></i>Attendance History
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?= $initialTab === 'monitoring' ? 'active' : '' ?>" id="tab-monitoring-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-monitoring" type="button" role="tab">
+                <i class="fas fa-user-check me-1"></i>Monitoring
+            </button>
+        </li>
+    </ul>
 
-    <!-- ================= Filters ================= -->
-    <div class="card border shadow-sm mb-4 no-print">
-        <div class="card-body py-3">
-            <div class="row g-3 align-items-end">
-                <?php if (count($deanDepartments) > 1): ?>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_dept">Department</label>
-                    <select class="form-select form-select-sm" id="f_dept" data-filter="dept">
-                        <option value="all">All my departments</option>
-                        <?php foreach ($deanDepartments as $deptId): ?>
-                            <option value="<?= (int) $deptId ?>">
-                                <?= htmlspecialchars($deanDepartmentNames[$deptId] ?? ('Dept #' . $deptId)) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <?php endif; ?>
+    <div class="tab-content" id="ahTabContent">
 
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_sy">School Year</label>
-                    <select class="form-select form-select-sm" id="f_sy" data-filter="sy">
-                        <option value="">All years</option>
-                    </select>
+        <!-- ============================================================
+             TAB 1 — ATTENDANCE HISTORY (unchanged)
+             ============================================================ -->
+        <div class="tab-pane fade <?= $initialTab === 'history' ? 'show active' : '' ?>" id="tab-history" role="tabpanel">
+
+            <div class="row g-3 mb-4 no-print">
+                <div class="col-6 col-lg-3">
+                    <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
+                        <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#0d6efd;z-index:1;"></div>
+                        <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
+                            <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                 style="width:42px;height:42px;font-size:1.2rem;background:rgba(13,110,253,0.12);color:#0d6efd;">
+                                <i class="fas fa-clipboard-list"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h6 class="text-muted mb-1 small text-uppercase fw-bold">Total Records</h6>
+                                <h4 class="mb-0 fw-bold" style="color:#0d6efd;" id="kpiTotal">0</h4>
+                                <small class="fw-semibold d-block mt-1 text-truncate" style="color:#0d6efd;font-size:0.7rem;">Last 12 months</small>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_month">Month</label>
-                    <select class="form-select form-select-sm" id="f_month" data-filter="month">
-                        <option value="">All months</option>
-                        <option value="1">January</option><option value="2">February</option>
-                        <option value="3">March</option><option value="4">April</option>
-                        <option value="5">May</option><option value="6">June</option>
-                        <option value="7">July</option><option value="8">August</option>
-                        <option value="9">September</option><option value="10">October</option>
-                        <option value="11">November</option><option value="12">December</option>
-                    </select>
+                <div class="col-6 col-lg-3">
+                    <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+                        <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#10b981;z-index:1;"></div>
+                        <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
+                            <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                 style="width:42px;height:42px;font-size:1.2rem;background:rgba(16,185,129,0.14);color:#10b981;">
+                                <i class="fas fa-user-check"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h6 class="text-muted mb-1 small text-uppercase fw-bold">Present</h6>
+                                <h4 class="mb-0 fw-bold" style="color:#10b981;" id="kpiPresent">0</h4>
+                                <small class="fw-semibold d-block mt-1 text-truncate" style="color:#10b981;font-size:0.7rem;">
+                                    <span id="kpiPresentPct">0%</span> of total
+                                </small>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_week">Week</label>
-                    <select class="form-select form-select-sm" id="f_week" data-filter="week">
-                        <option value="">All weeks</option>
-                        <option value="1">Week 1 · 1–7</option><option value="2">Week 2 · 8–14</option>
-                        <option value="3">Week 3 · 15–21</option><option value="4">Week 4 · 22–28</option>
-                        <option value="5">Week 5 · 29–31</option>
-                    </select>
+                <div class="col-6 col-lg-3">
+                    <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
+                        <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#f59e0b;z-index:1;"></div>
+                        <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
+                            <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                 style="width:42px;height:42px;font-size:1.2rem;background:rgba(245,158,11,0.14);color:#f59e0b;">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h6 class="text-muted mb-1 small text-uppercase fw-bold">Late</h6>
+                                <h4 class="mb-0 fw-bold" style="color:#f59e0b;" id="kpiLate">0</h4>
+                                <small class="fw-semibold d-block mt-1 text-truncate" style="color:#f59e0b;font-size:0.7rem;">
+                                    <span id="kpiLatePct">0%</span> of total
+                                </small>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_status">Status</label>
-                    <select class="form-select form-select-sm" id="f_status" data-filter="status">
-                        <option value="">All statuses</option>
-                        <option value="Present">Present</option>
-                        <option value="Late">Late</option>
-                        <option value="Absent">Absent</option>
-                        <option value="On Leave">On Leave</option>
-                    </select>
-                </div>
-                <div class="col-6 col-md-3 col-lg-2 ms-lg-auto">
-                    <button type="button" class="btn btn-outline-secondary btn-sm w-100 d-inline-flex align-items-center justify-content-center gap-2" id="resetFilters">
-                        <i class="fas fa-rotate-left"></i><span>Reset</span>
-                    </button>
+                <div class="col-6 col-lg-3">
+                    <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
+                        <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#ff4d4d;z-index:1;"></div>
+                        <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
+                            <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                 style="width:42px;height:42px;font-size:1.2rem;background:rgba(255,77,77,0.14);color:#ff4d4d;">
+                                <i class="fas fa-user-times"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h6 class="text-muted mb-1 small text-uppercase fw-bold">Absent / Leave</h6>
+                                <h4 class="mb-0 fw-bold" style="color:#ff4d4d;" id="kpiAbsentLeave">0</h4>
+                                <small class="fw-semibold d-block mt-1 text-truncate" style="color:#ff4d4d;font-size:0.7rem;">
+                                    <span id="kpiAbsentLeavePct">0%</span> of total
+                                </small>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- ================= Charts ================= -->
-    <div class="row g-3 mb-4 no-print">
-        <!-- Composition doughnut -->
-        <div class="col-12 col-lg-5">
-            <div class="card border shadow-sm h-100">
-                <div class="card-body d-flex flex-column">
-                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                        <h5 class="card-title mb-0 fw-bold">Attendance Composition</h5>
-                        <span class="badge text-bg-light border" id="compositionBadge">0 total</span>
-                    </div>
-                    <div class="position-relative w-100 flex-grow-1" style="min-height:260px;">
-                        <canvas id="compositionChart"></canvas>
-                        <div class="ah-empty d-none" id="compositionEmpty">
-                            <i class="fas fa-chart-pie"></i>
-                            <h6>No attendance yet</h6>
-                            <p>Composition will appear once records exist.</p>
+            <!-- Filters -->
+            <div class="card border shadow-sm mb-4 no-print">
+                <div class="card-body py-3">
+                    <div class="row g-3 align-items-end">
+                        <?php if (count($deanDepartments) > 1): ?>
+                        <div class="col-6 col-md-3 col-lg-2">
+                            <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_dept">Department</label>
+                            <select class="form-select form-select-sm" id="f_dept" data-filter="dept">
+                                <option value="all">All my departments</option>
+                                <?php foreach ($deanDepartments as $deptId): ?>
+                                    <option value="<?= (int) $deptId ?>">
+                                        <?= htmlspecialchars($deanDepartmentNames[$deptId] ?? ('Dept #' . $deptId)) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endif; ?>
+
+                        <div class="col-6 col-md-3 col-lg-2">
+                            <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_sy">School Year</label>
+                            <select class="form-select form-select-sm" id="f_sy" data-filter="sy">
+                                <option value="">All years</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3 col-lg-2">
+                            <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_month">Month</label>
+                            <select class="form-select form-select-sm" id="f_month" data-filter="month">
+                                <option value="">All months</option>
+                                <option value="1">January</option><option value="2">February</option>
+                                <option value="3">March</option><option value="4">April</option>
+                                <option value="5">May</option><option value="6">June</option>
+                                <option value="7">July</option><option value="8">August</option>
+                                <option value="9">September</option><option value="10">October</option>
+                                <option value="11">November</option><option value="12">December</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3 col-lg-2">
+                            <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_week">Week</label>
+                            <select class="form-select form-select-sm" id="f_week" data-filter="week">
+                                <option value="">All weeks</option>
+                                <option value="1">Week 1 · 1–7</option><option value="2">Week 2 · 8–14</option>
+                                <option value="3">Week 3 · 15–21</option><option value="4">Week 4 · 22–28</option>
+                                <option value="5">Week 5 · 29–31</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3 col-lg-2">
+                            <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_status">Status</label>
+                            <select class="form-select form-select-sm" id="f_status" data-filter="status">
+                                <option value="">All statuses</option>
+                                <option value="Present">Present</option>
+                                <option value="Late">Late</option>
+                                <option value="Absent">Absent</option>
+                                <option value="On Leave">On Leave</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3 col-lg-2 ms-lg-auto">
+                            <button type="button" class="btn btn-outline-secondary btn-sm w-100 d-inline-flex align-items-center justify-content-center gap-2" id="resetFilters">
+                                <i class="fas fa-rotate-left"></i><span>Reset</span>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Monthly trend -->
-        <div class="col-12 col-lg-7">
-            <div class="card border shadow-sm h-100">
-                <div class="card-body d-flex flex-column">
-                    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
-                        <h5 class="card-title mb-0 fw-bold">Monthly Attendance</h5>
-                        <span class="badge text-bg-light border" id="trendBadge">0 periods</span>
+            <!-- Charts -->
+            <div class="row g-3 mb-4 no-print">
+                <div class="col-12 col-lg-5">
+                    <div class="card border shadow-sm h-100">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                                <h5 class="card-title mb-0 fw-bold">Attendance Composition</h5>
+                                <span class="badge text-bg-light border" id="compositionBadge">0 total</span>
+                            </div>
+                            <div class="position-relative w-100 flex-grow-1" style="min-height:260px;">
+                                <canvas id="compositionChart"></canvas>
+                                <div class="ah-empty d-none" id="compositionEmpty">
+                                    <i class="fas fa-chart-pie"></i>
+                                    <h6>No attendance yet</h6>
+                                    <p>Composition will appear once records exist.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="position-relative w-100 flex-grow-1" style="min-height:260px;">
-                        <canvas id="trendChart"></canvas>
-                        <div class="ah-empty d-none" id="trendEmpty">
-                            <i class="fas fa-chart-line"></i>
-                            <h6>No trend data yet</h6>
-                            <p>Monthly trends will show here.</p>
+                </div>
+
+                <div class="col-12 col-lg-7">
+                    <div class="card border shadow-sm h-100">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                                <h5 class="card-title mb-0 fw-bold">Monthly Attendance</h5>
+                                <span class="badge text-bg-light border" id="trendBadge">0 periods</span>
+                            </div>
+                            <div class="position-relative w-100 flex-grow-1" style="min-height:260px;">
+                                <canvas id="trendChart"></canvas>
+                                <div class="ah-empty d-none" id="trendEmpty">
+                                    <i class="fas fa-chart-line"></i>
+                                    <h6>No trend data yet</h6>
+                                    <p>Monthly trends will show here.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- ================= Records Table ================= -->
-    <div class="card border shadow-sm overflow-hidden">
-        <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-start flex-wrap gap-3 py-3 no-print">
-            <div>
-                <h5 class="card-title mb-1 fw-bold">Attendance Records</h5>
-                <p class="text-body-secondary small mb-0" id="tableSubtitle">Loading…</p>
+            <!-- Records Table -->
+            <div class="card border shadow-sm overflow-hidden">
+                <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-start flex-wrap gap-3 py-3 no-print">
+                    <div>
+                        <h5 class="card-title mb-1 fw-bold">Attendance Records</h5>
+                        <p class="text-body-secondary small mb-0" id="tableSubtitle">Loading…</p>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0 ah-table" style="min-width: 780px;">
+                        <thead>
+                            <tr>
+                                <th class="text-uppercase small fw-bold text-body-secondary">Date</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary">Faculty</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-md-table-cell">Department</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary">Status</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-sm-table-cell">Time In</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-sm-table-cell">Time Out</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-lg-table-cell text-center">Hours</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary d-none d-lg-table-cell">Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="card-footer bg-transparent border-top d-flex justify-content-between align-items-center flex-wrap gap-3 py-3 no-print">
+                    <div class="small text-body-secondary" id="pagerInfo">Showing 0 of 0</div>
+                    <nav aria-label="Attendance pagination">
+                        <ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap gap-1" id="pager"></ul>
+                    </nav>
+                </div>
             </div>
-            <div class="d-flex flex-wrap gap-3 align-items-center">
-                <span class="d-inline-flex align-items-center gap-2 small fw-semibold text-body-secondary">
-                    <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:#10b981;"></span>Present
-                </span>
-                <span class="d-inline-flex align-items-center gap-2 small fw-semibold text-body-secondary">
-                    <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:#f59e0b;"></span>Late
-                </span>
-                <span class="d-inline-flex align-items-center gap-2 small fw-semibold text-body-secondary">
-                    <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:#ef4444;"></span>Absent
-                </span>
-                <span class="d-inline-flex align-items-center gap-2 small fw-semibold text-body-secondary">
-                    <span class="d-inline-block rounded-circle" style="width:8px;height:8px;background:#0284c7;"></span>On Leave
-                </span>
+        </div>
+
+        <!-- ============================================================
+             TAB 2 — ATTENDANCE MONITORING (class sessions)
+             ============================================================ -->
+        <div class="tab-pane fade <?= $initialTab === 'monitoring' ? 'show active' : '' ?>" id="tab-monitoring" role="tabpanel">
+
+            <!-- Time-window cards -->
+            <div class="row g-3 mb-4 no-print">
+                <div class="col-12 col-md-4">
+                    <section class="card stat-card info border shadow-sm position-relative h-100">
+                        <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#0d6efd;z-index:1;"></div>
+                        <div class="card-body d-flex align-items-center ps-4">
+                            <div class="stat-icon me-3 fs-4" style="color:#0d6efd;">
+                                <i class="fas fa-calendar-day"></i>
+                            </div>
+                            <div>
+                                <h6 class="text-muted mb-0 small text-uppercase fw-bold">Today's Rate</h6>
+                                <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'] ?? 0, 1) ?>%</h4>
+                                <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
+                                    <?= $summaryMetrics['today_present'] ?? 0 ?> Present / <?= $summaryMetrics['today_total'] ?? 0 ?> Scheduled
+                                </small>
+                            </div>
+                        </div>
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#todayDetailsModal"
+                           class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                           style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                            <i class="fas fa-arrow-up-right-from-square"></i>
+                        </a>
+                    </section>
+                </div>
+                <div class="col-12 col-md-4">
+                    <section class="card stat-card info border shadow-sm position-relative h-100">
+                        <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#0dcaf0;z-index:1;"></div>
+                        <div class="card-body d-flex align-items-center ps-4">
+                            <div class="stat-icon me-3 fs-4" style="color:#0dcaf0;">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <div>
+                                <h6 class="text-muted mb-0 small text-uppercase fw-bold">7-Day Average</h6>
+                                <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'] ?? 0, 1) ?>%</h4>
+                                <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
+                                    <?= $summaryMetrics['weekly_present'] ?? 0 ?> Present / <?= $summaryMetrics['weekly_total'] ?? 0 ?> Total Classes
+                                </small>
+                            </div>
+                        </div>
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#weeklyDetailsModal"
+                           class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                           style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                            <i class="fas fa-arrow-up-right-from-square"></i>
+                        </a>
+                    </section>
+                </div>
+                <div class="col-12 col-md-4">
+                    <section class="card stat-card success border shadow-sm position-relative h-100">
+                        <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#10b981;z-index:1;"></div>
+                        <div class="card-body d-flex align-items-center ps-4">
+                            <div class="stat-icon me-3 fs-4" style="color:#10b981;">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <div>
+                                <h6 class="text-muted mb-0 small text-uppercase fw-bold">Monthly Rate (<?= date('M Y', strtotime($selectedMonth)) ?>)</h6>
+                                <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'] ?? 0, 1) ?>%</h4>
+                                <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
+                                    <?= $summaryMetrics['monthly_present'] ?? 0 ?> Present / <?= $summaryMetrics['monthly_total'] ?? 0 ?> Total Classes
+                                </small>
+                            </div>
+                        </div>
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#monthlyDetailsModal"
+                           class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle"
+                           style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details">
+                            <i class="fas fa-arrow-up-right-from-square"></i>
+                        </a>
+                    </section>
+                </div>
             </div>
-        </div>
 
-        <div class="table-responsive">
-            <table class="table align-middle mb-0 ah-table" style="min-width: 780px;">
-                <thead>
-                    <tr>
-                        <th class="text-uppercase small fw-bold text-body-secondary">Date</th>
-                        <th class="text-uppercase small fw-bold text-body-secondary">Faculty</th>
-                        <th class="text-uppercase small fw-bold text-body-secondary d-none d-md-table-cell">Department</th>
-                        <th class="text-uppercase small fw-bold text-body-secondary">Status</th>
-                        <th class="text-uppercase small fw-bold text-body-secondary d-none d-sm-table-cell">Time In</th>
-                        <th class="text-uppercase small fw-bold text-body-secondary d-none d-sm-table-cell">Time Out</th>
-                        <th class="text-uppercase small fw-bold text-body-secondary d-none d-lg-table-cell text-center">Hours</th>
-                        <th class="text-uppercase small fw-bold text-body-secondary d-none d-lg-table-cell">Notes</th>
-                    </tr>
-                </thead>
-                <tbody id="attendanceBody"></tbody>
-            </table>
-        </div>
+            <!-- Filter bar -->
+            <div class="card border shadow-sm mb-4 no-print">
+                <div class="card-body py-3">
+                    <form method="GET" action="" class="row g-3 align-items-end">
+                        <input type="hidden" name="tab" value="monitoring">
+                        <div class="col-6 col-md-4 col-lg-3">
+                            <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="period">Time Period</label>
+                            <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="today"   <?= $selectedPeriod === 'today'   ? 'selected' : '' ?>>Today</option>
+                                <option value="7days"   <?= $selectedPeriod === '7days'   ? 'selected' : '' ?>>Past Week (7 Days)</option>
+                                <option value="monthly" <?= $selectedPeriod === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-4 col-lg-3">
+                            <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="month">Select Month</label>
+                            <input type="month" name="month" id="month" class="form-control form-control-sm" value="<?= htmlspecialchars($selectedMonth) ?>">
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="fas fa-filter me-1"></i>Apply
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
-        <div class="card-footer bg-transparent border-top d-flex justify-content-between align-items-center flex-wrap gap-3 py-3 no-print">
-            <div class="small text-body-secondary" id="pagerInfo">Showing 0 of 0</div>
-            <nav aria-label="Attendance pagination">
-                <ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap gap-1" id="pager"></ul>
-            </nav>
+            <!-- Faculty Attendance Breakdown -->
+            <div class="card border shadow-sm">
+                <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center py-3">
+                    <h5 class="card-title mb-0 fw-bold">Faculty Attendance Breakdown</h5>
+                    <span class="badge text-bg-light border"><?= count($facultySummaries) ?> Faculty</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0 ah-table" style="min-width: 720px;">
+                        <thead>
+                            <tr>
+                                <th class="text-uppercase small fw-bold text-body-secondary ps-3">Faculty Name</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary text-center">Classes</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary text-center">Present</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary text-center">Late</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary text-center">Absent</th>
+                                <th class="text-uppercase small fw-bold text-body-secondary pe-3" style="min-width: 160px;">Attendance Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($facultySummaries)): ?>
+                                <?php foreach ($facultySummaries as $row): ?>
+                                    <tr>
+                                        <td class="ps-3 fw-semibold ah-privacy-target"><?= htmlspecialchars($row['name']) ?></td>
+                                        <td class="text-center"><?= $row['total_classes'] ?></td>
+                                        <td class="text-center"><span class="text-success fw-bold"><?= $row['present_count'] ?></span></td>
+                                        <td class="text-center"><span class="text-warning fw-bold"><?= $row['late_count'] ?></span></td>
+                                        <td class="text-center"><span class="text-danger fw-bold"><?= $row['absent_count'] ?></span></td>
+                                        <td class="pe-3">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="progress flex-grow-1" style="height: 6px; min-width: 80px;">
+                                                    <div class="progress-bar <?= $row['rate'] >= 85 ? 'bg-success' : ($row['rate'] >= 70 ? 'bg-warning' : 'bg-danger') ?>"
+                                                         style="width: <?= $row['rate'] ?>%"></div>
+                                                </div>
+                                                <span class="small fw-bold"><?= number_format($row['rate'], 1) ?>%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="6" class="text-center text-body-secondary py-5">
+                                        <i class="fas fa-inbox d-block mb-2" style="font-size:2rem;opacity:0.4;"></i>
+                                        No attendance logs found for this period.
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<!-- Detail modals for monitoring tab -->
+<?php
+if (!function_exists('renderAttendanceDetailModal')) {
+    function renderAttendanceDetailModal($id, $title, array $rows) { ?>
+        <div class="modal fade" id="<?= $id ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold"><?= htmlspecialchars($title) ?></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">Date</th>
+                                        <th>Faculty</th>
+                                        <th>Subject</th>
+                                        <th>Room</th>
+                                        <th class="pe-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (empty($rows)): ?>
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">
+                                                <i class="fas fa-inbox d-block mb-2"></i>
+                                                No sessions recorded for this period.
+                                            </td>
+                                        </tr>
+                                    <?php else: ?>
+                                        <?php foreach ($rows as $r): ?>
+                                            <?php
+                                                $badge = $r['status'] === 'Present' ? 'bg-success-subtle text-success'
+                                                       : ($r['status'] === 'Late' ? 'bg-warning-subtle text-warning'
+                                                       : 'bg-danger-subtle text-danger');
+                                            ?>
+                                            <tr>
+                                                <td class="ps-3"><?= htmlspecialchars($r['date']) ?></td>
+                                                <td class="fw-semibold ah-privacy-target"><?= htmlspecialchars($r['faculty']) ?></td>
+                                                <td><?= htmlspecialchars($r['subject']) ?></td>
+                                                <td><?= htmlspecialchars($r['room']) ?></td>
+                                                <td class="pe-3"><span class="badge <?= $badge ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php }
+}
+renderAttendanceDetailModal('todayDetailsModal',   "Today's Attendance — " . date('M j, Y'), $todayDetailRows);
+renderAttendanceDetailModal('weeklyDetailsModal',  '7-Day Attendance (' . date('M j', strtotime($weekStart)) . ' – ' . date('M j, Y', strtotime($today)) . ')', $weeklyDetailRows);
+renderAttendanceDetailModal('monthlyDetailsModal', 'Monthly Attendance — ' . date('M Y', strtotime($selectedMonth)), $monthlyDetailRows);
+?>
 
 <!-- Print-only report -->
 <div class="ah-print-only" id="printReport" aria-hidden="true"></div>
 
 <style>
-    /* Empty states */
+    #ahTabs { border-bottom: 1px solid var(--sms-border-soft); }
+    #ahTabs .nav-link {
+        color: var(--sms-text-muted);
+        font-weight: 600;
+        font-size: 0.85rem;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 0.6rem 1rem;
+        background: transparent;
+    }
+    #ahTabs .nav-link:hover { color: var(--sms-heading); }
+    #ahTabs .nav-link.active {
+        color: #0d6efd;
+        background: transparent;
+        border-bottom-color: #0d6efd;
+    }
+
     .ah-empty {
         position: absolute; inset: 1rem;
         display: flex; flex-direction: column;
@@ -448,13 +828,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     .ah-empty h6 { font-weight: 700; color: var(--sms-heading); margin-bottom: 0.2rem; font-size: 0.9rem; }
     .ah-empty p { font-size: 0.78rem; color: var(--sms-text-muted); margin: 0; max-width: 240px; }
 
-    /* Table */
     .ah-table thead th { white-space: nowrap; background: var(--sms-table-head-bg); }
     .ah-table tbody tr:hover td { background: var(--sms-dropdown-hover); }
     .ah-table tbody td { padding: 0.7rem 0.75rem; font-size: 0.85rem; vertical-align: middle; }
     .ah-table thead th { padding: 0.65rem 0.75rem; font-size: 0.7rem; }
 
-    /* Status badges */
     .ah-badge {
         display: inline-flex; align-items: center; gap: 0.3rem;
         padding: 0.25rem 0.65rem;
@@ -476,14 +854,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     [data-theme="dark"] .ah-badge--absent  { color: #fca5a5; }
     [data-theme="dark"] .ah-badge--leave   { color: #7dd3fc; }
 
-    /* Privacy blur */
     .privacy-mode .ah-privacy-target {
         filter: blur(5px); -webkit-filter: blur(5px);
         user-select: none; transition: filter 0.15s ease;
     }
     .privacy-mode .ah-privacy-target:hover { filter: blur(0); -webkit-filter: blur(0); }
 
-    /* Responsive */
     @media (max-width: 400px) {
         #ahPage { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
         #ahPage h1.h4 { font-size: 1.15rem; }
@@ -502,7 +878,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         .ah-table thead th { font-size: 0.68rem; padding: 0.45rem 0.3rem; }
     }
 
-    /* Print */
     .ah-print-only { display: none; }
     @media print {
         body { background: #fff !important; color: #000 !important; margin: 0; padding: 0; }
@@ -569,7 +944,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 (function () {
     'use strict';
 
-    /* Server-injected data (already RBAC scoped + position filtered) */
     const ATTENDANCE = <?= json_encode($allAttendance, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const DEPT_NAMES = <?= json_encode($deanDepartmentNames, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
@@ -582,9 +956,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     let compositionChart = null;
     let trendChart = null;
 
-    /* ============================================================
-       Helpers
-       ============================================================ */
     function parseDate(str) {
         if (!str) return null;
         const m = String(str).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -631,13 +1002,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         return String(row.department_id) === String(filters.dept);
     }
 
-    /* ============================================================
-       Apply filters
-       ============================================================ */
     function applyFilters() {
         return ATTENDANCE.filter(r => {
             if (!deptMatches(r)) return false;
-
             const d = parseDate(r.attendance_date);
             if (!d) return false;
 
@@ -658,14 +1025,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 if (!ok) return false;
             }
             if (filters.status && r.status !== filters.status) return false;
-
             return true;
         });
     }
 
-    /* ============================================================
-       KPIs
-       ============================================================ */
     function renderKPIs(rows) {
         const total = rows.length;
         const present = rows.filter(r => r.status === 'Present').length;
@@ -683,9 +1046,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         document.getElementById('kpiAbsentLeavePct').textContent = pct(absentLeave);
     }
 
-    /* ============================================================
-       Charts — theme aware
-       ============================================================ */
     function chartColors() {
         const cs = getComputedStyle(document.documentElement);
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
@@ -757,7 +1117,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         if (typeof Chart === 'undefined') return;
         const c = chartColors();
 
-        // Group by month, split by status
         const monthMap = {};
         rows.forEach(r => {
             const d = parseDate(r.attendance_date);
@@ -819,9 +1178,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         });
     }
 
-    /* ============================================================
-       Table
-       ============================================================ */
     function renderTable(rows) {
         const tbody = document.getElementById('attendanceBody');
         const total = rows.length;
@@ -898,9 +1254,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         });
     }
 
-    /* ============================================================
-       Print
-       ============================================================ */
     function renderPrintReport(rows) {
         const host = document.getElementById('printReport');
         if (!host) return;
@@ -913,17 +1266,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const present = rows.filter(r => r.status === 'Present').length;
         const late = rows.filter(r => r.status === 'Late').length;
         const absentLeave = rows.filter(r => r.status === 'Absent' || r.status === 'On Leave').length;
-
-        const filterParts = [];
-        if (filters.dept !== 'all') filterParts.push('Department: ' + (DEPT_NAMES[filters.dept] || ('Dept #' + filters.dept)));
-        if (filters.sy) filterParts.push('School Year: ' + filters.sy);
-        if (filters.month) {
-            const mn = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-            filterParts.push('Month: ' + mn[+filters.month - 1]);
-        }
-        if (filters.week) filterParts.push('Week: ' + filters.week);
-        if (filters.status) filterParts.push('Status: ' + filters.status);
-        const filterLine = filterParts.length ? 'Filters — ' + filterParts.join(' · ') : 'No filters applied';
 
         const bodyRows = rows.map(r =>
             '<tr>' +
@@ -942,24 +1284,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <h3>Attendance History Report</h3>
                 <p class="print-meta">Generated ${escapeHtml(generatedAt)}</p>
             </div>
-            <p class="print-filters">${escapeHtml(filterLine)}</p>
             <div class="print-kpis">
-                <div class="print-kpi">
-                    <div class="print-kpi-label">Total</div>
-                    <div class="print-kpi-value">${total}</div>
-                </div>
-                <div class="print-kpi">
-                    <div class="print-kpi-label">Present</div>
-                    <div class="print-kpi-value">${present}</div>
-                </div>
-                <div class="print-kpi">
-                    <div class="print-kpi-label">Late</div>
-                    <div class="print-kpi-value">${late}</div>
-                </div>
-                <div class="print-kpi">
-                    <div class="print-kpi-label">Absent / Leave</div>
-                    <div class="print-kpi-value">${absentLeave}</div>
-                </div>
+                <div class="print-kpi"><div class="print-kpi-label">Total</div><div class="print-kpi-value">${total}</div></div>
+                <div class="print-kpi"><div class="print-kpi-label">Present</div><div class="print-kpi-value">${present}</div></div>
+                <div class="print-kpi"><div class="print-kpi-label">Late</div><div class="print-kpi-value">${late}</div></div>
+                <div class="print-kpi"><div class="print-kpi-label">Absent / Leave</div><div class="print-kpi-value">${absentLeave}</div></div>
             </div>
             <table>
                 <thead>
@@ -975,21 +1304,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>`;
     }
 
-    /* ============================================================
-       CSV
-       ============================================================ */
     function exportCsv(rows) {
         const headers = ['Date', 'Faculty', 'Faculty No', 'Department', 'Status', 'Time In', 'Time Out', 'Hours', 'Notes'];
         const lines = rows.map(r => [
-            r.attendance_date,
-            r.faculty_name || '',
-            r.faculty_no || '',
-            r.faculty_dept || '',
-            r.status,
-            r.time_in || '',
-            r.time_out || '',
-            r.hours_rendered != null ? r.hours_rendered : '',
-            r.notes || ''
+            r.attendance_date, r.faculty_name || '', r.faculty_no || '', r.faculty_dept || '',
+            r.status, r.time_in || '', r.time_out || '',
+            r.hours_rendered != null ? r.hours_rendered : '', r.notes || ''
         ]);
 
         let csv = '\uFEFF' + headers.join(',') + '\n';
@@ -1007,9 +1327,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         URL.revokeObjectURL(link.href);
     }
 
-    /* ============================================================
-       Populate year filter
-       ============================================================ */
     function populateYearFilter() {
         const years = new Set();
         ATTENDANCE.forEach(r => {
@@ -1028,9 +1345,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         });
     }
 
-    /* ============================================================
-       Render
-       ============================================================ */
     function render() {
         filteredData = applyFilters();
         currentPage = 1;
@@ -1052,18 +1366,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     function resetAllFilters() {
         filters = { dept: 'all', sy: '', month: '', week: '', status: '' };
-        document.querySelectorAll('#ahPage [data-filter]').forEach(el => {
-            el.value = '';
-        });
-        // department defaults to "all" if present
+        document.querySelectorAll('#ahPage [data-filter]').forEach(el => { el.value = ''; });
         const deptSel = document.getElementById('f_dept');
         if (deptSel) deptSel.value = 'all';
         render();
     }
 
-    /* ============================================================
-       Init
-       ============================================================ */
     function init() {
         populateYearFilter();
         bindFilters();

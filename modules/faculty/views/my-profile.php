@@ -46,6 +46,9 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
 ?>
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 
+<!-- Toast Container (Bottom Right) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="profileToastContainer" style="z-index: 1090;"></div>
+
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <?php if (!$profile): ?>
@@ -65,19 +68,17 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
         </h4>
         <p class="text-body-secondary small mb-0">View and update your personal, academic, and contact details</p>
     </div>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 profile-actions">
         <button class="btn btn-primary rounded-pill px-3 fw-medium d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#editProfileModal">
             <i class="fas fa-user-edit"></i>
-            <span>Edit Profile</span>
+            <span class="d-none d-sm-inline">Edit Profile</span>
         </button>
         <button class="btn btn-outline-warning rounded-pill px-3 fw-medium d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
             <i class="fas fa-key"></i>
-            <span>Change Password</span>
+            <span class="d-none d-sm-inline">Change Password</span>
         </button>
     </div>
 </div>
-
-<div id="profileAlert" class="alert d-none rounded-3" role="alert"></div>
 
 <!-- Primary Profile Overview -->
 <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden bg-body-tertiary text-body">
@@ -90,9 +91,9 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
                     </div>
                     <span class="position-absolute bottom-0 end-0 p-2 bg-success border border-2 border-white rounded-circle" title="Active Account"></span>
                 </div>
-                <h4 class="fw-bold mb-1"><?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?></h4>
+                <h4 class="fw-bold mb-1" id="display-fullname"><?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?></h4>
                 <p class="text-body-secondary small mb-2 fw-medium"><?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?></p>
-                <div class="d-flex justify-content-center gap-2 mb-2">
+                <div class="d-flex justify-content-center gap-2 mb-2 flex-wrap">
                     <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2">
                         <i class="fas fa-check-circle me-1"></i><?= htmlspecialchars(ucfirst($profileStatus), ENT_QUOTES, 'UTF-8') ?>
                     </span>
@@ -113,13 +114,13 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
                     <div class="col-sm-6">
                         <div class="p-3 rounded-3 bg-body border border-light-subtle">
                             <span class="text-body-secondary small d-block mb-1"><i class="fas fa-envelope text-primary me-2"></i>Email Address</span>
-                            <span class="fw-semibold"><?= htmlspecialchars((string) $email, ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="fw-semibold" id="display-email"><?= htmlspecialchars((string) $email, ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-sm-6">
                         <div class="p-3 rounded-3 bg-body border border-light-subtle">
                             <span class="text-body-secondary small d-block mb-1"><i class="fas fa-phone text-primary me-2"></i>Contact Number</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($phone ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="fw-semibold" id="display-phone"><?= htmlspecialchars($phone ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                     <div class="col-sm-6">
@@ -137,7 +138,7 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
                     <div class="col-sm-6">
                         <div class="p-3 rounded-3 bg-body border border-light-subtle">
                             <span class="text-body-secondary small d-block mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>Address</span>
-                            <span class="fw-semibold text-truncate d-block"><?= htmlspecialchars($address ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="fw-semibold text-truncate d-block" id="display-address"><?= htmlspecialchars($address ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                 </div>
@@ -145,77 +146,6 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
         </div>
     </div>
 </div>
-
-<!-- Academic & Emergency Information Grid (Commented Out) -->
-<!--
-<div class="row g-4 mb-4">
-    <div class="col-lg-6">
-        <div class="card border-0 shadow-sm rounded-4 h-100 bg-body-tertiary text-body">
-            <div class="card-header bg-transparent border-bottom border-light-subtle py-3 px-4">
-                <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
-                    <i class="fas fa-graduation-cap text-primary fs-5"></i>
-                    Academic Profile
-                </h6>
-            </div>
-            <div class="card-body p-4">
-                <div class="row g-3">
-                    <div class="col-12">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Highest Educational Attainment</span>
-                            <h6 class="fw-bold mb-0"><?= htmlspecialchars($educationAttainment ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></h6>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Field of Specialization</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($specialization ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Date Hired</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($hiredDate ?: 'N/A', ENT_QUOTES, 'UTF-8') ?></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card border-0 shadow-sm rounded-4 h-100 bg-body-tertiary text-body">
-            <div class="card-header bg-transparent border-bottom border-light-subtle py-3 px-4">
-                <h6 class="mb-0 fw-semibold d-flex align-items-center gap-2">
-                    <i class="fas fa-phone-alt text-danger fs-5"></i>
-                    Emergency Contact
-                </h6>
-            </div>
-            <div class="card-body p-4">
-                <div class="row g-3">
-                    <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Contact Person</span>
-                            <h6 class="fw-bold mb-0"><?= htmlspecialchars($emergencyName ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></h6>
-                        </div>
-                    </div>
-                    <div class="col-sm-6">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Relationship</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($emergencyRelationship ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="p-3 rounded-3 bg-body">
-                            <span class="text-body-secondary small d-block mb-1">Emergency Phone</span>
-                            <span class="fw-semibold"><?= htmlspecialchars($emergencyPhone ?: 'Not set', ENT_QUOTES, 'UTF-8') ?></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
--->
 
 <!-- Edit Profile Modal -->
 <div class="modal fade" id="editProfileModal" tabindex="-1" aria-hidden="true">
@@ -238,15 +168,15 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold text-secondary">Contact Number</label>
-                            <input type="text" name="phone" class="form-control rounded-3" value="<?= htmlspecialchars($phone, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="text" name="phone" id="input-phone" class="form-control rounded-3" value="<?= htmlspecialchars($phone, ENT_QUOTES, 'UTF-8') ?>">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold text-secondary">Email Address</label>
-                            <input type="email" name="email" class="form-control rounded-3" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>" required>
+                            <input type="email" name="email" id="input-email" class="form-control rounded-3" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>" required>
                         </div>
                         <div class="col-12">
                             <label class="form-label small fw-semibold text-secondary">Address</label>
-                            <textarea name="address" class="form-control rounded-3" rows="2"><?= htmlspecialchars($address, ENT_QUOTES, 'UTF-8') ?></textarea>
+                            <textarea name="address" id="input-address" class="form-control rounded-3" rows="2"><?= htmlspecialchars($address, ENT_QUOTES, 'UTF-8') ?></textarea>
                         </div>
                         <hr class="my-2 border-light-subtle">
                         <div class="col-md-4">
@@ -286,17 +216,35 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
             <div class="modal-body p-4">
                 <form id="changePasswordForm">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
+                    
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-secondary">Current Password</label>
-                        <input type="password" name="current_password" class="form-control rounded-3" placeholder="Enter current password..." required>
+                        <div class="position-relative">
+                            <input type="password" name="current_password" class="form-control rounded-3 pe-5" placeholder="Enter current password..." required>
+                            <button type="button" class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted toggle-password" style="z-index: 5; text-decoration: none;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-secondary">New Password</label>
-                        <input type="password" name="new_password" class="form-control rounded-3" placeholder="Enter new password..." required>
+                        <div class="position-relative">
+                            <input type="password" name="new_password" class="form-control rounded-3 pe-5" placeholder="Enter new password..." required>
+                            <button type="button" class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted toggle-password" style="z-index: 5; text-decoration: none;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-secondary">Confirm New Password</label>
-                        <input type="password" name="confirm_password" class="form-control rounded-3" placeholder="Confirm new password..." required>
+                        <div class="position-relative">
+                            <input type="password" name="confirm_password" class="form-control rounded-3 pe-5" placeholder="Confirm new password..." required>
+                            <button type="button" class="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted toggle-password" style="z-index: 5; text-decoration: none;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -308,65 +256,188 @@ $emergencyRelationship = $profile['emergency_relationship'] ?? '';
     </div>
 </div>
 
+<style>
+    /* 344px Responsive Fixes */
+    @media (max-width: 400px) {
+        #page-content, .container-fluid { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+        h4.fw-bold { font-size: 1.15rem !important; }
+        .profile-actions .btn { padding: 0.4rem 0.65rem !important; font-size: 0.78rem; }
+        .card-body.p-4 { padding: 1rem !important; }
+        .bg-primary.bg-opacity-10.rounded-circle { width: 80px !important; height: 80px !important; }
+        .bg-primary.bg-opacity-10.rounded-circle i { font-size: 2.5rem !important; }
+        .badge { font-size: 0.65rem; padding: 0.25rem 0.5rem !important; }
+        .p-3.rounded-3.bg-body { padding: 0.6rem !important; }
+        .modal-body.p-4 { padding: 1rem !important; }
+        .modal-footer { padding: 0.75rem 1rem !important; }
+        .modal-footer .btn { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+    }
+</style>
+
 <script>
-function showProfileAlert(message, type) {
-    const el = document.getElementById('profileAlert');
-    el.textContent = message;
-    el.className = 'alert alert-' + type + ' rounded-3';
-    el.classList.remove('d-none');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+// ---------------------------------------------------------
+// Toast Notification System (Bottom Right)
+// ---------------------------------------------------------
+function showProfileToast(message, type = 'success') {
+    const container = document.getElementById('profileToastContainer');
+    const icon = type === 'success' ? 'fa-check-circle' : (type === 'danger' ? 'fa-exclamation-circle' : 'fa-info-circle');
+    const bgClass = type === 'success' ? 'bg-success' : (type === 'danger' ? 'bg-danger' : 'bg-primary');
+    
+    const toastEl = document.createElement('div');
+    toastEl.className = `toast align-items-center text-white ${bgClass} border-0 shadow`;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    
+    toastEl.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2 fw-medium">
+                <i class="fas ${icon}"></i>
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    container.appendChild(toastEl);
+    const bsToast = new bootstrap.Toast(toastEl, { delay: 4000 });
+    bsToast.show();
+    
+    toastEl.addEventListener('hidden.bs.toast', () => {
+        toastEl.remove();
+    });
 }
 
+// ---------------------------------------------------------
+// Save Profile (AJAX without reload)
+// ---------------------------------------------------------
 document.getElementById('saveProfileBtn')?.addEventListener('click', async function () {
     const form = document.getElementById('editProfileForm');
     const formData = new FormData(form);
     const btn = this;
+    const originalText = btn.innerHTML;
+    
     btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
 
     try {
         const res = await fetch('<?= BASE_URL ?>/modules/faculty/includes/save-my-profile.php', {
             method: 'POST',
             body: formData,
         });
-        const json = await res.json();
-        if (!json.ok) {
-            showProfileAlert(json.error || 'Could not save changes', 'danger');
+        
+        // 1. Get the raw text first
+        const text = await res.text();
+        let json;
+        
+        // 2. Try to parse it safely
+        try {
+            json = JSON.parse(text);
+        } catch (e) {
+            console.error("PHP returned invalid JSON. Here is what it returned:", text);
+            showProfileToast('Server error. Check the console for details.', 'danger');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
             return;
         }
+        
+        if (!json.ok) {
+            showProfileToast(json.error || 'Could not save changes', 'danger');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            return;
+        }
+
+        // Update the UI dynamically without a page reload
+        const newEmail = document.getElementById('input-email').value;
+        const newPhone = document.getElementById('input-phone').value;
+        const newAddress = document.getElementById('input-address').value;
+
+        document.getElementById('display-email').textContent = newEmail || 'N/A';
+        document.getElementById('display-phone').textContent = newPhone || 'N/A';
+        document.getElementById('display-address').textContent = newAddress || 'Not set';
+
+        // Hide modal & show toast
         bootstrap.Modal.getInstance(document.getElementById('editProfileModal'))?.hide();
-        showProfileAlert('Profile updated successfully.' + (json.email_changed ? ' Your login email was also updated.' : ''), 'success');
-        setTimeout(() => window.location.reload(), 1200);
-    } catch (err) {
-        showProfileAlert('Something went wrong. Please try again.', 'danger');
-    } finally {
+        showProfileToast('Profile updated successfully.' + (json.email_changed ? ' Login email updated.' : ''), 'success');
+        
+        // Reset button
         btn.disabled = false;
+        btn.innerHTML = originalText;
+        
+    } catch (err) {
+        console.error(err);
+        showProfileToast('Network error. Please try again.', 'danger');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 });
 
+// ---------------------------------------------------------
+// Change Password (AJAX without reload)
+// ---------------------------------------------------------
 document.getElementById('savePasswordBtn')?.addEventListener('click', async function () {
     const form = document.getElementById('changePasswordForm');
     const formData = new FormData(form);
     const btn = this;
+    const originalText = btn.innerHTML;
+
     btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Updating...';
 
     try {
         const res = await fetch('<?= BASE_URL ?>/includes/change-my-password.php', {
             method: 'POST',
             body: formData,
         });
-        const json = await res.json();
-        if (!json.ok) {
-            showProfileAlert(json.error || 'Could not update password', 'danger');
+        
+        const text = await res.text();
+        let json;
+        try {
+            json = JSON.parse(text);
+        } catch (e) {
+            console.error("PHP returned non-JSON:", text);
+            showProfileToast('Server error. Check console for details.', 'danger');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
             return;
         }
+        
+        if (!json.ok) {
+            showProfileToast(json.error || 'Could not update password', 'danger');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            return;
+        }
+        
+        // Hide modal, reset form, show toast
         bootstrap.Modal.getInstance(document.getElementById('changePasswordModal'))?.hide();
         form.reset();
-        showProfileAlert('Password updated successfully.', 'success');
+        showProfileToast('Password updated successfully.', 'success');
+        
     } catch (err) {
-        showProfileAlert('Something went wrong. Please try again.', 'danger');
+        console.error(err);
+        showProfileToast('Something went wrong. Please try again.', 'danger');
     } finally {
         btn.disabled = false;
+        btn.innerHTML = originalText;
     }
+});
+
+// ---------------------------------------------------------
+// Toggle Password Visibility
+// ---------------------------------------------------------
+document.querySelectorAll('.toggle-password').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const input = this.previousElementSibling;
+        const icon = this.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    });
 });
 </script>
 

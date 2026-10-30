@@ -114,6 +114,67 @@ body.login-page {
         background: #071c48;
     }
 }
+
+/* --- CAPTCHA: always light, in both light and dark mode --- */
+body.login-page .captcha-wrap {
+    background: #ffffff !important;
+    border: 1px solid #d5dbe5 !important;
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    color-scheme: light;
+}
+
+/* Wipe every dark background/glow the widget sets, and force dark readable text */
+body.login-page .captcha-wrap *,
+body.login-page .captcha-wrap *:hover,
+body.login-page .captcha-wrap *:focus {
+    background: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    color: #1f2937 !important;
+    border-color: #cbd5e1 !important;
+}
+
+/* "VERIFIED" pill */
+body.login-page .captcha-wrap [class*="badge"] {
+    background: #eef2f7 !important;
+    border: 1px solid #94a3b8 !important;
+    color: #334155 !important;
+    border-radius: 999px;
+}
+
+/* Green check marks (font icons, SVG icons, and CSS-drawn ticks) */
+body.login-page .captcha-wrap i,
+body.login-page .captcha-wrap [class*="fa-"],
+body.login-page .captcha-wrap [class*="icon"],
+body.login-page .captcha-wrap svg,
+body.login-page .captcha-wrap svg *,
+body.login-page .captcha-wrap *::before,
+body.login-page .captcha-wrap *::after {
+    color: #16a34a !important;
+    border-color: #16a34a !important;
+}
+
+body.login-page .captcha-wrap svg [stroke]:not([stroke="none"]) {
+    stroke: #16a34a !important;
+}
+
+body.login-page .captcha-wrap svg [fill]:not([fill="none"]) {
+    fill: #16a34a !important;
+}
+
+/* Green outline once verified (like before) */
+body.login-page .captcha-wrap:has([class*="verified"], [class*="success"]) {
+    border-color: #22c55e !important;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+}
+
+body.login-page .captcha-wrap input[type="checkbox"] {
+    accent-color: #2563eb;
+}
 </style>
 
 <div class="reset-video-bg" aria-hidden="true">
@@ -152,7 +213,11 @@ body.login-page {
                     <label class="form-label" for="password_confirm">Confirm password</label>
                     <?= smsPasswordInput(['id' => 'password_confirm', 'name' => 'password_confirm', 'required' => true, 'minlength' => $minLen, 'autocomplete' => 'new-password']) ?>
                 </div>
-                <?= smsCaptchaMarkup() ?>
+
+                <div class="captcha-wrap">
+                    <?= smsCaptchaMarkup() ?>
+                </div>
+
                 <button type="submit" class="btn btn-auth-primary w-100">
                     <i class="fas fa-check me-2"></i>Update password
                 </button>
