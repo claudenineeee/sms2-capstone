@@ -39,21 +39,30 @@ $breadcrumbs  = [
 $currentUserId = getCurrentUserId();
 $currentUserEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
 $deptCode = 'BSIT'; 
+$deptHeadProfileId = 0;
 
+// Get Department Head's Department and Profile ID
 try {
-    $stmt = $facultyPdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = ? OR email = ? LIMIT 1");
+    $stmt = $facultyPdo->prepare("SELECT id, designated_department FROM faculty_profiles WHERE user_id = ? OR email = ? LIMIT 1");
     $stmt->execute([$currentUserId, $currentUserEmail]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row && !empty($row['designated_department'])) {
-        $deptCode = strtoupper(trim($row['designated_department']));
+    if ($row) {
+        $deptHeadProfileId = (int) $row['id'];
+        if (!empty($row['designated_department'])) {
+            $deptCode = strtoupper(trim($row['designated_department']));
+        }
     }
 } catch (Throwable $e) {}
 
-// A. Fetch all Teachers
+// A. Fetch ALL members in the department except the Dept Head
 $teachers = [];
 try {
-    $stmt = $facultyPdo->prepare("SELECT * FROM faculty_profiles WHERE LOWER(TRIM(designated_department)) = LOWER(?) AND LOWER(TRIM(position)) = 'faculty professor'");
-    $stmt->execute([$deptCode]);
+    $stmt = $facultyPdo->prepare("
+        SELECT * FROM faculty_profiles 
+        WHERE LOWER(TRIM(designated_department)) = LOWER(?) 
+          AND id != ?
+    ");
+    $stmt->execute([$deptCode, $deptHeadProfileId]);
     $teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {}
 $totalFaculty = count($teachers);
@@ -79,8 +88,9 @@ try {
         SELECT COUNT(*) FROM faculty_clearance_archives a
         INNER JOIN faculty_profiles fp ON a.faculty_id = fp.id
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(?)
+          AND fp.id != ?
     ");
-    $stmt->execute([$deptCode]);
+    $stmt->execute([$deptCode, $deptHeadProfileId]);
     $clearedCount = (int) $stmt->fetchColumn();
 } catch (Throwable $e) {}
 
@@ -94,8 +104,9 @@ try {
         FROM attendance_records ar
         INNER JOIN faculty_profiles fp ON ar.faculty_id = fp.faculty_id
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(?)
+          AND fp.id != ?
     ");
-    $stmt->execute([$deptCode]);
+    $stmt->execute([$deptCode, $deptHeadProfileId]);
     $att = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($att && $att['total'] > 0) {
         $attendanceRate = ($att['present'] / $att['total']) * 100;
@@ -111,11 +122,12 @@ try {
         FROM leave_requests lr
         INNER JOIN faculty_profiles fp ON lr.faculty_id = fp.faculty_id
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(?)
+          AND fp.id != ?
           AND lr.approval_status = 'Pending'
         ORDER BY lr.created_at DESC
         LIMIT 5
     ");
-    $stmt->execute([$deptCode]);
+    $stmt->execute([$deptCode, $deptHeadProfileId]);
     $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $pendingLeaves = count($leaveRequests);
 } catch (Throwable $e) {}
@@ -149,7 +161,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <div class="card-body d-flex align-items-center p-3 ps-4">
                 <div class="stat-icon me-3 text-primary fs-2"><i class="fas fa-users"></i></div>
                 <div>
-                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Faculty</h6>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Members</h6>
                     <h3 class="mb-0 fw-bold"><?= number_format($totalFaculty) ?></h3>
                     <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>Active <span class="text-muted fw-normal">members</span></small>
                 </div>
@@ -177,7 +189,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Cleared</h6>
                     <h3 class="mb-0 fw-bold"><?= number_format($clearedCount) ?></h3>
-                    <small class="text-muted fw-normal" style="font-size: 0.75rem;">Faculty members cleared</small>
+                    <small class="text-muted fw-normal" style="font-size: 0.75rem;">Members cleared</small>
                 </div>
             </div>
         </section>
@@ -211,7 +223,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <div class="mt-3 text-center">
                     <h5 class="mb-0 fw-bold"><?= $evaluatedCount ?> / <?= $totalFaculty ?></h5>
-                    <small class="text-muted">Faculty Evaluated</small>
+                    <small class="text-muted">Members Evaluated</small>
                 </div>
             </div>
         </div>
@@ -275,48 +287,38 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 text-nowrap">
+                    <table class="table table-hover align-middle mb-0 text-nowrap" id="facultyRosterTable">
                         <thead class="table-light">
                             <tr>
-                                <th class="ps-3">Faculty Name</th>
-                                <th class="text-center">Position</th>
-                                <th class="text-center">Employment</th>
-                                <th class="text-center">Eval Status</th>
-                                <th class="pe-3">Clearance</th>
+                                <th class="ps-3 py-3" style="font-size: 1rem;">Faculty Name</th>
+                                <th class="text-center py-3" style="font-size: 1rem;">Position</th>
+                                <th class="text-center py-3" style="font-size: 1rem;">Employment</th>
+                                <th class="pe-3 py-3" style="font-size: 1rem;">Clearance</th>
                             </tr>
                         </thead>
-                        <tbody class="small">
+                        <tbody class="fs-6" id="rosterTableBody">
                             <?php if (empty($teachers)): ?>
                                 <tr>
-                                    <td colspan="5" class="text-center py-4 text-muted">No faculty members found in this department.</td>
+                                    <td colspan="4" class="text-center py-4 text-muted">No faculty members found in this department.</td>
                                 </tr>
                             <?php else: ?>
-                                <?php foreach ($teachers as $t): ?>
+                                <?php foreach ($teachers as $index => $t): ?>
                                     <?php
-                                        $stmtEval = $facultyPdo->prepare("SELECT COUNT(*) FROM evaluations WHERE faculty_id = ? AND source_type = 'DeptHead'");
-                                        $stmtEval->execute([$t['faculty_id']]);
-                                        $isEvaluated = $stmtEval->fetchColumn() > 0;
-
+                                        // We keep the evaluation check for the chart stats above, 
+                                        // but we no longer render it in the table.
                                         $stmtClear = $facultyPdo->prepare("SELECT COUNT(*) FROM faculty_clearance_archives WHERE faculty_id = (SELECT id FROM faculty_profiles WHERE faculty_id = ? LIMIT 1)");
                                         $stmtClear->execute([$t['faculty_id']]);
                                         $isCleared = $stmtClear->fetchColumn() > 0;
                                     ?>
-                                    <tr>
-                                        <td class="ps-3 fw-bold"><?= htmlspecialchars($t['first_name'] . ' ' . $t['last_name']) ?></td>
-                                        <td class="text-center text-capitalize"><?= htmlspecialchars($t['position']) ?></td>
-                                        <td class="text-center text-capitalize"><?= htmlspecialchars($t['employment_status']) ?></td>
-                                        <td class="text-center">
-                                            <?php if ($isEvaluated): ?>
-                                                <span class="badge bg-success-subtle text-success rounded-pill px-2 py-1">Evaluated</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-warning-subtle text-warning rounded-pill px-2 py-1">Pending</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="pe-3">
+                                    <tr class="faculty-row" data-index="<?= $index ?>">
+                                        <td class="ps-3 fw-bold py-3"><?= htmlspecialchars($t['first_name'] . ' ' . $t['last_name']) ?></td>
+                                        <td class="text-center text-capitalize py-3"><?= htmlspecialchars($t['position']) ?></td>
+                                        <td class="text-center text-capitalize py-3"><?= htmlspecialchars($t['employment_status']) ?></td>
+                                        <td class="pe-3 py-3">
                                             <?php if ($isCleared): ?>
-                                                <span class="text-success fw-bold"><i class="fas fa-check-circle"></i> Cleared</span>
+                                                <span class="text-success fw-bold" style="font-size: 0.9rem;"><i class="fas fa-check-circle"></i> Cleared</span>
                                             <?php else: ?>
-                                                <span class="text-muted"><i class="fas fa-hourglass-half"></i> In Progress</span>
+                                                <span class="text-muted" style="font-size: 0.9rem;"><i class="fas fa-hourglass-half"></i> In Progress</span>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
@@ -326,6 +328,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </table>
                 </div>
             </div>
+            
+            <!-- Pagination Footer -->
+            <?php if (count($teachers) > 0): ?>
+            <div class="card-footer bg-body-tertiary border-top py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <small class="text-muted" id="rosterInfo">Showing 0 to 0 of 0 entries</small>
+                <nav aria-label="Faculty roster pagination">
+                    <ul class="pagination pagination-sm mb-0" id="rosterPagination"></ul>
+                </nav>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -381,7 +393,73 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // 1. Evaluation Progress Chart (Donut)
+    // ==========================================
+    // 1. ROSTER PAGINATION LOGIC
+    // ==========================================
+    const rowsPerPage = 10;
+    let currentPage = 1;
+    
+    const tableBody = document.getElementById('rosterTableBody');
+    const rows = Array.from(tableBody.querySelectorAll('.faculty-row'));
+    const paginationControls = document.getElementById('rosterPagination');
+    const paginationInfo = document.getElementById('rosterInfo');
+
+    function renderPagination() {
+        const totalRows = rows.length;
+        if (totalRows === 0) return;
+
+        const totalPages = Math.ceil(totalRows / rowsPerPage);
+        
+        // Hide all rows first
+        rows.forEach(row => row.classList.add('d-none'));
+
+        // Show only current page rows
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = Math.min(start + rowsPerPage, totalRows);
+        rows.slice(start, end).forEach(row => row.classList.remove('d-none'));
+
+        // Update text info
+        if (paginationInfo) {
+            paginationInfo.textContent = `Showing ${start + 1} to ${end} of ${totalRows} entries`;
+        }
+
+        // Render buttons
+        if (!paginationControls) return;
+        paginationControls.innerHTML = '';
+        if (totalPages <= 1) return;
+
+        // Prev Button
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link" href="#" aria-label="Previous">&laquo;</a>`;
+        prevLi.addEventListener('click', (e) => { e.preventDefault(); if (currentPage > 1) { currentPage--; renderPagination(); } });
+        paginationControls.appendChild(prevLi);
+
+        // Page Numbers
+        for (let i = 1; i <= totalPages; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+            li.addEventListener('click', (e) => { e.preventDefault(); currentPage = i; renderPagination(); });
+            paginationControls.appendChild(li);
+        }
+
+        // Next Button
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link" href="#" aria-label="Next">&raquo;</a>`;
+        nextLi.addEventListener('click', (e) => { e.preventDefault(); if (currentPage < totalPages) { currentPage++; renderPagination(); } });
+        paginationControls.appendChild(nextLi);
+    }
+
+    if (rows.length > 0) {
+        renderPagination();
+    }
+
+    // ==========================================
+    // 2. CHARTS LOGIC
+    // ==========================================
+    // Evaluation Progress Chart (Donut)
     const ctxEval = document.getElementById('evaluationProgressChart');
     if (ctxEval) {
         new Chart(ctxEval, {
@@ -404,7 +482,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // 2. Clearance Status Bar Chart
+    // Clearance Status Bar Chart
     const ctxClearance = document.getElementById('clearanceChart');
     if (ctxClearance) {
         new Chart(ctxClearance, {
@@ -433,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // 3. Evaluation Completion Rate Chart (Half Donut)
+    // Evaluation Completion Rate Chart (Half Donut)
     const ctxCompletion = document.getElementById('completionChart');
     if (ctxCompletion) {
         let completionRate = <?= $totalFaculty > 0 ? ($evaluatedCount / $totalFaculty) * 100 : 0 ?>;
