@@ -1,93 +1,32 @@
 <?php
 /**
  * Faculty Profile (View Details) — Department Head
- * Purpose: Detailed view of individual faculty member, scoped to the
+ * Purpose: Detailed view of individual faculty members, scoped to the
  * logged-in department head's own department.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 
-// We still need the controller for the getDepartmentLabel() function
-require_once __DIR__ . '/../../controllers/FacultyController.php';
-$facultyController = new FacultyController();
+// ==========================================
+// 1. FORCE MANUAL DATABASE CONNECTIONS
+// ==========================================
+$corePdo = null;
+$facultyPdo = null;
 
-// Load the data controller that contains loadFacultyProfiles()
-if (file_exists(__DIR__ . '/../../controllers/faculty-data.php')) {
-    require_once __DIR__ . '/../../controllers/faculty-data.php';
-}
+if (function_exists('db')) $corePdo = db();
+if (function_exists('facultyDb')) $facultyPdo = facultyDb();
 
-$currentUserId = getCurrentUserId();
-$currentUserEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
+if (!$corePdo || !$facultyPdo) {
+    $host = '127.0.0.1';
+    $user = 'root';
+    $pass = ''; 
 
-// 1. DETERMINE THE HEAD'S DEPARTMENT DIRECTLY FROM THE DB (Like in faculty-directory.php)
-$headDepartmentCode = '';
-try {
-    $pdo = db();
-    if ($pdo) {
-        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :user_id LIMIT 1");
-        $stmt->execute([':user_id' => $currentUserId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($row && !empty($row['designated_department'])) {
-            $headDepartmentCode = strtoupper(trim($row['designated_department']));
-        }
-    }
-} catch (Throwable $e) {
-    // Silently fail and fallback to BSIT below
-}
-
-// Fallback if the department wasn't found
-if (empty($headDepartmentCode)) {
-    $headDepartmentCode = 'BSIT';
-}
-$headDepartmentLabel = FacultyController::getDepartmentLabel($headDepartmentCode);
-
-// 2. FETCH AND FILTER THE PROFILES
-$facultyProfiles = [];
-if (function_exists('loadFacultyProfiles')) {
-    foreach (loadFacultyProfiles() as $profile) {
-        // Extract department safely (matches faculty-directory.php logic)
-        $profileDept = trim((string) ($profile['designated_dept'] ?? $profile['designated_department'] ?? ''));
-        $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
-        $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
-        $profilePosition = strtolower(trim((string) ($profile['position'] ?? '')));
-        
-        $rawProfileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
-        $rawAccountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
-
-        // A. Exclude inactive, disabled, or rejected accounts
-        if (
-            strpos($rawAccountStatus, 'inactive') !== false ||
-            strpos($rawAccountStatus, 'disabled') !== false ||
-            strpos($rawAccountStatus, 'rejected') !== false ||
-            strpos($rawProfileStatus, 'inactive') !== false ||
-            strpos($rawProfileStatus, 'rejected') !== false
-        ) {
-            continue;
-        }
-
-        // B. Exclude the currently logged-in Department Head
-        if (
-            ($currentUserId !== null && $profileUserId === (int) $currentUserId) ||
-            ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)
-        ) {
-            continue;
-        }
-
-        // C. Exclude Deans
-        if (strpos($profilePosition, 'dean') !== false) {
-            continue;
-        }
-
-        // D. Must match the Head's Department
-        // We check if the profile's department matches the head's code OR label
-        if (
-            strcasecmp($profileDept, $headDepartmentCode) === 0 ||
-            strcasecmp($profileDept, $headDepartmentLabel) === 0
-        ) {
-            $facultyProfiles[] = $profile;
-        }
+    try {
+        if (!$corePdo) $corePdo = new PDO("mysql:host=$host;dbname=sms2_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        if (!$facultyPdo) $facultyPdo = new PDO("mysql:host=$host;dbname=faculty_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    } catch (PDOException $e) {
+        die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
     }
 }
 
@@ -99,75 +38,131 @@ $breadcrumbs  = [
     ['label' => 'Faculty Profile', 'url' => null],
 ];
 
-require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
-require_once __DIR__ . '/../../../../includes/layout-start.php';
+$departmentOptions = [
+    'BSIT' => 'Information Technology',
+    'BSCE' => 'Computer Engineering'
+];
 
-$updateMessage = '';
-$updateMessageType = 'success';
+$headDepartment = '';
+$headDepartmentCode = '';
 
 function getDepartmentLabel(string $department): string
 {
-    return FacultyController::getDepartmentLabel($department);
+    global $departmentOptions;
+    $department = trim($department);
+    return $departmentOptions[$department] ?? $department;
 }
 
 function computeAge(string $birthdate): int
 {
-    if ($birthdate === '') {
-        return 0;
-    }
+    if ($birthdate === '') return 0;
     $birth = DateTime::createFromFormat('Y-m-d', $birthdate);
-    if (!$birth) {
-        return 0;
-    }
-    $today = new DateTime('today');
-    $age = $birth->diff($today)->y;
-    return $age >= 0 ? $age : 0;
+    if (!$birth) return 0;
+    return $birth->diff(new DateTime('today'))->y;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'update_faculty') {
-    $profileId = (int) ($_POST['profile_id'] ?? 0);
-    $updates = [
-        'first_name' => trim((string) ($_POST['first_name'] ?? '')),
-        'middle_name' => trim((string) ($_POST['middle_name'] ?? '')),
-        'last_name' => trim((string) ($_POST['last_name'] ?? '')),
-        'suffix' => trim((string) ($_POST['suffix'] ?? '')),
-        'sex' => trim((string) ($_POST['sex'] ?? '')),
-        'birthdate' => trim((string) ($_POST['birthdate'] ?? '')),
-        'age' => computeAge(trim((string) ($_POST['birthdate'] ?? ''))),
-        'phone' => trim((string) ($_POST['phone'] ?? '')),
-        'email' => trim((string) ($_POST['email'] ?? '')),
-        'hired_date' => trim((string) ($_POST['hired_date'] ?? '')),
-        'contractual_end_date' => trim((string) ($_POST['contractual_end_date'] ?? '')),
-        'employment_status' => trim((string) ($_POST['employment_status'] ?? '')),
-    ];
-    if ($profileId > 0 && function_exists('updateFacultyProfile') && updateFacultyProfile($profileId, $updates)) {
-        $updateMessage = 'Faculty profile updated successfully.';
-        $updateMessageType = 'success';
-        
-        // Refresh after edit
-        $facultyProfiles = [];
-        foreach (loadFacultyProfiles() as $profile) {
-            $profileDept = trim((string) ($profile['designated_dept'] ?? $profile['designated_department'] ?? ''));
-            $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
-            $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
-            $profilePosition = strtolower(trim((string) ($profile['position'] ?? '')));
-            $rawProfileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
-            $rawAccountStatus = strtolower(trim((string) ($profile['account_status'] ?? '')));
+// Get current user's department
+$currentUserId = getCurrentUserId();
+$currentUserEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
 
-            if (strpos($rawAccountStatus, 'inactive') !== false || strpos($rawAccountStatus, 'disabled') !== false || strpos($rawAccountStatus, 'rejected') !== false || strpos($rawProfileStatus, 'inactive') !== false || strpos($rawProfileStatus, 'rejected') !== false) continue;
-            if (($currentUserId !== null && $profileUserId === (int) $currentUserId) || ($currentUserEmail !== '' && $profileEmail === $currentUserEmail)) continue;
-            if (strpos($profilePosition, 'dean') !== false) continue;
-            
-            if (strcasecmp($profileDept, $headDepartmentCode) === 0 || strcasecmp($profileDept, $headDepartmentLabel) === 0) {
-                $facultyProfiles[] = $profile;
-            }
-        }
-    } else {
-        $updateMessage = 'Unable to update faculty profile.';
+try {
+    $stmt = $facultyPdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = ? OR email = ? LIMIT 1");
+    $stmt->execute([$currentUserId, $currentUserEmail]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($row && !empty($row['designated_department'])) {
+        $headDepartmentCode = strtoupper(trim($row['designated_department']));
+        $headDepartment = getDepartmentLabel($headDepartmentCode);
+    }
+} catch (Throwable $e) {}
+
+if (empty($headDepartmentCode)) {
+    $headDepartmentCode = 'BSIT';
+    $headDepartment = getDepartmentLabel($headDepartmentCode);
+}
+
+// ==========================================
+// 2. PROCESS UPDATE SUBMISSION
+// ==========================================
+$updateMessage = '';
+$updateMessageType = 'success';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_faculty') {
+    try {
+        requireCsrf((string) ($_POST['csrf_token'] ?? ''));
+        
+        $profileId = (int) ($_POST['profile_id'] ?? 0);
+        
+        // Update directly in faculty_db
+        $stmtUpdate = $facultyPdo->prepare("
+            UPDATE faculty_profiles SET 
+                first_name = ?, middle_name = ?, last_name = ?, suffix = ?, 
+                sex = ?, birthdate = ?, age = ?, phone = ?, email = ?, 
+                hired_date = ?, contractual_end = ?, employment_status = ?
+            WHERE id = ?
+        ");
+        
+        $stmtUpdate->execute([
+            trim((string) ($_POST['first_name'] ?? '')),
+            trim((string) ($_POST['middle_name'] ?? '')),
+            trim((string) ($_POST['last_name'] ?? '')),
+            trim((string) ($_POST['suffix'] ?? '')),
+            trim((string) ($_POST['sex'] ?? '')),
+            trim((string) ($_POST['birthdate'] ?? '')),
+            computeAge(trim((string) ($_POST['birthdate'] ?? ''))),
+            trim((string) ($_POST['phone'] ?? '')),
+            trim((string) ($_POST['email'] ?? '')),
+            trim((string) ($_POST['hired_date'] ?? '')),
+            trim((string) ($_POST['contractual_end_date'] ?? '')),
+            trim((string) ($_POST['employment_status'] ?? '')),
+            $profileId
+        ]);
+        
+        $updateMessage = 'Faculty profile updated successfully.';
+    } catch (Throwable $e) {
+        $updateMessage = 'Unable to update faculty profile: ' . $e->getMessage();
         $updateMessageType = 'danger';
     }
 }
 
+// ==========================================
+// 3. FETCH PROFILES DIRECTLY FROM FACULTY_DB
+// ==========================================
+$facultyProfiles = [];
+
+try {
+    $stmt = $facultyPdo->prepare("
+        SELECT * FROM faculty_profiles 
+        WHERE LOWER(TRIM(designated_department)) = LOWER(?)
+        ORDER BY id DESC
+    ");
+    $stmt->execute([$headDepartmentCode]);
+    $allProfiles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($allProfiles as $profile) {
+        $profileUserId = isset($profile['user_id']) ? (int) $profile['user_id'] : 0;
+        $profileEmail = strtolower(trim((string) ($profile['email'] ?? '')));
+        $profilePosition = strtolower(trim((string) ($profile['position'] ?? '')));
+        $rawProfileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
+
+        // Exclude inactive
+        if (strpos($rawProfileStatus, 'inactive') !== false) continue;
+        
+        // Exclude the logged-in user (Department Head)
+        if ($currentUserId && $profileUserId === (int) $currentUserId) continue;
+        if ($currentUserEmail && $profileEmail === $currentUserEmail) continue;
+        
+        // Exclude Deans
+        if (strpos($profilePosition, 'dean') !== false) continue;
+
+        $facultyProfiles[] = $profile;
+    }
+} catch (Throwable $e) {
+    $updateMessage = 'Fetch Error: ' . $e->getMessage();
+    $updateMessageType = 'danger';
+}
+
+// Statistics
 $totalFaculty = count($facultyProfiles);
 $regularCount = count(array_filter($facultyProfiles, function ($profile) {
     $status = strtolower(trim((string) ($profile['employment_status'] ?? '')));
@@ -178,7 +173,10 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
     return $status === 'part-time' || $status === 'contractual';
 }));
 
+require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
+require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
+
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <!-- Page Header -->
@@ -201,10 +199,9 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Faculty</h6>
                         <h4 class="mb-0 fw-bold"><?= $totalFaculty ?></h4>
-                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>+2.5% <span class="text-muted fw-normal">from last month</span></small>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>Active <span class="text-muted fw-normal">members</span></small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details"><i class="fas fa-arrow-up-right-from-square"></i></a>
             </section>
         </div>
 
@@ -215,10 +212,9 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Full-Time / Regular</h6>
                         <h4 class="mb-0 fw-bold"><?= $regularCount ?></h4>
-                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>Active <span class="text-muted fw-normal">status</span></small>
+                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-check-circle me-1"></i>Verified</small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details"><i class="fas fa-arrow-up-right-from-square"></i></a>
             </section>
         </div>
 
@@ -232,21 +228,18 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                         <small class="text-muted fw-normal" style="font-size: 0.75rem;">Updated this term</small>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details"><i class="fas fa-arrow-up-right-from-square"></i></a>
             </section>
         </div>
 
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card info border shadow-sm position-relative h-100">
                 <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon me-3 text-info fs-4"><i class="fas fa-star"></i></div>
+                    <div class="stat-icon me-3 text-info fs-4"><i class="fas fa-building"></i></div>
                     <div>
-                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Dept Avg Rating</h6>
-                        <h4 class="mb-0 fw-bold">4.52</h4>
-                        <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>+0.3 <span class="text-muted fw-normal">vs last term</span></small>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Department Scope</h6>
+                        <h4 class="mb-0 fw-bold text-truncate" style="max-width: 150px;"><?= htmlspecialchars($headDepartmentCode) ?></h4>
                     </div>
                 </div>
-                <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Details"><i class="fas fa-arrow-up-right-from-square"></i></a>
             </section>
         </div>
     </div>
@@ -294,28 +287,23 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                         <tbody id="facultyTableBody">
                             <?php foreach ($facultyProfiles as $profile): ?>
                                 <?php
-                                    $fullName = function_exists('buildFacultyFullName') ? buildFacultyFullName($profile) : trim((string) ($profile['first_name'] ?? '') . ' ' . (string) ($profile['middle_name'] ?? '') . ' ' . (string) ($profile['last_name'] ?? ''));
-                                    $rawDept = (string) ($profile['designated_dept'] ?? $profile['designated_department'] ?? '');
+                                    $fullName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['middle_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
+                                    $rawDept = (string) ($profile['designated_department'] ?? '');
                                     $departmentLabel = getDepartmentLabel($rawDept);
                                     $employmentStatus = ucwords(strtolower((string) ($profile['employment_status'] ?? '')));
                                     $profileStatus = ucwords(strtolower((string) ($profile['profile_status'] ?? '')));
-                                    $academicRank = ucwords(str_replace('_', ' ', strtolower((string) ($profile['academic_rank'] ?? ''))));
                                     $position = ucwords(strtolower((string) ($profile['position'] ?? '')));
                                     $email = trim((string) ($profile['email'] ?? ''));
                                     $facultyId = trim((string) ($profile['faculty_id'] ?? ''));
                                     $birthdate = trim((string) ($profile['birthdate'] ?? ''));
                                     $hiredDate = trim((string) ($profile['hired_date'] ?? ''));
                                     $contractualEnd = trim((string) ($profile['contractual_end'] ?? ''));
-                                    $age = $birthdate !== '' ? computeAge($birthdate) : 0;
-                                    $initials = implode('', array_slice(array_map(function ($part) { return strtoupper(substr($part, 0, 1)); }, array_filter(explode(' ', $fullName))), 0, 2));
-                                    if ($initials === '') { $initials = 'NA'; }
+                                    $initials = strtoupper(substr($fullName, 0, 1));
                                 ?>
                                 <tr class="faculty-row" 
                                     data-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>" 
                                     data-dept="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>" 
                                     data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>" 
-                                    data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" 
-                                    data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>" 
                                     data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>" 
                                     data-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>">
                                     <td class="ps-3">
@@ -352,21 +340,13 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                                             data-middle-name="<?= htmlspecialchars(trim((string) ($profile['middle_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
                                             data-last-name="<?= htmlspecialchars(trim((string) ($profile['last_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
                                             data-suffix="<?= htmlspecialchars(trim((string) ($profile['suffix'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
-                                            data-full-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>"
-                                            data-faculty-id="<?= htmlspecialchars($facultyId, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-sex="<?= htmlspecialchars((string) ($profile['sex'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-birthdate="<?= htmlspecialchars($birthdate, ENT_QUOTES, 'UTF-8') ?>"
                                             data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>"
                                             data-phone="<?= htmlspecialchars((string) ($profile['phone'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                            data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>"
-                                            data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                            data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                            data-department-code="<?= htmlspecialchars((string) ($profile['designated_dept'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                            data-department-label="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>"
-                                            data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
-                                            data-profile-status="<?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?>"
                                             data-hired-date="<?= htmlspecialchars($hiredDate, ENT_QUOTES, 'UTF-8') ?>"
                                             data-contractual-end="<?= htmlspecialchars($contractualEnd, ENT_QUOTES, 'UTF-8') ?>"
-                                            data-sex="<?= htmlspecialchars((string) ($profile['sex'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                            data-birthdate="<?= htmlspecialchars($birthdate, ENT_QUOTES, 'UTF-8') ?>">
+                                            data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>">
                                             <i class="fas fa-edit"></i>
                                         </button>
                                     </td>
@@ -457,6 +437,7 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="facultyForm" method="post" action="">
+                <?= csrfField() ?>
                 <input type="hidden" name="action" value="update_faculty">
                 <input type="hidden" name="profile_id" id="profileId" value="">
                 <div class="modal-body">
@@ -484,7 +465,6 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                                 <select id="sex" name="sex" class="form-select">
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
                                 </select>
                             </div>
                             <div class="col-md-4">
@@ -520,10 +500,9 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
                             <div class="col-md-4">
                                 <label for="employmentStatus" class="form-label">Employment Status</label>
                                 <select id="employmentStatus" name="employment_status" class="form-select">
-                                    <option value="Active">Active</option>
+                                    <option value="Regular">Regular</option>
                                     <option value="Probationary">Probationary</option>
                                     <option value="Part-Time">Part-Time</option>
-                                    <option value="Resigned">Resigned</option>
                                 </select>
                             </div>
                         </div>
@@ -585,7 +564,7 @@ $partTimeCount = count(array_filter($facultyProfiles, function ($profile) {
         document.getElementById('phone').value = button.dataset.phone || '';
         document.getElementById('hiredDate').value = button.dataset.hiredDate || '';
         document.getElementById('contractualEnd').value = button.dataset.contractualEnd || '';
-        document.getElementById('employmentStatus').value = button.dataset.status || 'Active';
+        document.getElementById('employmentStatus').value = button.dataset.status || 'Regular';
         getModalInstance('facultyFormModal')?.show();
     }
 

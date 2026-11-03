@@ -7,33 +7,43 @@ require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 
-// faculty-data.php defines facultyDb() (and every other business-DB helper).
-// It MUST be loaded before any code calls facultyDb().
+// Load the data controller
 require_once __DIR__ . '/../../controllers/faculty-data.php';
-
-// =====================================================================
-// NEW LOGIC: Fetch Department Head's Dept and Attendance Data
-// =====================================================================
 require_once __DIR__ . '/../../models/AttendanceModel.php';
-$attendanceModel = new AttendanceModel(facultyDb());
 
-// 1. Identify Department Head's Department (self-healing lookup)
+// ==========================================
+// 1. FORCE MANUAL DATABASE CONNECTIONS
+// ==========================================
+$corePdo = null;
+$facultyPdo = null;
+
+if (function_exists('db')) $corePdo = db();
+if (function_exists('facultyDb')) $facultyPdo = facultyDb();
+
+if (!$corePdo || !$facultyPdo) {
+    $host = '127.0.0.1';
+    $user = 'root';
+    $pass = ''; 
+
+    try {
+        if (!$corePdo) $corePdo = new PDO("mysql:host=$host;dbname=sms2_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        if (!$facultyPdo) $facultyPdo = new PDO("mysql:host=$host;dbname=faculty_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    } catch (PDOException $e) {
+        die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
+    }
+}
+
+$attendanceModel = new AttendanceModel($facultyPdo);
+
+// 2. Identify Department Head's Department
 $currentUserId = (int) ($_SESSION['user_id'] ?? $_SESSION['id'] ?? 0);
 $sessionEmail  = trim((string) ($_SESSION['user_email'] ?? $_SESSION['email'] ?? ''));
 $deptHeadDept  = '';
 
 if ($currentUserId > 0 || $sessionEmail !== '') {
     try {
-        $pdo = facultyDb();
-
-        // (a) by user_id
         if ($currentUserId > 0) {
-            $stmt = $pdo->prepare("
-                SELECT designated_department
-                FROM faculty_profiles
-                WHERE user_id = :uid
-                LIMIT 1
-            ");
+            $stmt = $facultyPdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid LIMIT 1");
             $stmt->execute([':uid' => $currentUserId]);
             $val = $stmt->fetchColumn();
             if ($val !== false && $val !== null && trim((string) $val) !== '') {
@@ -41,74 +51,50 @@ if ($currentUserId > 0 || $sessionEmail !== '') {
             }
         }
 
-        // (b) by email + repair user_id
         if ($deptHeadDept === '' && $sessionEmail !== '') {
-            $stmt = $pdo->prepare("
-                SELECT id, user_id, designated_department
-                FROM faculty_profiles
-                WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email))
-                LIMIT 1
-            ");
+            $stmt = $facultyPdo->prepare("SELECT id, user_id, designated_department FROM faculty_profiles WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email)) LIMIT 1");
             $stmt->execute([':email' => $sessionEmail]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row && !empty($row['designated_department'])) {
                 $deptHeadDept = trim((string) $row['designated_department']);
-
                 if ($currentUserId > 0 && (int) ($row['user_id'] ?? 0) !== $currentUserId) {
-                    try {
-                        $pdo->prepare("UPDATE faculty_profiles SET user_id = :uid WHERE id = :id")
-                            ->execute([':uid' => $currentUserId, ':id' => (int) $row['id']]);
-                        error_log("[attendance-summary] repaired user_id for profile {$row['id']} -> {$currentUserId}");
-                    } catch (Throwable $e) {
-                        error_log('[attendance-summary][repair] ' . $e->getMessage());
-                    }
+                    $facultyPdo->prepare("UPDATE faculty_profiles SET user_id = :uid WHERE id = :id")->execute([':uid' => $currentUserId, ':id' => (int) $row['id']]);
                 }
             }
         }
-
-        // (c) via faculty.external_user_id
-        if ($deptHeadDept === '' && $currentUserId > 0) {
-            $stmt = $pdo->prepare("
-                SELECT fp.designated_department
-                FROM faculty f
-                INNER JOIN faculty_profiles fp ON fp.email = f.email
-                WHERE f.external_user_id = :uid
-                LIMIT 1
-            ");
-            $stmt->execute([':uid' => (string) $currentUserId]);
-            $val = $stmt->fetchColumn();
-            if ($val !== false && $val !== null && trim((string) $val) !== '') {
-                $deptHeadDept = trim((string) $val);
-            }
-        }
-    } catch (Throwable $e) {
-        error_log('[attendance-summary] dept lookup failed: ' . $e->getMessage());
-    }
+    } catch (Throwable $e) {}
 }
 
 if ($deptHeadDept === '') {
     $deptHeadDept = trim((string) ($_SESSION['department'] ?? $_SESSION['designated_department'] ?? ''));
 }
 
-error_log('[attendance-summary] user_id=' . $currentUserId
-    . ' email=[' . $sessionEmail . ']'
-    . ' resolved dept=[' . $deptHeadDept . ']');
+// ==========================================
+// 3. FETCH FACULTY DIRECTLY FROM FACULTY_DB
+// ==========================================
+// FORCE filter: Only 'Faculty Professor' and ONLY the Department Head's department.
+$facultyInDept = [];
+try {
+    $stmt = $facultyPdo->prepare("
+        SELECT id, first_name, last_name, faculty_id AS employee_id
+        FROM faculty_profiles 
+        WHERE LOWER(TRIM(designated_department)) = LOWER(?) 
+          AND LOWER(TRIM(position)) = 'faculty professor'
+    ");
+    $stmt->execute([$deptHeadDept]);
+    $facultyInDept = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
+} catch (Throwable $e) {
+    error_log("Error fetching faculty for attendance: " . $e->getMessage());
+}
 
-// Filter parameters
+// Date boundaries
 $selectedPeriod = $_GET['period'] ?? '7days';
 $selectedMonth  = $_GET['month'] ?? date('Y-m');
 
-// 3. Fetch Faculty in this department
-$facultyInDept = $attendanceModel->getFacultyByDepartment(
-    $deptHeadDept !== '' ? $deptHeadDept : '1'
-) ?? [];
-
-// Date boundaries
 $today      = date('Y-m-d');
 $weekStart  = date('Y-m-d', strtotime('-7 days'));
 $monthStart = date('Y-m-01');
 
-// Batch-fetch all sessions in the widest window once instead of per-faculty.
 $facultyIds = array_column($facultyInDept, 'id');
 
 $fetchStart = min($monthStart, $weekStart);
@@ -116,7 +102,6 @@ $fetchEnd   = max($today, date('Y-m-t'));
 
 $allSessions = $attendanceModel->getSessionsForFacultyIds($facultyIds, $fetchStart, $fetchEnd) ?? [];
 
-// Group sessions by faculty id.
 $sessionsByFaculty = [];
 foreach ($allSessions as $s) {
     $sessionsByFaculty[(string) $s['faculty_id']][] = $s;
@@ -124,15 +109,9 @@ foreach ($allSessions as $s) {
 
 // 4. Build Summary Metrics
 $summaryMetrics = [
-    'today_present'      => 0,
-    'today_total'        => 0,
-    'today_percentage'   => 0,
-    'weekly_present'     => 0,
-    'weekly_total'       => 0,
-    'weekly_percentage'  => 0,
-    'monthly_present'    => 0,
-    'monthly_total'      => 0,
-    'monthly_percentage' => 0,
+    'today_present' => 0, 'today_total' => 0, 'today_percentage' => 0,
+    'weekly_present' => 0, 'weekly_total' => 0, 'weekly_percentage' => 0,
+    'monthly_present' => 0, 'monthly_total' => 0, 'monthly_percentage' => 0,
 ];
 
 $presentStatuses = ['Present', 'Late'];
@@ -159,9 +138,8 @@ $summaryMetrics['today_percentage']   = $summaryMetrics['today_total']   > 0 ? (
 $summaryMetrics['weekly_percentage']  = $summaryMetrics['weekly_total']  > 0 ? ($summaryMetrics['weekly_present']  / $summaryMetrics['weekly_total'])  * 100 : 0;
 $summaryMetrics['monthly_percentage'] = $summaryMetrics['monthly_total'] > 0 ? ($summaryMetrics['monthly_present'] / $summaryMetrics['monthly_total']) * 100 : 0;
 
-// 5. Build Faculty Summaries for the table
+// 5. Build Faculty Summaries
 $facultySummaries = [];
-
 $dateRangeStart = $today;
 $dateRangeEnd   = $today;
 
@@ -182,45 +160,30 @@ foreach ($facultyInDept as $fac) {
         }
     );
 
-    $present = 0;
-    $absent  = 0;
-    $late    = 0;
+    $present = 0; $absent = 0; $late = 0;
 
     foreach ($logs as $log) {
-        if ($log['status'] === 'Present') {
-            $present++;
-        } elseif ($log['status'] === 'Absent') {
-            $absent++;
-        } elseif ($log['status'] === 'Late') {
-            $late++;
-        }
+        if ($log['status'] === 'Present') $present++;
+        elseif ($log['status'] === 'Absent') $absent++;
+        elseif ($log['status'] === 'Late') $late++;
     }
 
     $total = count($logs);
     $rate  = $total > 0 ? (($present + $late) / $total) * 100 : 0;
 
     $facultySummaries[] = [
-        'name'          => $fullName,
-        'total_classes' => $total,
-        'present_count' => $present,
-        'late_count'    => $late,
-        'absent_count'  => $absent,
-        'rate'          => $rate,
+        'name' => $fullName, 'total_classes' => $total,
+        'present_count' => $present, 'late_count' => $late,
+        'absent_count' => $absent, 'rate' => $rate,
     ];
 }
 
-// =====================================================================
-// PAGINATION LOGIC (Max 15 per page)
-// =====================================================================
+// PAGINATION
 $perPage      = 15;
 $totalFaculty = count($facultySummaries);
 $totalPages   = max(1, (int) ceil($totalFaculty / $perPage));
 $page         = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
-
-if ($page > $totalPages) {
-    $page = $totalPages;
-}
-
+if ($page > $totalPages) $page = $totalPages;
 $offset             = ($page - 1) * $perPage;
 $paginatedSummaries = array_slice($facultySummaries, $offset, $perPage);
 
@@ -246,16 +209,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <i class="fas fa-clipboard-list text-primary me-2"></i>Attendance Reports & Analytics
         </h1>
         <p class="text-muted mb-0 small">
-            Search faculty and view attendance logs across customizable time periods.
+            Showing attendance for <strong>Faculty Professors</strong> in <strong><?= htmlspecialchars($deptHeadDept) ?></strong>.
         </p>
     </div>
     <div class="d-flex gap-2">
         <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
             <i class="fas fa-print me-1"></i> Print
         </button>
-        <a href="<?= BASE_URL ?>/modules/faculty/index.php?action=exportAttendanceReport&month=<?= urlencode($selectedMonth) ?>" class="btn btn-primary btn-sm">
-            <i class="fas fa-file-excel me-1"></i> Export Excel
-        </a>
     </div>
 </div>
 
@@ -264,9 +224,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="col-12 col-md-4">
         <section class="card stat-card primary border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-primary fs-4">
-                    <i class="fas fa-calendar-day"></i>
-                </div>
+                <div class="stat-icon me-3 text-primary fs-4"><i class="fas fa-calendar-day"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Today's Rate</h6>
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['today_percentage'] ?? 0, 1) ?>%</h4>
@@ -281,9 +239,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="col-12 col-md-4">
         <section class="card stat-card info border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-info fs-4">
-                    <i class="fas fa-chart-line"></i>
-                </div>
+                <div class="stat-icon me-3 text-info fs-4"><i class="fas fa-chart-line"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">7-Day Average</h6>
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['weekly_percentage'] ?? 0, 1) ?>%</h4>
@@ -298,9 +254,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="col-12 col-md-4">
         <section class="card stat-card success border shadow-sm position-relative h-100 bg-white">
             <div class="card-body d-flex align-items-center">
-                <div class="stat-icon me-3 text-success fs-4">
-                    <i class="fas fa-calendar-check"></i>
-                </div>
+                <div class="stat-icon me-3 text-success fs-4"><i class="fas fa-calendar-check"></i></div>
                 <div>
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Monthly Rate (<?= date('M Y', strtotime($selectedMonth)) ?>)</h6>
                     <h4 class="mb-0 fw-bold text-body"><?= number_format($summaryMetrics['monthly_percentage'] ?? 0, 1) ?>%</h4>
@@ -344,9 +298,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-body-tertiary py-3 border-bottom">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <h6 class="mb-0 fw-bold text-body">
-                Faculty Attendance Breakdown
-            </h6>
+            <h6 class="mb-0 fw-bold text-body">Faculty Attendance Breakdown</h6>
             <span class="badge bg-secondary-subtle text-secondary border rounded-pill">
                 <?= $totalFaculty ?> Faculty Total
             </span>
@@ -369,26 +321,15 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <?php if (!empty($paginatedSummaries)): ?>
                         <?php foreach ($paginatedSummaries as $row): ?>
                             <tr>
-                                <td class="ps-3 fw-semibold text-body py-2 py-md-3">
-                                    <?= htmlspecialchars($row['name']) ?>
-                                </td>
-                                <td class="text-center py-2 py-md-3 text-body">
-                                    <?= $row['total_classes'] ?>
-                                </td>
-                                <td class="text-center py-2 py-md-3">
-                                    <span class="text-success fw-bold"><?= $row['present_count'] ?></span>
-                                </td>
-                                <td class="text-center py-2 py-md-3">
-                                    <span class="text-warning fw-bold"><?= $row['late_count'] ?></span>
-                                </td>
-                                <td class="text-center py-2 py-md-3">
-                                    <span class="text-danger fw-bold"><?= $row['absent_count'] ?></span>
-                                </td>
+                                <td class="ps-3 fw-semibold text-body py-2 py-md-3"><?= htmlspecialchars($row['name']) ?></td>
+                                <td class="text-center py-2 py-md-3 text-body"><?= $row['total_classes'] ?></td>
+                                <td class="text-center py-2 py-md-3"><span class="text-success fw-bold"><?= $row['present_count'] ?></span></td>
+                                <td class="text-center py-2 py-md-3"><span class="text-warning fw-bold"><?= $row['late_count'] ?></span></td>
+                                <td class="text-center py-2 py-md-3"><span class="text-danger fw-bold"><?= $row['absent_count'] ?></span></td>
                                 <td class="pe-3 py-2 py-md-3">
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="progress flex-grow-1" style="height: 6px; min-width: 80px;">
-                                            <div class="progress-bar <?= $row['rate'] >= 85 ? 'bg-success' : ($row['rate'] >= 70 ? 'bg-warning' : 'bg-danger') ?>"
-                                                 style="width: <?= $row['rate'] ?>%"></div>
+                                            <div class="progress-bar <?= $row['rate'] >= 85 ? 'bg-success' : ($row['rate'] >= 70 ? 'bg-warning' : 'bg-danger') ?>" style="width: <?= $row['rate'] ?>%"></div>
                                         </div>
                                         <span class="small fw-bold text-body"><?= number_format($row['rate'], 1) ?>%</span>
                                     </div>
@@ -421,13 +362,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <span aria-hidden="true">&laquo;</span>
                         </a>
                     </li>
-
                     <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                         <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
                             <a class="page-link" href="?period=<?= urlencode($selectedPeriod) ?>&month=<?= urlencode($selectedMonth) ?>&page=<?= $i ?>"><?= $i ?></a>
                         </li>
                     <?php endfor; ?>
-
                     <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
                         <a class="page-link" href="?period=<?= urlencode($selectedPeriod) ?>&month=<?= urlencode($selectedMonth) ?>&page=<?= $page + 1 ?>" aria-label="Next">
                             <span aria-hidden="true">&raquo;</span>

@@ -1,354 +1,422 @@
 <?php
-/**
- * Department Head Dashboard
- * Purpose: Overview of department status and key metrics
- */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 
+// ==========================================
+// 1. FORCE MANUAL DATABASE CONNECTIONS
+// ==========================================
+$corePdo = null;
+$facultyPdo = null;
+
+if (function_exists('db')) $corePdo = db();
+if (function_exists('facultyDb')) $facultyPdo = facultyDb();
+
+if (!$corePdo || !$facultyPdo) {
+    $host = '127.0.0.1';
+    $user = 'root';
+    $pass = ''; 
+
+    try {
+        if (!$corePdo) $corePdo = new PDO("mysql:host=$host;dbname=sms2_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        if (!$facultyPdo) $facultyPdo = new PDO("mysql:host=$host;dbname=faculty_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    } catch (PDOException $e) {
+        die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
+    }
+}
+
 $pageTitle    = 'Department Head Dashboard';
-$activeModule = 'faculty_head';
+$activeModule = 'faculty';
 $activePage   = 'dashboard';
 $breadcrumbs  = [
     ['label' => 'Faculty Management', 'url' => BASE_URL . '/modules/faculty/index.php'],
-    ['label' => 'Department Head', 'url' => BASE_URL . '/modules/faculty/users/head/index.php'],
-    ['label' => 'Dashboard', 'url' => null],
+    ['label' => 'Dashboard',    'url' => null],
 ];
+
+// ==========================================
+// 2. FETCH REAL DATA FROM DATABASE
+// ==========================================
+$currentUserId = getCurrentUserId();
+$currentUserEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
+$deptCode = 'BSIT'; 
+
+try {
+    $stmt = $facultyPdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = ? OR email = ? LIMIT 1");
+    $stmt->execute([$currentUserId, $currentUserEmail]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && !empty($row['designated_department'])) {
+        $deptCode = strtoupper(trim($row['designated_department']));
+    }
+} catch (Throwable $e) {}
+
+// A. Fetch all Teachers
+$teachers = [];
+try {
+    $stmt = $facultyPdo->prepare("SELECT * FROM faculty_profiles WHERE LOWER(TRIM(designated_department)) = LOWER(?) AND LOWER(TRIM(position)) = 'faculty professor'");
+    $stmt->execute([$deptCode]);
+    $teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {}
+$totalFaculty = count($teachers);
+
+// B. Fetch Evaluations
+$evaluatedCount = 0;
+$evalScores = [];
+foreach ($teachers as $t) {
+    $stmt = $facultyPdo->prepare("SELECT composite_score FROM evaluations WHERE faculty_id = ? AND source_type = 'DeptHead'");
+    $stmt->execute([$t['faculty_id']]);
+    $score = $stmt->fetchColumn();
+    if ($score !== false) {
+        $evaluatedCount++;
+        $evalScores[] = (float) $score;
+    }
+}
+$avgRating = count($evalScores) > 0 ? array_sum($evalScores) / count($evalScores) : 0;
+
+// C. Clearance Status
+$clearedCount = 0;
+try {
+    $stmt = $facultyPdo->prepare("
+        SELECT COUNT(*) FROM faculty_clearance_archives a
+        INNER JOIN faculty_profiles fp ON a.faculty_id = fp.id
+        WHERE LOWER(TRIM(fp.designated_department)) = LOWER(?)
+    ");
+    $stmt->execute([$deptCode]);
+    $clearedCount = (int) $stmt->fetchColumn();
+} catch (Throwable $e) {}
+
+// D. Attendance Rate
+$attendanceRate = 0;
+try {
+    $stmt = $facultyPdo->prepare("
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status IN ('Present', 'Late') THEN 1 ELSE 0 END) as present
+        FROM attendance_records ar
+        INNER JOIN faculty_profiles fp ON ar.faculty_id = fp.faculty_id
+        WHERE LOWER(TRIM(fp.designated_department)) = LOWER(?)
+    ");
+    $stmt->execute([$deptCode]);
+    $att = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($att && $att['total'] > 0) {
+        $attendanceRate = ($att['present'] / $att['total']) * 100;
+    }
+} catch (Throwable $e) {}
+
+// E. Leave Requests
+$pendingLeaves = 0;
+$leaveRequests = [];
+try {
+    $stmt = $facultyPdo->prepare("
+        SELECT lr.*, fp.first_name, fp.last_name 
+        FROM leave_requests lr
+        INNER JOIN faculty_profiles fp ON lr.faculty_id = fp.faculty_id
+        WHERE LOWER(TRIM(fp.designated_department)) = LOWER(?)
+          AND lr.approval_status = 'Pending'
+        ORDER BY lr.created_at DESC
+        LIMIT 5
+    ");
+    $stmt->execute([$deptCode]);
+    $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $pendingLeaves = count($leaveRequests);
+} catch (Throwable $e) {}
 
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
-require_once __DIR__ . '/../../../../includes/nav-icons.php';
 ?>
-<link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <!-- Page Header -->
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
-        <h1><i class="fas fa-user-tie text-purple me-2"></i>Department Head Dashboard</h1>
-        <p class="text-muted mb-0">College of Computer Studies (CCS) — Overview and quick actions</p>
+        <h1 class="h3 fw-bold mb-1 text-body">
+            <i class="fas fa-chart-pie text-primary me-2"></i>Department Head Dashboard
+        </h1>
+        <p class="text-muted mb-0 small">Overview of faculty performance and attendance for the current term.</p>
     </div>
-        <div class="d-flex flex-wrap gap-1.5 gap-sm-2">   
-        <button class="btn btn-sm btn-warning py-1.5 px-2.5 px-sm-3 d-inline-flex align-items-center" 
-                onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/users/head/pages/teaching-load-approval.php'">
-            <i class="fas fa-inbox me-1"></i>
-            <span>Pending<span class="d-none d-sm-inline"> Approvals</span></span>
-            <span class="badge text-bg-dark ms-1.5">5</span>
-        </button>
-        <button class="btn btn-sm btn-sms-primary py-1.5 px-2.5 px-sm-3 d-inline-flex align-items-center" 
-                onclick="window.location.href='<?= BASE_URL ?>/modules/faculty/users/head/pages/faculty-directory.php'">
-            <i class="fas fa-users me-1"></i>
-            <span>Faculty<span class="d-none d-sm-inline"> Directory</span></span>
-        </button>
-
+    <div>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 px-3 py-2 rounded-pill">
+            <i class="fas fa-building me-1"></i> Department: <?= htmlspecialchars($deptCode) ?>
+        </span>
     </div>
 </div>
 
+<!-- Top Stat Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card primary border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center p-3 ps-4">
+                <div class="stat-icon me-3 text-primary fs-2"><i class="fas fa-users"></i></div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Faculty</h6>
+                    <h3 class="mb-0 fw-bold"><?= number_format($totalFaculty) ?></h3>
+                    <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-arrow-trend-up me-1"></i>Active <span class="text-muted fw-normal">members</span></small>
+                </div>
+            </div>
+        </section>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #198754; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center p-3 ps-4">
+                <div class="stat-icon me-3 text-success fs-2"><i class="fas fa-star"></i></div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Avg Rating</h6>
+                    <h3 class="mb-0 fw-bold"><?= number_format($avgRating, 2) ?></h3>
+                    <small class="text-muted fw-normal" style="font-size: 0.75rem;">Current term average</small>
+                </div>
+            </div>
+        </section>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ffc107; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center p-3 ps-4">
+                <div class="stat-icon me-3 text-warning fs-2"><i class="fas fa-clipboard-check"></i></div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Cleared</h6>
+                    <h3 class="mb-0 fw-bold"><?= number_format($clearedCount) ?></h3>
+                    <small class="text-muted fw-normal" style="font-size: 0.75rem;">Faculty members cleared</small>
+                </div>
+            </div>
+        </section>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
+            <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0dcaf0; z-index: 1;"></div>
+            <div class="card-body d-flex align-items-center p-3 ps-4">
+                <div class="stat-icon me-3 text-info fs-2"><i class="fas fa-calendar-check"></i></div>
+                <div>
+                    <h6 class="text-muted mb-0 small text-uppercase fw-bold">Attendance Rate</h6>
+                    <h3 class="mb-0 fw-bold"><?= number_format($attendanceRate, 1) ?>%</h3>
+                    <small class="text-success fw-semibold" style="font-size: 0.75rem;"><i class="fas fa-check-circle me-1"></i>On track</small>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
 
-<!-- Stat Cards -->
+<!-- Middle Row: Charts & Leave Requests -->
 <div class="row g-3 mb-4">
-    <div class="col-12 col-md-4">
-        <div class="card border shadow-sm h-100">
-            <div class="card-body d-flex align-items-center justify-content-between p-3">
-                <div class="d-flex align-items-center">
-                    <div class="text-primary fs-4 me-3">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Faculty Count</h6>
-                        <h4 class="mb-0 fw-bold text-body">18</h4>
-                    </div>
+    <!-- Donut Chart: Evaluation Progress (4 cols) -->
+    <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-body">Evaluation Progress</h6>
+            </div>
+            <div class="card-body d-flex flex-column justify-content-center align-items-center p-4">
+                <div style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="evaluationProgressChart"></canvas>
                 </div>
-                <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">↑ 2 this sem</span>
+                <div class="mt-3 text-center">
+                    <h5 class="mb-0 fw-bold"><?= $evaluatedCount ?> / <?= $totalFaculty ?></h5>
+                    <small class="text-muted">Faculty Evaluated</small>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-12 col-md-4">
-        <div class="card border shadow-sm h-100">
-            <div class="card-body d-flex align-items-center justify-content-between p-3">
-                <div class="d-flex align-items-center">
-                    <div class="text-warning fs-4 me-3">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Pending Requests</h6>
-                        <h4 class="mb-0 fw-bold text-body">5</h4>
-                    </div>
+    <!-- Bar Chart: Clearance Status (4 cols) -->
+    <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-body">Clearance Submission Status</h6>
+            </div>
+            <div class="card-body p-4">
+                <div style="position: relative; height: 250px; width: 100%;">
+                    <canvas id="clearanceChart"></canvas>
                 </div>
-                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill">5 new</span>
             </div>
         </div>
     </div>
 
-    <!-- Row 1, Col 3: Teaching Load -->
-    <div class="col-12 col-md-4">
-        <div class="card border shadow-sm h-100">
-            <div class="card-body d-flex align-items-center justify-content-between p-3">
-                <div class="d-flex align-items-center">
-                    <div class="text-success fs-4 me-3">
-                        <i class="fas fa-book-open"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Teaching Load</h6>
-                        <h4 class="mb-0 fw-bold text-body">17.8 <span class="fs-6 fw-normal text-body-secondary">u</span></h4>
-                    </div>
-                </div>
-                <span class="badge bg-info bg-opacity-10 text-info border border-info rounded-pill">Target: 18</span>
+    <!-- Pending Leave Requests (4 cols) -->
+    <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-body"><i class="fas fa-calendar-times text-danger me-2"></i>Pending Leave Requests</h6>
+                <span class="badge bg-danger rounded-pill"><?= $pendingLeaves ?></span>
             </div>
-        </div>
-    </div>
-
-    <!-- Row 2, Col 1: Schedule Conflicts -->
-    <div class="col-12 col-md-4">
-        <div class="card border shadow-sm h-100">
-            <div class="card-body d-flex align-items-center justify-content-between p-3">
-                <div class="d-flex align-items-center">
-                    <div class="text-danger fs-4 me-3">
-                        <i class="fas fa-calendar-times"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Schedule Conflicts</h6>
-                        <h4 class="mb-0 fw-bold text-body">1</h4>
-                    </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush small" style="max-height: 250px; overflow-y: auto;">
+                    <?php if (empty($leaveRequests)): ?>
+                        <div class="text-muted text-center py-4">
+                            <i class="fas fa-inbox fs-4 d-block mb-2 text-secondary"></i>
+                            No pending leave requests.
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($leaveRequests as $lr): ?>
+                            <div class="list-group-item bg-transparent py-3 border-bottom border-secondary-subtle">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-bold"><?= htmlspecialchars($lr['first_name'] . ' ' . $lr['last_name']) ?></span>
+                                    <span class="text-muted" style="font-size: 0.75rem;"><?= date('M d', strtotime($lr['created_at'])) ?></span>
+                                </div>
+                                <div class="text-muted"><?= htmlspecialchars($lr['leave_type']) ?> • <?= $lr['total_days'] ?> days</div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
-                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill">Open</span>
             </div>
-        </div>
-    </div>
-
-    <!-- Row 2, Col 2: Faculty Performance -->
-    <div class="col-12 col-md-4">
-        <div class="card border shadow-sm h-100">
-            <div class="card-body d-flex align-items-center justify-content-between p-3">
-                <div class="d-flex align-items-center">
-                    <div class="text-info fs-4 me-3">
-                        <i class="fas fa-star-half-alt"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Faculty Performance</h6>
-                        <h4 class="mb-0 fw-bold text-body">4.3 <span class="fs-6 fw-normal text-body-secondary">/ 5.0</span></h4>
-                    </div>
-                </div>
-                <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill">↑ 0.2</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Row 2, Col 3: Dept. Attendance -->
-    <div class="col-12 col-md-4">
-        <div class="card border shadow-sm h-100">
-            <div class="card-body d-flex align-items-center justify-content-between p-3">
-                <div class="d-flex align-items-center">
-                    <div class="text-primary fs-4 me-3">
-                        <i class="fas fa-calendar-check"></i>
-                    </div>
-                    <div>
-                        <h6 class="text-body-secondary mb-0 small text-uppercase fw-bold">Dept. Attendance</h6>
-                        <h4 class="mb-0 fw-bold text-body">92%</h4>
-                    </div>
-                </div>
-                <span class="badge bg-body-tertiary text-body-secondary border rounded-pill">This month</span>
+            <div class="card-footer bg-body-tertiary border-top py-2 text-center mt-auto">
+                <a href="<?= BASE_URL ?>/modules/faculty/views/department-head/leave-request-approval.php" class="text-decoration-none small fw-bold">View All Requests <i class="fas fa-arrow-right ms-1"></i></a>
             </div>
         </div>
     </div>
 </div>
 
-
-<!-- Charts -->
+<!-- Bottom Row: Faculty Roster & Completion -->
 <div class="row g-3 mb-4">
-    <!-- Chart 1: Department Performance -->
-    <div class="col-12 col-xl-6">
-        <div class="card h-100 shadow-sm border">
-            <div class="card-header bg-body-tertiary border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 py-3">
-                <div class="d-flex align-items-center">
-                    <div class="p-2 rounded bg-primary bg-opacity-10 text-primary me-2">
-                        <i class="fas fa-chart-bar"></i>
-                    </div>
-                    <h6 class="mb-0 fw-bold text-body">Department Performance</h6>
-                </div>
-                <select class="form-select form-select-sm w-auto align-self-start align-self-sm-auto shadow-none">
-                    <option>6 Semester View</option>
-                    <option>12 Semester View</option>
-                </select>
+    <!-- Main Table: Department Faculty Roster (8 cols) -->
+    <div class="col-12 col-xl-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-body">Department Faculty Roster</h6>
             </div>
-            <div class="card-body p-2 p-sm-3">
-                <div class="ratio ratio-16x9 ratio-xl-21x9">
-                    <canvas id="deptPerfChart"></canvas>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 text-nowrap">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Faculty Name</th>
+                                <th class="text-center">Position</th>
+                                <th class="text-center">Employment</th>
+                                <th class="text-center">Eval Status</th>
+                                <th class="pe-3">Clearance</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            <?php if (empty($teachers)): ?>
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">No faculty members found in this department.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($teachers as $t): ?>
+                                    <?php
+                                        $stmtEval = $facultyPdo->prepare("SELECT COUNT(*) FROM evaluations WHERE faculty_id = ? AND source_type = 'DeptHead'");
+                                        $stmtEval->execute([$t['faculty_id']]);
+                                        $isEvaluated = $stmtEval->fetchColumn() > 0;
+
+                                        $stmtClear = $facultyPdo->prepare("SELECT COUNT(*) FROM faculty_clearance_archives WHERE faculty_id = (SELECT id FROM faculty_profiles WHERE faculty_id = ? LIMIT 1)");
+                                        $stmtClear->execute([$t['faculty_id']]);
+                                        $isCleared = $stmtClear->fetchColumn() > 0;
+                                    ?>
+                                    <tr>
+                                        <td class="ps-3 fw-bold"><?= htmlspecialchars($t['first_name'] . ' ' . $t['last_name']) ?></td>
+                                        <td class="text-center text-capitalize"><?= htmlspecialchars($t['position']) ?></td>
+                                        <td class="text-center text-capitalize"><?= htmlspecialchars($t['employment_status']) ?></td>
+                                        <td class="text-center">
+                                            <?php if ($isEvaluated): ?>
+                                                <span class="badge bg-success-subtle text-success rounded-pill px-2 py-1">Evaluated</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-warning-subtle text-warning rounded-pill px-2 py-1">Pending</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="pe-3">
+                                            <?php if ($isCleared): ?>
+                                                <span class="text-success fw-bold"><i class="fas fa-check-circle"></i> Cleared</span>
+                                            <?php else: ?>
+                                                <span class="text-muted"><i class="fas fa-hourglass-half"></i> In Progress</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Chart 2: Attendance Trend -->
-    <div class="col-12 col-xl-6">
-        <div class="card h-100 shadow-sm border">
-            <div class="card-header bg-body-tertiary border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 py-3">
-                <div class="d-flex align-items-center">
-                    <div class="p-2 rounded bg-info bg-opacity-10 text-info me-2">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <h6 class="mb-0 fw-bold text-body">Attendance Trend (30 Days)</h6>
-                </div>
-                <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill align-self-start align-self-sm-auto">
-                    <i class="fas fa-arrow-up me-1"></i>92% Avg
-                </span>
+
+    <!-- Side Panels: Top Rated & Completion (4 cols) -->
+    <div class="col-12 col-xl-4">
+        <!-- Top Performing Faculty -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-body-tertiary border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-body"><i class="fas fa-trophy text-warning me-2"></i>Top Rated Faculty</h6>
             </div>
-            <div class="card-body p-2 p-sm-3">
-                <div class="ratio ratio-16x9 ratio-xl-21x9">
-                    <canvas id="attTrendChart"></canvas>
+            <div class="card-body p-3">
+                <?php 
+                    if (count($evalScores) > 0) {
+                        rsort($evalScores);
+                        $top3 = array_slice($evalScores, 0, 3);
+                        foreach ($top3 as $index => $score) {
+                            $badgeColor = ['bg-warning text-dark', 'bg-secondary text-light', 'bg-danger text-light'][$index];
+                            echo '<div class="d-flex align-items-center justify-content-between mb-3">';
+                            echo '<div class="d-flex align-items-center gap-2">';
+                            echo '<span class="badge '.$badgeColor.' rounded-circle p-2">'.($index + 1).'</span>';
+                            echo '<span class="fw-semibold small">Faculty Member</span>';
+                            echo '</div>';
+                            echo '<span class="text-success fw-bold small">'.number_format($score, 2).'</span>';
+                            echo '</div>';
+                        }
+                    } else {
+                        echo '<div class="text-muted small text-center py-3">No evaluations submitted yet.</div>';
+                    }
+                ?>
+            </div>
+        </div>
+
+        <!-- Evaluation Completion Rate Chart -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-body-tertiary border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-body">Evaluation Completion</h6>
+            </div>
+            <div class="card-body d-flex flex-column align-items-center p-3">
+                <div style="position: relative; height: 150px; width: 100%;" class="mb-3">
+                    <canvas id="completionChart"></canvas>
+                </div>
+                <div class="w-100 small text-center">
+                    <h5 class="mb-0 fw-bold text-primary"><?= number_format($totalFaculty > 0 ? ($evaluatedCount / $totalFaculty) * 100 : 0, 1) ?>%</h5>
+                    <small class="text-muted">Overall Completion</small>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Quick Actions -->
-<div class="card mb-4 shadow-sm border">
-    <div class="card-header bg-body-tertiary border-bottom py-3">
-        <h6 class="mb-0 fw-semibold text-body">
-            <i class="fas fa-bolt me-2 text-warning"></i>Quick Actions
-        </h6>
-    </div>
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-3">
-                <a href="<?= BASE_URL ?>/modules/faculty/users/head/pages/faculty-directory.php" class="btn btn-outline-primary w-100 h-100 p-3 d-flex flex-column align-items-center justify-content-center gap-2 border">
-                    <i class="fas fa-users fa-2x"></i>
-                    <span class="fw-semibold">View Faculty</span>
-                </a>
-            </div>
-            <div class="col-md-3">
-                <a href="<?= BASE_URL ?>/modules/faculty/users/head/pages/teaching-load-approval.php" class="btn btn-outline-warning w-100 h-100 p-3 d-flex flex-column align-items-center justify-content-center gap-2 border">
-                    <i class="fas fa-inbox fa-2x"></i>
-                    <span class="fw-semibold">Review Loads</span>
-                </a>
-            </div>
-            <div class="col-md-3">
-                <a href="<?= BASE_URL ?>/modules/faculty/users/head/pages/schedule-approval.php" class="btn btn-outline-danger w-100 h-100 p-3 d-flex flex-column align-items-center justify-content-center gap-2 border">
-                    <i class="fas fa-calendar-times fa-2x"></i>
-                    <span class="fw-semibold">View Conflicts</span>
-                </a>
-            </div>
-            <div class="col-md-3">
-                <a href="<?= BASE_URL ?>/modules/faculty/users/head/pages/faculty-performance.php" class="btn btn-outline-success w-100 h-100 p-3 d-flex flex-column align-items-center justify-content-center gap-2 border">
-                    <i class="fas fa-chart-line fa-2x"></i>
-                    <span class="fw-semibold">Performance</span>
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Recent Activity -->
-<div class="card mb-4 shadow-sm border">
-    <div class="card-header bg-body-tertiary border-bottom py-3">
-        <h6 class="mb-0 fw-semibold text-body">
-            <i class="fas fa-history me-2 text-info"></i>Recent Department Activity
-        </h6>
-    </div>
-    <div class="card-body p-0">
-        <ul class="list-group list-group-flush">
-            <li class="list-group-item bg-transparent d-flex align-items-center justify-content-between p-3 border-bottom">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="p-2 rounded-circle bg-primary bg-opacity-10 text-primary">
-                        <i class="fas fa-file-signature"></i>
-                    </div>
-                    <div>
-                        <div class="fw-semibold text-body">Teaching load submitted for approval</div>
-                        <div class="small text-body-secondary">Prof. John Doe • BSIT Department</div>
-                    </div>
-                </div>
-                <small class="text-body-tertiary">10 mins ago</small>
-            </li>
-            <li class="list-group-item bg-transparent d-flex align-items-center justify-content-between p-3 border-bottom">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="p-2 rounded-circle bg-danger bg-opacity-10 text-danger">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <div>
-                        <div class="fw-semibold text-body">Schedule conflict detected</div>
-                        <div class="small text-body-secondary">Room 302 • Mon/Wed 08:00 AM</div>
-                    </div>
-                </div>
-                <small class="text-body-tertiary">1 hour ago</small>
-            </li>
-        </ul>
-    </div>
-</div>
+<!-- Load Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-(function() {
-    /* Department Performance Chart */
-    const ctxPerf = document.getElementById('deptPerfChart');
-    if (ctxPerf) {
-        const sems = ['2024-2S', '2025-1S', '2025-2S', '2026-1S', '2026-2S', '2027-1S'];
-        new Chart(ctxPerf, {
-            type: 'bar',
+document.addEventListener('DOMContentLoaded', function () {
+    // 1. Evaluation Progress Chart (Donut)
+    const ctxEval = document.getElementById('evaluationProgressChart');
+    if (ctxEval) {
+        new Chart(ctxEval, {
+            type: 'doughnut',
             data: {
-                labels: sems,
-                datasets: [
-                    { label: 'Student Eval', data: [3.9, 4.0, 4.1, 4.2, 4.3, 4.4], backgroundColor: '#0d6efd' },
-                    { label: 'Attendance', data: [4.4, 4.3, 4.5, 4.5, 4.6, 4.6], backgroundColor: '#198754' },
-                    { label: 'Peer Review', data: [3.8, 3.9, 4.0, 4.1, 4.2, 4.3], backgroundColor: '#ffc107' },
-                    { label: 'Research', data: [3.4, 3.5, 3.6, 3.8, 3.9, 4.0], backgroundColor: '#0dcaf0' },
-                    { 
-                        label: 'Dept Trend', 
-                        type: 'line', 
-                        data: [3.88, 3.93, 4.05, 4.15, 4.25, 4.33], 
-                        borderColor: '#212529', 
-                        backgroundColor: 'transparent', 
-                        tension: 0.35, 
-                        borderWidth: 2, 
-                        pointRadius: 4 
-                    }
-                ]
+                labels: ['Evaluated', 'Pending'],
+                datasets: [{
+                    data: [<?= $evaluatedCount ?>, <?= max(0, $totalFaculty - $evaluatedCount) ?>],
+                    backgroundColor: ['#198754', '#e9ecef'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: window.innerWidth < 576 ? 'bottom' : 'top', // Adjust legend position dynamically
-                        labels: {
-                            boxWidth: 12,
-                            font: { size: 11 }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 45, // Angles x-axis text on small screens to fit neatly
-                            font: { size: 10 }
-                        }
-                    }
-                }
+                cutout: '70%',
+                plugins: { legend: { display: false } }
             }
         });
     }
 
-    /* Attendance Trend Chart */
-    const ctxTrend = document.getElementById('attTrendChart');
-    if (ctxTrend) {
-        const labels = Array.from({ length: 30 }, (_, i) => `D${i + 1}`);
-        const data = labels.map(() => 86 + Math.round(Math.random() * 13));
-        new Chart(ctxTrend, {
-            type: 'line',
+    // 2. Clearance Status Bar Chart
+    const ctxClearance = document.getElementById('clearanceChart');
+    if (ctxClearance) {
+        new Chart(ctxClearance, {
+            type: 'bar',
             data: {
-                labels,
+                labels: ['Cleared', 'In Progress', 'Missing'],
                 datasets: [{
-                    label: 'Attendance %',
-                    data,
-                    borderColor: '#0d6efd',
-                    backgroundColor: 'rgba(13, 110, 253, 0.15)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 1,
-                    borderWidth: 2
+                    label: 'Faculty Count',
+                    data: [<?= $clearedCount ?>, <?= max(0, $totalFaculty - $clearedCount) ?>, 0], 
+                    backgroundColor: ['#198754', '#ffc107', '#dc3545'],
+                    borderRadius: 4,
+                    barThickness: 40
                 }]
             },
             options: {
@@ -357,16 +425,42 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
                 plugins: { legend: { display: false } },
                 scales: {
                     y: {
-                        min: 70,
-                        max: 100,
-                        ticks: { callback: v => v + '%' }
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 }
                     }
                 }
             }
         });
     }
-})();
 
+    // 3. Evaluation Completion Rate Chart (Half Donut)
+    const ctxCompletion = document.getElementById('completionChart');
+    if (ctxCompletion) {
+        let completionRate = <?= $totalFaculty > 0 ? ($evaluatedCount / $totalFaculty) * 100 : 0 ?>;
+        new Chart(ctxCompletion, {
+            type: 'doughnut',
+            data: {
+                labels: ['Done', 'Pending'],
+                datasets: [{
+                    data: [completionRate, 100 - completionRate],
+                    backgroundColor: ['#0d6efd', '#e9ecef'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '75%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                }
+            }
+        });
+    }
+});
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

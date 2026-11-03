@@ -119,21 +119,20 @@ $facultyAdministrator = [
         ['slug' => 'faculty-directory',   'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-directory.php',   'icon' => 'fa-address-book','label' => 'Faculty Directory'],
         ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-performance.php', 'icon' => 'fa-chart-line',  'label' => 'Faculty Performance'],
     ],
-    'Approvals' => [
+    'Approval Accounts' => [
         ['slug' => 'pending-approvals', 'href' => BASE_URL . '/modules/faculty/views/administrator/pending-approvals.php', 'icon' => 'fa-user-clock', 'label' => 'Pending Approvals'],
     ],
     'Departments' => [
         ['slug' => 'departments',             'href' => BASE_URL . '/modules/faculty/views/administrator/departments.php',             'icon' => 'fa-building',  'label' => 'Departments'],
         ['slug' => 'department-assignments',  'href' => BASE_URL . '/modules/faculty/views/administrator/department-assignments.php',  'icon' => 'fa-user-tag',  'label' => 'Department Assignments'],
     ],
-    'Evaluation &amp; Leave Application' => [
+    'Evaluation & Leave Application' => [
         ['slug' => 'evaluation-summary',         'href' => BASE_URL . '/modules/faculty/views/administrator/evaluation-summary.php',         'icon' => 'fa-chart-pie',       'label' => 'Evaluation Summary'],
         ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/administrator/leave-application-approval.php', 'icon' => 'fa-file-signature',  'label' => 'Leave Application'],
     ],
-    'Clearance &amp; Teaching Load' => [
+    'Clearance & Teaching Load' => [
         ['slug' => 'faculty-clearance',        'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-clearance.php',        'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
         ['slug' => 'teaching-load-workflow',   'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php',   'icon' => 'fa-layer-group',     'label' => 'Teaching Load'],
-        ['slug' => 'faculty-clearance',          'href' => BASE_URL . '/modules/faculty/views/administrator/faculty-clearance.php',          'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
         ['slug' => 'clearance-admin-dashboard',  'href' => BASE_URL . '/modules/faculty/views/administrator/clearance-admin-dashboard.php',  'icon' => 'fa-clipboard-list',  'label' => 'Clearance Admin Dashboard'],
         ['slug' => 'teaching-load-approval',     'href' => BASE_URL . '/modules/faculty/views/administrator/teaching-load-approval.php',     'icon' => 'fa-layer-group',     'label' => 'Teaching Load'],
     ],
@@ -178,7 +177,6 @@ $facultyDeanNavGroups = [
         ['slug' => 'teaching-history',      'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php',      'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
         ['slug' => 'subject-load-tracker',  'href' => BASE_URL . '/modules/faculty/views/dean/subject-load-tracker.php',  'icon' => 'fa-list-check',         'label' => 'Subject Load Tracker'],
         ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
-        ['slug' => 'teaching-history', 'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php', 'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
         ['slug' => 'class-schedules',       'href' => BASE_URL . '/modules/faculty/views/dean/class-schedules.php',       'icon' => 'fa-calendar-days',      'label' => 'Class Schedules'],
         ['slug' => 'attendance-history',    'href' => BASE_URL . '/modules/faculty/views/dean/attendance-history.php',    'icon' => 'fa-clock-rotate-left',  'label' => 'Attendance History'],
     ],
@@ -189,6 +187,9 @@ $facultyDeanNavGroups = [
 ];
 
 $facultyDepartmentHeadNavGroups = [
+    'Overview' => [
+        ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/department-head/dashboard.php', 'icon' => 'fa-gauge-high', 'label' => 'Dashboard'],
+    ],
     'Faculty Profiles' => [
         ['slug' => 'faculty-profile', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-profile.php', 'icon' => 'fa-id-badge', 'label' => 'Faculty Profile'],
         ['slug' => 'faculty-directory', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-directory.php', 'icon' => 'fa-address-book', 'label' => 'Faculty Directory'],
@@ -201,7 +202,6 @@ $facultyDepartmentHeadNavGroups = [
     'Attendance & Teaching-History' => [
         ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/department-head/attendance-summary.php', 'icon' => 'fa-user-check', 'label' => 'Attendance'],
         ['slug' => 'teaching-history', 'href' => BASE_URL . '/modules/faculty/views/department-head/teaching-history.php', 'icon' => 'fa-history', 'label' => 'Teaching History'],
-
     ],
     'Evaluation & Leave Request' => [
         ['slug' => 'faculty-member-evaluation', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-member-evaluation.php', 'icon' => 'fa-user-check', 'label' => 'Peer Evaluation'],
@@ -210,7 +210,6 @@ $facultyDepartmentHeadNavGroups = [
     ],
     'Clearance' => [
         ['slug' => 'faculty-clearance', 'href' => BASE_URL . '/modules/faculty/views/department-head/faculty-clearance.php', 'icon' => 'fa-clipboard-check', 'label' => 'Faculty Clearance'],
-        // CHANGED: Reports entry removed per request
     ],
 ];
 

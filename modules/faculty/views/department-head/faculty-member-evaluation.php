@@ -9,15 +9,20 @@
 require_once __DIR__ . '/../../../../config/config.php';
 require_once ROOT_PATH . '/includes/authentication.php';
 
-// faculty-data.php defines facultyDb() — load it BEFORE anything calls it.
+// Load the database connection
 require_once __DIR__ . '/../../controllers/faculty-data.php';
 require_once __DIR__ . '/../../config/database.php';
 
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 if (!$pdo) {
-    die('<div style="padding:20px;color:#721c24;background:#f8d7da;margin:20px;border-radius:5px;">
-        <strong>Faculty database connection is unavailable.</strong>
-    </div>');
+    // Fallback manual connection just in case
+    try {
+        $pdo = new PDO("mysql:host=127.0.0.1;dbname=faculty_db;charset=utf8mb4", 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    } catch (PDOException $e) {
+        die('<div style="padding:20px;color:#721c24;background:#f8d7da;margin:20px;border-radius:5px;">
+            <strong>Faculty database connection is unavailable.</strong> Error: ' . $e->getMessage() . '
+        </div>');
+    }
 }
 
 $pageTitle    = 'Department Head Evaluation';
@@ -30,7 +35,7 @@ $breadcrumbs  = [
 ];
 
 /* ------------------------------------------------------------------
- | 2. Identify current user, department, and real faculty_id (self-healing)
+ | 1. Identify current user and department
  * ------------------------------------------------------------------ */
 $currentUserId = (int) ($_SESSION['user_id'] ?? 0);
 $sessionEmail  = trim((string) ($_SESSION['user_email'] ?? $_SESSION['email'] ?? ''));
@@ -45,34 +50,18 @@ if ($currentUserId > 0 || $sessionEmail !== '') {
     // (a) by user_id
     if ($currentUserId > 0) {
         $stmt = $pdo->prepare("
-            SELECT fp.id, fp.designated_department, fp.email,
-                   fp.faculty_id AS profile_faculty_no,
-                   fp.position,
-                   f.faculty_id AS real_faculty_id
+            SELECT id, designated_department, email, position, faculty_id AS real_faculty_id
             FROM faculty_profiles fp
-            LEFT JOIN faculty f ON f.faculty_id = (
-                SELECT f2.faculty_id
-                FROM faculty f2
-                WHERE (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email)))
-                   OR f2.faculty_no = fp.faculty_id
-                   OR (fp.user_id IS NOT NULL AND f2.external_user_id = fp.user_id)
-                ORDER BY
-                    (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email))) DESC,
-                    (f2.faculty_no = fp.faculty_id) DESC
-                LIMIT 1
-            )
-            WHERE fp.user_id = :uid
-            LIMIT 1
+            WHERE fp.user_id = :uid LIMIT 1
         ");
         $stmt->execute([':uid' => $currentUserId]);
         $currentFaculty = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    // (b) by email + repair user_id
+    // (b) by email
     if (!$currentFaculty && $sessionEmail !== '') {
         $stmt = $pdo->prepare("
-            SELECT id, user_id, designated_department, email,
-                   faculty_id AS profile_faculty_no, position
+            SELECT id, user_id, designated_department, email, position, faculty_id AS real_faculty_id
             FROM faculty_profiles
             WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email))
             LIMIT 1
@@ -84,35 +73,9 @@ if ($currentUserId > 0 || $sessionEmail !== '') {
                 try {
                     $pdo->prepare("UPDATE faculty_profiles SET user_id = :uid WHERE id = :id")
                         ->execute([':uid' => $currentUserId, ':id' => (int) $row['id']]);
-                    error_log("[faculty-member-evaluation] repaired user_id for profile {$row['id']} -> {$currentUserId}");
-                } catch (Throwable $e) {
-                    error_log('[faculty-member-evaluation][repair] ' . $e->getMessage());
-                }
+                } catch (Throwable $e) {}
             }
-
-            // Re-run the full lookup now that user_id is fixed
-            $stmt = $pdo->prepare("
-                SELECT fp.id, fp.designated_department, fp.email,
-                       fp.faculty_id AS profile_faculty_no,
-                       fp.position,
-                       f.faculty_id AS real_faculty_id
-                FROM faculty_profiles fp
-                LEFT JOIN faculty f ON f.faculty_id = (
-                    SELECT f2.faculty_id
-                    FROM faculty f2
-                    WHERE (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email)))
-                       OR f2.faculty_no = fp.faculty_id
-                       OR (fp.user_id IS NOT NULL AND f2.external_user_id = fp.user_id)
-                    ORDER BY
-                        (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email))) DESC,
-                        (f2.faculty_no = fp.faculty_id) DESC
-                    LIMIT 1
-                )
-                WHERE fp.id = :id
-                LIMIT 1
-            ");
-            $stmt->execute([':id' => (int) $row['id']]);
-            $currentFaculty = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            $currentFaculty = $row;
         }
     }
 
@@ -120,9 +83,9 @@ if ($currentUserId > 0 || $sessionEmail !== '') {
         $userDept           = trim((string) ($currentFaculty['designated_department'] ?? ''));
         $evaluatorProfileId = (int) $currentFaculty['id'];
         $evaluatorPosition  = trim((string) ($currentFaculty['position'] ?? ''));
-        $evaluatorFacultyId = $currentFaculty['real_faculty_id'] !== null
-            ? (int) $currentFaculty['real_faculty_id']
-            : null;
+        
+        // FIX: Directly use the faculty_id from the profile, not the joined faculty table ID
+        $evaluatorFacultyId = !empty($currentFaculty['real_faculty_id']) ? (string) $currentFaculty['real_faculty_id'] : null;
     }
 }
 
@@ -133,15 +96,16 @@ if ($userDept === '') {
 $isDeptHead = $evaluatorPosition !== '' && strcasecmp($evaluatorPosition, 'Department Head') === 0;
 
 /* ------------------------------------------------------------------
- | 3. Fetch Faculty in the same department, mapped to real faculty_id
+ | 2. Fetch Faculty in the same department directly from faculty_profiles
  * ------------------------------------------------------------------ */
 $faculty = [];
 
 if ($isDeptHead && $userDept !== '') {
+    // Query ONLY faculty_profiles. No joins to the 'faculty' table required.
     $stmt = $pdo->prepare("
         SELECT
             fp.id                              AS profile_id,
-            f.faculty_id                       AS id,
+            fp.faculty_id                      AS id,
             fp.faculty_id                      AS employee_id,
             fp.first_name,
             fp.last_name,
@@ -151,32 +115,22 @@ if ($isDeptHead && $userDept !== '') {
                 SELECT COUNT(*)
                 FROM evaluations e
                 WHERE e.evaluator_id = :evaluator_id
-                  AND e.faculty_id = f.faculty_id
+                  AND e.faculty_id = fp.faculty_id
                   AND e.source_type = 'DeptHead'
             ) AS evaluation_count
         FROM faculty_profiles fp
-        LEFT JOIN faculty f ON f.faculty_id = (
-            SELECT f2.faculty_id
-            FROM faculty f2
-            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email)))
-               OR f2.faculty_no = fp.faculty_id
-               OR (fp.user_id IS NOT NULL AND f2.external_user_id = fp.user_id)
-            ORDER BY
-                (fp.email IS NOT NULL AND fp.email <> '' AND LOWER(TRIM(f2.email)) = LOWER(TRIM(fp.email))) DESC,
-                (f2.faculty_no = fp.faculty_id) DESC
-            LIMIT 1
-        )
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:department)
           AND fp.id != :profile_id
           AND (fp.user_id != :current_user_id OR fp.user_id IS NULL)
-          AND LOWER(TRIM(fp.position)) = :teaching_position
+          AND LOWER(TRIM(fp.position)) = 'faculty professor'
         ORDER BY
             CASE
-                WHEN f.faculty_id IS NULL THEN 2
-                WHEN (SELECT COUNT(*) FROM evaluations e2
-                      WHERE e2.evaluator_id = :evaluator_id_2
-                        AND e2.faculty_id = f.faculty_id
-                        AND e2.source_type = 'DeptHead') > 0 THEN 1
+                WHEN (
+                    SELECT COUNT(*) FROM evaluations e2
+                    WHERE e2.evaluator_id = :evaluator_id_2
+                      AND e2.faculty_id = fp.faculty_id
+                      AND e2.source_type = 'DeptHead'
+                ) > 0 THEN 1
                 ELSE 0
             END ASC,
             fp.last_name ASC,
@@ -189,22 +143,17 @@ if ($isDeptHead && $userDept !== '') {
         'profile_id'        => $evaluatorProfileId,
         'evaluator_id'      => $evaluatorFacultyId ?? 0,
         'evaluator_id_2'    => $evaluatorFacultyId ?? 0,
-        // Only teaching staff can be evaluated (no Dean, Secretary, Monitoring Officer, etc.)
-        'teaching_position' => 'faculty professor',
     ]);
 
     $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Statistics: only linked faculty are evaluable
+// Statistics
 $totalFaculty   = 0;
 $evaluatedCount = 0;
-$unlinkedCount  = 0;
+
 foreach ($faculty as $p) {
-    if (empty($p['id'])) {
-        $unlinkedCount++;
-        continue;
-    }
+    if (empty($p['id'])) continue;
     $totalFaculty++;
     if ((int) $p['evaluation_count'] > 0) {
         $evaluatedCount++;
@@ -345,15 +294,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <?php if (!empty($faculty)): ?>
                             <?php foreach ($faculty as $member): ?>
                                 <?php
-                                    // Skip unlinked profiles entirely — they can't be evaluated
-                                    // and shouldn't appear in the list.
-                                    if (empty($member['id'])) {
-                                        continue;
-                                    }
+                                    if (empty($member['id'])) continue;
 
                                     $fullName  = htmlspecialchars('Prof. ' . $member['first_name'] . ' ' . $member['last_name']);
                                     $initials  = strtoupper(substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1));
-                                    $facId     = htmlspecialchars($member['employee_id'] ?? $member['id']);
+                                    $facId     = htmlspecialchars($member['employee_id'] ?? 'N/A');
                                     $isDone    = (int) $member['evaluation_count'] > 0;
                                     $searchStr = strtolower($fullName . ' ' . $facId);
                                 ?>
