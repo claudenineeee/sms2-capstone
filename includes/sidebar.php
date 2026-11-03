@@ -169,20 +169,6 @@ $facultyDeanNavGroups = [
         ['slug' => 'faculty-performance', 'href' => BASE_URL . '/modules/faculty/views/dean/faculty-performance.php', 'icon' => 'fa-chart-simple','label' => 'Faculty Performance'],
     ],
     'Approvals' => [
-        ['slug' => 'pending-approvals', 'href' => BASE_URL . '/modules/faculty/views/dean/pending-approvals.php', 'icon' => 'fa-hourglass-half', 'label' => 'Pending Approvals'],
-        ['slug' => 'leave-application-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/leave-application-approval.php', 'icon' => 'fa-file-signature', 'label' => 'Leave Endorsement'],
-        ['slug' => 'clearance-approval', 'href' => BASE_URL . '/modules/faculty/views/dean/clearance-approval.php', 'icon' => 'fa-clipboard-check', 'label' => 'Clearance Sign-off'],
-    ],
-    'Teaching & Load' => [
-        ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
-        ['slug' => 'teaching-history', 'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php', 'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
-        ['slug' => 'subject-assignments', 'href' => BASE_URL . '/modules/faculty/views/dean/subject-assignments.php', 'icon' => 'fa-book', 'label' => 'Subject Assignments'],
-        ['slug' => 'class-schedules', 'href' => BASE_URL . '/modules/faculty/views/dean/class-schedules.php', 'icon' => 'fa-calendar-days', 'label' => 'Class Schedules'],
-    ],
-    'Subject & Attendance' => [
-        ['slug' => 'attendance-summary', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-monitoring.php', 'icon' => 'fa-user-check', 'label' => 'Attendance Monitoring'],
-        ['slug' => 'attendance-history', 'href' => BASE_URL . '/modules/faculty/views/dean/attendance-history.php', 'icon' => 'fa-clock-rotate-left', 'label' => 'Attendance History'],
-
         ['slug' => 'pending-approvals',            'href' => BASE_URL . '/modules/faculty/views/dean/pending-approvals.php',            'icon' => 'fa-hourglass-half',        'label' => 'Pending Approvals'],
         ['slug' => 'leave-application-approval',   'href' => BASE_URL . '/modules/faculty/views/dean/leave-application-approval.php',   'icon' => 'fa-file-signature',        'label' => 'Leave Endorsement'],
         ['slug' => 'department-clearance-signoff', 'href' => BASE_URL . '/modules/faculty/views/dean/department-clearance-signoff.php', 'icon' => 'fa-building-circle-check', 'label' => 'Department Clearance'],
@@ -191,6 +177,8 @@ $facultyDeanNavGroups = [
     'Teaching & Attendance' => [
         ['slug' => 'teaching-history',      'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php',      'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
         ['slug' => 'subject-load-tracker',  'href' => BASE_URL . '/modules/faculty/views/dean/subject-load-tracker.php',  'icon' => 'fa-list-check',         'label' => 'Subject Load Tracker'],
+        ['slug' => 'teaching-load-workflow', 'href' => BASE_URL . '/modules/faculty/views/teaching-load-workflow.php', 'icon' => 'fa-layer-group', 'label' => 'Teaching Load'],
+        ['slug' => 'teaching-history', 'href' => BASE_URL . '/modules/faculty/views/dean/teaching-history.php', 'icon' => 'fa-chalkboard-teacher', 'label' => 'Teaching History'],
         ['slug' => 'class-schedules',       'href' => BASE_URL . '/modules/faculty/views/dean/class-schedules.php',       'icon' => 'fa-calendar-days',      'label' => 'Class Schedules'],
         ['slug' => 'attendance-history',    'href' => BASE_URL . '/modules/faculty/views/dean/attendance-history.php',    'icon' => 'fa-clock-rotate-left',  'label' => 'Attendance History'],
     ],

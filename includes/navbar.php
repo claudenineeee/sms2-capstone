@@ -72,12 +72,14 @@ $navNotificationUnreadCount = count(array_filter(
                 <div class="search-kbd-hint" aria-hidden="true">
                     <kbd>Ctrl</kbd><kbd>K</kbd>
                 </div>
-                <div class="navbar-search-dropdown" id="searchDropdown" role="listbox" aria-label="Search results">
-                    <div class="search-empty" id="searchEmpty">
-                        <i class="fas fa-search-minus"></i>
-                        <span>No results found</span>
+                
+                <!-- Search Dropdown -->
+                <div class="navbar-search-dropdown dropdown-menu shadow" id="searchDropdown">
+                    <div class="search-empty text-center text-muted py-4" id="searchEmpty" style="display:none;">
+                        <i class="fas fa-search-minus mb-2 fs-4"></i>
+                        <div class="small">No results found</div>
                     </div>
-                    <ul class="search-results-list" id="searchResultsList"></ul>
+                    <div class="search-results-list" id="searchResultsList"></div>
                 </div>
             </div>
         </div>
@@ -267,6 +269,58 @@ $navNotificationUnreadCount = count(array_filter(
 </nav>
 
 <style>
+    /* ===== GLOBAL SEARCH DROPDOWN =====
+       Final left/top/width are set by JS so it always sits right under the input. */
+    .navbar-search { position: relative; }
+    .navbar-search-dropdown {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        width: 100%;
+        display: none;
+        z-index: 1050;
+        max-height: 420px;
+        overflow-y: auto;
+        border-radius: 12px;
+        border: 1px solid var(--bs-border-color, #dee2e6);
+        padding: 0.4rem;
+        margin: 0;
+        transform: none;
+    }
+    .navbar-search-dropdown.show { display: block !important; }
+
+    .navbar-search-dropdown .sms-search-item {
+        display: flex !important;
+        align-items: center;
+        gap: .6rem;
+        padding: 8px 10px;
+        border-radius: 8px;
+        text-decoration: none;
+        color: inherit;
+        white-space: normal;
+        height: auto !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
+    .navbar-search-dropdown .sms-search-item:hover,
+    .navbar-search-dropdown .sms-search-item.active {
+        background: rgba(36, 84, 198, .12);
+        color: inherit;
+    }
+    .navbar-search-dropdown .search-result-icon {
+        width: 30px; height: 30px; flex-shrink: 0;
+        border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(36, 84, 198, .12);
+        color: var(--sms-primary, #2454c6);
+    }
+    .navbar-search-dropdown mark {
+        background: transparent;
+        color: var(--sms-primary, #2454c6);
+        font-weight: 700;
+        padding: 0;
+    }
+
     #logoutConfirmModal .modal-dialog { width: min(420px, calc(100vw - 2rem)); max-width: 420px; margin-left: auto; margin-right: auto; }
     #logoutConfirmModal .modal-content { border-radius: 12px; overflow: hidden; }
     #logoutConfirmModal .modal-header,
@@ -480,20 +534,284 @@ $navNotificationUnreadCount = count(array_filter(
 </div>
 
 <script>
-window.SMS2_SEARCH_INDEX = (function() {
-    var base = '<?= BASE_URL ?>';
-    var items = [];
-    <?php foreach ($visibleModulesNav as $navModuleKey => $module): ?>
-    items.push({type:'module',label:<?= json_encode($module['label']) ?>,icon:<?= json_encode($module['icon']) ?>,url:base+'/modules/<?= $navModuleKey ?>/index.php',keywords:<?= json_encode(strtolower($module['label'])) ?>});
-    <?php foreach ($module['pages'] as $page): ?>
-    items.push({type:'page',label:<?= json_encode($page['title']) ?>,parent:<?= json_encode($module['label']) ?>,icon:<?= json_encode($module['icon']) ?>,url:base+'/modules/<?= $navModuleKey ?>/pages/<?= $page['slug'] ?>.php',keywords:<?= json_encode(strtolower($page['title'].' '.$module['label'])) ?>});
-    <?php endforeach; ?>
-    <?php endforeach; ?>
-    return items;
-})();
-
 document.addEventListener('DOMContentLoaded', function () {
+    
+    /* =========================================================
+       GLOBAL SEARCH
+       Suggestions are read from the sidebar that is actually
+       rendered for the logged-in role, so each user type only
+       sees (and can open) its own pages.
+       ========================================================= */
+    const searchInput       = document.getElementById('globalSearch');
+    const searchDropdown    = document.getElementById('searchDropdown');
+    const searchResultsList = document.getElementById('searchResultsList');
+    const searchEmpty       = document.getElementById('searchEmpty');
+    const searchClear       = document.getElementById('globalSearchClear');
 
+    if (searchInput && searchDropdown && searchResultsList) {
+        // Use a fresh container so older CSS targeting #searchResultsList can't hide the rows
+        const resultsBox = document.createElement('div');
+        resultsBox.id = 'searchResultsBox';
+        searchDropdown.appendChild(resultsBox);
+        searchResultsList.style.setProperty('display', 'none', 'important');
+
+        const SIDEBAR_SELECTORS = ['#smsSidebar', '#sidebar', '.sms-sidebar', '.sidebar', 'aside'];
+        const HEADING_SELECTOR  = '.sidebar-group-heading, .sidebar-group-label, .sidebar-heading, .sidebar-section-title, .nav-section-title, .menu-title';
+
+        let searchIndex = [];
+        let activeIdx   = -1;
+
+        function findSidebar() {
+            for (const sel of SIDEBAR_SELECTORS) {
+                const el = document.querySelector(sel);
+                if (el && el.querySelector('a[href]')) return el;
+            }
+            return null;
+        }
+
+        function cleanText(el) {
+            return (el.textContent || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function buildSearchIndex() {
+            const sidebar = findSidebar();
+            if (!sidebar) return;
+
+            const nodes = sidebar.querySelectorAll('a[href], ' + HEADING_SELECTOR);
+            const seen  = new Set();
+            let category = 'Menu';
+            const index = [];
+
+            nodes.forEach(function (node) {
+                // Group headings and collapse toggles only set the category
+                if (node.matches(HEADING_SELECTOR) || node.hasAttribute('data-bs-toggle')) {
+                    const text = cleanText(node);
+                    if (text) category = text;
+                    return;
+                }
+
+                if (node.tagName !== 'A') return;
+                if (node.classList.contains('nav-link-locked') || node.getAttribute('aria-disabled') === 'true') return;
+
+                const href = node.getAttribute('href');
+                if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) return;
+
+                const label = node.getAttribute('data-title') || cleanText(node);
+                if (!label) return;
+
+                const url = node.href; // absolute, already resolved by the browser
+                const key = url + '|' + label;
+                if (seen.has(key)) return;
+                seen.add(key);
+
+                const iconEl = node.querySelector('i[class*="fa-"]');
+
+                index.push({
+                    label: label,
+                    url: url,
+                    category: category,
+                    icon: iconEl ? iconEl.className : 'fas fa-link',
+                    labelLower: label.toLowerCase(),
+                    keywords: (label + ' ' + category).toLowerCase()
+                });
+            });
+
+            searchIndex = index;
+            console.debug('[navbar-search] indexed ' + index.length + ' sidebar links');
+        }
+
+        function runSearch(query) {
+            const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+            const q = tokens.join(' ');
+            return searchIndex
+                .filter(function (item) {
+                    return tokens.every(function (t) { return item.keywords.includes(t); });
+                })
+                .map(function (item) {
+                    let score = 3;
+                    if (item.labelLower === q) score = 0;
+                    else if (item.labelLower.startsWith(q)) score = 1;
+                    else if (item.labelLower.includes(q)) score = 2;
+                    return { item: item, score: score };
+                })
+                .sort(function (a, b) { return a.score - b.score; })
+                .map(function (r) { return r.item; });
+        }
+
+        // Append text with matched tokens wrapped in <mark> (DOM-built, no innerHTML)
+        function appendHighlighted(parent, text, tokens) {
+            const escaped = tokens.map(function (t) { return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
+            if (!escaped.length) { parent.appendChild(document.createTextNode(text)); return; }
+            const re = new RegExp('(' + escaped.join('|') + ')', 'ig');
+            text.split(re).forEach(function (part, i) {
+                if (!part) return;
+                if (i % 2 === 1) {
+                    const m = document.createElement('mark');
+                    m.textContent = part;
+                    parent.appendChild(m);
+                } else {
+                    parent.appendChild(document.createTextNode(part));
+                }
+            });
+        }
+
+        function setImportant(el, prop, value) {
+            el.style.setProperty(prop, value, 'important');
+        }
+
+        // Pin the dropdown exactly under the input, whatever the navbar CSS does
+        function positionDropdown() {
+            const parent = searchDropdown.offsetParent || document.body;
+            const pr = parent.getBoundingClientRect();
+            const ir = searchInput.getBoundingClientRect();
+            setImportant(searchDropdown, 'position', 'absolute');
+            setImportant(searchDropdown, 'left', (ir.left - pr.left - parent.clientLeft) + 'px');
+            setImportant(searchDropdown, 'top', (ir.bottom - pr.top - parent.clientTop + 6) + 'px');
+            setImportant(searchDropdown, 'width', ir.width + 'px');
+            setImportant(searchDropdown, 'right', 'auto');
+            setImportant(searchDropdown, 'transform', 'none');
+            setImportant(searchDropdown, 'margin', '0');
+            setImportant(searchDropdown, 'height', 'auto');
+            setImportant(searchDropdown, 'opacity', '1');
+            setImportant(searchDropdown, 'visibility', 'visible');
+            setImportant(searchDropdown, 'overflow-y', 'auto');
+        }
+
+        function openDropdown() {
+            searchDropdown.classList.add('show');
+            searchInput.setAttribute('aria-expanded', 'true');
+            positionDropdown();
+        }
+
+        function closeDropdown() {
+            searchDropdown.classList.remove('show');
+            searchInput.setAttribute('aria-expanded', 'false');
+            activeIdx = -1;
+        }
+
+        function resultLinks() {
+            return resultsBox.querySelectorAll('a.sms-search-item');
+        }
+
+        function setActive(idx) {
+            const links = resultLinks();
+            if (!links.length) { activeIdx = -1; return; }
+            activeIdx = (idx + links.length) % links.length;
+            links.forEach(function (a, i) { a.classList.toggle('active', i === activeIdx); });
+            links[activeIdx].scrollIntoView({ block: 'nearest' });
+        }
+
+        function render() {
+            const raw = searchInput.value.trim();
+            searchClear && searchClear.classList.toggle('d-none', raw === '');
+
+            if (raw === '') { closeDropdown(); return; }
+
+            if (searchIndex.length === 0) buildSearchIndex();
+
+            const tokens  = raw.toLowerCase().split(/\s+/).filter(Boolean);
+            const results = runSearch(raw).slice(0, 10);
+
+            resultsBox.innerHTML = '';
+            activeIdx = -1;
+
+            if (results.length === 0) {
+                if (searchEmpty) searchEmpty.style.display = 'block';
+            } else {
+                if (searchEmpty) searchEmpty.style.display = 'none';
+
+                results.forEach(function (item) {
+                    const a = document.createElement('a');
+                    a.className = 'sms-search-item';
+                    a.href = item.url;
+                    a.setAttribute('role', 'option');
+
+                    const icon = document.createElement('span');
+                    icon.className = 'search-result-icon';
+                    const i = document.createElement('i');
+                    i.className = item.icon + ' small';
+                    icon.appendChild(i);
+
+                    const text = document.createElement('div');
+                    text.className = 'text-truncate';
+                    const title = document.createElement('div');
+                    title.className = 'fw-semibold small text-truncate text-body';
+                    appendHighlighted(title, item.label, tokens);
+                    const cat = document.createElement('div');
+                    cat.className = 'text-body-secondary';
+                    cat.style.fontSize = '0.7rem';
+                    cat.textContent = item.category;
+                    text.appendChild(title);
+                    text.appendChild(cat);
+
+                    a.appendChild(icon);
+                    a.appendChild(text);
+                    resultsBox.appendChild(a);
+                });
+
+                setActive(0);
+            }
+
+            openDropdown();
+        }
+
+        searchInput.addEventListener('input', render);
+
+        searchInput.addEventListener('focus', function () {
+            buildSearchIndex(); // refresh so it always matches the current sidebar
+            if (searchInput.value.trim() !== '') render();
+        });
+
+        searchInput.addEventListener('keydown', function (e) {
+            if (!searchDropdown.classList.contains('show')) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); }
+            else if (e.key === 'Enter') {
+                const links = resultLinks();
+                if (links.length) {
+                    e.preventDefault();
+                    window.location.href = links[Math.max(activeIdx, 0)].href;
+                }
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+
+        // Ctrl/Cmd + K focuses the search
+        document.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                searchInput.focus();
+                searchInput.select();
+            }
+        });
+
+        // Close on outside click
+        document.addEventListener('click', function (e) {
+            if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+                closeDropdown();
+            }
+        });
+
+        // Keep it aligned if the window changes while open
+        window.addEventListener('resize', function () {
+            if (searchDropdown.classList.contains('show')) positionDropdown();
+        });
+
+        if (searchClear) {
+            searchClear.addEventListener('click', function () {
+                searchInput.value = '';
+                render();
+                searchInput.focus();
+            });
+        }
+
+        buildSearchIndex();
+    }
+
+    /* =========================================================
+       EXISTING NOTIFICATION LOGIC
+       ========================================================= */
     const notificationEmpty   = document.querySelector('[data-sms-notification-empty]');
     const notificationItems   = document.querySelector('[data-sms-notification-items]');
     const notificationFilters = document.querySelectorAll('[data-sms-notification-filter]');
@@ -501,7 +819,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const endpoint            = window.location.href;
     let notificationFilter    = 'all';
 
-    /* -------- Tab filtering -------- */
     const applyFilter = function () {
         if (!notificationItems) return;
         const items = notificationItems.querySelectorAll('[data-notification-row]');
@@ -539,7 +856,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     applyFilter();
 
-    /* -------- Send action to server -------- */
     function sendAction(action, notificationId) {
         const body = new FormData();
         body.append('action', action);
@@ -552,7 +868,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }).catch(function () {});
     }
 
-    /* -------- Mark single as read on click -------- */
     document.addEventListener('click', function (event) {
         const link = event.target.closest('[data-sms-notification-link]');
         if (!link) return;
@@ -580,7 +895,6 @@ document.addEventListener('DOMContentLoaded', function () {
         sendAction('mark_read', id);
     });
 
-    /* -------- Delete one -------- */
     document.addEventListener('click', function (event) {
         const btn = event.target.closest('[data-sms-notification-delete]');
         if (!btn) return;
@@ -604,7 +918,6 @@ document.addEventListener('DOMContentLoaded', function () {
         sendAction('delete_one', id);
     });
 
-    /* -------- Mark all read -------- */
     document.addEventListener('click', function (event) {
         const btn = event.target.closest('[data-sms-mark-all-read]');
         if (!btn) return;
@@ -625,7 +938,6 @@ document.addEventListener('DOMContentLoaded', function () {
         sendAction('mark_all_read');
     });
 
-    /* -------- Delete all -------- */
     document.addEventListener('click', function (event) {
         const btn = event.target.closest('[data-sms-delete-all]');
         if (!btn) return;
@@ -645,7 +957,6 @@ document.addEventListener('DOMContentLoaded', function () {
         sendAction('delete_all');
     });
 
-    /* -------- Logout confirmation -------- */
     const logoutLink = document.querySelector('[data-logout-confirm]');
     const modalEl    = document.getElementById('logoutConfirmModal');
     const confirmBtn = document.getElementById('logoutConfirmBtn');
