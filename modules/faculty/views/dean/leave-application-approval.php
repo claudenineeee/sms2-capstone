@@ -8,18 +8,20 @@ require_once __DIR__ . '/../../../../includes/authentication.php';
 
 requireAuth();
 
-// Explicitly connect to faculty_db since sms2_db is reserved for authentication/users
+// PATCHED: Direct connection using HostForge environment variables
 $pdo = null;
 $actionMessage = ''; $actionType = '';
 
 try {
-    $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
-    $dbUser = defined('DB_USER') ? DB_USER : 'root';
-    $dbPass = defined('DB_PASS') ? DB_PASS : '';
+    $host = getenv('DB_HOST')     ?: (defined('DB_HOST') ? DB_HOST : 'localhost');
+    $user = getenv('DB_USERNAME') ?: (defined('DB_USER') ? DB_USER : 'root');
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (defined('DB_PASS') ? DB_PASS : '');
+    $name = getenv('DB_DATABASE') ?: (defined('DB_NAME') ? DB_NAME : 'faculty_db');
+    $port = (int) (getenv('DB_PORT') ?: 3306);
     
-    // Explicitly target faculty_db database
-    $dsn = "mysql:host={$dbHost};dbname=faculty_db;charset=utf8mb4";
-    $pdo = new PDO($dsn, $dbUser, $dbPass, [
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);

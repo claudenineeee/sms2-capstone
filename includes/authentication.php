@@ -456,7 +456,7 @@ function smsPostLoginRedirectUrl(): string
         return BASE_URL . '/modules/faculty/views/administrator/dashboard.php';
     }
     if ($roleKey === 'dean') {
-        return BASE_URL . '/modules/faculty/views/dean/faculty-profile.php';
+        return BASE_URL . '/modules/faculty/views/dean/department-overview.php';
     }
     if (in_array($roleKey, ['department_head', 'department-head', 'dept_head', 'depthead'], true)) {
         return BASE_URL . '/modules/faculty/views/department-head/faculty-profile.php';
