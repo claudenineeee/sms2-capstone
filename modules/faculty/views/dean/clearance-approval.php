@@ -20,15 +20,24 @@ $deanDepartmentNames = getDeanDepartmentNames($deanDepartments);
 $hasDeanDepartments  = !empty($deanDepartments);
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean clearance approval DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -54,11 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'sign_
             }
 
             $newStatus = $decision === 'approve' ? 'Cleared' : 'Hold';
+            
+            // REMOVED faculty_db. prefixes
             $stmt = $pdo->prepare("
-                UPDATE faculty_db.clearance_items ci
-                INNER JOIN faculty_db.clearance_requests cr ON cr.clearance_id = ci.clearance_id
-                INNER JOIN faculty_db.clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
-                INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
+                UPDATE clearance_items ci
+                INNER JOIN clearance_requests cr ON cr.clearance_id = ci.clearance_id
+                INNER JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
+                INNER JOIN faculty f ON f.faculty_id = cr.faculty_id
                 SET ci.status = :st,
                     ci.remarks = :cm,
                     ci.cleared_by_external_id = :uid,
@@ -97,6 +108,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
         /* Load every clearance request + items for the dean's departments */
+        // REMOVED faculty_db. prefixes
         $stmt = $pdo->query("
             SELECT
                 cr.clearance_id,
@@ -122,12 +134,12 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
 
                 co.name AS office_name,
                 co.sequence_order
-            FROM faculty_db.clearance_requests cr
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
-            LEFT JOIN faculty_db.academic_terms at ON at.term_id = cr.term_id
-            LEFT JOIN faculty_db.clearance_items ci ON ci.clearance_id = cr.clearance_id
-            LEFT JOIN faculty_db.clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
+            FROM clearance_requests cr
+            INNER JOIN faculty f ON f.faculty_id = cr.faculty_id
+            LEFT JOIN departments d ON d.department_id = f.department_id
+            LEFT JOIN academic_terms at ON at.term_id = cr.term_id
+            LEFT JOIN clearance_items ci ON ci.clearance_id = cr.clearance_id
+            LEFT JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
             WHERE f.department_id IN ($deptList)
             ORDER BY cr.submitted_at DESC, co.sequence_order ASC
             LIMIT 500

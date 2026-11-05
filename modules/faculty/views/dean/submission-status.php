@@ -25,15 +25,24 @@ $hasDeanDepartments  = !empty($deanDepartments);
 $teachingPositions = ['Faculty Professor'];
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean submission status DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -49,6 +58,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
 
         /* ---- Faculty roster — Faculty Professor only, excluding anyone
                 whose faculty_profiles row marks them as Department Head ---- */
+        // REMOVED faculty_db. prefixes
         $facStmt = $pdo->prepare("
             SELECT
                 f.faculty_id,
@@ -60,14 +70,14 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                 f.profile_status,
                 d.code AS dept_code,
                 d.name AS dept_name
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+            FROM faculty f
+            LEFT JOIN departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
               AND f.profile_status = 'Active'
               AND f.position IN ($positionIn)
               AND NOT EXISTS (
                   SELECT 1
-                  FROM faculty_db.faculty_profiles fp
+                  FROM faculty_profiles fp
                   WHERE (fp.faculty_id = f.faculty_no OR fp.user_id = f.external_user_id)
                     AND fp.position = 'Department Head'
               )
@@ -88,9 +98,10 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         }
 
         /* ---- Terms lookup ---- */
+        // REMOVED faculty_db. prefixes
         $termsStmt = $pdo->query("
             SELECT term_id, academic_year, semester
-            FROM faculty_db.academic_terms
+            FROM academic_terms
         ");
         $termMap = [];
         foreach ($termsStmt->fetchAll(PDO::FETCH_ASSOC) as $t) {
@@ -104,6 +115,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $clearanceByFaculty = [];
         if (!empty($facultyMap)) {
             $facultyIdList = implode(',', array_keys($facultyMap));
+            // REMOVED faculty_db. prefixes
             $clStmt = $pdo->query("
                 SELECT
                     cr.faculty_id,
@@ -112,7 +124,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                     cr.form_status,
                     cr.intent_type,
                     cr.submitted_at
-                FROM faculty_db.clearance_requests cr
+                FROM clearance_requests cr
                 WHERE cr.faculty_id IN ($facultyIdList)
                 ORDER BY cr.submitted_at DESC
             ");
@@ -128,6 +140,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $leaveByFaculty = [];
         if (!empty($facultyMap)) {
             $facultyIdList = implode(',', array_keys($facultyMap));
+            // REMOVED faculty_db. prefixes
             $lvStmt = $pdo->query("
                 SELECT
                     lr.faculty_id,
@@ -136,7 +149,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                     SUM(CASE WHEN lr.approval_status = 'Approved'  THEN 1 ELSE 0 END) AS approved_count,
                     SUM(CASE WHEN lr.approval_status = 'Rejected'  THEN 1 ELSE 0 END) AS rejected_count,
                     MAX(lr.created_at) AS last_submitted
-                FROM faculty_db.leave_requests lr
+                FROM leave_requests lr
                 WHERE lr.faculty_id IN ($facultyIdList)
                 GROUP BY lr.faculty_id
             ");

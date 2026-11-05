@@ -3,7 +3,7 @@
  * SMS 2 - Dean - Teaching History (merged with Subject Assignments)
  *
  * Contains tabs:
- *   - Teaching History     (from faculty_db.teaching_load_history)
+ *   - Teaching History     (from teaching_load_history)
  *   - Subject Assignments  (from external REST API — see fetchSubjects())
  *
  * RBAC: scoped to dean's assigned departments.
@@ -29,15 +29,24 @@ $hasDeanDepartments  = !empty($deanDepartments);
 $teachingPositions = ['Faculty Professor'];
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean teaching history DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -54,13 +63,15 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
         $positionIn = implode(',', array_fill(0, count($teachingPositions), '?'));
+        
+        // REMOVED faculty_db. prefixes
         $facStmt = $pdo->prepare("
             SELECT
                 f.faculty_id, f.faculty_no, f.first_name, f.middle_name, f.last_name,
                 f.email, f.department_id, f.position, f.profile_status,
                 d.code AS dept_code, d.name AS dept_name
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+            FROM faculty f
+            LEFT JOIN departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
               AND f.profile_status = 'Active'
               AND f.position IN ($positionIn)
@@ -74,13 +85,14 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
 
             $historyRecords = [];
             try {
+                // REMOVED faculty_db. prefixes
                 $stmtHistory = $pdo->prepare("
                     SELECT
                         tlh.history_id, tlh.term_id, tlh.subject_count,
                         tlh.total_units, tlh.total_students, tlh.status,
                         at.academic_year, at.semester
-                    FROM faculty_db.teaching_load_history tlh
-                    LEFT JOIN faculty_db.academic_terms at ON at.term_id = tlh.term_id
+                    FROM teaching_load_history tlh
+                    LEFT JOIN academic_terms at ON at.term_id = tlh.term_id
                     WHERE tlh.faculty_id = :fac_id
                     ORDER BY at.academic_year DESC, at.semester DESC
                 ");
@@ -221,7 +233,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="tab-content" id="thTabContent">
 
         <!-- ============================================================
-             TAB 1 — TEACHING HISTORY (existing view)
+             TAB 1 — TEACHING HISTORY
              ============================================================ -->
         <div class="tab-pane fade <?= $initialTab === 'history' ? 'show active' : '' ?>" id="tab-history" role="tabpanel">
 
@@ -915,23 +927,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     /* ============================================================
        TAB 2 — SUBJECT ASSIGNMENTS
-       ============================================================
-       ⚠ REPLACE fetchSubjects() WITH YOUR REAL API CALL.
-
-       Expected response: array of objects with at least:
-         { subject_id, subject_code, subject_title, units,
-           faculty_id, faculty_name, department_id, term, status }
-       See normalizeSubject() below for the exact field mapping.
        ============================================================ */
     async function fetchSubjects() {
-        // TODO: replace with your real API call, e.g.
-        //
-        // const url = '/api/subjects?department_id=' + DEAN_DEPARTMENT_IDS.join(',');
-        // const res = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-        // if (!res.ok) throw new Error('API ' + res.status);
-        // const json = await res.json();
-        // return Array.isArray(json) ? json : (json.data || []);
-
+        // TODO: replace with your real API call.
         return []; // empty until API is wired
     }
 
@@ -1154,8 +1152,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
         try {
             const raw = await fetchSubjects();
-
-            // RBAC re-check — never trust the client-side API response
             const allowed = new Set(DEAN_DEPARTMENT_IDS.map(String));
             saAll = raw
                 .map(normalizeSubject)
@@ -1176,7 +1172,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Print — combining both tabs (as needed)
+       Print — combining both tabs
        ============================================================ */
     function renderPrintReport() {
         const host = document.getElementById('printReport');
@@ -1186,7 +1182,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const generatedAt = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
             + ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
-        // Teaching history rows
         const rows = [];
         Object.values(HISTORY_DB).forEach(fac => {
             (fac.history || []).forEach(h => {
@@ -1243,7 +1238,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
        Init
        ============================================================ */
     function init() {
-        // Teaching History tab
         if (thActiveFacultyId) {
             const first = document.querySelector('.th-faculty-card[data-faculty-id="' + thActiveFacultyId + '"]');
             if (first) first.classList.add('th-active');
@@ -1267,16 +1261,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         initFacultyPagination();
         renderHistoryData();
 
-        // Subject Assignments tab
         saBindFilters();
         document.getElementById('sa_reset_filters').addEventListener('click', saResetFilters);
         document.getElementById('sa_exportCsvBtn').addEventListener('click', () => saExportCsv(saFiltered));
         saLoadAndRender();
 
-        // Print
         document.getElementById('printBtn').addEventListener('click', () => window.print());
 
-        // Privacy toggle
         const pt = document.getElementById('privacyModeToggle');
         const KEY = 'smsDeanTeachingHistoryPrivacy';
         if (pt) {

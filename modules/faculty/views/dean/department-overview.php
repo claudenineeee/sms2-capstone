@@ -21,15 +21,24 @@ $deanDepartmentNames = getDeanDepartmentNames($deanDepartments);
 $hasDeanDepartments  = !empty($deanDepartments);
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean department overview DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -45,7 +54,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
     try {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
-        /* Faculty — include all positions so DH shows up */
+        /* Faculty — REMOVED faculty_db. prefixes */
         $facStmt = $pdo->query("
             SELECT
                 f.faculty_id, f.faculty_no, f.first_name, f.middle_name, f.last_name,
@@ -53,9 +62,9 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                 COALESCE(fp.position, f.position) AS position,
                 f.employment_status, f.profile_status,
                 d.code AS dept_code, d.name AS dept_name
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
-            LEFT JOIN faculty_db.faculty_profiles fp
+            FROM faculty f
+            LEFT JOIN departments d ON d.department_id = f.department_id
+            LEFT JOIN faculty_profiles fp
                 ON fp.faculty_id = f.faculty_no
                 OR fp.user_id = f.external_user_id
             WHERE f.department_id IN ($deptList)
@@ -65,26 +74,26 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         ");
         $allFaculty = $facStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        /* Attendance (12 months) */
+        /* Attendance (12 months) — REMOVED faculty_db. prefixes */
         $attStmt = $pdo->query("
             SELECT a.attendance_id, a.faculty_id, a.attendance_date, a.time_in, a.time_out,
                    a.status, a.hours_rendered, a.notes, f.department_id
-            FROM faculty_db.attendance_records a
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = a.faculty_id
+            FROM attendance_records a
+            INNER JOIN faculty f ON f.faculty_id = a.faculty_id
             WHERE f.department_id IN ($deptList)
               AND a.attendance_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
             ORDER BY a.attendance_date DESC
         ");
         $allAttendance = $attStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        /* Leaves (12 months) */
+        /* Leaves (12 months) — REMOVED faculty_db. prefixes */
         $leaveStmt = $pdo->query("
             SELECT lr.id, lr.request_ref, lr.faculty_id, lr.leave_type,
                    lr.start_date, lr.end_date, lr.total_days,
                    lr.approval_status, lr.created_at, f.department_id,
                    f.first_name, f.last_name
-            FROM faculty_db.leave_requests lr
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
+            FROM leave_requests lr
+            INNER JOIN faculty f ON f.faculty_id = lr.faculty_id
             WHERE f.department_id IN ($deptList)
               AND lr.created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
             ORDER BY lr.created_at DESC
@@ -92,12 +101,12 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         ");
         $allLeaves = $leaveStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        /* Evaluations (12 months) */
+        /* Evaluations (12 months) — REMOVED faculty_db. prefixes */
         $evalStmt = $pdo->query("
             SELECT e.evaluation_id, e.faculty_id, e.source_type,
                    e.composite_score, e.rating_label, e.submitted_at, f.department_id
-            FROM faculty_db.evaluations e
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = e.faculty_id
+            FROM evaluations e
+            INNER JOIN faculty f ON f.faculty_id = e.faculty_id
             WHERE f.department_id IN ($deptList)
               AND e.submitted_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
             ORDER BY e.submitted_at DESC

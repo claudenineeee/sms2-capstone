@@ -30,15 +30,24 @@ $teachingPositions = ['Faculty Professor', 'Department Head'];
 $evalPositions = ['Faculty Professor'];
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean faculty performance DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -79,14 +88,16 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
            TAB 1 — PERFORMANCE: faculty + attendance + evals + loads
            ============================================================ */
         $positionIn = implode(',', array_fill(0, count($teachingPositions), '?'));
+        
+        // REMOVED faculty_db. prefixes
         $facStmt = $pdo->prepare("
             SELECT
                 f.faculty_id, f.faculty_no, f.first_name, f.middle_name, f.last_name,
                 f.email, f.department_id, f.position, f.employment_status, f.profile_status,
                 f.academic_rank, f.tier, f.hired_date,
                 d.code AS dept_code, d.name AS dept_name
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+            FROM faculty f
+            LEFT JOIN departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
               AND f.profile_status = 'Active'
               AND f.position IN ($positionIn)
@@ -99,35 +110,38 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $facultyIdList = !empty($facultyIds) ? implode(',', $facultyIds) : '0';
 
         if (!empty($facultyIds)) {
+            // REMOVED faculty_db. prefixes
             $attStmt = $pdo->query("
                 SELECT a.attendance_id, a.faculty_id, a.attendance_date,
                        a.status, a.hours_rendered, f.department_id
-                FROM faculty_db.attendance_records a
-                INNER JOIN faculty_db.faculty f ON f.faculty_id = a.faculty_id
+                FROM attendance_records a
+                INNER JOIN faculty f ON f.faculty_id = a.faculty_id
                 WHERE f.faculty_id IN ($facultyIdList)
                   AND a.attendance_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
                 ORDER BY a.attendance_date DESC
             ");
             $allAttendance = $attStmt->fetchAll(PDO::FETCH_ASSOC);
 
+            // REMOVED faculty_db. prefixes
             $evalStmt = $pdo->query("
                 SELECT e.evaluation_id, e.faculty_id, e.source_type,
                        e.composite_score, e.rating_label, e.submitted_at, f.department_id
-                FROM faculty_db.evaluations e
-                INNER JOIN faculty_db.faculty f ON f.faculty_id = e.faculty_id
+                FROM evaluations e
+                INNER JOIN faculty f ON f.faculty_id = e.faculty_id
                 WHERE f.faculty_id IN ($facultyIdList)
                   AND e.submitted_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
                 ORDER BY e.submitted_at DESC
             ");
             $allEvals = $evalStmt->fetchAll(PDO::FETCH_ASSOC);
 
+            // REMOVED faculty_db. prefixes
             $loadStmt = $pdo->query("
                 SELECT tlr.load_request_id, tlr.faculty_id, tlr.term_id,
                        tlr.total_units, tlr.status, tlr.submitted_at,
                        at.academic_year, at.semester, f.department_id
-                FROM faculty_db.teaching_load_requests tlr
-                INNER JOIN faculty_db.faculty f ON f.faculty_id = tlr.faculty_id
-                LEFT JOIN faculty_db.academic_terms at ON at.term_id = tlr.term_id
+                FROM teaching_load_requests tlr
+                INNER JOIN faculty f ON f.faculty_id = tlr.faculty_id
+                LEFT JOIN academic_terms at ON at.term_id = tlr.term_id
                 WHERE f.faculty_id IN ($facultyIdList)
                 ORDER BY tlr.submitted_at DESC
             ");
@@ -138,13 +152,15 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
            TAB 2 — EVALUATION SUMMARY: only Faculty Professors
            ============================================================ */
         $evalPositionIn = implode(',', array_fill(0, count($evalPositions), '?'));
+        
+        // REMOVED faculty_db. prefixes
         $esFacStmt = $pdo->prepare("
             SELECT
                 f.faculty_id, f.faculty_no, f.first_name, f.middle_name, f.last_name,
                 f.email, f.department_id, f.position, f.profile_status,
                 d.code AS dept_code, d.name AS dept_name
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+            FROM faculty f
+            LEFT JOIN departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
               AND f.profile_status = 'Active'
               AND f.position IN ($evalPositionIn)
@@ -161,10 +177,11 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
             $esFacultyIds    = array_map(fn($f) => (int) $f['faculty_id'], $facultyMembers);
             $esFacultyIdList = implode(',', $esFacultyIds);
 
+            // REMOVED faculty_db. prefixes
             $esEvalStmt = $pdo->query("
                 SELECT e.evaluation_id, e.faculty_id, e.source_type,
                        e.composite_score, e.rating_label, e.eval_count, e.submitted_at
-                FROM faculty_db.evaluations e
+                FROM evaluations e
                 WHERE e.faculty_id IN ($esFacultyIdList)
                   AND e.submitted_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
                 ORDER BY e.submitted_at DESC
@@ -179,9 +196,10 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
 
             if (!empty($evalIds)) {
                 $evalIdList = implode(',', $evalIds);
+                // REMOVED faculty_db. prefixes
                 $fbStmt = $pdo->query("
                     SELECT evaluation_id, strength_comment, improvement_comment
-                    FROM faculty_db.evaluation_feedback
+                    FROM evaluation_feedback
                     WHERE evaluation_id IN ($evalIdList)
                 ");
                 foreach ($fbStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {

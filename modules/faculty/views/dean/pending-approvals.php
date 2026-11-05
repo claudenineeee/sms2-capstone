@@ -20,15 +20,24 @@ $deanDepartmentNames = getDeanDepartmentNames($deanDepartments);
 $hasDeanDepartments  = !empty($deanDepartments);
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean pending approvals DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -58,9 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['ite
 
             if ($itemType === 'leave') {
                 $newStatus = $decision === 'approve' ? 'Approved' : 'Rejected';
+                // REMOVED faculty_db. prefixes
                 $stmt = $pdo->prepare("
-                    UPDATE faculty_db.leave_requests lr
-                    INNER JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
+                    UPDATE leave_requests lr
+                    INNER JOIN faculty f ON f.faculty_id = lr.faculty_id
                     SET lr.approval_status = :st,
                         lr.approver_comment = :cm,
                         lr.approved_by_external_id = :uid,
@@ -79,10 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['ite
 
             } elseif ($itemType === 'clearance') {
                 $newStatus = $decision === 'approve' ? 'Approved' : 'Rejected';
+                // REMOVED faculty_db. prefixes
                 $stmt = $pdo->prepare("
-                    UPDATE faculty_db.clearance_items ci
-                    INNER JOIN faculty_db.clearance_requests cr ON cr.clearance_id = ci.clearance_id
-                    INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
+                    UPDATE clearance_items ci
+                    INNER JOIN clearance_requests cr ON cr.clearance_id = ci.clearance_id
+                    INNER JOIN faculty f ON f.faculty_id = cr.faculty_id
                     SET ci.status = :st,
                         ci.remarks = :cm,
                         ci.cleared_by_external_id = :uid,
@@ -123,6 +134,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
         /* ---- Pending leaves ---- */
+        // REMOVED faculty_db. prefixes
         $leafStmt = $pdo->query("
             SELECT
                 lr.id, lr.request_ref, lr.faculty_id, lr.leave_type,
@@ -131,9 +143,9 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                 f.first_name, f.middle_name, f.last_name,
                 f.faculty_no, f.department_id,
                 d.code AS dept_code, d.name AS dept_name
-            FROM faculty_db.leave_requests lr
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+            FROM leave_requests lr
+            INNER JOIN faculty f ON f.faculty_id = lr.faculty_id
+            LEFT JOIN departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
               AND lr.approval_status = 'Pending'
             ORDER BY lr.created_at DESC
@@ -142,6 +154,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $pendingLeaves = $leafStmt->fetchAll(PDO::FETCH_ASSOC);
 
         /* ---- Pending clearances (department office only) ---- */
+        // REMOVED faculty_db. prefixes
         $clrStmt = $pdo->query("
             SELECT
                 ci.clearance_item_id, ci.clearance_id, ci.status,
@@ -151,11 +164,11 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                 f.faculty_id, f.faculty_no, f.first_name, f.middle_name, f.last_name,
                 f.department_id,
                 d.code AS dept_code, d.name AS dept_name
-            FROM faculty_db.clearance_items ci
-            INNER JOIN faculty_db.clearance_requests cr ON cr.clearance_id = ci.clearance_id
-            INNER JOIN faculty_db.clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+            FROM clearance_items ci
+            INNER JOIN clearance_requests cr ON cr.clearance_id = ci.clearance_id
+            INNER JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
+            INNER JOIN faculty f ON f.faculty_id = cr.faculty_id
+            LEFT JOIN departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
               AND co.name LIKE '%Department%'
               AND ci.status IN ('Missing', 'Pending')
@@ -165,6 +178,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $pendingClearances = $clrStmt->fetchAll(PDO::FETCH_ASSOC);
 
         /* ---- Recent actions (last 30 days) — leaves only now ---- */
+        // REMOVED faculty_db. prefixes
         $recentStmt = $pdo->query("
             SELECT
                 'leave' AS item_type,
@@ -175,8 +189,8 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                 lr.approver_comment AS remarks,
                 CONCAT(f.first_name, ' ', f.last_name) AS faculty_name,
                 lr.leave_type AS subject
-            FROM faculty_db.leave_requests lr
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
+            FROM leave_requests lr
+            INNER JOIN faculty f ON f.faculty_id = lr.faculty_id
             WHERE f.department_id IN ($deptList)
               AND lr.approval_status IN ('Approved','Rejected')
               AND lr.approved_at IS NOT NULL

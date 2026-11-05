@@ -43,15 +43,24 @@ $hasDeanDepartments  = !empty($deanDepartments);
 $teachingPositions = ['Faculty Professor'];
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean class schedules DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -65,40 +74,13 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
     try {
         /* ========================================================
            INTEGRATION POINT
-           --------------------------------------------------------
-           When the external REST API is available, replace the
-           LOCAL QUERY block below with an HTTP call. Example stub:
-
-             $restUrl = EXTERNAL_API_BASE . '/schedules'
-                      . '?department_ids=' . urlencode(implode(',', $deanDepartments))
-                      . '&position=' . urlencode('Faculty Professor');
-
-             $ch = curl_init($restUrl);
-             curl_setopt_array($ch, [
-                 CURLOPT_RETURNTRANSFER => true,
-                 CURLOPT_HTTPHEADER     => [
-                     'Authorization: Bearer ' . EXTERNAL_API_TOKEN,
-                     'Accept: application/json',
-                 ],
-                 CURLOPT_TIMEOUT        => 10,
-             ]);
-             $body   = curl_exec($ch);
-             $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-             curl_close($ch);
-
-             if ($status !== 200 || !$body) {
-                 throw new RuntimeException('External schedule API failed');
-             }
-
-             $payload   = json_decode($body, true) ?: [];
-             $schedules = normalizeExternalSchedules($payload); // your mapper
-             $integrationMode = 'rest';
            ======================================================== */
 
         /* ---------------- LOCAL QUERY (default) ---------------- */
         $deptList   = implode(',', array_map('intval', $deanDepartments));
         $positionIn = implode(',', array_fill(0, count($teachingPositions), '?'));
 
+        // REMOVED faculty_db. prefixes
         $sql = "
             SELECT
                 cs.class_schedule_id AS schedule_id,
@@ -122,18 +104,18 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                 at.semester,
                 cs.status,
                 cs.enrolled_students
-            FROM faculty_db.class_schedules cs
-            INNER JOIN faculty_db.faculty f        ON f.faculty_id    = cs.faculty_id
-            LEFT  JOIN faculty_db.departments d    ON d.department_id = f.department_id
-            LEFT  JOIN faculty_db.subjects s       ON s.subject_id    = cs.subject_id
-            LEFT  JOIN faculty_db.rooms r          ON r.room_id       = cs.room_id
-            LEFT  JOIN faculty_db.academic_terms at ON at.term_id     = cs.term_id
+            FROM class_schedules cs
+            INNER JOIN faculty f        ON f.faculty_id    = cs.faculty_id
+            LEFT  JOIN departments d    ON d.department_id = f.department_id
+            LEFT  JOIN subjects s       ON s.subject_id    = cs.subject_id
+            LEFT  JOIN rooms r          ON r.room_id       = cs.room_id
+            LEFT  JOIN academic_terms at ON at.term_id     = cs.term_id
             WHERE f.department_id IN ($deptList)
               AND f.profile_status = 'Active'
               AND f.position IN ($positionIn)
               AND NOT EXISTS (
                   SELECT 1
-                  FROM faculty_db.faculty_profiles fp
+                  FROM faculty_profiles fp
                   WHERE (fp.faculty_id = f.faculty_no OR fp.user_id = f.external_user_id)
                     AND fp.position = 'Department Head'
               )

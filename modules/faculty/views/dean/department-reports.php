@@ -26,15 +26,24 @@ $hasDeanDepartments  = !empty($deanDepartments);
 $teachingPositions = ['Faculty Professor'];
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean department reports DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -48,12 +57,13 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $deptList   = implode(',', array_map('intval', $deanDepartments));
         $positionIn = implode(',', array_fill(0, count($teachingPositions), '?'));
 
+        // REMOVED faculty_db. prefixes
         $facStmt = $pdo->prepare("
             SELECT f.faculty_id, f.faculty_no, f.first_name, f.last_name,
                    f.department_id, f.position, f.profile_status,
                    d.code AS dept_code, d.name AS dept_name
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+            FROM faculty f
+            LEFT JOIN departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
               AND f.profile_status = 'Active'
               AND f.position IN ($positionIn)
@@ -74,9 +84,10 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $evalAvgByFaculty = [];
         if (!empty($allFacultyIds)) {
             $facultyIdList = implode(',', $allFacultyIds);
+            // REMOVED faculty_db. prefixes
             $evalStmt = $pdo->query("
                 SELECT faculty_id, AVG(composite_score) AS avg_score, COUNT(*) AS eval_rows
-                FROM faculty_db.evaluations
+                FROM evaluations
                 WHERE faculty_id IN ($facultyIdList)
                   AND submitted_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
                   AND composite_score > 0
@@ -93,12 +104,13 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $clearanceByFaculty = [];
         if (!empty($allFacultyIds)) {
             $facultyIdList = implode(',', $allFacultyIds);
+            // REMOVED faculty_db. prefixes
             $clStmt = $pdo->query("
                 SELECT a.faculty_id, a.items_json
-                FROM faculty_db.faculty_clearance_archives a
+                FROM faculty_clearance_archives a
                 INNER JOIN (
                     SELECT faculty_id, MAX(archive_id) AS max_archive
-                    FROM faculty_db.faculty_clearance_archives
+                    FROM faculty_clearance_archives
                     WHERE faculty_id IN ($facultyIdList)
                     GROUP BY faculty_id
                 ) latest ON latest.faculty_id = a.faculty_id AND latest.max_archive = a.archive_id
@@ -125,9 +137,10 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $docsExpiringByFaculty = [];
         if (!empty($allFacultyIds)) {
             $facultyIdList = implode(',', $allFacultyIds);
+            // REMOVED faculty_db. prefixes
             $docStmt = $pdo->query("
                 SELECT faculty_id, COUNT(*) AS expiring_count
-                FROM faculty_db.documents
+                FROM documents
                 WHERE faculty_id IN ($facultyIdList)
                   AND expiry_date IS NOT NULL
                   AND expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 60 DAY)
@@ -141,6 +154,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $leaveByFaculty = [];
         if (!empty($allFacultyIds)) {
             $facultyIdList = implode(',', $allFacultyIds);
+            // REMOVED faculty_db. prefixes
             $lvStmt = $pdo->query("
                 SELECT faculty_id,
                        SUM(sick_leave_used)      AS sick_used,
@@ -151,7 +165,7 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
                        SUM(maternity_total)      AS mat_total,
                        SUM(paternity_used)       AS pat_used,
                        SUM(paternity_total)      AS pat_total
-                FROM faculty_db.leave_balances
+                FROM leave_balances
                 WHERE faculty_id IN ($facultyIdList)
                 GROUP BY faculty_id
             ");

@@ -13,13 +13,33 @@ require_once __DIR__ . '/../../includes/dean_rbac.php';
 requireAuth();
 
 $controller = new FacultyController();
-$pdo = db();
+
+/* ============================================================
+   DATABASE — PATCHED FOR HOSTFORGE
+   ============================================================ */
+$pdo = null;
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Faculty profile DB connection failed: ' . $e->getMessage());
+    $pdo = null;
+}
 
 $message = '';
 $messageType = 'success';
 
 // 1. Process Approval, Rejection, or Inactive/Active Toggle POST Requests
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
     $action = $_POST['action'] ?? '';
     $userId = (int)($_POST['user_id'] ?? 0);
 
@@ -62,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Failed to update account status. Please try again.';
             $messageType = 'danger';
         }
-    } else {
+    } else if (isset($_POST['action']) && $_POST['action'] === 'update_faculty') {
         $updateResult = $controller->handleUpdateFaculty();
         $message = $updateResult['message'] ?? '';
         $messageType = $updateResult['type'] ?? 'success';
@@ -72,11 +92,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Check if we are viewing the Inactive list
 $showInactive = isset($_GET['view']) && $_GET['view'] === 'inactive';
 
-// 2. Retrieve directory list — already scoped by role inside the helper
-$rawProfiles = $controller->getDirectoryList();
+// 2. Retrieve directory list
+$rawProfiles = [];
+if ($pdo instanceof PDO) {
+    try {
+        $rawProfiles = $controller->getDirectoryList();
+    } catch (Throwable $e) {
+        error_log('getDirectoryList failed: ' . $e->getMessage());
+    }
+}
 
 // ---------- PATCH: sync profile_status with the real users.status ----------
-if (!empty($rawProfiles)) {
+if (!empty($rawProfiles) && $pdo instanceof PDO) {
     $userIds = array_values(array_filter(array_map(
         fn($p) => (int)($p['user_id'] ?? 0),
         $rawProfiles
@@ -115,17 +142,10 @@ $rawProfiles = array_filter($rawProfiles, function ($profile) use ($showInactive
 
 // ============================================================
 // RBAC SCOPE
-// getScopedFacultyList() already applies:
-//   - admin       : all faculty
-//   - dean        : faculty from the dean's assigned departments
-//   - dept_head   : faculty from the DH's own department
-//   - secretary   : faculty from the secretary's department
-// So we trust its output directly — no re-filter.
 // ============================================================
 $userRole = strtolower($_SESSION['role'] ?? $_SESSION['user_role'] ?? '');
 
 if ($userRole === 'dean' && function_exists('getDeanAssignedDepartments')) {
-    // Confirm the dean has departments (drives the "no departments" empty state)
     $deanDepartments = getDeanAssignedDepartments(
         $_SESSION['user_id'] ?? $_SESSION['external_user_id'] ?? null
     );

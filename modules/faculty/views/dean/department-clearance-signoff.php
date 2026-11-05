@@ -41,15 +41,24 @@ $currentUserName    = trim((string) ($_SESSION['full_name'] ?? $_SESSION['userna
 $currentUserRoleLbl = (string) ($_SESSION['role_label'] ?? 'Dean');
 
 /* ============================================================
-   Database
+   Database — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean dept clearance DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -137,12 +146,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
         try {
             /* Load clearance + faculty (RBAC: faculty must be in dean's departments) */
             $deptList = implode(',', array_map('intval', $deanDepartments));
+            
+            // REMOVED faculty_db. prefixes
             $stmt = $pdo->prepare("
                 SELECT cr.*, f.faculty_no, f.first_name, f.middle_name, f.last_name, f.email,
                        f.department_id, d.name AS dept_name
-                FROM faculty_db.clearance_requests cr
-                INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
-                LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+                FROM clearance_requests cr
+                INNER JOIN faculty f ON f.faculty_id = cr.faculty_id
+                LEFT JOIN departments d ON d.department_id = f.department_id
                 WHERE cr.clearance_id = ?
                   AND f.department_id IN ($deptList)
                 LIMIT 1
@@ -159,9 +170,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                 $deptName    = $cl['dept_name'] ?? '';
 
                 /* Verify office 5006 is currently cleared by DH (or approved) */
+                // REMOVED faculty_db. prefixes
                 $itemStmt = $pdo->prepare("
                     SELECT clearance_item_id, status, remarks, cleared_at, cleared_by_external_id
-                    FROM faculty_db.clearance_items
+                    FROM clearance_items
                     WHERE clearance_id = ? AND clearance_office_id = ?
                     LIMIT 1
                 ");
@@ -188,8 +200,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         $ref = 'DCA-' . $clearanceId . '-' . date('YmdHis');
 
                         /* 1. Update clearance_items status to countersigned */
+                        // REMOVED faculty_db. prefixes
                         $upd = $pdo->prepare("
-                            UPDATE faculty_db.clearance_items
+                            UPDATE clearance_items
                             SET status  = 'Approved by Dean',
                                 remarks = CONCAT(COALESCE(remarks, ''), CASE WHEN COALESCE(remarks, '') = '' THEN '' ELSE '\n' END, '[Dean ' . ? . '] ' . ?)
                             WHERE clearance_id = ? AND clearance_office_id = ?
@@ -198,8 +211,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
 
                         /* 2. Insert Dean signature */
                         try {
+                            // REMOVED faculty_db. prefixes
                             $sig = $pdo->prepare("
-                                INSERT INTO faculty_db.clearance_signatures
+                                INSERT INTO clearance_signatures
                                     (clearance_id, faculty_id, office, office_key, signatory_type,
                                      approval_ref, signer_user_id, signer_name, signer_role,
                                      signature_data, remarks, status, signed_at)
@@ -229,8 +243,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         }
 
                         /* 3. Audit history */
+                        // REMOVED faculty_db. prefixes
                         $ins = $pdo->prepare("
-                            INSERT INTO faculty_db.clearance_approval_history
+                            INSERT INTO clearance_approval_history
                                 (clearance_id, requirement_id, office, action,
                                  performed_by_id, performed_by_name, performed_by_role, remarks)
                             VALUES (?, NULL, ?, 'Department Clearance Approved', ?, ?, ?, ?)
@@ -239,8 +254,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
 
                         /* 4. Notify faculty */
                         try {
+                            // REMOVED faculty_db. prefixes
                             $notif = $pdo->prepare("
-                                INSERT INTO faculty_db.notifications
+                                INSERT INTO notifications
                                     (faculty_id, title, message, priority, notification_type, is_read)
                                 VALUES (?, ?, ?, 'Medium', 'clearance', 0)
                             ");
@@ -266,8 +282,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         $flashType = 'warning';
                     } else {
                         /* 1. Update clearance_items — mark returned */
+                        // REMOVED faculty_db. prefixes
                         $upd = $pdo->prepare("
-                            UPDATE faculty_db.clearance_items
+                            UPDATE clearance_items
                             SET status  = 'Returned',
                                 remarks = CONCAT(COALESCE(remarks, ''), CASE WHEN COALESCE(remarks, '') = '' THEN '' ELSE '\n' END, '[Dean Return ' . ? . '] ' . ?)
                             WHERE clearance_id = ? AND clearance_office_id = ?
@@ -275,8 +292,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         $upd->execute([$currentUserName, $message, $clearanceId, $DEPT_OFFICE_ID]);
 
                         /* 2. Audit history */
+                        // REMOVED faculty_db. prefixes
                         $ins = $pdo->prepare("
-                            INSERT INTO faculty_db.clearance_approval_history
+                            INSERT INTO clearance_approval_history
                                 (clearance_id, requirement_id, office, action,
                                  performed_by_id, performed_by_name, performed_by_role, remarks)
                             VALUES (?, NULL, ?, 'Returned by Dean', ?, ?, ?, ?)
@@ -285,8 +303,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
 
                         /* 3. Notify faculty (high priority) */
                         try {
+                            // REMOVED faculty_db. prefixes
                             $notif = $pdo->prepare("
-                                INSERT INTO faculty_db.notifications
+                                INSERT INTO notifications
                                     (faculty_id, title, message, priority, notification_type, is_read)
                                 VALUES (?, ?, ?, 'High Priority', 'clearance', 0)
                             ");
@@ -332,7 +351,6 @@ if (!empty($_SESSION['dcs_flash'])) {
 
 /* ============================================================
    Load queue — clearances where office 5006 is Cleared/Approved
-   (DH has acted, waiting on Dean) OR already Dean-approved
    ============================================================ */
 $queue    = [];
 $auditLog = [];
@@ -342,6 +360,7 @@ if ($pdo instanceof PDO) {
     try {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
+        // REMOVED faculty_db. prefixes
         $q = $pdo->query("
             SELECT
                 cr.clearance_id,
@@ -373,11 +392,11 @@ if ($pdo instanceof PDO) {
                 ci.original_name     AS dept_file_name,
                 ci.cleared_at        AS dept_cleared_at,
                 ci.cleared_by_external_id AS dept_cleared_by
-            FROM faculty_db.clearance_requests cr
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
-            LEFT JOIN faculty_db.academic_terms at ON at.term_id = cr.term_id
-            LEFT JOIN faculty_db.clearance_items ci
+            FROM clearance_requests cr
+            INNER JOIN faculty f ON f.faculty_id = cr.faculty_id
+            LEFT JOIN departments d ON d.department_id = f.department_id
+            LEFT JOIN academic_terms at ON at.term_id = cr.term_id
+            LEFT JOIN clearance_items ci
                    ON ci.clearance_id = cr.clearance_id
                   AND ci.clearance_office_id = 5006
             WHERE f.department_id IN ($deptList)
@@ -392,10 +411,11 @@ if ($pdo instanceof PDO) {
             $idList = implode(',', $clearanceIds);
 
             /* Dean audit history for these clearances */
+            // REMOVED faculty_db. prefixes
             $histStmt = $pdo->query("
                 SELECT id, clearance_id, office, action, performed_by_id, performed_by_name,
                        performed_by_role, remarks, created_at
-                FROM faculty_db.clearance_approval_history
+                FROM clearance_approval_history
                 WHERE clearance_id IN ($idList) AND office = 'Dean'
                 ORDER BY created_at DESC, id DESC
             ");
@@ -405,9 +425,10 @@ if ($pdo instanceof PDO) {
             }
 
             /* Full 6-office progress for context */
+            // REMOVED faculty_db. prefixes
             $itemsStmt = $pdo->query("
                 SELECT clearance_id, clearance_office_id, status, remarks, cleared_at
-                FROM faculty_db.clearance_items
+                FROM clearance_items
                 WHERE clearance_id IN ($idList)
             ");
             $itemsByClearance = [];
@@ -429,13 +450,14 @@ if ($pdo instanceof PDO) {
         }
 
         /* Recent Dean activity on department clearances */
+        // REMOVED faculty_db. prefixes
         $logStmt = $pdo->query("
             SELECT h.id, h.clearance_id, h.action, h.remarks, h.performed_by_name,
                    h.performed_by_role, h.created_at,
                    f.first_name, f.last_name, f.faculty_no
-            FROM faculty_db.clearance_approval_history h
-            LEFT JOIN faculty_db.clearance_requests cr ON cr.clearance_id = h.clearance_id
-            LEFT JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
+            FROM clearance_approval_history h
+            LEFT JOIN clearance_requests cr ON cr.clearance_id = h.clearance_id
+            LEFT JOIN faculty f ON f.faculty_id = cr.faculty_id
             WHERE h.office = 'Dean'
               AND h.action IN ('Department Clearance Approved', 'Returned by Dean')
             ORDER BY h.created_at DESC, h.id DESC
@@ -452,9 +474,9 @@ if ($pdo instanceof PDO) {
 /* ============================================================
    KPIs
    ============================================================ */
-$kpiPending  = 0; // awaiting Dean countersignature
-$kpiSigned   = 0; // already countersigned
-$kpiReturned = 0; // returned by Dean
+$kpiPending  = 0; 
+$kpiSigned   = 0; 
+$kpiReturned = 0; 
 foreach ($queue as $row) {
     if ($row['_is_signed'])   $kpiSigned++;
     elseif ($row['_is_returned']) $kpiReturned++;

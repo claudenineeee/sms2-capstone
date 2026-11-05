@@ -8,9 +8,20 @@ require_once __DIR__ . '/../../../../config/config.php';
 // Connect to the separate faculty module database where profiles and teaching histories reside[cite: 3]
 require_once __DIR__ . '/../../config/database.php';
 
+// PATCHED CONNECTION: Bypass getFacultyDatabaseConnection() and use HostForge env vars
 try {
-    $pdo = getFacultyDatabaseConnection();
-} catch (Exception $e) {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
     die('<div style="padding: 20px; font-family: sans-serif; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; margin: 20px; border-radius: 4px;">'
         . '<h3>Database Connection Error</h3>'
         . '<p>' . htmlspecialchars($e->getMessage()) . '</p>'

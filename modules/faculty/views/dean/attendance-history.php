@@ -29,15 +29,24 @@ $hasDeanDepartments  = !empty($deanDepartments);
 $teachingPositions = ['Faculty Professor'];
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Dean attendance history DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -52,13 +61,15 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $deptList = implode(',', array_map('intval', $deanDepartments));
 
         $positionIn = implode(',', array_fill(0, count($teachingPositions), '?'));
+        
+        // REMOVED faculty_db. prefixes
         $facStmt = $pdo->prepare("
             SELECT
                 f.faculty_id, f.faculty_no, f.first_name, f.middle_name, f.last_name,
                 f.department_id, f.position,
                 d.code AS dept_code, d.name AS dept_name
-            FROM faculty_db.faculty f
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+            FROM faculty f
+            LEFT JOIN departments d ON d.department_id = f.department_id
             WHERE f.department_id IN ($deptList)
               AND f.profile_status = 'Active'
               AND f.position IN ($positionIn)
@@ -81,14 +92,16 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $facultyIds = array_keys($facultyMap);
         if (!empty($facultyIds)) {
             $facultyIdList = implode(',', array_map('intval', $facultyIds));
+            
+            // REMOVED faculty_db. prefixes
             $attStmt = $pdo->query("
                 SELECT
                     a.attendance_id, a.faculty_id, a.attendance_date,
                     a.time_in, a.time_out, a.status,
                     a.hours_rendered, a.notes,
                     f.department_id
-                FROM faculty_db.attendance_records a
-                INNER JOIN faculty_db.faculty f ON f.faculty_id = a.faculty_id
+                FROM attendance_records a
+                INNER JOIN faculty f ON f.faculty_id = a.faculty_id
                 WHERE f.faculty_id IN ($facultyIdList)
                   AND a.attendance_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
                 ORDER BY a.attendance_date DESC
@@ -115,10 +128,6 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
 
 /* ============================================================
    LOAD DATA — TAB 2: Attendance Monitoring (class sessions)
-   ============================================================
-   The monitoring tab is derived from the SAME facultyRoster
-   (RBAC-scoped) and reads class_attendance_sessions. We compute
-   per-faculty summaries and three time-window rates.
    ============================================================ */
 $selectedPeriod = $_GET['period'] ?? '7days';
 $selectedMonth  = $_GET['month']  ?? date('Y-m');
@@ -153,15 +162,16 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $fetchStart = min($monthStart, $weekStart, $today);
         $fetchEnd   = max($monthEnd, $today);
 
+        // REMOVED faculty_db. prefixes
         $sessionStmt = $pdo->prepare("
             SELECT
                 s.session_id, s.faculty_id, s.subject_id,
                 s.session_date, s.status,
                 sub.code AS subject_code,
                 r.room_code
-            FROM faculty_db.class_attendance_sessions s
-            LEFT JOIN faculty_db.subjects sub ON sub.subject_id = s.subject_id
-            LEFT JOIN faculty_db.rooms r ON r.room_id = s.room_id
+            FROM class_attendance_sessions s
+            LEFT JOIN subjects sub ON sub.subject_id = s.subject_id
+            LEFT JOIN rooms r ON r.room_id = s.room_id
             WHERE s.faculty_id IN ($facultyIdList)
               AND s.session_date BETWEEN ? AND ?
             ORDER BY s.session_date DESC
@@ -362,7 +372,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     <div class="tab-content" id="ahTabContent">
 
         <!-- ============================================================
-             TAB 1 — ATTENDANCE HISTORY (unchanged)
+             TAB 1 — ATTENDANCE HISTORY
              ============================================================ -->
         <div class="tab-pane fade <?= $initialTab === 'history' ? 'show active' : '' ?>" id="tab-history" role="tabpanel">
 
@@ -581,7 +591,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </div>
 
         <!-- ============================================================
-             TAB 2 — ATTENDANCE MONITORING (class sessions)
+             TAB 2 — ATTENDANCE MONITORING
              ============================================================ -->
         <div class="tab-pane fade <?= $initialTab === 'monitoring' ? 'show active' : '' ?>" id="tab-monitoring" role="tabpanel">
 
