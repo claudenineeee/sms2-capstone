@@ -12,37 +12,54 @@ require_once __DIR__ . '/../../controllers/FacultyController.php';
 
 requireAuth();
 
-$pdo = db();
+// ==========================================
+// HOSTFORGE DATABASE CONNECTION
+// ==========================================
+$host = getenv('DB_HOST') ?: 'localhost';
+$user = getenv('DB_USERNAME') ?: 'root';
+$pass = getenv('DB_PASSWORD') ?: '';
+$name = getenv('DB_DATABASE') ?: 'sms2_db'; // Fallback for local
+$port = (int)(getenv('DB_PORT') ?: 3306);
+
+try {
+    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (PDOException $e) {
+    die("Database connection failed: " . $e->getMessage());
+}
+
 $userName = trim((string) ($_SESSION['user_name'] ?? $_SESSION['full_name'] ?? $_SESSION['name'] ?? 'Faculty Admin'));
 
 /* ============================================================
  | 1. KPI METRICS
  * ============================================================ */
-$totalFaculty = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.faculty_profiles")->fetchColumn();
+$totalFaculty = (int) $pdo->query("SELECT COUNT(*) FROM faculty_profiles")->fetchColumn();
 
 $pendingApprovals = (int) $pdo->query("
     SELECT COUNT(*) 
-    FROM faculty_db.faculty_profiles fp
-    JOIN sms2_db.users u ON fp.user_id = u.id
+    FROM faculty_profiles fp
+    JOIN users u ON fp.user_id = u.id
     WHERE u.status = 'pending_approval' OR fp.profile_status = 'Pending Approval'
 ")->fetchColumn();
 
 $activeFaculty = (int) $pdo->query("
     SELECT COUNT(*) 
-    FROM faculty_db.faculty_profiles 
+    FROM faculty_profiles 
     WHERE LOWER(employment_status) IN ('active','regular')
 ")->fetchColumn();
 
 $inactiveFaculty = (int) $pdo->query("
     SELECT COUNT(DISTINCT fp.id)
-    FROM faculty_db.faculty_profiles fp
-    INNER JOIN sms2_db.users u ON u.id = fp.user_id
+    FROM faculty_profiles fp
+    INNER JOIN users u ON u.id = fp.user_id
     WHERE LOWER(u.status) = 'inactive'
 ")->fetchColumn();
 
 $onLeaveToday = (int) $pdo->query("
     SELECT COUNT(DISTINCT lr.faculty_id)
-    FROM faculty_db.leave_requests lr
+    FROM leave_requests lr
     WHERE lr.approval_status = 'Approved'
       AND CURDATE() BETWEEN lr.start_date AND lr.end_date
 ")->fetchColumn();
@@ -63,7 +80,7 @@ function buildLeaveTrend(PDO $pdo, string $range): array
                        SUM(CASE WHEN approval_status = 'Approved' THEN 1 ELSE 0 END) AS approved,
                        SUM(CASE WHEN approval_status = 'Pending'  THEN 1 ELSE 0 END) AS pending,
                        SUM(CASE WHEN approval_status = 'Rejected' THEN 1 ELSE 0 END) AS rejected
-                FROM faculty_db.leave_requests
+                FROM leave_requests
                 WHERE DATE(created_at) BETWEEN :start AND :end
                 GROUP BY bucket ORDER BY bucket
             ");
@@ -88,7 +105,7 @@ function buildLeaveTrend(PDO $pdo, string $range): array
                        SUM(CASE WHEN approval_status = 'Approved' THEN 1 ELSE 0 END) AS approved,
                        SUM(CASE WHEN approval_status = 'Pending'  THEN 1 ELSE 0 END) AS pending,
                        SUM(CASE WHEN approval_status = 'Rejected' THEN 1 ELSE 0 END) AS rejected
-                FROM faculty_db.leave_requests
+                FROM leave_requests
                 WHERE DATE(created_at) BETWEEN :start AND :end
                 GROUP BY bucket ORDER BY bucket
             ");
@@ -109,7 +126,7 @@ function buildLeaveTrend(PDO $pdo, string $range): array
                        SUM(CASE WHEN approval_status = 'Approved' THEN 1 ELSE 0 END) AS approved,
                        SUM(CASE WHEN approval_status = 'Pending'  THEN 1 ELSE 0 END) AS pending,
                        SUM(CASE WHEN approval_status = 'Rejected' THEN 1 ELSE 0 END) AS rejected
-                FROM faculty_db.leave_requests
+                FROM leave_requests
                 WHERE DATE(created_at) >= :start
                 GROUP BY bucket ORDER BY bucket
             ");
@@ -134,7 +151,7 @@ function buildLeaveTrend(PDO $pdo, string $range): array
                        SUM(CASE WHEN approval_status = 'Approved' THEN 1 ELSE 0 END) AS approved,
                        SUM(CASE WHEN approval_status = 'Pending'  THEN 1 ELSE 0 END) AS pending,
                        SUM(CASE WHEN approval_status = 'Rejected' THEN 1 ELSE 0 END) AS rejected
-                FROM faculty_db.leave_requests
+                FROM leave_requests
                 WHERE DATE(created_at) >= :start
                 GROUP BY bucket ORDER BY bucket
             ");
@@ -172,13 +189,13 @@ $rangeLabels = ['1w' => 'Last 1 Week', '1m' => 'Last 1 Month', '6m' => 'Last 6 M
 /* ============================================================
  | 3. OTHER CHART DATA
  * ============================================================ */
-$regularCount  = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.faculty_profiles WHERE LOWER(employment_status) IN ('regular','full-time')")->fetchColumn();
-$partTimeCount = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.faculty_profiles WHERE LOWER(employment_status) IN ('part-time','contract')")->fetchColumn();
+$regularCount  = (int) $pdo->query("SELECT COUNT(*) FROM faculty_profiles WHERE LOWER(employment_status) IN ('regular','full-time')")->fetchColumn();
+$partTimeCount = (int) $pdo->query("SELECT COUNT(*) FROM faculty_profiles WHERE LOWER(employment_status) IN ('part-time','contract')")->fetchColumn();
 $otherCount    = max(0, $totalFaculty - ($regularCount + $partTimeCount));
 
 $deptRows = $pdo->query("
     SELECT designated_department AS dept, COUNT(*) AS count
-    FROM faculty_db.faculty_profiles
+    FROM faculty_profiles
     WHERE designated_department IS NOT NULL AND designated_department != ''
     GROUP BY designated_department
     ORDER BY count DESC
@@ -196,15 +213,15 @@ $recentResults = $pdo->query("
            lr.approval_status, lr.created_at,
            fp.first_name, fp.last_name, fp.faculty_id AS faculty_no,
            fp.designated_department, fp.position
-    FROM faculty_db.leave_requests lr
-    LEFT JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
-    LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = f.faculty_no
+    FROM leave_requests lr
+    LEFT JOIN faculty f ON f.faculty_id = lr.faculty_id
+    LEFT JOIN faculty_profiles fp ON fp.faculty_id = f.faculty_no
     ORDER BY lr.created_at DESC LIMIT 5
 ")->fetchAll(PDO::FETCH_ASSOC);
 
-$resultApprovedCount = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.leave_requests WHERE approval_status = 'Approved'")->fetchColumn();
-$resultPendingCount  = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.leave_requests WHERE approval_status = 'Pending'")->fetchColumn();
-$resultRejectedCount = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.leave_requests WHERE approval_status = 'Rejected'")->fetchColumn();
+$resultApprovedCount = (int) $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE approval_status = 'Approved'")->fetchColumn();
+$resultPendingCount  = (int) $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE approval_status = 'Pending'")->fetchColumn();
+$resultRejectedCount = (int) $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE approval_status = 'Rejected'")->fetchColumn();
 
 /* ============================================================
  | 5. FACULTY PERFORMANCE OVERVIEW
@@ -213,9 +230,9 @@ $perfRows = $pdo->query("
     SELECT fp.first_name, fp.last_name, fp.designated_department, fp.position,
            f.faculty_id,
            COALESCE(AVG(e.composite_score), 0) AS composite
-    FROM faculty_db.faculty f
-    INNER JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = f.faculty_no
-    LEFT JOIN faculty_db.evaluations e ON e.faculty_id = f.faculty_id
+    FROM faculty f
+    INNER JOIN faculty_profiles fp ON fp.faculty_id = f.faculty_no
+    LEFT JOIN evaluations e ON e.faculty_id = f.faculty_id
     WHERE fp.position = 'Faculty Professor'
       AND (fp.profile_status IS NULL OR fp.profile_status <> 'Inactive')
     GROUP BY f.faculty_id
