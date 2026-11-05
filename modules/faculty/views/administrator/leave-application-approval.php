@@ -14,11 +14,14 @@ $pdo = null;
 $actionMessage = ''; $actionType = '';
 
 try {
-    $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
-    $dbUser = defined('DB_USER') ? DB_USER : 'root';
-    $dbPass = defined('DB_PASS') ? DB_PASS : '';
+    // Read HostForge env vars, with XAMPP fallbacks.
+    $dbHost = getenv('DB_HOST')     ?: (defined('DB_HOST') ? DB_HOST : 'localhost');
+    $dbUser = getenv('DB_USERNAME') ?: (defined('DB_USER') ? DB_USER : 'root');
+    $dbPass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (defined('DB_PASS') ? DB_PASS : '');
+    $dbName = getenv('DB_DATABASE') ?: (defined('DB_NAME') ? DB_NAME : 'faculty_db');
+    $dbPort = (int) (getenv('DB_PORT') ?: 3306);
 
-    $dsn = "mysql:host={$dbHost};dbname=faculty_db;charset=utf8mb4";
+    $dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
     $pdo = new PDO($dsn, $dbUser, $dbPass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
@@ -170,13 +173,6 @@ if (function_exists('renderBreadcrumbs')) {
 <script src="<?= BASE_URL ?>/../../../../assets/js/loader.js"></script>
 
 <div class="container-fluid py-3 px-2 px-md-3">
-    <?php if (!empty($actionMessage)): ?>
-        <div class="alert alert-<?= $actionType ?> alert-dismissible fade show rounded-4 shadow-sm mb-4" role="alert">
-            <i class="fas fa-info-circle me-2"></i><?= htmlspecialchars($actionMessage) ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    <?php endif; ?>
-
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h1 class="h4 h3-md text-body fw-bold mb-1 d-flex align-items-center gap-2">
@@ -187,9 +183,8 @@ if (function_exists('renderBreadcrumbs')) {
         </div>
     </div>
 
-    <!-- ==================== Metric Summary Cards (NEW TEMPLATE) ==================== -->
+    <!-- ==================== Metric Summary Cards ==================== -->
     <div class="row g-3 mb-4">
-        <!-- Total Faculty — Blue -->
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #0d6efd; z-index: 1;"></div>
@@ -200,9 +195,7 @@ if (function_exists('renderBreadcrumbs')) {
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Faculty</h6>
                         <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= (int) $totalFaculty ?></h4>
-                        <small class="fw-semibold" style="color: #0d6efd; font-size: 0.75rem;">
-                            All departments
-                        </small>
+                        <small class="fw-semibold" style="color: #0d6efd; font-size: 0.75rem;">All departments</small>
                     </div>
                 </div>
                 <a href="#" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Faculty">
@@ -211,7 +204,6 @@ if (function_exists('renderBreadcrumbs')) {
             </section>
         </div>
 
-        <!-- Pending Requests — Amber -->
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #f59e0b; z-index: 1;"></div>
@@ -222,9 +214,7 @@ if (function_exists('renderBreadcrumbs')) {
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Requests</h6>
                         <h4 class="mb-0 fw-bold" style="color: #f59e0b;"><?= (int) $stats['pending_count'] ?></h4>
-                        <small class="fw-semibold" style="color: #f59e0b; font-size: 0.75rem;">
-                            Awaiting action
-                        </small>
+                        <small class="fw-semibold" style="color: #f59e0b; font-size: 0.75rem;">Awaiting action</small>
                     </div>
                 </div>
                 <a href="#statusRecordDetailsContainer" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Pending">
@@ -233,7 +223,6 @@ if (function_exists('renderBreadcrumbs')) {
             </section>
         </div>
 
-        <!-- Approved — Green -->
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #10b981; z-index: 1;"></div>
@@ -244,9 +233,7 @@ if (function_exists('renderBreadcrumbs')) {
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Approved</h6>
                         <h4 class="mb-0 fw-bold" style="color: #10b981;"><?= (int) $stats['approved_count'] ?></h4>
-                        <small class="fw-semibold" style="color: #10b981; font-size: 0.75rem;">
-                            Successfully processed
-                        </small>
+                        <small class="fw-semibold" style="color: #10b981; font-size: 0.75rem;">Successfully processed</small>
                     </div>
                 </div>
                 <a href="#statusRecordDetailsContainer" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Approved">
@@ -255,7 +242,6 @@ if (function_exists('renderBreadcrumbs')) {
             </section>
         </div>
 
-        <!-- Rejected — Red -->
         <div class="col-12 col-sm-6 col-xl-3">
             <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
                 <div class="position-absolute top-0 start-0 h-100" style="width: 4px; background-color: #ff4d4d; z-index: 1;"></div>
@@ -266,9 +252,7 @@ if (function_exists('renderBreadcrumbs')) {
                     <div>
                         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Rejected</h6>
                         <h4 class="mb-0 fw-bold" style="color: #ff4d4d;"><?= (int) $stats['rejected_count'] ?></h4>
-                        <small class="fw-semibold" style="color: #ff4d4d; font-size: 0.75rem;">
-                            Declined applications
-                        </small>
+                        <small class="fw-semibold" style="color: #ff4d4d; font-size: 0.75rem;">Declined applications</small>
                     </div>
                 </div>
                 <a href="#statusRecordDetailsContainer" class="position-absolute top-0 end-0 m-3 text-muted border rounded p-1 d-flex align-items-center justify-content-center border-secondary-subtle" style="width: 24px; height: 24px; font-size: 0.7rem;" title="View Rejected">
@@ -308,7 +292,6 @@ if (function_exists('renderBreadcrumbs')) {
     </div>
 
     <div class="row g-4 mb-4">
-        <!-- Left Box: Faculty Leave Accounts -->
         <div class="col-12 col-md-6 col-xl-5">
             <div class="card bg-body-tertiary text-body border border-light-subtle h-100 shadow-sm rounded-4">
                 <div class="card-header bg-transparent border-bottom border-light-subtle py-3 d-flex justify-content-between align-items-center">
@@ -345,7 +328,6 @@ if (function_exists('renderBreadcrumbs')) {
             </div>
         </div>
 
-        <!-- Right Box: Status Record Log Details -->
         <div class="col-12 col-md-6 col-xl-7">
             <div class="card bg-body-tertiary text-body border border-light-subtle h-100 shadow-sm rounded-4">
                 <div class="card-header bg-transparent border-bottom border-light-subtle py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -359,6 +341,19 @@ if (function_exists('renderBreadcrumbs')) {
     </div>
 </div>
 
+<!-- Toast container (success / error / info) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="actionToast" class="toast align-items-center border-0 shadow-lg rounded-4" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex align-items-center p-2">
+            <div class="me-2 fs-5 px-1">
+                <i id="actionToastIcon" class="fas fa-info-circle text-primary"></i>
+            </div>
+            <div class="toast-body fs-7 fw-semibold p-1" id="actionToastMessage"></div>
+            <button type="button" class="btn-close ms-auto me-1 shadow-none" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <!-- Embedded data for Chart.js & interactions -->
 <script>
 const facultyLeaveGroupsData = <?= json_encode(array_values($facultyLeaveGroups)); ?>;
@@ -366,6 +361,32 @@ const chartLabels   = <?= json_encode($trendLabels); ?>;
 const chartValues   = <?= json_encode($trendValues); ?>;
 const categoryLabels = <?= json_encode(array_keys($categoryCounts)); ?>;
 const categoryValues = <?= json_encode(array_values($categoryCounts)); ?>;
+
+/* ---------- Toast helper ---------- */
+function showActionToast(message, type) {
+    if (!message) return;
+
+    const toastEl    = document.getElementById('actionToast');
+    const iconEl     = document.getElementById('actionToastIcon');
+    const messageEl  = document.getElementById('actionToastMessage');
+    const colorClass = type === 'danger' ? 'text-danger'
+                     : type === 'warning' ? 'text-warning'
+                     : type === 'success' ? 'text-success'
+                     : 'text-primary';
+
+    toastEl.className = 'toast align-items-center border-0 shadow-lg rounded-4';
+    if (type === 'danger')  toastEl.classList.add('border', 'border-danger');
+    if (type === 'warning') toastEl.classList.add('border', 'border-warning');
+    if (type === 'success') toastEl.classList.add('border', 'border-success');
+
+    iconEl.className = 'fas fa-info-circle ' + colorClass;
+    if (type === 'danger')  iconEl.className = 'fas fa-times-circle '       + colorClass;
+    if (type === 'warning') iconEl.className = 'fas fa-exclamation-triangle ' + colorClass;
+    if (type === 'success') iconEl.className = 'fas fa-check-circle '       + colorClass;
+
+    messageEl.textContent = message;
+    bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 6000 }).show();
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const gridColor = 'rgba(128, 128, 128, 0.15)';
@@ -502,6 +523,13 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         });
     });
+
+    // ---- Show the PHP-driven message as a toast (works for success AND error) ----
+    const phpMessage = <?= json_encode($actionMessage) ?>;
+    const phpType    = <?= json_encode($actionType ?: 'success') ?>;
+    if (phpMessage) {
+        showActionToast(phpMessage, phpType);
+    }
 });
 </script>
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

@@ -50,7 +50,7 @@ try {
                 throw new InvalidArgumentException('Please select a valid department.');
             }
 
-            $deptStmt = $pdo->prepare("SELECT code FROM faculty_db.departments WHERE department_id = :id LIMIT 1");
+            $deptStmt = $pdo->prepare("SELECT code FROM departments WHERE department_id = :id LIMIT 1");
             $deptStmt->execute([':id' => $deptId]);
             $deptCode = $deptStmt->fetchColumn();
 
@@ -60,7 +60,7 @@ try {
 
             if ($headProfileId > 0) {
                 $update = $pdo->prepare("
-                    UPDATE faculty_db.faculty_profiles
+                    UPDATE faculty_profiles
                     SET designated_department = :code
                     WHERE id = :id AND position = 'Department Head'
                 ");
@@ -73,7 +73,7 @@ try {
                 $redirectMessage = 'Department Head reassigned successfully.';
             } else {
                 $clear = $pdo->prepare("
-                    UPDATE faculty_db.faculty_profiles
+                    UPDATE faculty_profiles
                     SET designated_department = NULL
                     WHERE position = 'Department Head' AND designated_department = :code
                 ");
@@ -96,7 +96,7 @@ try {
                 throw new InvalidArgumentException('Invalid Dean profile.');
             }
 
-            $verify = $pdo->prepare("SELECT id FROM faculty_db.faculty_profiles WHERE id = :id AND position = 'Dean' LIMIT 1");
+            $verify = $pdo->prepare("SELECT id FROM faculty_profiles WHERE id = :id AND position = 'Dean' LIMIT 1");
             $verify->execute([':id' => $deanProfileId]);
             if (!$verify->fetchColumn()) {
                 throw new InvalidArgumentException('That profile is not a Dean.');
@@ -104,28 +104,28 @@ try {
 
             $pdo->beginTransaction();
 
-            $delete = $pdo->prepare("DELETE FROM faculty_db.faculty_profile_department_assignments WHERE faculty_profile_id = :id");
+            $delete = $pdo->prepare("DELETE FROM faculty_profile_department_assignments WHERE faculty_profile_id = :id");
             $delete->execute([':id' => $deanProfileId]);
 
             if (!empty($selectedDeptIds)) {
                 $insert = $pdo->prepare("
-                    INSERT INTO faculty_db.faculty_profile_department_assignments (faculty_profile_id, department_id)
+                    INSERT INTO faculty_profile_department_assignments (faculty_profile_id, department_id)
                     VALUES (:profile_id, :dept_id)
                 ");
                 foreach ($selectedDeptIds as $deptId) {
                     $insert->execute([':profile_id' => $deanProfileId, ':dept_id' => $deptId]);
                 }
 
-                $deptCodeStmt = $pdo->prepare("SELECT code FROM faculty_db.departments WHERE department_id = :id LIMIT 1");
+                $deptCodeStmt = $pdo->prepare("SELECT code FROM departments WHERE department_id = :id LIMIT 1");
                 $deptCodeStmt->execute([':id' => $selectedDeptIds[0]]);
                 $primaryCode = $deptCodeStmt->fetchColumn();
 
                 if ($primaryCode) {
-                    $updatePrimary = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET designated_department = :code WHERE id = :id");
+                    $updatePrimary = $pdo->prepare("UPDATE faculty_profiles SET designated_department = :code WHERE id = :id");
                     $updatePrimary->execute([':code' => $primaryCode, ':id' => $deanProfileId]);
                 }
             } else {
-                $updatePrimary = $pdo->prepare("UPDATE faculty_db.faculty_profiles SET designated_department = NULL WHERE id = :id");
+                $updatePrimary = $pdo->prepare("UPDATE faculty_profiles SET designated_department = NULL WHERE id = :id");
                 $updatePrimary->execute([':id' => $deanProfileId]);
             }
 
@@ -140,11 +140,11 @@ try {
     }
 
     /* Load data for display. */
-    $departments = $pdo->query("SELECT department_id, code, name FROM faculty_db.departments ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+    $departments = $pdo->query("SELECT department_id, code, name FROM departments ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
 
     $headRows = $pdo->query("
         SELECT id, designated_department, CONCAT_WS(' ', first_name, last_name) AS name
-        FROM faculty_db.faculty_profiles
+        FROM faculty_profiles
         WHERE position = 'Department Head'
         ORDER BY last_name, first_name
     ")->fetchAll(PDO::FETCH_ASSOC);
@@ -156,8 +156,8 @@ try {
 
     $deanRows = $pdo->query("
         SELECT fp.id, CONCAT_WS(' ', fp.first_name, fp.last_name) AS name, a.department_id
-        FROM faculty_db.faculty_profiles fp
-        LEFT JOIN faculty_db.faculty_profile_department_assignments a ON a.faculty_profile_id = fp.id
+        FROM faculty_profiles fp
+        LEFT JOIN faculty_profile_department_assignments a ON a.faculty_profile_id = fp.id
         WHERE fp.position = 'Dean'
         ORDER BY fp.last_name, fp.first_name
     ")->fetchAll(PDO::FETCH_ASSOC);

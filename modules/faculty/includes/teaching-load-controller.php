@@ -54,7 +54,19 @@ function smsTeachingLoadRedirect(string $notice): never {
 }
 
 try {
-    $pdo = getFacultyDatabaseConnection();
+    // PATCHED CONNECTION: Bypass getFacultyDatabaseConnection() and use HostForge env vars
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+    
     smsTeachingLoadEnsureSchema($pdo);
 } catch (Throwable $exception) {
     $databaseError = 'Teaching-load storage is unavailable. Check the faculty database connection and teaching-load tables.';

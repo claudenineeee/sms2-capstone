@@ -9,7 +9,24 @@ if (!in_array(getCurrentUserRoleKey(), ['department_head', 'dept_head', 'hr', 'f
     exit('Access denied.');
 }
 require_once __DIR__ . '/../../controllers/clearance.php';
-$db = facultyDb();
+
+// PATCHED CONNECTION: Bypass facultyDb() and connect directly to HostForge env vars
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    $db = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    $db = null;
+    error_log("Faculty clearance page DB error: " . $e->getMessage());
+}
+
 $profile = $db ? facultyClearanceProfile($db, (int) getCurrentUserId()) : null;
 function deptClearanceEsc(string $value): string
 {
