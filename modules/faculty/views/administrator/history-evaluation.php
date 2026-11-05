@@ -11,15 +11,24 @@ require_once __DIR__ . '/../../controllers/FacultyController.php';
 requireAuth();
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Eval history DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -32,10 +41,12 @@ $rawTableEmpty = true;
 try {
     if (!$pdo instanceof PDO) { throw new RuntimeException('Database unavailable.'); }
 
-    $rawCount = (int) $pdo->query("SELECT COUNT(*) FROM faculty_db.evaluations")->fetchColumn();
+    // REMOVED faculty_db. prefix
+    $rawCount = (int) $pdo->query("SELECT COUNT(*) FROM evaluations")->fetchColumn();
     $rawTableEmpty = ($rawCount === 0);
 
     if (!$rawTableEmpty) {
+        // REMOVED faculty_db. prefixes
         $stmt = $pdo->query("
             SELECT
                 e.evaluation_id,
@@ -51,9 +62,9 @@ try {
                 fp.last_name,
                 fp.faculty_id AS faculty_no,
                 fp.designated_department
-            FROM faculty_db.evaluations e
-            LEFT JOIN faculty_db.faculty f       ON f.faculty_id  = e.faculty_id
-            LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = f.faculty_no
+            FROM evaluations e
+            LEFT JOIN faculty f       ON f.faculty_id  = e.faculty_id
+            LEFT JOIN faculty_profiles fp ON fp.faculty_id = f.faculty_no
             ORDER BY e.submitted_at DESC
         ");
         $allRows = $stmt->fetchAll(PDO::FETCH_ASSOC);

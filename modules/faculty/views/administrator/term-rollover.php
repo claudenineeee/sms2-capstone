@@ -33,11 +33,24 @@ if (!in_array($currentRoleKey, $ADMIN_ROLE_KEYS, true)) {
     exit;
 }
 
-/* DB */
+/* DB CONNECTION - PATCHED FOR HOSTFORGE */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) { try { $pdo = db(); } catch (Throwable $e) { $pdo = null; } }
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) { $pdo = $GLOBALS['pdo']; }
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Term rollover DB connection failed: ' . $e->getMessage());
+    $pdo = null;
+}
 
 if (!function_exists('eh')) {
     function eh($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
@@ -149,23 +162,24 @@ if ($pdo instanceof PDO && $currentTerm) {
     $ay  = (string) $currentTerm['academic_year'];
 
     try {
-        $s = $pdo->prepare("SELECT COUNT(*) FROM faculty_db.class_schedules WHERE term_id = ?");
+        // REMOVED faculty_db. prefixes
+        $s = $pdo->prepare("SELECT COUNT(*) FROM class_schedules WHERE term_id = ?");
         $s->execute([$tid]);
         $liveCounts['schedules'] = (int) $s->fetchColumn();
 
-        $s = $pdo->prepare("SELECT COUNT(*) FROM faculty_db.clearance_requests WHERE term_id = ? AND overall_status NOT IN ('Cleared','Completed','Archived')");
+        $s = $pdo->prepare("SELECT COUNT(*) FROM clearance_requests WHERE term_id = ? AND overall_status NOT IN ('Cleared','Completed','Archived')");
         $s->execute([$tid]);
         $liveCounts['in_progress_cl'] = (int) $s->fetchColumn();
 
-        $s = $pdo->prepare("SELECT COUNT(*) FROM faculty_db.leave_balances WHERE academic_year = ?");
+        $s = $pdo->prepare("SELECT COUNT(*) FROM leave_balances WHERE academic_year = ?");
         $s->execute([$ay]);
         $liveCounts['leave_rows'] = (int) $s->fetchColumn();
 
-        $s = $pdo->prepare("SELECT COUNT(*) FROM faculty_db.notifications");
+        $s = $pdo->prepare("SELECT COUNT(*) FROM notifications");
         $s->execute();
         $liveCounts['notifications'] = (int) $s->fetchColumn();
 
-        $s = $pdo->query("SELECT COUNT(*) FROM faculty_db.faculty WHERE profile_status = 'Active'");
+        $s = $pdo->query("SELECT COUNT(*) FROM faculty WHERE profile_status = 'Active'");
         $liveCounts['faculty'] = (int) $s->fetchColumn();
     } catch (Throwable $e) {
         // Non-fatal

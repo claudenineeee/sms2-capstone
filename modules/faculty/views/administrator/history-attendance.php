@@ -9,6 +9,56 @@ require_once __DIR__ . '/../../controllers/FacultyController.php';
 
 requireAuth();
 
+// ============================================================
+// PATCHED DATABASE CONNECTION (HostForge / XAMPP)
+// ============================================================
+$pdo = null;
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Attendance page DB connection failed: ' . $e->getMessage());
+    $pdo = null;
+}
+
+// ============================================================
+// FETCH REAL DATA
+// ============================================================
+$attendanceData = [];
+if ($pdo instanceof PDO) {
+    try {
+        // ADJUST THE TABLE NAME IF NEEDED (e.g., faculty_attendance)
+        $stmt = $pdo->query("
+            SELECT 
+                a.attendance_id, 
+                a.faculty_id, 
+                a.attendance_date, 
+                a.time_in, 
+                a.time_out, 
+                a.status, 
+                a.hours_rendered, 
+                a.notes,
+                f.first_name, 
+                f.last_name
+            FROM attendance a
+            LEFT JOIN faculty f ON f.faculty_id = a.faculty_id
+            ORDER BY a.attendance_date DESC, a.attendance_id DESC
+        ");
+        $attendanceData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('Attendance query failed: ' . $e->getMessage());
+    }
+}
+
 $pageTitle    = 'Faculty Admin Dashboard';
 $activeModule = 'faculty';
 $activePage   = 'attendance-history';
@@ -398,8 +448,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     /* ============================================================
        Kill browser autofill on navbar search
-       — Also removes the native "clear" button so only the
-         theme's own × remains visible.
        ============================================================ */
     (function fixNavbarAutofill() {
         var selectors = [
@@ -428,18 +476,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 input.setAttribute('autocapitalize', 'off');
                 input.setAttribute('spellcheck', 'false');
 
-                // Unique non-login name so Chrome stops treating it as a username field
                 if (!input.name || input.name === 'q' || input.name === 'search' || input.name === 's') {
                     input.name = 'sms2_global_search_' + Date.now();
                 }
 
-                // Change to type="text" to remove the native × clear button.
-                // The theme's own × is a separate element outside the input.
                 if (input.type === 'search') {
                     input.type = 'text';
                 }
 
-                // Wipe any email-looking autofilled value
                 if (input.value && input.value.indexOf('@') !== -1) {
                     input.value = '';
                 }
@@ -458,31 +502,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     })();
 
     /* ============================================================
-       DATA
+       DATA INJECTED FROM PHP
        ============================================================ */
     var hasChart = (typeof Chart !== 'undefined');
     if (!hasChart) console.warn('[attendance] Chart.js not loaded — charts disabled.');
 
-    const attRawAttendance = [
-        { attendance_id: 12, faculty_id: 101, attendance_date: '2026-09-22', time_in: null,       time_out: null,       status: 'Present',  hours_rendered: null, notes: null },
-        { attendance_id: 13, faculty_id: 51,  attendance_date: '2026-09-23', time_in: '08:00:00', time_out: '17:00:00', status: 'Present',  hours_rendered: 8.0,  notes: 'Regular day' },
-        { attendance_id: 14, faculty_id: 53,  attendance_date: '2026-09-23', time_in: '09:15:00', time_out: '17:00:00', status: 'Late',     hours_rendered: 7.5,  notes: 'Traffic' },
-        { attendance_id: 15, faculty_id: 101, attendance_date: '2026-09-24', time_in: null,       time_out: null,       status: 'Absent',   hours_rendered: null, notes: 'Sick leave' },
-        { attendance_id: 16, faculty_id: 105, attendance_date: '2026-09-24', time_in: '08:30:00', time_out: '17:15:00', status: 'Present',  hours_rendered: 8.5,  notes: null },
-        { attendance_id: 17, faculty_id: 109, attendance_date: '2026-09-25', time_in: null,       time_out: null,       status: 'On Leave', hours_rendered: null, notes: 'Vacation leave' },
-        { attendance_id: 18, faculty_id: 110, attendance_date: '2026-09-25', time_in: '08:00:00', time_out: '17:00:00', status: 'Present',  hours_rendered: 8.0,  notes: null },
-        { attendance_id: 19, faculty_id: 51,  attendance_date: '2026-08-15', time_in: '07:45:00', time_out: '16:30:00', status: 'Present',  hours_rendered: 7.8,  notes: null },
-        { attendance_id: 20, faculty_id: 53,  attendance_date: '2026-08-20', time_in: '09:00:00', time_out: '18:00:00', status: 'Late',     hours_rendered: 8.0,  notes: 'Meeting' }
-    ];
-
-    const attFacultyMap = {
-        51:  'Jean Claude',
-        53:  'Jean Claude Espejo',
-        101: 'Light Yagami',
-        105: 'Alfred Joseph Alcantara',
-        109: 'Sofia Reyes',
-        110: 'Jorge Lucero'
-    };
+    // REAL DATA FROM DATABASE
+    const attRawAttendance = <?= json_encode($attendanceData) ?>;
 
     const PAGE_SIZE = 10;
 
@@ -494,7 +520,13 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     /* ============================================================
        HELPERS
        ============================================================ */
-    function attGetFacultyName(id) { return attFacultyMap[id] || ('Faculty #' + id); }
+    function attGetFacultyName(r) {
+        let name = '';
+        if (r.first_name || r.last_name) {
+            name = (r.first_name || '') + ' ' + (r.last_name || '');
+        }
+        return name.trim() || ('Faculty #' + r.faculty_id);
+    }
 
     function attFormatDate(dateStr) {
         if (!dateStr) return '—';
@@ -618,7 +650,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             tbody.innerHTML = pageData.map(function (r) {
                 return '<tr>' +
                     '<td class="text-nowrap">' + attFormatDate(r.attendance_date) + '</td>' +
-                    '<td class="fw-semibold att-privacy-target">' + attGetFacultyName(r.faculty_id) + '</td>' +
+                    '<td class="fw-semibold att-privacy-target">' + attGetFacultyName(r) + '</td>' +
                     '<td>' + attStatusBadge(r.status) + '</td>' +
                     '<td class="text-nowrap">' + attFormatTime(r.time_in) + '</td>' +
                     '<td class="text-nowrap">' + attFormatTime(r.time_out) + '</td>' +
@@ -808,8 +840,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
     /* ============================================================
        PRINT-ONLY REPORT
-       Builds a complete printable report with header, KPI strip,
-       all filtered rows, and footer. Faculty + Notes are blurred.
        ============================================================ */
     function attRenderPrintTable() {
         const host = document.getElementById('attPrintTable');
@@ -858,7 +888,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const rows = attFilteredData.map(function (r) {
             return '<tr>' +
                 '<td>' + escapeHtml(attFormatDate(r.attendance_date)) + '</td>' +
-                '<td class="att-print-blur">' + escapeHtml(attGetFacultyName(r.faculty_id)) + '</td>' +
+                '<td class="att-print-blur">' + escapeHtml(attGetFacultyName(r)) + '</td>' +
                 '<td>' + escapeHtml(r.status) + '</td>' +
                 '<td>' + escapeHtml(attFormatTime(r.time_in)) + '</td>' +
                 '<td>' + escapeHtml(attFormatTime(r.time_out)) + '</td>' +
@@ -922,7 +952,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const rows = attFilteredData.map(function (r) {
             return [
                 r.attendance_date,
-                attGetFacultyName(r.faculty_id),
+                attGetFacultyName(r),
                 r.status,
                 r.time_in || '',
                 r.time_out || '',

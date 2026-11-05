@@ -12,15 +12,24 @@ require_once __DIR__ . '/../../controllers/FacultyController.php';
 requireAuth();
 
 /* ============================================================
-   DATABASE
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Approval history DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -33,6 +42,7 @@ $totalRawCount = 0;
 try {
     if (!$pdo instanceof PDO) { throw new RuntimeException('Database unavailable.'); }
 
+    // REMOVED faculty_db. prefixes
     $clearStmt = $pdo->query("
         SELECT
             coa.id                  AS row_id,
@@ -48,8 +58,8 @@ try {
             fp.first_name,
             fp.last_name,
             fp.designated_department AS dept
-        FROM faculty_db.clearance_office_approvals coa
-        LEFT JOIN faculty_db.faculty_profiles fp ON fp.id = coa.faculty_id
+        FROM clearance_office_approvals coa
+        LEFT JOIN faculty_profiles fp ON fp.id = coa.faculty_id
         ORDER BY coa.approved_at DESC
     ");
     foreach ($clearStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -70,6 +80,7 @@ try {
         ];
     }
 
+    // REMOVED faculty_db. prefixes
     $leaveStmt = $pdo->query("
         SELECT
             lr.id                   AS row_id,
@@ -85,8 +96,8 @@ try {
             fp.first_name,
             fp.last_name,
             fp.designated_department AS dept
-        FROM faculty_db.leave_requests lr
-        LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = lr.faculty_id
+        FROM leave_requests lr
+        LEFT JOIN faculty_profiles fp ON fp.faculty_id = lr.faculty_id
         WHERE lr.approval_status IN ('Approved','Rejected','Pending','Cancelled')
         ORDER BY acted_at DESC
     ");

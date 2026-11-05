@@ -40,15 +40,24 @@ if (!$isAdmin) {
 }
 
 /* ============================================================
-   Database
+   Database Connection (PATCHED FOR HOSTFORGE)
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) { $pdo = facultyDb(); }
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Clearance admin dashboard DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -86,25 +95,6 @@ if (!function_exists('caFmtDt')) {
         return $d ? date('M j, Y g:i A', $d) : (string) $s;
     }
 }
-if (!function_exists('caStatusPill')) {
-    function caStatusPill(string $status): string {
-        $s = strtolower(trim($status));
-        $map = [
-            'cleared'   => ['bg-success-subtle text-success border-success-subtle', 'Cleared'],
-            'approved'  => ['bg-success-subtle text-success border-success-subtle', 'Approved'],
-            'hold'      => ['bg-warning-subtle text-warning border-warning-subtle', 'On Hold'],
-            'on hold'   => ['bg-warning-subtle text-warning border-warning-subtle', 'On Hold'],
-            'denied'    => ['bg-danger-subtle text-danger border-danger-subtle', 'Denied'],
-            'rejected'  => ['bg-danger-subtle text-danger border-danger-subtle', 'Rejected'],
-            'missing'   => ['bg-secondary-subtle text-secondary border-secondary-subtle', 'Missing'],
-            'pending'   => ['bg-warning-subtle text-warning border-warning-subtle', 'Pending'],
-            'progress'  => ['bg-info-subtle text-info border-info-subtle', 'In Progress'],
-        ];
-        $cls = $map[$s][0] ?? 'bg-secondary-subtle text-secondary border-secondary-subtle';
-        $lbl = $map[$s][1] ?? ($status !== '' ? $status : 'Unknown');
-        return '<span class="d-inline-block px-2 py-1 rounded-2 border fw-semibold text-nowrap ' . $cls . '" style="font-size:.7rem;">' . eh($lbl) . '</span>';
-    }
-}
 
 /* ============================================================
    Handle POST actions
@@ -122,12 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
 
         if ($clearanceId > 0) {
             try {
+                // REMOVED faculty_db. prefixes
                 $stmt = $pdo->prepare("
                     SELECT cr.*, f.faculty_no, f.first_name, f.middle_name, f.last_name, f.email,
                            f.department_id, d.name AS dept_name
-                    FROM faculty_db.clearance_requests cr
-                    INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
-                    LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
+                    FROM clearance_requests cr
+                    INNER JOIN faculty f ON f.faculty_id = cr.faculty_id
+                    LEFT JOIN departments d ON d.department_id = f.department_id
                     WHERE cr.clearance_id = ? LIMIT 1
                 ");
                 $stmt->execute([$clearanceId]);
@@ -140,11 +131,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                     $facultyId   = (int) $cl['faculty_id'];
                     $facultyName = caFullName($cl);
 
-                    /* Count 6/6 cleared */
+                    // REMOVED faculty_db. prefixes
                     $officeStmt = $pdo->prepare("
                         SELECT ci.clearance_office_id, ci.status, co.name AS office_name
-                        FROM faculty_db.clearance_items ci
-                        LEFT JOIN faculty_db.clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
+                        FROM clearance_items ci
+                        LEFT JOIN clearance_offices co ON co.clearance_office_id = ci.clearance_office_id
                         WHERE ci.clearance_id = ?
                     ");
                     $officeStmt->execute([$clearanceId]);
@@ -160,11 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                     $allCleared = ($totalGate > 0 && $cleared === $totalGate);
                     $declared   = (int) ($cl['faculty_declared'] ?? 0) === 1;
 
-                    /* ---------------- action: audit_passed ---------------- */
                     if ($action === 'audit_passed') {
                         if ($allCleared && $declared) {
                             $ins = $pdo->prepare("
-                                INSERT INTO faculty_db.clearance_approval_history
+                                INSERT INTO clearance_approval_history
                                     (clearance_id, requirement_id, office, action,
                                      performed_by_id, performed_by_name, performed_by_role, remarks)
                                 VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
@@ -176,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                             ]);
 
                             $notif = $pdo->prepare("
-                                INSERT INTO faculty_db.notifications
+                                INSERT INTO notifications
                                     (faculty_id, title, message, priority, notification_type, is_read)
                                 VALUES (?, ?, ?, 'Medium', 'clearance', 0)
                             ");
@@ -194,7 +184,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         }
                     }
 
-                    /* ---------------- action: compliance_notice ---------------- */
                     elseif ($action === 'compliance_notice') {
                         $message = trim((string) ($_POST['message'] ?? ''));
                         if ($message === '') {
@@ -202,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         }
 
                         $ins = $pdo->prepare("
-                            INSERT INTO faculty_db.clearance_approval_history
+                            INSERT INTO clearance_approval_history
                                 (clearance_id, requirement_id, office, action,
                                  performed_by_id, performed_by_name, performed_by_role, remarks)
                             VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
@@ -213,7 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         ]);
 
                         $notif = $pdo->prepare("
-                            INSERT INTO faculty_db.notifications
+                            INSERT INTO notifications
                                 (faculty_id, title, message, priority, notification_type, is_read)
                             VALUES (?, ?, ?, 'High Priority', 'clearance', 0)
                         ");
@@ -223,7 +212,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         $flashType = 'warning';
                     }
 
-                    /* ---------------- action: expedite_notice ---------------- */
                     elseif ($action === 'expedite_notice') {
                         $targetOffice = trim((string) ($_POST['target_office'] ?? ''));
                         $message = trim((string) ($_POST['message'] ?? ''));
@@ -233,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         $remarks = $targetOffice !== '' ? ('[' . $targetOffice . '] ' . $message) : $message;
 
                         $ins = $pdo->prepare("
-                            INSERT INTO faculty_db.clearance_approval_history
+                            INSERT INTO clearance_approval_history
                                 (clearance_id, requirement_id, office, action,
                                  performed_by_id, performed_by_name, performed_by_role, remarks)
                             VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
@@ -244,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         ]);
 
                         $notif = $pdo->prepare("
-                            INSERT INTO faculty_db.notifications
+                            INSERT INTO notifications
                                 (faculty_id, title, message, priority, notification_type, is_read)
                             VALUES (?, ?, ?, 'Medium', 'clearance', 0)
                         ");
@@ -258,7 +246,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         $flashType = 'info';
                     }
 
-                    /* ---------------- action: endorse_to_dean ---------------- */
                     elseif ($action === 'endorse_to_dean') {
                         if (!$allCleared || !$declared) {
                             $flash = 'Cannot endorse — all 6 offices must be cleared and the faculty declaration must be signed.';
@@ -270,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                             }
 
                             $ins = $pdo->prepare("
-                                INSERT INTO faculty_db.clearance_approval_history
+                                INSERT INTO clearance_approval_history
                                     (clearance_id, requirement_id, office, action,
                                      performed_by_id, performed_by_name, performed_by_role, remarks)
                                 VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
@@ -282,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
 
                             try {
                                 $sig = $pdo->prepare("
-                                    INSERT INTO faculty_db.clearance_signatures
+                                    INSERT INTO clearance_signatures
                                         (clearance_id, faculty_id, office, office_key, signatory_type,
                                          approval_ref, signer_user_id, signer_name, signer_role,
                                          signature_data, remarks, status, signed_at)
@@ -309,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                             }
 
                             $notif = $pdo->prepare("
-                                INSERT INTO faculty_db.notifications
+                                INSERT INTO notifications
                                     (faculty_id, title, message, priority, notification_type, is_read)
                                 VALUES (?, ?, ?, 'Medium', 'clearance', 0)
                             ");
@@ -356,7 +343,7 @@ if ($pdo instanceof PDO) {
     try {
         $cat = $pdo->query("
             SELECT clearance_office_id, name, sequence_order
-            FROM faculty_db.clearance_offices
+            FROM clearance_offices
             WHERE clearance_office_id IN (5005, 5006, 5007, 5008, 5009, 5010)
             ORDER BY sequence_order ASC
         ");
@@ -371,10 +358,10 @@ if ($pdo instanceof PDO) {
                    f.faculty_no, f.first_name, f.middle_name, f.last_name, f.email,
                    f.department_id, d.code AS dept_code, d.name AS dept_name,
                    at.academic_year, at.semester
-            FROM faculty_db.clearance_requests cr
-            INNER JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
-            LEFT JOIN faculty_db.departments d ON d.department_id = f.department_id
-            LEFT JOIN faculty_db.academic_terms at ON at.term_id = cr.term_id
+            FROM clearance_requests cr
+            INNER JOIN faculty f ON f.faculty_id = cr.faculty_id
+            LEFT JOIN departments d ON d.department_id = f.department_id
+            LEFT JOIN academic_terms at ON at.term_id = cr.term_id
             WHERE cr.form_submitted = 1
             ORDER BY COALESCE(cr.submitted_at, cr.form_submitted_at, cr.updated_at) DESC
         ");
@@ -387,7 +374,7 @@ if ($pdo instanceof PDO) {
             $itemsStmt = $pdo->query("
                 SELECT clearance_id, clearance_office_id, status, file_path, original_name,
                        remarks, cleared_at, cleared_by_external_id
-                FROM faculty_db.clearance_items
+                FROM clearance_items
                 WHERE clearance_id IN ($idList)
             ");
             $itemsByClearance = [];
@@ -398,7 +385,7 @@ if ($pdo instanceof PDO) {
             $histStmt = $pdo->query("
                 SELECT id, clearance_id, office, action, performed_by_id, performed_by_name,
                        performed_by_role, remarks, created_at
-                FROM faculty_db.clearance_approval_history
+                FROM clearance_approval_history
                 WHERE clearance_id IN ($idList) AND office = 'Admin'
                 ORDER BY created_at DESC, id DESC
             ");
@@ -459,9 +446,9 @@ if ($pdo instanceof PDO) {
             SELECT h.id, h.clearance_id, h.action, h.remarks, h.performed_by_name,
                    h.performed_by_role, h.created_at,
                    f.first_name, f.last_name, f.faculty_no
-            FROM faculty_db.clearance_approval_history h
-            LEFT JOIN faculty_db.clearance_requests cr ON cr.clearance_id = h.clearance_id
-            LEFT JOIN faculty_db.faculty f ON f.faculty_id = cr.faculty_id
+            FROM clearance_approval_history h
+            LEFT JOIN clearance_requests cr ON cr.clearance_id = h.clearance_id
+            LEFT JOIN faculty f ON f.faculty_id = cr.faculty_id
             WHERE h.office = 'Admin'
             ORDER BY h.created_at DESC, h.id DESC
             LIMIT 20
@@ -656,7 +643,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     $gateTotal   = (int) $row['_gate_total'];
                                     $allCleared  = (bool) $row['_all_cleared'];
                                     $declared    = (bool) $row['_declared'];
-                                    $hasAudit    = (bool) $row['_has_audit'];
+                                                                        $hasAudit    = (bool) $row['_has_audit'];
                                     $hasEndorse  = (bool) $row['_has_endorse'];
 
                                     $stateLbl = 'Pending';

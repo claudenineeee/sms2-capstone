@@ -11,17 +11,24 @@ require_once __DIR__ . '/../../controllers/FacultyController.php';
 requireAuth();
 
 /* ============================================================
-   DATABASE — use facultyDb() (works with your project setup)
+   DATABASE — PATCHED FOR HOSTFORGE
    ============================================================ */
 $pdo = null;
-if (function_exists('facultyDb')) {
-    $pdo = facultyDb();
-}
-if (!$pdo instanceof PDO && function_exists('db')) {
-    try { $pdo = db(); } catch (Throwable $e) { $pdo = null; }
-}
-if (!$pdo instanceof PDO && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-    $pdo = $GLOBALS['pdo'];
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (Throwable $e) {
+    error_log('Leave history DB connection failed: ' . $e->getMessage());
+    $pdo = null;
 }
 
 /* ============================================================
@@ -106,10 +113,11 @@ $filterInput = [
 [$whereParts, $whereParams] = smsBuildLeaveHistoryWhere($filterInput);
 $whereSql = $whereParts ? ('WHERE ' . implode(' AND ', $whereParts)) : '';
 
+// REMOVED faculty_db. prefixes
 $baseFrom = "
-    FROM faculty_db.leave_requests lr
-    LEFT JOIN faculty_db.faculty f ON f.faculty_id = lr.faculty_id
-    LEFT JOIN faculty_db.faculty_profiles fp ON fp.faculty_id = f.faculty_no
+    FROM leave_requests lr
+    LEFT JOIN faculty f ON f.faculty_id = lr.faculty_id
+    LEFT JOIN faculty_profiles fp ON fp.faculty_id = f.faculty_no
     $whereSql
 ";
 
@@ -273,7 +281,8 @@ try {
     $leaveRows = $listStmt->fetchAll(PDO::FETCH_ASSOC);
 
     /* ---- Filter options ---- */
-    $syRangeRow = $pdo->query("SELECT MIN(start_date) AS min_d, MAX(start_date) AS max_d FROM faculty_db.leave_requests")->fetch(PDO::FETCH_ASSOC);
+    // REMOVED faculty_db. prefixes from below queries
+    $syRangeRow = $pdo->query("SELECT MIN(start_date) AS min_d, MAX(start_date) AS max_d FROM leave_requests")->fetch(PDO::FETCH_ASSOC);
 
     $smsComputeSyStart = function (string $dateStr): int {
         $ts = strtotime($dateStr);
@@ -290,16 +299,16 @@ try {
         $schoolYearOptions[] = $y . '-' . ($y + 1);
     }
 
-    $yearOptions = $pdo->query("SELECT DISTINCT YEAR(start_date) AS yr FROM faculty_db.leave_requests ORDER BY yr DESC")->fetchAll(PDO::FETCH_COLUMN);
+    $yearOptions = $pdo->query("SELECT DISTINCT YEAR(start_date) AS yr FROM leave_requests ORDER BY yr DESC")->fetchAll(PDO::FETCH_COLUMN);
     if (empty($yearOptions)) { $yearOptions = [(int) date('Y')]; }
 
     $leaveTypeOptions = $pdo->query("
-        SELECT DISTINCT leave_type FROM faculty_db.leave_requests
+        SELECT DISTINCT leave_type FROM leave_requests
         WHERE leave_type IS NOT NULL AND leave_type <> '' ORDER BY leave_type ASC
     ")->fetchAll(PDO::FETCH_COLUMN);
 
     $deptOptions = $pdo->query("
-        SELECT DISTINCT designated_department FROM faculty_db.faculty_profiles
+        SELECT DISTINCT designated_department FROM faculty_profiles
         WHERE designated_department IS NOT NULL AND designated_department <> '' ORDER BY designated_department ASC
     ")->fetchAll(PDO::FETCH_COLUMN);
 } catch (Throwable $e) {
