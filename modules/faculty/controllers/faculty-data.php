@@ -3,28 +3,17 @@
  * SMS 2 - Faculty Helper Functions & Scoped Queries
  * Path: modules/faculty/controllers/faculty-data.php
  *
- * DATABASE LAYOUT (important):
- *   - sms2_db    : AUTH ONLY (users, roles, role_permissions, activity_logs,
- *                  password_resets, security_otps, login_throttles,
- *                  user_authenticators, user_passkeys, system_settings)
- *   - faculty_db : BUSINESS DATABASE (faculty_profiles, faculty, departments,
- *                  attendance_records, class_attendance_sessions, evaluations,
- *                  leave_requests, leave_balances, clearance_*, etc.)
- *
- *   facultyDb()  -> faculty_db  (use for every business-logic query)
- *   db()         -> sms2_db     (use ONLY for auth/user/permission queries)
- *
- *   Cross-database joins from a faculty query to auth data must be written
- *   explicitly, e.g.  LEFT JOIN sms2_db.users u ON u.id = fp.user_id
+ * DATABASE LAYOUT:
+ *   Local (XAMPP): sms2_db (auth) + faculty_db (business)
+ *   HostForge:     single database (all tables combined)
+ *   We use getenv() to handle both seamlessly.
  */
 
 if (!function_exists('facultyDb')) {
     /**
-     * Returns a PDO connection to faculty_db.
-     *
-     * NOTE: This is NOT the same as db(), which connects to sms2_db.
-     * If your config/database.php already defines a facultyDb() helper
-     * pointing at faculty_db, this block is skipped and yours is used.
+     * Returns a PDO connection to the database.
+     * Reads from HostForge environment variables if available,
+     * otherwise falls back to local XAMPP settings.
      */
     function facultyDb(): PDO
     {
@@ -33,14 +22,16 @@ if (!function_exists('facultyDb')) {
             return $pdo;
         }
 
-        $host = defined('DB_HOST')         ? DB_HOST         : 'localhost';
-        $name = defined('FACULTY_DB_NAME') ? FACULTY_DB_NAME : 'faculty_db';
-        $user = defined('DB_USER')         ? DB_USER         : 'root';
-        $pass = defined('DB_PASS')         ? DB_PASS         : '';
+        // HostForge environment variables with XAMPP fallbacks
+        $host = getenv('DB_HOST') ?: (defined('DB_HOST') ? DB_HOST : 'localhost');
+        $user = getenv('DB_USERNAME') ?: (defined('DB_USER') ? DB_USER : 'root');
+        $pass = getenv('DB_PASSWORD') ?: (defined('DB_PASS') ? DB_PASS : '');
+        $name = getenv('DB_DATABASE') ?: (defined('FACULTY_DB_NAME') ? FACULTY_DB_NAME : 'faculty_db');
+        $port = (int)(getenv('DB_PORT') ?: 3306);
 
         try {
             $pdo = new PDO(
-                "mysql:host={$host};dbname={$name};charset=utf8mb4",
+                "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4",
                 $user,
                 $pass,
                 [
@@ -114,14 +105,6 @@ if (!function_exists('isValidAcademicRankTier')) {
 
 /**
  * Retrieves directory list, scoped by the logged-in user's role.
- *
- * Department resolution for department_head / dept_head / secretary is
- * self-healing:
- *   1. faculty_profiles.user_id  = session user_id
- *   2. faculty_profiles.email    = session email  (repairs user_id on hit)
- *   3. faculty.external_user_id  = session user_id
- * Once resolved, faculty are matched by BOTH the department code (e.g. BSIT)
- * and its full name so either stored form works.
  */
 if (!function_exists('getScopedFacultyList')) {
     function getScopedFacultyList(): array {
@@ -216,9 +199,11 @@ if (!function_exists('getScopedFacultyList')) {
                 $acceptedDepts = array_values(array_unique(array_filter($acceptedDepts)));
 
                 $placeholders = implode(',', array_fill(0, count($acceptedDepts), '?'));
+                
+                // REMOVED: sms2_db. prefix from users
                 $sql = "SELECT fp.*, u.username, u.status AS account_status
                         FROM faculty_profiles fp
-                        LEFT JOIN sms2_db.users u ON u.id = fp.user_id
+                        LEFT JOIN users u ON u.id = fp.user_id
                         WHERE LOWER(TRIM(fp.designated_department)) IN ($placeholders)
                         ORDER BY fp.id DESC";
                 $stmt = $pdo->prepare($sql);
@@ -252,9 +237,11 @@ if (!function_exists('getScopedFacultyList')) {
                 }
 
                 $placeholders = implode(',', array_fill(0, count($deptCodes), '?'));
+                
+                // REMOVED: sms2_db. prefix from users
                 $sql = "SELECT fp.*, u.username, u.status AS account_status
                         FROM faculty_profiles fp
-                        LEFT JOIN sms2_db.users u ON u.id = fp.user_id
+                        LEFT JOIN users u ON u.id = fp.user_id
                         WHERE fp.designated_department IN ($placeholders)
                           AND fp.user_id != ?
                         ORDER BY fp.id DESC";
@@ -264,9 +251,10 @@ if (!function_exists('getScopedFacultyList')) {
             }
 
             /* ---- default: unrestricted --------------------------- */
+            // REMOVED: sms2_db. prefix from users
             $sql = "SELECT fp.*, u.username, u.status AS account_status
                     FROM faculty_profiles fp
-                    LEFT JOIN sms2_db.users u ON u.id = fp.user_id
+                    LEFT JOIN users u ON u.id = fp.user_id
                     ORDER BY fp.id DESC";
             $stmt = $pdo->prepare($sql);
             $stmt->execute();
@@ -308,7 +296,7 @@ if (!function_exists('getMyFacultyProfile')) {
             $stmt = $pdo->prepare("
                 SELECT fp.*, u.username, u.status AS account_status
                 FROM faculty_profiles fp
-                LEFT JOIN sms2_db.users u ON u.id = fp.user_id
+                LEFT JOIN users u ON u.id = fp.user_id
                 WHERE fp.user_id = :user_id
                 LIMIT 1
             ");
@@ -322,7 +310,7 @@ if (!function_exists('getMyFacultyProfile')) {
             $stmt = $pdo->prepare("
                 SELECT fp.*, u.username, u.status AS account_status
                 FROM faculty_profiles fp
-                LEFT JOIN sms2_db.users u ON u.id = fp.user_id
+                LEFT JOIN users u ON u.id = fp.user_id
                 WHERE fp.email = :email
                 LIMIT 1
             ");
@@ -350,7 +338,7 @@ if (!function_exists('getMyFacultyProfile')) {
                 SELECT fp.*, u.username, u.status AS account_status
                 FROM faculty f
                 INNER JOIN faculty_profiles fp ON fp.email = f.email
-                LEFT JOIN sms2_db.users u ON u.id = fp.user_id
+                LEFT JOIN users u ON u.id = fp.user_id
                 WHERE f.external_user_id = :uid
                 LIMIT 1
             ");
@@ -402,10 +390,7 @@ if (!function_exists('buildFacultyPassword')) {
 }
 
 /**
- * Insert account into sms2_db.users (AUTH DB) and return the new user_id.
- *
- * NOTE: this is the ONE place where we deliberately write to sms2_db,
- * because user authentication is an sms2_db concern.
+ * Insert account into users (AUTH DB) and return the new user_id.
  */
 function insertFacultyUser(PDO $pdo, array $profile, string $rawPassword): int {
     $hashedPassword = password_hash($rawPassword, PASSWORD_DEFAULT);
@@ -427,7 +412,8 @@ function insertFacultyUser(PDO $pdo, array $profile, string $rawPassword): int {
         $roleKey = $profile['role_key'];
     }
 
-    $sql = "INSERT INTO sms2_db.users
+    // REMOVED: sms2_db. prefix from users
+    $sql = "INSERT INTO users
             (username, email, password_hash, role_key, status, created_at)
             VALUES
             (:username, :email, :password_hash, :role_key, :status, NOW())";
@@ -445,7 +431,7 @@ function insertFacultyUser(PDO $pdo, array $profile, string $rawPassword): int {
 }
 
 /**
- * Insert row into faculty_db.faculty_profiles (BUSINESS DB).
+ * Insert row into faculty_profiles (BUSINESS DB).
  */
 if (!function_exists('insertFacultyProfile')) {
     function insertFacultyProfile(array $profile): int {
@@ -516,9 +502,10 @@ if (!function_exists('loadFacultyProfiles')) {
             return [];
         }
 
+        // REMOVED: sms2_db. prefix from users
         $sql = "SELECT fp.*, u.username, u.status AS account_status
                 FROM faculty_profiles fp
-                LEFT JOIN sms2_db.users u ON fp.user_id = u.id
+                LEFT JOIN users u ON fp.user_id = u.id
                 ORDER BY fp.id DESC";
 
         try {

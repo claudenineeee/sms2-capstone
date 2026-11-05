@@ -9,17 +9,34 @@ require_once __DIR__ . '/../../controllers/FacultyController.php';
 requireAuth();
 
 $controller = new FacultyController();
-$pdo = db();
+
+// ==========================================
+// 1. HOSTFORGE SAFE CONNECTION
+// ==========================================
+$host = getenv('DB_HOST') ?: 'localhost';
+$user = getenv('DB_USERNAME') ?: 'root';
+$pass = getenv('DB_PASSWORD') ?: '';
+$name = getenv('DB_DATABASE') ?: 'sms2_db'; // Local fallback
+$port = (int)(getenv('DB_PORT') ?: 3306);
+
+try {
+    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+    ]);
+} catch (PDOException $e) {
+    die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
+}
 
 $message = '';
 $messageType = 'success';
 
-// 1. Process Approval, Rejection, or Inactive/Active Toggle POST Requests
+// ==========================================
+// 2. Process POST Requests (Approval/Rejection)
+// ==========================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $userId = (int)($_POST['user_id'] ?? 0);
 
-    // users.status ENUM is ('active','inactive','locked','suspended')
     $statusMap = [
         'approve_account' => 'active',
         'restore_active'  => 'active',
@@ -43,8 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($rowsAffected > 0) {
                 [$message, $messageType] = $successMessages[$action];
             } else {
-                // Either the user doesn't exist, or it was already in that state.
-                // Verify which one:
                 $check = $pdo->prepare("SELECT status FROM users WHERE id = :id");
                 $check->execute([':id' => $userId]);
                 $current = $check->fetchColumn();
@@ -53,7 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = 'Account not found in the system. Please refresh and try again.';
                     $messageType = 'danger';
                 } else {
-                    // Already in the requested state — treat as success, no change needed.
                     [$message, $messageType] = $successMessages[$action];
                 }
             }
@@ -69,16 +83,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Check if we are viewing the Inactive list
 $showInactive = isset($_GET['view']) && $_GET['view'] === 'inactive';
 
-// 2. Retrieve directory list with Role-Based Scope
+// ==========================================
+// 3. Retrieve & Sync Profiles
+// ==========================================
 $rawProfiles = $controller->getDirectoryList();
 
-// ---------- PATCH: sync profile_status with the real users.status ----------
-// The controller's getDirectoryList() may return a stale or unrelated
-// "profile_status". We fetch the actual users.status for every profile
-// and overwrite it so the Active/Inactive filter works correctly.
+// Sync profile_status with the real users.status
 if (!empty($rawProfiles)) {
     $userIds = array_values(array_filter(array_map(
         fn($p) => (int)($p['user_id'] ?? 0),
@@ -89,7 +101,7 @@ if (!empty($rawProfiles)) {
         $placeholders = implode(',', array_fill(0, count($userIds), '?'));
         $statusStmt = $pdo->prepare("SELECT id, status FROM users WHERE id IN ($placeholders)");
         $statusStmt->execute($userIds);
-        $realStatuses = $statusStmt->fetchAll(PDO::FETCH_KEY_PAIR); // [id => status]
+        $realStatuses = $statusStmt->fetchAll(PDO::FETCH_KEY_PAIR); 
 
         foreach ($rawProfiles as &$p) {
             $uid = (int)($p['user_id'] ?? 0);
@@ -100,7 +112,6 @@ if (!empty($rawProfiles)) {
         unset($p);
     }
 }
-// ---------- /PATCH ----------
 
 // Filter profiles based on Active / Inactive view
 $rawProfiles = array_filter($rawProfiles, function ($profile) use ($showInactive) {

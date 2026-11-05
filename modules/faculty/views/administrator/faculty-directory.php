@@ -7,6 +7,26 @@ require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 require_once __DIR__ . '/../../controllers/FacultyController.php';
 
+requireAuth();
+
+// ==========================================
+// 1. FORCE SAFE DATABASE CONNECTION
+// ==========================================
+$host = getenv('DB_HOST') ?: 'localhost';
+$user = getenv('DB_USERNAME') ?: 'root';
+$pass = getenv('DB_PASSWORD') ?: '';
+$name = getenv('DB_DATABASE') ?: 'sms2_db'; // Fallback for local
+$port = (int)(getenv('DB_PORT') ?: 3306);
+
+try {
+    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+} catch (PDOException $e) {
+    die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
+}
+
 // Instantiate Controller & Handle Request
 $controller     = new FacultyController();
 $flash          = $controller->handleAddDepartmentHead();
