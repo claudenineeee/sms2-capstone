@@ -1,23 +1,29 @@
 <?php
 /**
  * Dean RBAC helper — shared by every dean page.
- * Source of truth: faculty_db.faculty_profile_department_assignments
+ * Source of truth: faculty_profile_department_assignments
  */
 
 if (!function_exists('deanDb')) {
     function deanDb(): ?PDO
     {
-        if (function_exists('facultyDb')) {
-            $db = facultyDb();
-            if ($db instanceof PDO) return $db;
+        // PATCHED: Direct HostForge connection
+        try {
+            $host = getenv('DB_HOST')     ?: 'localhost';
+            $user = getenv('DB_USERNAME') ?: 'root';
+            $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+            $name = getenv('DB_DATABASE') ?: 'faculty_db';
+            $port = (int) (getenv('DB_PORT') ?: 3306);
+            $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+            
+            return new PDO($dsn, $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+            ]);
+        } catch (Throwable $e) {
+            error_log('Dean RBAC DB connection failed: ' . $e->getMessage());
+            return null;
         }
-        if (function_exists('db')) {
-            try { $db = db(); if ($db instanceof PDO) return $db; } catch (Throwable $e) {}
-        }
-        if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
-            return $GLOBALS['pdo'];
-        }
-        return null;
     }
 }
 
@@ -33,8 +39,9 @@ if (!function_exists('getDeanProfileId')) {
 
         try {
             // Path 1: faculty_profiles.user_id (int)
+            // REMOVED faculty_db. prefix
             $stmt = $db->prepare("
-                SELECT id FROM faculty_db.faculty_profiles
+                SELECT id FROM faculty_profiles
                 WHERE user_id = ? LIMIT 1
             ");
             $stmt->execute([(int) $userId]);
@@ -43,10 +50,11 @@ if (!function_exists('getDeanProfileId')) {
 
             // Path 2: faculty_profiles.faculty_id matches faculty.faculty_no
             //         where faculty.external_user_id = session user id
+            // REMOVED faculty_db. prefixes
             $stmt = $db->prepare("
                 SELECT fp.id
-                FROM faculty_db.faculty_profiles fp
-                INNER JOIN faculty_db.faculty f ON f.faculty_no = fp.faculty_id
+                FROM faculty_profiles fp
+                INNER JOIN faculty f ON f.faculty_no = fp.faculty_id
                 WHERE f.external_user_id = ?
                 LIMIT 1
             ");
@@ -74,9 +82,10 @@ if (!function_exists('getDeanAssignedDepartments')) {
         if (!$db instanceof PDO) return [];
 
         try {
+            // REMOVED faculty_db. prefix
             $stmt = $db->prepare("
                 SELECT department_id
-                FROM faculty_db.faculty_profile_department_assignments
+                FROM faculty_profile_department_assignments
                 WHERE faculty_profile_id = ?
             ");
             $stmt->execute([$profileId]);
@@ -102,9 +111,10 @@ if (!function_exists('getDeanDepartmentNames')) {
         if ($list === '') return [];
 
         try {
+            // REMOVED faculty_db. prefix
             $rows = $db->query("
                 SELECT department_id, code, name
-                FROM faculty_db.departments
+                FROM departments
                 WHERE department_id IN ($list)
                 ORDER BY name ASC
             ")->fetchAll(PDO::FETCH_ASSOC);
