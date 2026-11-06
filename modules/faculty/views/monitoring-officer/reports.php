@@ -15,8 +15,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 require_once __DIR__ . '/../../controllers/FacultyController.php';
 $facultyController = new FacultyController();
 $facultyList = $facultyController->getDirectoryList();
-// CHANGED: restrict to teaching faculty only (same filter used in
-// daily-attendance-log.php) — excludes deans, secretaries, coordinators, etc.
+// Restrict to teaching faculty only
 $facultyList = array_filter($facultyList, function ($member) {
     $position = strtolower(trim((string) ($member['position'] ?? '')));
     return $position === 'faculty professor' || $position === 'teacher' || $position === '';
@@ -24,7 +23,14 @@ $facultyList = array_filter($facultyList, function ($member) {
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/AttendanceModel.php';
-$attendanceModel = new AttendanceModel(getFacultyDatabaseConnection());
+
+// FIX: Use safe facultyDb() instead of the broken getFacultyDatabaseConnection()
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
+if (!$pdo) {
+    die('Database connection failed.');
+}
+
+$attendanceModel = new AttendanceModel($pdo);
 
 $selectedFacultyId = $_GET['faculty_id'] ?? null;
 $pastLogs = [];

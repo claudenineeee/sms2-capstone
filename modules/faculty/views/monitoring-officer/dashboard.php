@@ -17,7 +17,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/AttendanceModel.php';
 
-$pdo = getFacultyDatabaseConnection();
+// Use the safe facultyDb() function we fixed earlier
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
+if (!$pdo) {
+    die('Database connection failed.');
+}
+
 $today = date('Y-m-d');
 
 $stmtToday = $pdo->prepare("
