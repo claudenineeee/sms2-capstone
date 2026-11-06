@@ -17,25 +17,13 @@ $breadcrumbs = [
 ];
 
 // ==========================================
-// 1. FORCE MANUAL DATABASE CONNECTIONS
+// 1. DATABASE CONNECTIONS (env-aware, handled by config.php)
 // ==========================================
-$corePdo = null;
-$facultyPdo = null;
-
-if (function_exists('db')) $corePdo = db();
-if (function_exists('facultyDb')) $facultyPdo = facultyDb();
+$corePdo = function_exists('db') ? db() : null;
+$facultyPdo = function_exists('facultyDb') ? facultyDb() : null;
 
 if (!$corePdo || !$facultyPdo) {
-    $host = '127.0.0.1';
-    $user = 'root';
-    $pass = ''; 
-
-    try {
-        if (!$corePdo) $corePdo = new PDO("mysql:host=$host;dbname=sms2_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        if (!$facultyPdo) $facultyPdo = new PDO("mysql:host=$host;dbname=faculty_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    } catch (PDOException $e) {
-        die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
-    }
+    die("<div style='padding:20px;color:red;'><strong>Database connection failed.</strong> Check DB_HOST / DB_USERNAME / DB_PASSWORD / DB_DATABASE environment variables.</div>");
 }
 
 $departmentOptions = [
@@ -119,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_d
 
         $corePdo->beginTransaction();
         
-        // 1. Insert into sms2_db (users table)
+        // 1. Insert into users table (core DB)
         $tempPassword = 'TemporaryPassword123!';
         $hash = password_hash($tempPassword, PASSWORD_DEFAULT);
         

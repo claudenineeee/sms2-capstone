@@ -112,6 +112,94 @@ if (!defined('BASE_URL')) {
 
 date_default_timezone_set('Asia/Manila');
 
+// ==========================================
+// DATABASE CONNECTIONS (env-aware)
+// Works on XAMPP (localhost) and HostForge (managed DB)
+// ==========================================
+
+if (!function_exists('db')) {
+    /**
+     * Core database connection.
+     * - XAMPP:   falls back to 127.0.0.1 / root / '' / sms2_db
+     * - HostForge: uses DB_HOST / DB_USERNAME / DB_PASSWORD / DB_DATABASE / DB_PORT
+     */
+    function db(): ?PDO
+    {
+        static $pdo = null;
+        if ($pdo instanceof PDO) {
+            return $pdo;
+        }
+
+        $host = sms2_env('DB_HOST', '127.0.0.1');
+        $user = sms2_env('DB_USERNAME', 'root');
+        $pass = sms2_env('DB_PASSWORD', '');
+        $name = sms2_env('DB_DATABASE', 'sms2_db');   // local DB name fallback
+        $port = (int) sms2_env('DB_PORT', '3306');
+
+        try {
+            $pdo = new PDO(
+                "mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",
+                $user,
+                $pass,
+                [
+                    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES   => false,
+                ]
+            );
+            return $pdo;
+        } catch (PDOException $e) {
+            error_log('db() connection failed: ' . $e->getMessage());
+            return null;
+        }
+    }
+}
+
+if (!function_exists('facultyDb')) {
+    /**
+     * Faculty database connection.
+     * - XAMPP:   opens faculty_db separately (if it exists locally)
+     * - HostForge: only ONE database exists, so reuse db()
+     */
+    function facultyDb(): ?PDO
+    {
+        static $pdo = null;
+        if ($pdo instanceof PDO) {
+            return $pdo;
+        }
+
+        // HostForge sets DB_HOST; when present, one DB serves everything.
+        if (sms2_env('DB_HOST')) {
+            return db();
+        }
+
+        // Local XAMPP path: separate faculty_db connection.
+        $host = sms2_env('DB_HOST', '127.0.0.1');
+        $user = sms2_env('DB_USERNAME', 'root');
+        $pass = sms2_env('DB_PASSWORD', '');
+        $name = sms2_env('DB_FACULTY_DATABASE', 'faculty_db');
+        $port = (int) sms2_env('DB_PORT', '3306');
+
+        try {
+            $pdo = new PDO(
+                "mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",
+                $user,
+                $pass,
+                [
+                    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES   => false,
+                ]
+            );
+            return $pdo;
+        } catch (PDOException $e) {
+            error_log('facultyDb() connection failed: ' . $e->getMessage());
+            // Last resort: reuse core so pages still load.
+            return db();
+        }
+    }
+}
+
 /**
  * Module registry — drives sidebar navigation and subsystem index cards.
  * slug: URL-safe filename (without .php)
@@ -477,7 +565,6 @@ $MODULES = [
         'label' => 'Reports & Analytics',
         'icon'  => 'fa-chart-bar',
         'pages' => [
-            // Pages are filtered per role via includes/reports-catalog.php
             ['slug' => 'performance-trends', 'title' => 'Performance Trends'],
             ['slug' => 'export-center', 'title' => 'Export Center'],
             ['slug' => 'enrollment-analytics', 'title' => 'Enrollment Analytics'],
