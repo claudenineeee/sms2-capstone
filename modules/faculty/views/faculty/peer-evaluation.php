@@ -8,7 +8,12 @@ require_once ROOT_PATH . '/includes/authentication.php';
 require_once __DIR__ . '/../../config/database.php';
 
 // FIX: Use safe facultyDb() instead of the broken getFacultyDatabaseConnection()
+// FIX: Use facultyDb() with a fallback to db() to prevent fatal errors
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
+
+if (!$pdo && function_exists('db')) {
+    $pdo = db();
+}
 
 if (!$pdo) {
     die('<div style="padding: 20px; color: #721c24; background-color: #f8d7da; margin: 20px; border-radius: 5px;">

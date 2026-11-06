@@ -27,6 +27,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 // =====================================================================
 require_once __DIR__ . '/../../models/AttendanceModel.php';
 
+// FIX: Use the safe facultyDb() function instead of db()
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 if (!$pdo) {
     die('Database connection failed.');

@@ -6,7 +6,32 @@ requireAuth();
 require_once __DIR__ . '/../../controllers/clearance.php';
 
 $db = facultyDb();
-$profile = $db ? facultyClearanceProfile($db, (int) getCurrentUserId()) : null;
+$userId = (int) getCurrentUserId();
+$profile = $db ? facultyClearanceProfile($db, $userId) : null;
+
+// SELF-HEALING: If no profile found by user_id, try finding it by email
+$sessionEmail = trim((string) ($_SESSION['user_email'] ?? $_SESSION['email'] ?? ''));
+if (!$profile && $db && $sessionEmail !== '') {
+    $stmt = $db->prepare("SELECT * FROM faculty_profiles WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1");
+    $stmt->execute([$sessionEmail]);
+    $profile = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    
+    // If found by email, permanently link the user_id so it works next time
+    if ($profile) {
+        try {
+            $db->prepare("UPDATE faculty_profiles SET user_id = ? WHERE id = ?")->execute([$userId, $profile['id']]);
+            $profile['user_id'] = $userId; // Update local array
+        } catch (Throwable $e) {
+            error_log('Failed to auto-link profile: ' . $e->getMessage());
+        }
+    }
+}
+
+if (!$profile) {
+    // Diagnostic: shows in the PHP error log which account has no linked profile
+    error_log('[my-clearance] no faculty profile for user_id=' . $userId . ' email=' . ($sessionEmail !== '' ? $sessionEmail : '(no email in session)'));
+}
+
 $offices = $db ? facultyClearanceOffices($db) : [];
 $sectionsMeta = facultyClearanceSections();
 $term = $db ? facultyClearanceTerm($db) : null;

@@ -27,11 +27,10 @@ class AttendanceController {
         if (!empty($_SESSION['department'])) return $_SESSION['department'];
 
         $userId = function_exists('getCurrentUserId') ? getCurrentUserId() : ($_SESSION['user_id'] ?? null);
-        // CHANGED: facultyDb() doesn't exist in this codebase — the real
-        // helper is getFacultyDatabaseConnection() (modules/faculty/config/database.php).
-        if ($userId && function_exists('getFacultyDatabaseConnection')) {
+        // FIX: Use the safe facultyDb() function instead of the broken getFacultyDatabaseConnection()
+        if ($userId && function_exists('facultyDb')) {
             try {
-                $facPdo = getFacultyDatabaseConnection();
+                $facPdo = facultyDb();
                 if ($facPdo) {
                     $stmt = $facPdo->prepare('SELECT designated_department FROM faculty_profiles WHERE user_id = ? LIMIT 1');
                     $stmt->execute([$userId]);
@@ -206,18 +205,11 @@ if (isset($_GET['action'])) {
     require_once __DIR__ . '/../config/database.php';
     require_once __DIR__ . '/faculty-data.php';
 
-    $pdo = null;
-    // CHANGED: prefer the faculty DB connection first — faculty, faculty_profiles,
-    // class_attendance_sessions, subjects, rooms, attendance_records, and
-    // departments all live in faculty_db, not sms2_db.
-    if (function_exists('getFacultyDatabaseConnection') && getFacultyDatabaseConnection() instanceof \PDO) {
-        $pdo = getFacultyDatabaseConnection();
-    } elseif (function_exists('db') && db() instanceof \PDO) {
+    // FIX: Use the safe facultyDb() function directly
+    $pdo = function_exists('facultyDb') ? facultyDb() : null;
+    
+    if (!$pdo && function_exists('db')) {
         $pdo = db();
-    } elseif (function_exists('getDBConnection') && getDBConnection() instanceof \PDO) {
-        $pdo = getDBConnection();
-    } elseif (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof \PDO) {
-        $pdo = $GLOBALS['pdo'];
     }
 
     if (!$pdo) {

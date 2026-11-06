@@ -32,14 +32,29 @@ $errorMessage = '';
 $successMessage = '';
 
 function smsTeachingLoadEnsureSchema(PDO $pdo): void {
-    $columns = $pdo->query('SHOW COLUMNS FROM teaching_load_requests')->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('workflow_stage', $columns, true)) $pdo->exec("ALTER TABLE teaching_load_requests ADD COLUMN workflow_stage VARCHAR(40) NOT NULL DEFAULT 'dean_review'");
-    if (!in_array('faculty_user_id', $columns, true)) $pdo->exec('ALTER TABLE teaching_load_requests ADD COLUMN faculty_user_id INT UNSIGNED NULL');
-    if (!in_array('submitted_by_external_id', $columns, true)) $pdo->exec('ALTER TABLE teaching_load_requests ADD COLUMN submitted_by_external_id VARCHAR(64) NULL');
-    $itemColumns = $pdo->query('SHOW COLUMNS FROM teaching_load_request_items')->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('created_for_request', $itemColumns, true)) $pdo->exec('ALTER TABLE teaching_load_request_items ADD COLUMN created_for_request TINYINT(1) NOT NULL DEFAULT 0');
-    $pdo->exec("CREATE TABLE IF NOT EXISTS teaching_load_workflow_history (history_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, load_request_id INT UNSIGNED NOT NULL, stage VARCHAR(40) NOT NULL, action VARCHAR(40) NOT NULL, performed_by_external_id VARCHAR(64) DEFAULT NULL, performed_by_role VARCHAR(80) NOT NULL, performed_by_name VARCHAR(150) NOT NULL, remarks TEXT DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_load_workflow_request (load_request_id), KEY idx_load_workflow_stage (stage)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-    $pdo->exec("CREATE TABLE IF NOT EXISTS teaching_load_final_records (final_record_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, load_request_id INT UNSIGNED NOT NULL, faculty_id INT UNSIGNED NOT NULL, term_id INT UNSIGNED NOT NULL, total_units DECIMAL(5,1) NOT NULL DEFAULT 0.0, subject_count INT UNSIGNED NOT NULL DEFAULT 0, assignments_json LONGTEXT NOT NULL, acknowledged_by_external_id VARCHAR(64) NOT NULL, finalized_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_final_record_request (load_request_id), KEY idx_final_record_faculty_term (faculty_id, term_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    try {
+        // Check if table exists before querying columns
+        $tableExists = $pdo->query("SHOW TABLES LIKE 'teaching_load_requests'")->fetchColumn();
+        if (!$tableExists) {
+            return; // Table doesn't exist, skip schema check to prevent crash
+        }
+
+        $columns = $pdo->query('SHOW COLUMNS FROM teaching_load_requests')->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('workflow_stage', $columns, true)) $pdo->exec("ALTER TABLE teaching_load_requests ADD COLUMN workflow_stage VARCHAR(40) NOT NULL DEFAULT 'dean_review'");
+        if (!in_array('faculty_user_id', $columns, true)) $pdo->exec('ALTER TABLE teaching_load_requests ADD COLUMN faculty_user_id INT UNSIGNED NULL');
+        if (!in_array('submitted_by_external_id', $columns, true)) $pdo->exec('ALTER TABLE teaching_load_requests ADD COLUMN submitted_by_external_id VARCHAR(64) NULL');
+        
+        $itemTableExists = $pdo->query("SHOW TABLES LIKE 'teaching_load_request_items'")->fetchColumn();
+        if ($itemTableExists) {
+            $itemColumns = $pdo->query('SHOW COLUMNS FROM teaching_load_request_items')->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('created_for_request', $itemColumns, true)) $pdo->exec('ALTER TABLE teaching_load_request_items ADD COLUMN created_for_request TINYINT(1) NOT NULL DEFAULT 0');
+        }
+        
+        $pdo->exec("CREATE TABLE IF NOT EXISTS teaching_load_workflow_history (history_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, load_request_id INT UNSIGNED NOT NULL, stage VARCHAR(40) NOT NULL, action VARCHAR(40) NOT NULL, performed_by_external_id VARCHAR(64) DEFAULT NULL, performed_by_role VARCHAR(80) NOT NULL, performed_by_name VARCHAR(150) NOT NULL, remarks TEXT DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_load_workflow_request (load_request_id), KEY idx_load_workflow_stage (stage)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS teaching_load_final_records (final_record_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, load_request_id INT UNSIGNED NOT NULL, faculty_id INT UNSIGNED NOT NULL, term_id INT UNSIGNED NOT NULL, total_units DECIMAL(5,1) NOT NULL DEFAULT 0.0, subject_count INT UNSIGNED NOT NULL DEFAULT 0, assignments_json LONGTEXT NOT NULL, acknowledged_by_external_id VARCHAR(64) NOT NULL, finalized_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_final_record_request (load_request_id), KEY idx_final_record_faculty_term (faculty_id, term_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    } catch (Throwable $e) {
+        error_log('Schema check failed: ' . $e->getMessage());
+    }
 }
 
 function smsTeachingLoadHistory(PDO $pdo, int $requestId, string $stage, string $action, string $remarks = ''): void {
@@ -54,7 +69,7 @@ function smsTeachingLoadRedirect(string $notice): never {
 }
 
 try {
-    // FIX: Use safe facultyDb() instead of manual PDO instantiation
+    // Use the safe facultyDb() function
     $pdo = function_exists('facultyDb') ? facultyDb() : null;
     if (!$pdo) {
         throw new RuntimeException('Database connection failed.');

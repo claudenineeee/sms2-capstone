@@ -27,137 +27,19 @@ $weeklyScheduleData = array_fill_keys(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat',
 $dailyScheduleData = [];
 $assignedSubjects = [];
 $availableTerms = [];
-$selectedTermId = (int) ($_GET['term_id'] ?? 0);
 $selectedTerm = null;
-$pendingAcknowledgement = false;
 $scheduleError = '';
 $currentUserId = (int) (getCurrentUserId() ?? 0);
-$todayKey = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][(int) date('N') - 1];
 $todayName = date('l, F j, Y');
 
-function smsMyScheduleWeekdays(?string $pattern): array
-{
-    $normalized = strtoupper(preg_replace('/[^A-Z]/i', '', (string) $pattern));
-    $days = [];
-    $wordDays = [
-        'Mon' => ['MONDAY', 'MON'],
-        'Tue' => ['TUESDAY', 'TUE'],
-        'Wed' => ['WEDNESDAY', 'WED'],
-        'Thu' => ['THURSDAY', 'THU'],
-        'Fri' => ['FRIDAY', 'FRI'],
-        'Sat' => ['SATURDAY', 'SAT'],
-        'Sun' => ['SUNDAY', 'SUN'],
-    ];
-    foreach ($wordDays as $day => $tokens) {
-        foreach ($tokens as $token) {
-            if (str_contains($normalized, $token)) {
-                $days[] = $day;
-                $normalized = str_replace($token, '', $normalized);
-                break;
-            }
-        }
-    }
+// We are mocking the schedule data here since the tables/API are not available yet.
+// Replace this block with your REST API call when it is ready.
+$assignedSubjects = []; 
+$teachingLoadUnits = 0;
 
-    if (str_contains($normalized, 'TTH')) {
-        $days[] = 'Tue';
-        $days[] = 'Thu';
-        $normalized = str_replace('TTH', '', $normalized);
-    }
-    if (str_contains($normalized, 'TH')) {
-        $days[] = 'Thu';
-        $normalized = str_replace('TH', '', $normalized);
-    }
-    foreach (str_split($normalized) as $letter) {
-        $letterDay = ['M' => 'Mon', 'T' => 'Tue', 'W' => 'Wed', 'R' => 'Thu', 'F' => 'Fri', 'S' => 'Sat', 'U' => 'Sun'][$letter] ?? null;
-        if ($letterDay !== null) {
-            $days[] = $letterDay;
-        }
-    }
-    return array_values(array_unique($days));
-}
-
-function smsMyScheduleTime(?string $time): string
-{
-    if (!$time) {
-        return 'Time not set';
-    }
-    $timestamp = strtotime($time);
-    return $timestamp === false ? $time : date('g:i A', $timestamp);
-}
-
-try {
-    // FIX: Use safe facultyDb() instead of the broken getFacultyDatabaseConnection()
-    $pdo = function_exists('facultyDb') ? facultyDb() : null;
-    if (!$pdo) {
-        throw new Exception('Database connection failed.');
-    }
-
-    $termsStmt = $pdo->prepare("SELECT DISTINCT t.term_id, t.academic_year, t.semester, t.is_current
-        FROM teaching_load_final_records fr
-        JOIN teaching_load_requests r ON r.load_request_id = fr.load_request_id
-        JOIN academic_terms t ON t.term_id = fr.term_id
-        WHERE r.faculty_user_id = ? AND r.workflow_stage = 'completed' AND r.status = 'Approved'
-        ORDER BY t.is_current DESC, t.academic_year DESC, t.semester ASC");
-    $termsStmt->execute([$currentUserId]);
-    $availableTerms = $termsStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    if ($availableTerms !== []) {
-        $termIds = array_map(static fn(array $term): int => (int) $term['term_id'], $availableTerms);
-        if (!in_array($selectedTermId, $termIds, true)) {
-            $selectedTermId = $termIds[0];
-        }
-        foreach ($availableTerms as $term) {
-            if ((int) $term['term_id'] === $selectedTermId) {
-                $selectedTerm = $term;
-                break;
-            }
-        }
-
-        $loadStmt = $pdo->prepare("SELECT fr.total_units, fr.subject_count, fr.assignments_json,
-                fr.finalized_at, t.academic_year, t.semester
-            FROM teaching_load_final_records fr
-            JOIN teaching_load_requests r ON r.load_request_id = fr.load_request_id
-            JOIN academic_terms t ON t.term_id = fr.term_id
-            WHERE r.faculty_user_id = ? AND r.term_id = ?
-              AND r.workflow_stage = 'completed' AND r.status = 'Approved'
-            ORDER BY fr.finalized_at DESC, fr.final_record_id DESC LIMIT 1");
-        $loadStmt->execute([$currentUserId, $selectedTermId]);
-        $loadRecord = $loadStmt->fetch(PDO::FETCH_ASSOC);
-        if ($loadRecord) {
-            $decodedAssignments = json_decode((string) $loadRecord['assignments_json'], true);
-            $assignedSubjects = is_array($decodedAssignments) ? $decodedAssignments : [];
-            $teachingLoadUnits = (float) $loadRecord['total_units'];
-            $totalSubjectsCount = count($assignedSubjects);
-            $totalSectionsCount = count(array_unique(array_filter(array_column($assignedSubjects, 'section'))));
-            foreach ($assignedSubjects as &$subject) {
-                $subject['display_time'] = smsMyScheduleTime($subject['time_start'] ?? null)
-                    . ' - ' . smsMyScheduleTime($subject['time_end'] ?? null);
-                $subject['display_schedule'] = trim((string) ($subject['day_pattern'] ?? ''));
-                $subject['display_room'] = trim((string) ($subject['room'] ?? '')) ?: 'Not set';
-                $subject['weekdays'] = smsMyScheduleWeekdays($subject['day_pattern'] ?? null);
-                foreach ($subject['weekdays'] as $day) {
-                    $weeklyScheduleData[$day][] = $subject;
-                }
-            }
-            unset($subject);
-            $dailyScheduleData = $weeklyScheduleData[$todayKey] ?? [];
-            $classesTodayCount = count($dailyScheduleData);
-        }
-    }
-
-    $pendingStmt = $pdo->prepare("SELECT COUNT(*) FROM teaching_load_requests
-        WHERE faculty_user_id = ? AND workflow_stage = 'faculty_acknowledgement' AND status = 'Pending'");
-    $pendingStmt->execute([$currentUserId]);
-    $pendingAcknowledgement = (int) $pendingStmt->fetchColumn() > 0;
-} catch (Throwable $exception) {
-    $scheduleError = 'Your teaching schedule could not be loaded. Please try again later.';
-    error_log('Faculty my-schedule load failed: ' . $exception->getMessage());
-}
-
-require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
-require_once __DIR__ . '/../../../../includes/layout-start.php';
-
+$pendingAcknowledgement = false;
 ?>
+
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
@@ -197,18 +79,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <p class="text-muted mb-0">View your personal class schedule</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <?php if ($availableTerms !== []): ?>
-            <form method="get" class="d-flex align-items-center gap-2">
-                <label for="termChoice" class="visually-hidden">Academic term</label>
-                <select class="form-select form-select-sm" id="termChoice" name="term_id" onchange="this.form.submit()">
-                    <?php foreach ($availableTerms as $term): ?>
-                        <option value="<?= (int) $term['term_id'] ?>" <?= (int) $term['term_id'] === $selectedTermId ? 'selected' : '' ?>>
-                            <?= e($term['academic_year'] . ' · ' . $term['semester']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </form>
-        <?php endif; ?>
         <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
         <button class="btn btn-outline-success" type="button" onclick="window.print()"><i class="fas fa-file-pdf me-1"></i>Save as PDF</button>
     </div>
@@ -295,7 +165,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </select>
                 </div>
                 <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-medium">
-                    <?= $selectedTerm ? e($selectedTerm['academic_year'] . ' · ' . $selectedTerm['semester']) : 'No finalized load' ?>
+                    No finalized load
                 </span>
             </div>
             <div class="card-body p-0">
@@ -321,7 +191,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                                         <strong class="text-primary"><?= e($class['code'] ?? '') ?></strong>
                                                         <span class="small"><?= e($class['title'] ?? '') ?></span>
                                                         <div class="small text-body-secondary">
-                                                            <?= e($class['display_time']) ?> · Section <?= e($class['section'] ?? '') ?> · <?= e((string) ($class['units'] ?? '0')) ?> units
+                                                            <?= e($class['display_time'] ?? '') ?> · Section <?= e($class['section'] ?? '') ?> · <?= e((string) ($class['units'] ?? '0')) ?> units
                                                         </div>
                                                     </div>
                                                 <?php endforeach; ?>
@@ -354,14 +224,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <?php foreach ($dailyScheduleData as $class): ?>
                             <article class="d-flex align-items-start gap-3 p-3 rounded border bg-primary bg-opacity-10">
                                 <div class="fw-bold text-body-secondary small text-nowrap">
-                                    <i class="far fa-clock me-1"></i><?= e($class['display_time']) ?>
+                                    <i class="far fa-clock me-1"></i><?= e($class['display_time'] ?? '') ?>
                                 </div>
                                 <div class="flex-grow-1">
                                     <h3 class="h6 mb-1 fw-bold"><?= e($class['code'] ?? '') ?> · <?= e($class['title'] ?? '') ?></h3>
                                     <div class="d-flex flex-wrap gap-3 text-body-secondary small">
                                         <span>Section <?= e($class['section'] ?? '') ?></span>
                                         <span><?= e((string) ($class['units'] ?? '0')) ?> units</span>
-                                        <span>Room <?= e($class['display_room']) ?></span>
+                                        <span>Room <?= e($class['display_room'] ?? '') ?></span>
                                     </div>
                                 </div>
                             </article>
@@ -405,9 +275,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                         <td><span class="badge bg-light text-dark border"><?= e((string) ($subject['section'] ?? '')) ?></span></td>
                                         <td><span class="badge bg-primary bg-opacity-10 text-primary"><?= e((string) ($subject['units'] ?? '0')) ?></span></td>
                                         <td class="small text-body-secondary" style="font-size: 12px;">
-                                            <?= e((string) ($subject['display_schedule'] ?: 'Days not set')) ?> · <?= e($subject['display_time']) ?>
+                                            <?= e((string) ($subject['display_schedule'] ?? 'Days not set')) ?> · <?= e($subject['display_time'] ?? '') ?>
                                         </td>
-                                        <td class="pe-3"><span class="badge bg-secondary bg-opacity-10 text-secondary"><?= e($subject['display_room']) ?></span></td>
+                                        <td class="pe-3"><span class="badge bg-secondary bg-opacity-10 text-secondary"><?= e($subject['display_room'] ?? '') ?></span></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>

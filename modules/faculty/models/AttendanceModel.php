@@ -10,16 +10,11 @@ class AttendanceModel {
     private $db;
 
     public function __construct($pdoConnection = null) {
-        // CHANGED: prefer the faculty DB connection over sms2_db — faculty,
-        // faculty_profiles, class_attendance_sessions, subjects, rooms,
-        // attendance_records and departments all live in faculty_db.
-        // (facultyDb() was called here previously but that function doesn't
-        // exist anywhere in this codebase — the real helper is
-        // getFacultyDatabaseConnection().)
+        // FIX: Prefer the safe facultyDb() function over getFacultyDatabaseConnection()
         if ($pdoConnection instanceof \PDO) {
             $this->db = $pdoConnection;
-        } elseif (function_exists('getFacultyDatabaseConnection') && getFacultyDatabaseConnection() instanceof \PDO) {
-            $this->db = getFacultyDatabaseConnection();
+        } elseif (function_exists('facultyDb') && facultyDb() instanceof \PDO) {
+            $this->db = facultyDb();
         } elseif (function_exists('db') && db() instanceof \PDO) {
             $this->db = db();
         } else {
@@ -29,8 +24,9 @@ class AttendanceModel {
 
     private function ensureDb() {
         if (!$this->db) {
-            if (function_exists('getFacultyDatabaseConnection') && getFacultyDatabaseConnection() instanceof \PDO) {
-                $this->db = getFacultyDatabaseConnection();
+            // FIX: Use facultyDb() here as well
+            if (function_exists('facultyDb') && facultyDb() instanceof \PDO) {
+                $this->db = facultyDb();
             } elseif (function_exists('db') && db() instanceof \PDO) {
                 $this->db = db();
             } else {
