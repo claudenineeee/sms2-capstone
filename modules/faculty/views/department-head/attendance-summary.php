@@ -14,23 +14,11 @@ require_once __DIR__ . '/../../models/AttendanceModel.php';
 // ==========================================
 // 1. FORCE MANUAL DATABASE CONNECTIONS
 // ==========================================
-$corePdo = null;
-$facultyPdo = null;
-
-if (function_exists('db')) $corePdo = db();
-if (function_exists('facultyDb')) $facultyPdo = facultyDb();
+$corePdo = function_exists('db') ? db() : null;
+$facultyPdo = function_exists('facultyDb') ? facultyDb() : null;
 
 if (!$corePdo || !$facultyPdo) {
-    $host = '127.0.0.1';
-    $user = 'root';
-    $pass = ''; 
-
-    try {
-        if (!$corePdo) $corePdo = new PDO("mysql:host=$host;dbname=sms2_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        if (!$facultyPdo) $facultyPdo = new PDO("mysql:host=$host;dbname=faculty_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    } catch (PDOException $e) {
-        die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
-    }
+    die("<div style='padding:20px;color:red;'><strong>Database connection failed.</strong> Check DB_HOST / DB_USERNAME / DB_PASSWORD / DB_DATABASE environment variables.</div>");
 }
 
 $attendanceModel = new AttendanceModel($facultyPdo);

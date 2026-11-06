@@ -7,25 +7,11 @@ require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 
-// Establish Database Connection
-if (!isset($pdo) || !$pdo) {
-    $pdo = $conn ?? $db ?? null;
-}
+// Establish Database Connection (env-aware)
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
 
 if (!$pdo) {
-    try {
-        $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
-        $dbName = defined('DB_NAME') ? DB_NAME : 'faculty_db';
-        $dbUser = defined('DB_USER') ? DB_USER : 'root';
-        $dbPass = defined('DB_PASS') ? DB_PASS : '';
-
-        $pdo = new PDO("mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4", $dbUser, $dbPass, [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-    } catch (PDOException $e) {
-        die('Database connection failed: ' . htmlspecialchars($e->getMessage()));
-    }
+    die("<div style='padding:20px;color:red;'><strong>Database connection failed.</strong></div>");
 }
 
 // 1. Identify Dept Head's Department
@@ -34,7 +20,7 @@ $deptHeadDept  = null;
 
 if ($currentUserId) {
     try {
-        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_db.faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
+        $stmt = $pdo->prepare("SELECT designated_department FROM faculty_profiles WHERE user_id = :uid OR id = :id LIMIT 1");
         $stmt->execute(['uid' => $currentUserId, 'id' => $currentUserId]);
         $row = $stmt->fetch();
         if ($row) {
@@ -57,8 +43,8 @@ $facultyQuerySql = "
     SELECT fp.id, fp.faculty_id AS profile_faculty_no, fp.first_name, fp.last_name,
            fp.designated_department, fp.position, fp.email,
            f.faculty_id AS real_faculty_id
-    FROM faculty_db.faculty_profiles fp
-    LEFT JOIN faculty_db.faculty f ON f.faculty_id = fp.id
+    FROM faculty_profiles fp
+    LEFT JOIN faculty f ON f.faculty_id = fp.id
     WHERE LOWER(TRIM(fp.position)) NOT IN ('dean', 'department head', 'department secretary', 'faculty secretary', 'attendance monitoring officer')
 ";
 
@@ -90,7 +76,7 @@ foreach ($facultyMembers as $fac) {
         try {
             $stmtHistory = $pdo->prepare("
                 SELECT academic_year, semester, subject_code, subject_title, units, section, status, created_at
-                FROM faculty_db.teaching_load_history
+                FROM teaching_load_history
                 WHERE faculty_id = :fac_id
                 ORDER BY academic_year DESC, semester DESC, created_at DESC
             ");
@@ -105,7 +91,7 @@ foreach ($facultyMembers as $fac) {
         try {
             $stmtHistoryAlt = $pdo->prepare("
                 SELECT academic_year, semester, subject_code, subject_title, units, section, status, created_at
-                FROM faculty_db.teaching_load_history
+                FROM teaching_load_history
                 WHERE faculty_id = :fac_id_str OR faculty_no = :fac_no
                 ORDER BY academic_year DESC, semester DESC, created_at DESC
             ");

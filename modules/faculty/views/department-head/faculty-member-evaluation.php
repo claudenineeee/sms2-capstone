@@ -13,16 +13,10 @@ require_once ROOT_PATH . '/includes/authentication.php';
 require_once __DIR__ . '/../../controllers/faculty-data.php';
 require_once __DIR__ . '/../../config/database.php';
 
+// Establish Database Connection (env-aware)
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 if (!$pdo) {
-    // Fallback manual connection just in case
-    try {
-        $pdo = new PDO("mysql:host=127.0.0.1;dbname=faculty_db;charset=utf8mb4", 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    } catch (PDOException $e) {
-        die('<div style="padding:20px;color:#721c24;background:#f8d7da;margin:20px;border-radius:5px;">
-            <strong>Faculty database connection is unavailable.</strong> Error: ' . $e->getMessage() . '
-        </div>');
-    }
+    die("<div style='padding:20px;color:red;'><strong>Database connection failed.</strong> Check environment variables.</div>");
 }
 
 $pageTitle    = 'Department Head Evaluation';

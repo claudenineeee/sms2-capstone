@@ -2,30 +2,23 @@
 /**
  * SMS 2 - Subject Load Tracker (Secretary View)
  * Module: Faculty Management
- * // CHANGED: header comment updated from "(Dean View)" to "(Secretary View)"
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
-// Connect to the separate faculty module database where profiles and teaching histories reside[cite: 3]
 require_once __DIR__ . '/../../config/database.php';
 
 requireAuth();
 
-try {
-    $pdo = getFacultyDatabaseConnection();
-} catch (Exception $e) {
+// Use the safe facultyDb() function we already fixed, instead of getFacultyDatabaseConnection()
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
+if (!$pdo) {
     die('<div style="padding: 20px; font-family: sans-serif; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; margin: 20px; border-radius: 4px;">'
         . '<h3>Database Connection Error</h3>'
-        . '<p>' . htmlspecialchars($e->getMessage()) . '</p>'
+        . '<p>The faculty database is currently unavailable.</p>'
         . '</div>');
 }
 
 // 1. Identify Secretary's Department / Scope
-// NOTE: $_SESSION['department'] / ['department_id'] / ['department_name'] are currently always
-// null - authentication.php's login-time query selects department_id/department columns that
-// don't exist on faculty_profiles (only designated_department does), so it throws and the catch
-// block nulls out all three session keys. That file can't be touched yet, so this page resolves
-// the department itself, straight from faculty_profiles, keyed off the logged-in user's id.
 $deptScope = '';
 $deptFallbackUsed = false;
 
@@ -42,8 +35,6 @@ if ($currentUserId) {
     }
 }
 
-// Fallback: if the profile lookup didn't yield a department but a numeric id somehow made it
-// into the session (e.g. once authentication.php is fixed), translate that id to its code.
 if (empty($deptScope) && !empty($_SESSION['department_id'])) {
     $deptFallbackUsed = true;
     try {
@@ -54,15 +45,6 @@ if (empty($deptScope) && !empty($_SESSION['department_id'])) {
         $deptScope = '';
     }
 }
-
-// TEMPORARY DEBUG - remove once department scoping is confirmed working.
-$debugInfo = [
-    'session_department_raw'    => var_export($_SESSION['department'] ?? null, true),
-    'session_department_id_raw' => var_export($_SESSION['department_id'] ?? null, true),
-    'session_department_name'   => var_export($_SESSION['department_name'] ?? null, true),
-    'used_department_id_fallback' => $deptFallbackUsed ? 'yes' : 'no',
-    'final_deptScope'           => $deptScope !== '' ? $deptScope : '(empty)',
-];
 
 // 2. Fetch Distinct Academic Terms/Years & Semesters dynamically from teaching load history
 $academicTerms = [];
@@ -81,8 +63,6 @@ try {
 // Default fallback term if none exist in history
 $selectedTerm = $_GET['term'] ?? '';
 if (empty($selectedTerm) && !empty($academicTerms)) {
-    // CHANGED: default to the 1st Semester of the most recent academic year instead of
-    // whichever term happens to sort first (previously landed on 2nd Semester)
     $defaultTerm = null;
     foreach ($academicTerms as $term) {
         if (stripos(trim($term['semester']), '1st') !== false) {
@@ -91,11 +71,11 @@ if (empty($selectedTerm) && !empty($academicTerms)) {
         }
     }
     if ($defaultTerm === null) {
-        $defaultTerm = $academicTerms[0]; // Fallback if no 1st Semester term exists
+        $defaultTerm = $academicTerms[0];
     }
     $selectedTerm = $defaultTerm['academic_year'] . '-' . $defaultTerm['semester'];
 } elseif (empty($selectedTerm)) {
-    $selectedTerm = '2025-2026-1'; // CHANGED: fallback default now 1st Semester instead of 2nd
+    $selectedTerm = '2025-2026-1';
 }
 
 // Parse selected term back into components
@@ -104,24 +84,9 @@ $selectedAY = (count($termParts) >= 2) ? $termParts[0] . '-' . $termParts[1] : '
 $selectedSem = $termParts[2] ?? '2';
 
 // 3. Fetch Faculty Members strictly restricted by Secretary's Department Scope
-// CHANGED: comment updated from "Dean's Designated Department Scope"
-// CHANGED: now restricted to teaching faculty only, based on fp.position.
-// (The users table on THIS connection — getFacultyDatabaseConnection(), a
-// separate database from the main sms2_db — has no role_key column, so that
-// can't be used here. Filtering by position is the reliable option available
-// on this connection.) Edit $nonTeachingPositions below if your position
-// titles differ.
 $nonTeachingPositions = [
-    'dean',
-    'program head',
-    'program chair',
-    'department head',
-    'department chair',
-    'coordinator',
-    'secretary',
-    'registrar',
-    'admin',
-    'administrator',
+    'dean', 'program head', 'program chair', 'department head', 'department chair',
+    'coordinator', 'secretary', 'registrar', 'admin', 'administrator',
 ];
 
 $facultyMembers = [];
@@ -140,16 +105,15 @@ $facultyQuerySql = "
     )
 ";
 
-if (!empty($deptScope)) { // CHANGED: $deanDept -> $deptScope
+if (!empty($deptScope)) {
     $stmt = $pdo->prepare($facultyQuerySql . "
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:dept)
           AND LOWER(TRIM(fp.request_status)) = 'approved'
         ORDER BY fp.last_name ASC
     ");
-    $stmt->execute(['dept' => $deptScope]); // CHANGED: $deanDept -> $deptScope
+    $stmt->execute(['dept' => $deptScope]);
     $facultyMembers = $stmt->fetchAll();
 } else {
-    // Fallback if no scope found (though normally restricted)
     $stmt = $pdo->query($facultyQuerySql . "
         WHERE LOWER(TRIM(fp.request_status)) = 'approved'
         ORDER BY fp.last_name ASC
@@ -157,17 +121,11 @@ if (!empty($deptScope)) { // CHANGED: $deanDept -> $deptScope
     $facultyMembers = $stmt->fetchAll();
 }
 
-// CHANGED: filter to teaching faculty only — drop any profile whose position
-// matches a known non-teaching/administrative title.
 $facultyMembers = array_values(array_filter($facultyMembers, function ($fac) use ($nonTeachingPositions) {
     $pos = strtolower(trim($fac['position'] ?? ''));
-    if ($pos === '') {
-        return true; // no position on file — don't silently drop the record
-    }
+    if ($pos === '') return true;
     foreach ($nonTeachingPositions as $excluded) {
-        if (strpos($pos, $excluded) !== false) {
-            return false;
-        }
+        if (strpos($pos, $excluded) !== false) return false;
     }
     return true;
 }));
@@ -178,8 +136,6 @@ $totalActiveFaculty = count($facultyMembers);
 $fullyLoadedCount = 0;
 $totalUnassignedUnits = 0;
 
-// CHANGED: max load units now depend on employment status instead of a single flat value
-// Regular: 24 units | Probationary: 24 units | Part-Time: 15 units
 function getMaxUnitsForEmploymentStatus($employmentStatus) {
     $normalized = strtolower(trim($employmentStatus ?? ''));
     switch ($normalized) {
@@ -188,11 +144,9 @@ function getMaxUnitsForEmploymentStatus($employmentStatus) {
         case 'parttime':
             return 15;
         case 'regular':
-            return 24;
         case 'probationary':
-            return 24;
         default:
-            return 24; // Fallback default if employment status is missing/unrecognized
+            return 24;
     }
 }
 
@@ -201,9 +155,7 @@ foreach ($facultyMembers as $fac) {
     $realFacultyId = $fac['real_faculty_id'] !== null ? (int)$fac['real_faculty_id'] : null;
     $isLinked = $realFacultyId !== null;
 
-    // CHANGED: max units now computed per faculty member based on employment status
     $maxUnitsLimit = getMaxUnitsForEmploymentStatus($fac['employment_status'] ?? '');
-
     $assignedSubjects = [];
     $totalAssignedUnits = 0.0;
 
@@ -285,7 +237,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
 ?>
 
 <style>
-/* Responsive compact typography matching teaching history standards */
 @media (max-width: 768px) {
     .faculty-item .fw-bold { font-size: 0.825rem !important; }
     .faculty-item small { font-size: 0.7rem !important; }
@@ -297,16 +248,12 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-
-<!-- Page Header with Global Academic Term / School Year Filter -->
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
     <div>
         <h1 class="mb-0 fs-4"><i class="fas fa-chalkboard-teacher text-sms-primary me-2"></i>Subject Load Tracker</h1>
-        <!-- CHANGED: label text updated from "Dean Department Scope:" to "Department Scope:" -->
         <small class="text-muted">Department Scope: <strong><?= htmlspecialchars(!empty($deptScope) ? $deptScope : 'All Departments') ?></strong></small>
     </div>
     
-    <!-- Academic Term / School Year Filter -->
     <div class="d-flex align-items-center gap-2 bg-body p-2 rounded border border-secondary-subtle shadow-sm">
         <label for="academicTermSelect" class="form-label mb-0 text-body-secondary small fw-bold text-nowrap">
             <i class="fas fa-calendar-alt text-primary me-1"></i> Academic Term:
@@ -328,7 +275,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
     </div>
 </div>
 
-<!-- Subject Load Tracker Section Header & Quick Analytics -->
 <div class="row g-3 mb-4 dashboard-stats">
     <div class="col-12 col-sm-6 col-xl-4">
         <section class="card stat-card primary border shadow-sm">
@@ -373,14 +319,9 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
     </div>
 </div>
 
-<!-- Main Section Grid -->
 <div class="row g-4" id="subject-load-section">
-    
-    <!-- Left Column: Faculty Directory Loading Overview -->
     <div class="col-xl-5 col-lg-6">
         <div class="card bg-body text-body border-secondary-subtle shadow-sm h-100">
-            
-            <!-- Card Header with Department Scope & Search -->
             <div class="card-header bg-body-tertiary border-bottom border-secondary-subtle p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="mb-0 text-primary fw-bold small">
@@ -389,7 +330,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                     <small class="text-body-secondary" id="visibleFacultyCount" style="font-size: 0.75rem;">Showing <?= count($facultyLoadData) ?> Faculty</small>
                 </div>
 
-                <!-- Controls Row: Locked Department Badge / Filter & Search Bar -->
                 <div class="row g-2">
                     <div class="col-12 col-md-5">
                         <input type="text" class="form-control form-control-sm bg-body-tertiary text-body border-secondary-subtle fw-bold" value="Dept: <?= htmlspecialchars(!empty($deptScope) ? $deptScope : 'BSIT') ?>" readonly disabled>
@@ -447,7 +387,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                     <?php endif; ?>
                 </div>
 
-                <!-- Empty State Message when no match is found -->
                 <div id="noFacultyMessage" class="text-center py-4 d-none">
                     <i class="fas fa-user-slash text-body-secondary fs-3 mb-2"></i>
                     <p class="text-body-secondary mb-0 small">No faculty members found matching your search.</p>
@@ -455,7 +394,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
             </div>
             
             <div class="card-footer bg-body-tertiary d-flex flex-column gap-2 py-2 border-top border-secondary-subtle">
-                <!-- Pagination Controls -->
                 <nav aria-label="Faculty pagination">
                     <ul class="pagination pagination-sm justify-content-center mb-0" id="facultyPagination"></ul>
                 </nav>
@@ -466,7 +404,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
         </div>
     </div>
 
-    <!-- Right Column: Subject Load Matrix View -->
     <div class="col-xl-7 col-lg-6">
         <div class="card bg-body text-body border-secondary-subtle shadow-sm h-100">
             <div class="card-header bg-body-tertiary border-bottom border-secondary-subtle d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 py-3">
@@ -494,13 +431,11 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                             </tr>
                         </thead>
                         <tbody id="activeFacultySubjectsBody">
-                            <!-- Populated dynamically via JS from PHP dataset -->
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Footer & Commitment Action -->
             <div class="card-footer bg-body-tertiary border-top border-secondary-subtle d-flex justify-content-between align-items-center py-2">
                 <div class="d-flex align-items-center gap-3">
                     <small class="text-body-secondary" style="font-size: 0.75rem;">Total Classes: <strong class="text-body" id="footerTotalClasses">0 Sections</strong></small>
@@ -516,7 +451,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
 
 </div>
 
-<!-- Filter, Pagination & Interactivity Logic JS -->
 <script>
     const facultyLoadDB = <?= json_encode($facultyLoadData) ?>;
     const itemsPerPage = 10;
@@ -584,13 +518,11 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
 
         if (totalPages <= 1) return;
 
-        // Previous Button
         const prevLi = document.createElement('li');
         prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
         prevLi.innerHTML = `<a class="page-link py-1 px-2" href="javascript:void(0);" onclick="filterFaculty(${currentPage - 1})" style="font-size: 0.75rem;">&laquo;</a>`;
         paginationUl.appendChild(prevLi);
 
-        // Page Numbers
         for (let i = 1; i <= totalPages; i++) {
             const pageLi = document.createElement('li');
             pageLi.className = `page-item ${currentPage === i ? 'active' : ''}`;
@@ -598,7 +530,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
             paginationUl.appendChild(pageLi);
         }
 
-        // Next Button
         const nextLi = document.createElement('li');
         nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
         nextLi.innerHTML = `<a class="page-link py-1 px-2" href="javascript:void(0);" onclick="filterFaculty(${currentPage + 1})" style="font-size: 0.75rem;">&raquo;</a>`;
@@ -665,7 +596,6 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
         return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
-    // Initialize first faculty member selection and pagination on page load
     document.addEventListener('DOMContentLoaded', () => {
         filterFaculty(1);
         const firstFacultyItem = document.querySelector('.faculty-item');

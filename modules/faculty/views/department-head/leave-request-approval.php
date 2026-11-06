@@ -371,9 +371,9 @@ try {
         $columnStmt = $pdo->prepare("
             SELECT COUNT(*)
             FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = 'faculty_db'
-              AND TABLE_NAME = 'leave_requests'
-              AND COLUMN_NAME = 'approver_comment'
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'leave_requests'
+            AND COLUMN_NAME = 'approver_comment'
         ");
         $columnStmt->execute();
         $hasApproverComment = (int) $columnStmt->fetchColumn() > 0;
@@ -381,7 +381,7 @@ try {
         $notificationColumnStmt = $pdo->prepare("
             SELECT COLUMN_NAME
             FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = 'faculty_db'
+            WHERE TABLE_SCHEMA = DATABASE()
                 AND TABLE_NAME = 'leave_requests'
                 AND COLUMN_NAME IN ('notification', 'is_notified', 'notified', 'notification_sent', 'notification_seen', 'notification_read', 'is_seen', 'document_notification', 'notify_flag', 'is_alerted', 'notification_status', 'is_notification')
             LIMIT 1

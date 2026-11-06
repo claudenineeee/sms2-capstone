@@ -39,7 +39,7 @@ if ($userDepartment === '') {
 
     if ($sessionUserId || $sessionEmail) {
         try {
-            $pdo = function_exists('facultyDb') ? facultyDb() : ($conn ?? $db ?? null);
+            $pdo = function_exists('facultyDb') ? facultyDb() : null;
             if ($pdo) {
                 $stmtUser = $pdo->prepare("
                     SELECT designated_department, department
@@ -96,8 +96,9 @@ function normalizeDepartmentCode(string $dept): string {
     return preg_replace('/[^A-Z0-9]/', '', $deptUpper);
 }
 
-// 3. Strict Filtering: Department Scoping + Exclude Dean/Dept Head + Exclude Pending/Rejected
-$targetCode = normalizeDepartmentCode($userDepartment !== '' ? $userDepartment : 'BSIT');
+// 3. Forgiving Filtering: Department Scoping + Exclude Dean/Dept Head + Exclude Pending/Rejected
+// No hardcoded 'BSIT' fallback. If we can't resolve the department, it shows all.
+$targetCode = normalizeDepartmentCode($userDepartment);
 
 $facultyList = array_values(array_filter($facultyList, function ($f) use ($targetCode) {
     // --- A. Department Filtering ---
@@ -107,8 +108,23 @@ $facultyList = array_values(array_filter($facultyList, function ($f) use ($targe
         ?? $f['dept'] 
         ?? $f['dept_name'] 
         ?? '';
+        
     $recordCode = normalizeDepartmentCode((string)$rawDept);
-    if ($recordCode === '' || $targetCode === '' || $recordCode !== $targetCode) {
+    
+    // Strict match
+    $isDeptMatch = ($recordCode === $targetCode);
+    
+    // Partial match fallback
+    if (!$isDeptMatch && $recordCode !== '' && $targetCode !== '') {
+        $isDeptMatch = (str_contains($recordCode, $targetCode) || str_contains($targetCode, $recordCode));
+    }
+    
+    // If target is empty (couldn't resolve secretary dept), show ALL faculty rather than none.
+    if ($targetCode === '') {
+        $isDeptMatch = true;
+    }
+
+    if (!$isDeptMatch) {
         return false;
     }
 
@@ -414,7 +430,7 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
                                 <div class="mb-2"><strong>Faculty ID:</strong> F-001</div>
                                 <div class="mb-2"><strong>Email:</strong> faculty@bestlink.edu.ph</div>
                                 <div class="mb-2"><strong>Contact:</strong> +63 912 345 6789</div>
-                                <div><strong>Department:</strong> <?= htmlspecialchars($userDepartment ?: 'BSIT', ENT_QUOTES, 'UTF-8') ?></div>
+                                <div><strong>Department:</strong> <?= htmlspecialchars($userDepartment ?: 'Not Assigned', ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                         </div>
                     </div>

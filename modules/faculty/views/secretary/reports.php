@@ -17,11 +17,10 @@ require_once __DIR__ . '/../../controllers/faculty-data.php';  // facultyDb() he
 
 requireAuth();
 
-try {
-    $pdo = getFacultyDatabaseConnection();
-} catch (Exception $e) {
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
+if (!$pdo) {
     die('<div style="padding:20px;font-family:sans-serif;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;margin:20px;border-radius:4px;">'
-        . '<h3>Database Connection Error</h3><p>' . htmlspecialchars($e->getMessage()) . '</p></div>');
+        . '<h3>Database Connection Error</h3><p>The faculty database is currently unavailable.</p></div>');
 }
 
 /* ============================================================

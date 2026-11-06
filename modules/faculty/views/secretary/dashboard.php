@@ -5,7 +5,6 @@
  * Design: Linear / Vercel / Stripe inspired
  */
 require_once __DIR__ . '/../../../../config/config.php';
-require_once __DIR__ . '/../../../../config/database.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 require_once __DIR__ . '/../../controllers/FacultyController.php';
@@ -28,20 +27,10 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
 // DYNAMIC DATABASE QUERIES
 // ============================================================
 
-/*
- * IMPORTANT: leave_requests, faculty_deadlines, faculty_profiles
- * all live in the FACULTY database (faculty_db), not sms2_db.
- *
- * Previously this block fell back to db() (which points at sms2_db)
- * when facultyDb() wasn't available, silently running every query
- * against the wrong schema. Now we require facultyDb() explicitly
- * and skip queries cleanly if it's unavailable, instead of blowing
- * up on "table not found".
- */
+// Use the correct faculty database connection
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 
-// Department-scoped faculty list — same proven method faculty-profile.php
-// and faculty-records.php already use.
+// Department-scoped faculty list
 $facultyController = new FacultyController();
 $departmentFaculty = $facultyController->getDirectoryList();
 
@@ -58,7 +47,7 @@ foreach ($departmentFaculty as $f) {
     }
 }
 
-// 2. ON LEAVE TODAY — approved leave covering today, for this department's faculty.
+// 2. ON LEAVE TODAY — approved leave covering today
 $onLeaveToday = 0;
 if ($pdo && !empty($departmentFacultyIds)) {
     try {
@@ -66,7 +55,7 @@ if ($pdo && !empty($departmentFacultyIds)) {
         $stmtLeave = $pdo->prepare("
             SELECT COUNT(*)
             FROM leave_requests
-            WHERE approval_status = 'Approved'
+            WHERE LOWER(status) = 'approved'
               AND CURRENT_DATE() BETWEEN start_date AND end_date
               AND faculty_id IN ($placeholders)
         ");
@@ -85,7 +74,7 @@ if ($pdo && !empty($departmentFacultyIds)) {
         $stmtPending = $pdo->prepare("
             SELECT COUNT(*)
             FROM leave_requests
-            WHERE screening_status = 'Pending'
+            WHERE LOWER(screening_status) = 'pending'
               AND faculty_id IN ($placeholders)
         ");
         $stmtPending->execute($departmentFacultyIds);
@@ -106,7 +95,7 @@ if ($pdo && !empty($departmentFacultyIds)) {
         $stmtCategories = $pdo->prepare("
             SELECT leave_type, COUNT(*) as total
             FROM leave_requests
-            WHERE approval_status != 'Rejected'
+            WHERE LOWER(status) != 'rejected'
               AND faculty_id IN ($placeholders)
             GROUP BY leave_type
         ");
@@ -124,21 +113,14 @@ if (!empty($categoryData)) {
         $leaveCounts[]     = (int) $row['total'];
     }
 } else {
-    // Fallback labels only when there is genuinely no data yet, so the
-    // chart still renders with an empty ring instead of a broken layout.
     $leaveCategories = ['Sick Leave', 'Vacation Leave', 'Emergency Leave', 'Study Leave'];
     $leaveCounts     = [0, 0, 0, 0];
 }
 
 // 5. UPCOMING DEADLINES
-// faculty_deadlines lives in faculty_db. Only run this if $pdo actually
-// resolved to facultyDb(); otherwise skip cleanly instead of crashing.
 $deadlines = [];
 if ($pdo) {
     try {
-        // Verify the table exists before querying — protects against the
-        // exact "table not found" crash we were seeing, and makes the
-        // reason obvious in the log if it happens again.
         $hasTable = false;
         try {
             $check = $pdo->query("SHOW TABLES LIKE 'faculty_deadlines'");
@@ -159,8 +141,6 @@ if ($pdo) {
             ";
             $params = [];
             if ($placeholders !== '') {
-                // Include department-specific deadlines plus general ones
-                // (rows where faculty_id is NULL).
                 $sql .= " AND (faculty_id IS NULL OR faculty_id IN ($placeholders))";
                 $params = $departmentFacultyIds;
             }
@@ -169,8 +149,6 @@ if ($pdo) {
             $stmtDeadlines = $pdo->prepare($sql);
             $stmtDeadlines->execute($params);
             $deadlines = $stmtDeadlines->fetchAll(PDO::FETCH_ASSOC);
-        } else {
-            error_log('[secretary-dashboard] faculty_deadlines table missing in current PDO connection — skipping deadline block.');
         }
     } catch (Throwable $e) {
         error_log('[secretary-dashboard] deadlines query failed: ' . $e->getMessage());
@@ -179,8 +157,7 @@ if ($pdo) {
 }
 
 /**
- * Map priority values to design colors. faculty_deadlines has no priority
- * column, so every real deadline gets the neutral 'muted' marker.
+ * Map priority values to design colors.
  */
 function getPriorityColor($priority) {
     return match (strtolower((string) $priority)) {
