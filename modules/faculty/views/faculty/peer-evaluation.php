@@ -8,7 +8,6 @@ require_once ROOT_PATH . '/includes/authentication.php';
 require_once __DIR__ . '/../../config/database.php';
 
 // FIX: Use safe facultyDb() instead of the broken getFacultyDatabaseConnection()
-// FIX: Use facultyDb() with a fallback to db() to prevent fatal errors
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 
 if (!$pdo && function_exists('db')) {
@@ -32,12 +31,12 @@ $breadcrumbs  = [
 
 // 2. Identify Current User & Department
 $currentUserId = (int)($_SESSION['user_id'] ?? 0);
-$sessionEmail  = $_SESSION['user_email'] ?? null;
+$sessionEmail  = strtolower(trim($_SESSION['user_email'] ?? ''));
 
 $currentFaculty      = null;
 $userDept            = null;
-$evaluatorProfileId  = 0;    // faculty_profiles.id (only used to exclude self from the list)
-$evaluatorFacultyId  = null; // faculty.faculty_id (the id evaluations must use)
+$evaluatorProfileId  = 0;    
+$evaluatorFacultyId  = null; 
 
 if ($currentUserId || $sessionEmail) {
     try {
@@ -54,13 +53,11 @@ if ($currentUserId || $sessionEmail) {
                 LIMIT 1
             )
             WHERE fp.user_id = :uid1
-               OR fp.id = :uid2
-               OR (:email1 IS NOT NULL AND fp.email = :email2)
+               OR (:email1 IS NOT NULL AND LOWER(TRIM(fp.email)) = :email2)
             LIMIT 1
         ");
         $stmt->execute([
             'uid1'   => $currentUserId,
-            'uid2'   => $currentUserId,
             'email1' => $sessionEmail,
             'email2' => $sessionEmail
         ]);
@@ -83,7 +80,7 @@ if (empty($userDept)) {
     $userDept = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? '');
 }
 
-// 3. Fetch Department Peers from faculty_profiles, mapped to their real faculty.faculty_id
+// 3. Fetch Department Peers (Only Faculty Professors)
 $peers = [];
 
 if (!empty($userDept)) {
@@ -115,6 +112,9 @@ if (!empty($userDept)) {
         WHERE LOWER(TRIM(fp.designated_department)) = LOWER(:department)
           AND fp.id != :profile_id
           AND (fp.user_id != :current_user_id OR fp.user_id IS NULL)
+          AND (fp.email IS NULL OR LOWER(TRIM(fp.email)) != :current_email)
+          AND LOWER(TRIM(fp.position)) = 'faculty professor'
+          AND fp.profile_status = 'Active'
         ORDER BY
             CASE
                 WHEN f.faculty_id IS NULL THEN 2
@@ -129,53 +129,10 @@ if (!empty($userDept)) {
         'department'      => $userDept,
         'current_user_id' => $currentUserId,
         'profile_id'      => $evaluatorProfileId,
+        'current_email'   => $sessionEmail,
         'evaluator_id'    => $evaluatorFacultyId ?? 0
     ]);
 
-    $peers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-// Fallback Query
-if (empty($peers)) {
-    $stmt = $pdo->prepare("
-        SELECT 
-            fp.id AS profile_id,
-            f.faculty_id AS id,
-            fp.faculty_id AS employee_id, 
-            fp.first_name, 
-            fp.last_name, 
-            fp.designated_department AS department,
-            fp.position,
-            (SELECT COUNT(*) 
-             FROM evaluations e 
-             WHERE e.evaluator_id = :evaluator_id 
-               AND e.faculty_id = f.faculty_id
-               AND e.source_type = 'Peer'
-            ) AS evaluation_count
-        FROM faculty_profiles fp
-        LEFT JOIN faculty f ON f.faculty_id = (
-            SELECT f2.faculty_id
-            FROM faculty f2
-            WHERE (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email)
-               OR f2.faculty_no = fp.faculty_id
-            ORDER BY (fp.email IS NOT NULL AND fp.email <> '' AND f2.email = fp.email) DESC
-            LIMIT 1
-        )
-        WHERE fp.id != :profile_id
-        ORDER BY
-            CASE
-                WHEN f.faculty_id IS NULL THEN 2
-                WHEN evaluation_count > 0 THEN 1
-                ELSE 0
-            END ASC,
-            fp.last_name ASC,
-            fp.first_name ASC
-    ");
-
-    $stmt->execute([
-        'profile_id'   => $evaluatorProfileId,
-        'evaluator_id' => $evaluatorFacultyId ?? 0
-    ]);
     $peers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -196,18 +153,6 @@ foreach ($peers as &$peer) {
     }
 }
 unset($peer);
-
-// Also auto-link the current user's own profile if it wasn't linked
-if (empty($evaluatorFacultyId) && !empty($evaluatorProfileId)) {
-    try {
-        $linkedSelfId = $attendanceModel->getOrCreateFacultyRecord($evaluatorProfileId);
-        if ($linkedSelfId) {
-            $evaluatorFacultyId = $linkedSelfId;
-        }
-    } catch (Throwable $e) {
-        error_log('Peer evaluation self-link failed for profile ' . $evaluatorProfileId . ': ' . $e->getMessage());
-    }
-}
 
 // Calculate Statistics
 $totalPeers = count($peers);
@@ -237,16 +182,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         </span>
     </div>
 </div>
-
-<?php if (empty($evaluatorFacultyId)): ?>
-    <div class="alert alert-warning border-warning-subtle bg-warning-subtle text-warning-emphasis d-flex align-items-center gap-2 mb-3" role="alert">
-        <i class="fas fa-triangle-exclamation fs-5 flex-shrink-0"></i>
-        <div class="small">
-            <strong>Your account isn't linked to an official faculty record yet.</strong>
-            You can browse this directory, but evaluation submissions will be blocked until your profile is linked. Please contact the administrator.
-        </div>
-    </div>
-<?php endif; ?>
 
 <!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
@@ -319,7 +254,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </h6>
                 <small class="text-body-secondary">Rate your peers for current academic term</small>
             </div>
-            <!-- Filter Dropdown & Search Bar placed cleanly side-by-side -->
             <div class="col-12 col-md-6 d-flex gap-2 justify-content-md-end align-items-center flex-wrap">
                 <select id="peerStatusFilter" class="form-select form-select-sm bg-body text-body border-secondary-subtle" style="max-width: 150px;" onchange="filterPeers()">
                     <option value="">All Status</option>
@@ -380,8 +314,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                         <button class="btn btn-primary rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center justify-content-center" 
                                                 onclick="openEvaluationModal('<?= $peer['id'] ?>', '<?= addslashes($fullName) ?>', '<?= htmlspecialchars($peer['department']) ?>')" 
                                                 title="Evaluate Now" 
-                                                aria-label="Evaluate Now"
-                                                <?= empty($evaluatorFacultyId) ? 'disabled' : '' ?>>
+                                                aria-label="Evaluate Now">
                                             <i class="fas fa-star text-white"></i>
                                         </button>
                                     <?php endif; ?>
@@ -552,14 +485,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </table>
                     </div>
 
-                    <!-- Qualitative Feedback -->
                     <div class="mt-3">
                         <label for="evalRemarks" class="form-label fw-bold text-body small">Other Comments <small class="text-body-secondary fw-normal">(Optional)</small></label>
                         <textarea class="form-control bg-body text-body border-secondary-subtle" id="evalRemarks" name="remarks" rows="3" placeholder="Provide comments or feedback..."></textarea>
                     </div>
                 </div>
 
-                <!-- Modal Footer -->
                 <div class="modal-footer bg-body-tertiary border-top border-secondary-subtle">
                     <button type="button" class="btn btn-outline-secondary border-secondary-subtle" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary px-4">

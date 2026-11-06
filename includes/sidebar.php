@@ -244,7 +244,6 @@ $facultyAttendanceMonitoringNavGroups = [
 $facultyTeacherNavGroups = [
     'Faculty' => [
         ['slug' => 'dashboard', 'href' => BASE_URL . '/modules/faculty/views/faculty/dashboard.php', 'icon' => 'fa-tachometer-alt', 'label' => 'Dashboard'],
-        ['slug' => 'profile', 'href' => BASE_URL . '/modules/faculty/views/faculty/profile.php', 'icon' => 'fa-id-badge', 'label' => 'My Profile'],
         ['slug' => 'attendance', 'href' => BASE_URL . '/modules/faculty/views/faculty/attendance.php', 'icon' => 'fa-user-clock', 'label' => 'My Attendance'],
         ['slug' => 'my-schedule', 'href' => BASE_URL . '/modules/faculty/views/faculty/my-schedule.php', 'icon' => 'fa-calendar-alt', 'label' => 'My Schedule'],
     ],

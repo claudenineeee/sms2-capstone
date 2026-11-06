@@ -38,6 +38,10 @@ $assignedSubjects = [];
 $teachingLoadUnits = 0;
 
 $pendingAcknowledgement = false;
+
+// Load the page layout and breadcrumbs helper
+require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
+require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
 
 <link rel="stylesheet" href="<?= BASE_URL ?>/modules/faculty/assets/css/faculty.css">
