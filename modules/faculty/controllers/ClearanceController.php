@@ -18,22 +18,14 @@ function clearanceApiResponse(array $data, int $status = 200): never
 
 function clearanceApiDb(): PDO
 {
-    // PATCHED CONNECTION: Bypass facultyDb() and connect directly to HostForge env vars
-    try {
-        $host = getenv('DB_HOST')     ?: 'localhost';
-        $user = getenv('DB_USERNAME') ?: 'root';
-        $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
-        $name = getenv('DB_DATABASE') ?: 'faculty_db';
-        $port = (int) (getenv('DB_PORT') ?: 3306);
-        
-        $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
-        return new PDO($dsn, $user, $pass, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-        ]);
-    } catch (Throwable $e) {
-        clearanceApiResponse(['ok' => false, 'error' => 'Database connection failed: ' . $e->getMessage()], 503);
+    // Use the safe facultyDb() function defined in config/database.php
+    $pdo = function_exists('facultyDb') ? facultyDb() : null;
+    
+    if (!$pdo) {
+        clearanceApiResponse(['ok' => false, 'error' => 'Database connection failed.'], 503);
     }
+    
+    return $pdo;
 }
 
 try {

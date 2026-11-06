@@ -5,7 +5,7 @@
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
-require_once __DIR__ . '/../../controllers/faculty-data.php';
+require_once __DIR__ . '/../../config/database.php'; // Load the connection file
 
 requireAuth();
 
@@ -29,7 +29,13 @@ $thisWeekCount = 0;
 $importantCount = 0;
 
 try {
-    $pdo = facultyDb();
+    // FIX: Use the safe facultyDb() function
+    $pdo = function_exists('facultyDb') ? facultyDb() : null;
+    
+    if (!$pdo) {
+        throw new RuntimeException('Database connection failed.');
+    }
+
     $userId = (int) ($_SESSION['user_id'] ?? 0);
     $facultyProfileId = 0;
     $userEmail = '';

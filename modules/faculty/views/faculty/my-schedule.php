@@ -86,7 +86,12 @@ function smsMyScheduleTime(?string $time): string
 }
 
 try {
-    $pdo = getFacultyDatabaseConnection();
+    // FIX: Use safe facultyDb() instead of the broken getFacultyDatabaseConnection()
+    $pdo = function_exists('facultyDb') ? facultyDb() : null;
+    if (!$pdo) {
+        throw new Exception('Database connection failed.');
+    }
+
     $termsStmt = $pdo->prepare("SELECT DISTINCT t.term_id, t.academic_year, t.semester, t.is_current
         FROM teaching_load_final_records fr
         JOIN teaching_load_requests r ON r.load_request_id = fr.load_request_id
@@ -157,13 +162,33 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-<?php if ($scheduleError !== ''): ?><div class="alert alert-danger" role="alert"><?= e($scheduleError) ?></div><?php endif; ?>
-<?php if ($pendingAcknowledgement): ?>
-    <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
-        <span>A teaching load is waiting for your acknowledgement.</span>
-        <a class="btn btn-sm btn-primary" href="<?= BASE_URL ?>/modules/faculty/views/teaching-load-workflow.php">Review teaching load</a>
-    </div>
-<?php endif; ?>
+<!-- Toast Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+    <?php if ($scheduleError !== ''): ?>
+        <div id="statusToast" class="toast align-items-center text-bg-danger border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center gap-2">
+                    <i class="fas fa-exclamation-triangle fs-5"></i>
+                    <span><?= e($scheduleError) ?></span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($pendingAcknowledgement): ?>
+        <div id="pendingToast" class="toast align-items-center text-bg-info border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="7000">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center gap-2">
+                    <i class="fas fa-info-circle fs-5"></i>
+                    <span>A teaching load is waiting for your acknowledgement.</span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                <a href="<?= BASE_URL ?>/modules/faculty/views/teaching-load-workflow.php" class="btn btn-sm btn-light text-info fw-bold me-2 my-auto text-nowrap">Review</a>
+            </div>
+        </div>
+    <?php endif; ?>
+</div>
 
 <!-- Page Header -->
 <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -401,6 +426,16 @@ function changeView() {
     document.getElementById('weeklyView')?.classList.toggle('d-none', viewType !== 'weekly');
     document.getElementById('dailyView')?.classList.toggle('d-none', viewType !== 'daily');
 }
+
+// Initialize Toasts
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+        ['statusToast', 'pendingToast'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) new bootstrap.Toast(el).show();
+        });
+    }
+});
 </script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

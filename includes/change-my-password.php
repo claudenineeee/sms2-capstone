@@ -1,7 +1,7 @@
 <?php
 /**
  * Change My Password — shared endpoint (lives at /includes/change-my-password.php).
- * Updates sms2_db.users.password_hash for the currently logged-in user.
+ * Updates users.password_hash for the currently logged-in user.
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -61,25 +61,12 @@ if ($newPassword !== $confirmPassword) {
 }
 
 /* ---------------------------------------------------------------
- | Connect to sms2_db
+ | Connect to the database
  * --------------------------------------------------------------- */
-try {
-    if (function_exists('smsDb')) {
-        $pdo = smsDb();
-    } elseif (isset($pdo) && $pdo instanceof PDO) {
-        // Already opened by config.php
-    } else {
-        $host = defined('DB_HOST') ? DB_HOST : 'localhost';
-        $name = defined('SMS2_DB_NAME') ? SMS2_DB_NAME : (defined('DB_NAME') ? DB_NAME : 'sms2_db');
-        $user = defined('DB_USER') ? DB_USER : 'root';
-        $pass = defined('DB_PASS') ? DB_PASS : '';
-        $pdo = new PDO("mysql:host={$host};dbname={$name};charset=utf8mb4", $user, $pass, [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-    }
-} catch (Throwable $e) {
-    error_log('[change-my-password] db connect failed: ' . $e->getMessage());
+// FIX: Use the safe db() function, which handles HostForge env vars
+$pdo = function_exists('db') ? db() : null;
+
+if (!$pdo) {
     cmp_json_fail('Could not connect to the authentication database.', 500);
 }
 

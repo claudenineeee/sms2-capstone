@@ -158,981 +158,139 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
 }
 ?>
 <style>
-    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-       FACULTY CLEARANCE PORTAL â€” Modern Clean Styles
-       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-    .clr-page {
-        padding: 1.5rem 1.75rem;
-        width: 100%;
-        max-width: 100%;
-        margin: 0;
-    }
-
-    /* â”€â”€ Workflow Lifecycle Stepper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .clr-flow-stepper {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: var(--bs-body-bg);
-        border: 1px solid var(--bs-border-color);
-        border-radius: 1rem;
-        padding: 1.25rem 1.75rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, .04);
-        position: relative;
-        overflow-x: auto;
-    }
-
-    .clr-flow-step {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        position: relative;
-        z-index: 2;
-        min-width: 110px;
-    }
-
-    .clr-flow-circle {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: .85rem;
-        font-weight: 700;
-        margin-bottom: .45rem;
-        border: 2.5px solid var(--bs-border-color);
-        background: var(--bs-body-bg);
-        color: var(--bs-secondary-color);
-        transition: all .25s ease;
-    }
-
-    .clr-flow-step.active .clr-flow-circle {
-        border-color: #0d6efd;
-        background: #0d6efd;
-        color: #fff;
-        box-shadow: 0 0 0 4px rgba(13, 110, 253, .18);
-    }
-
-    .clr-flow-step.completed .clr-flow-circle {
-        border-color: #198754;
-        background: #198754;
-        color: #fff;
-    }
-
-    .clr-flow-step.deficiency .clr-flow-circle {
-        border-color: #dc3545;
-        background: #dc3545;
-        color: #fff;
-    }
-
-    .clr-flow-title {
-        font-size: .74rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: .04em;
-        color: var(--bs-secondary-color);
-        line-height: 1.2;
-    }
-
-    .clr-flow-step.active .clr-flow-title {
-        color: #0d6efd;
-    }
-
-    .clr-flow-step.completed .clr-flow-title {
-        color: #198754;
-    }
-
-    .clr-flow-step.deficiency .clr-flow-title {
-        color: #dc3545;
-    }
-
-    .clr-flow-divider {
-        flex: 1;
-        height: 2px;
-        background: var(--bs-border-color);
-        margin: 0 .5rem 1.2rem;
-        position: relative;
-        z-index: 1;
-    }
-
-    .clr-flow-divider.completed {
-        background: #198754;
-    }
-
-    /* â”€â”€ Sections & Cards (Dean Faculty Directory style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .clr-card {
-        background: var(--bs-card-bg, var(--bs-body-bg));
-        border: 0 !important;
-        border-radius: 1rem;
-        box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
-        margin-bottom: 1.5rem;
-        overflow: hidden;
-    }
-
-    .clr-card-header {
-        padding: 1rem 1.4rem;
-        background-color: var(--bs-primary, #0d6efd);
-        color: #ffffff;
-        border-bottom: 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        flex-wrap: wrap;
-    }
-
-    .clr-card-header .fw-bold,
-    .clr-card-header h5,
-    .clr-card-header h6,
-    .clr-card-header .card-title {
-        color: #ffffff !important;
-    }
-
-    .clr-card-header .text-body-secondary,
-    .clr-card-header .small {
-        color: rgba(255, 255, 255, 0.78) !important;
-    }
-
-    .card-header .rounded-circle.bg-white,
-    .office-card-header .rounded-circle.bg-white,
-    .clr-card-header .rounded-circle.bg-white,
-    .clr-card-icon-wrap,
-    .office-icon-wrap {
-        width: 42px;
-        height: 42px;
-        border-radius: 50%;
-        background-color: #ffffff !important;
-        color: var(--bs-primary, #0d6efd) !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.15rem;
-        flex-shrink: 0;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, .12);
-    }
-
-    .card-header .rounded-circle.bg-white i,
-    .office-card-header .rounded-circle.bg-white i,
-    .clr-card-header .rounded-circle.bg-white i,
-    .clr-card-icon-wrap i,
-    .office-icon-wrap i {
-        color: var(--bs-primary, #0d6efd) !important;
-    }
-
-    .clr-info-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-        gap: 1.1rem 1.4rem;
-        padding: 1.25rem 1.4rem;
-    }
-
-    .clr-info-label {
-        font-size: .7rem;
-        font-weight: 700;
-        letter-spacing: .05em;
-        text-transform: uppercase;
-        color: var(--bs-secondary-color);
-        margin-bottom: .2rem;
-    }
-
-    .clr-info-value {
-        font-size: .88rem;
-        font-weight: 600;
-        color: var(--bs-body-color);
-    }
-
-    /* â”€â”€ Progress Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .clr-progress-bar-wrap {
-        height: 10px;
-        border-radius: 50px;
-        background: var(--bs-border-color);
-        overflow: hidden;
-    }
-
-    .clr-progress-fill {
-        height: 100%;
-        border-radius: 50px;
-        background: linear-gradient(90deg, #1a2e5a, #0d6efd);
-        transition: width .5s ease;
-    }
-
-    .clr-progress-fill.full {
-        background: linear-gradient(90deg, #198754, #20c997);
-    }
-
-    /* â”€â”€ Office Section Grid & Cards (Dean Faculty Directory style) â”€â”€ */
-    .office-card {
-        background: var(--bs-card-bg, var(--bs-body-bg));
-        border: 0 !important;
-        border-radius: 1rem;
-        box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
-        overflow: hidden;
-        transition: transform .2s ease, box-shadow .2s ease;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        position: relative;
-    }
-
-    .office-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .1) !important;
-    }
-
-    .office-card-header {
-        padding: 1rem 1.25rem;
-        background-color: var(--bs-primary, #0d6efd);
-        color: #ffffff;
-        border-bottom: 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-    }
-
-    .office-card-header .fw-bold {
-        color: #ffffff !important;
-    }
-
-    .office-card-header .text-body-secondary {
-        color: rgba(255, 255, 255, 0.78) !important;
-    }
-
-    /* Status chip on primary office header â€” white pill badges */
-    .office-card-header .clr-chip,
-    .card-header .clr-chip {
-        background: #ffffff !important;
-        border: none !important;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
-    }
-
-    .office-card-header .clr-chip-cleared {
-        color: #198754 !important;
-    }
-
-    .office-card-header .clr-chip-ready {
-        color: #0d6efd !important;
-    }
-
-    .office-card-header .clr-chip-review {
-        color: #0d6efd !important;
-    }
-
-    .office-card-header .clr-chip-deficiency {
-        color: #dc3545 !important;
-    }
-
-    .office-card-header .clr-chip-onhold {
-        color: #997404 !important;
-    }
-
-    .office-card-header .clr-chip-pending {
-        color: #6c757d !important;
-    }
-
-    .office-card-header .clr-chip-locked {
-        color: #6c757d !important;
-        background: #f1f3f5 !important;
-    }
-
-    /* â”€â”€ Dark Mode Consistency (Matches the User's Dark Theme Banner) â”€â”€ */
-    [data-theme="dark"] .clr-card,
-    [data-theme="dark"] .office-card {
-        background: var(--sms-surface, rgba(18, 28, 52, 0.72)) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    }
-
-    [data-theme="dark"] .clr-card-header,
-    [data-theme="dark"] .office-card-header,
-    [data-theme="dark"] .card-header.bg-primary {
-        background-color: rgba(96, 165, 250, 0.22) !important;
-        color: #ffffff !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-    }
-
-    [data-theme="dark"] .card-header .rounded-circle.bg-white,
-    [data-theme="dark"] .office-card-header .rounded-circle.bg-white,
-    [data-theme="dark"] .clr-card-header .rounded-circle.bg-white,
-    [data-theme="dark"] .clr-card-icon-wrap,
-    [data-theme="dark"] .office-icon-wrap,
-    [data-theme="dark"] .rounded-circle.bg-white {
-        background-color: var(--sms-surface-muted, #131c30) !important;
-        color: var(--sms-primary, #60a5fa) !important;
-        border: 1px solid rgba(96, 165, 250, 0.2) !important;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, .3) !important;
-    }
-
-    [data-theme="dark"] .card-header .rounded-circle.bg-white i,
-    [data-theme="dark"] .office-card-header .rounded-circle.bg-white i,
-    [data-theme="dark"] .clr-card-header .rounded-circle.bg-white i,
-    [data-theme="dark"] .clr-card-icon-wrap i,
-    [data-theme="dark"] .office-icon-wrap i {
-        color: var(--sms-primary, #60a5fa) !important;
-    }
-
-    [data-theme="dark"] .card-header .btn-light {
-        background-color: #ffffff !important;
-        color: #2563eb !important;
-        border: none !important;
-    }
-
-    [data-theme="dark"] .card-header .badge.bg-white,
-    [data-theme="dark"] .office-card-header .clr-chip,
-    [data-theme="dark"] .card-header .clr-chip {
-        background-color: var(--sms-surface-muted, #131c30) !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, .2) !important;
-    }
-
-    [data-theme="dark"] .office-card-header .clr-chip-cleared {
-        color: #34d399 !important;
-    }
-
-    [data-theme="dark"] .office-card-header .clr-chip-ready {
-        color: #60a5fa !important;
-    }
-
-    [data-theme="dark"] .office-card-header .clr-chip-review {
-        color: #60a5fa !important;
-    }
-
-    [data-theme="dark"] .office-card-header .clr-chip-deficiency {
-        color: #f87171 !important;
-    }
-
-    [data-theme="dark"] .office-card-header .clr-chip-onhold {
-        color: #fbbf24 !important;
-    }
-
-    [data-theme="dark"] .office-card-header .clr-chip-pending {
-        color: #94a3b8 !important;
-    }
-
-    [data-theme="dark"] .office-card-header .clr-chip-locked {
-        color: #94a3b8 !important;
-        background-color: rgba(30, 41, 59, 0.9) !important;
-    }
-
-    [data-theme="dark"] .clr-flow-stepper {
-        background: var(--sms-surface, rgba(18, 28, 52, 0.72)) !important;
-        border-color: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    [data-theme="dark"] .clr-flow-circle {
-        background: var(--sms-surface-muted, #131c30) !important;
-        border-color: rgba(255, 255, 255, 0.15) !important;
-        color: var(--sms-text-muted, #94a3b8) !important;
-    }
-
-    [data-theme="dark"] .clr-flow-step.active .clr-flow-circle {
-        border-color: #60a5fa !important;
-        background: #3b82f6 !important;
-        color: #fff !important;
-        box-shadow: 0 0 0 4px rgba(96, 165, 250, .25) !important;
-    }
-
-    [data-theme="dark"] .clr-flow-step.completed .clr-flow-circle {
-        border-color: #34d399 !important;
-        background: #10b981 !important;
-        color: #fff !important;
-    }
-
-    [data-theme="dark"] .clr-flow-divider {
-        background: rgba(255, 255, 255, 0.12) !important;
-    }
-
-    [data-theme="dark"] .clr-flow-divider.completed {
-        background: #10b981 !important;
-    }
-
-    [data-theme="dark"] .clr-info-label {
-        color: var(--sms-text-muted, #94a3b8) !important;
-    }
-
-    [data-theme="dark"] .clr-info-value {
-        color: var(--sms-text-strong, #f8fafc) !important;
-    }
-
-    [data-theme="dark"] .office-checklist li {
-        color: var(--sms-text, #cbd5e1) !important;
-    }
-
-    [data-theme="dark"] .office-upload-zone {
-        background: rgba(15, 23, 42, 0.4) !important;
-        border-color: rgba(255, 255, 255, 0.12) !important;
-    }
-
-    [data-theme="dark"] .office-upload-zone:hover {
-        border-color: rgba(96, 165, 250, 0.4) !important;
-        background: rgba(15, 23, 42, 0.6) !important;
-    }
-
-    .office-card-body {
-        padding: 1.15rem 1.25rem;
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        gap: .85rem;
-    }
-
-    .office-checklist {
-        list-style: none;
-        padding-left: 0;
-        margin-bottom: 0;
-        font-size: .8rem;
-    }
-
-    .office-checklist li {
-        padding: .25rem 0;
-        display: flex;
-        align-items: flex-start;
-        gap: .5rem;
-        color: var(--bs-body-color);
-        line-height: 1.35;
-    }
-
-    .office-checklist li i {
-        font-size: .75rem;
-        margin-top: .2rem;
-        color: var(--bs-secondary-color);
-        opacity: .7;
-    }
-
-    .office-checklist li i.text-danger {
-        color: #dc3545 !important;
-        opacity: 1 !important;
-    }
-
-    .office-checklist li i.text-success {
-        color: #198754 !important;
-        opacity: 1 !important;
-    }
-
-    /* â”€â”€ Status Badges & Chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .clr-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        padding: .3rem .75rem;
-        border-radius: 50px;
-        font-size: .74rem;
-        font-weight: 700;
-        letter-spacing: .02em;
-        white-space: nowrap;
-    }
-
-    .clr-chip-cleared {
-        background: rgba(25, 135, 84, .12);
-        color: #198754;
-        border: 1px solid rgba(25, 135, 84, .3);
-    }
-
-    .clr-chip-ready {
-        background: rgba(13, 110, 253, .12);
-        color: #0d6efd;
-        border: 1px solid rgba(13, 110, 253, .3);
-    }
-
-    .clr-chip-review {
-        background: rgba(13, 202, 240, .12);
-        color: #0aa2c0;
-        border: 1px solid rgba(13, 202, 240, .3);
-    }
-
-    .clr-chip-deficiency {
-        background: rgba(220, 53, 69, .12);
-        color: #dc3545;
-        border: 1px solid rgba(220, 53, 69, .3);
-    }
-
-    .clr-chip-onhold {
-        background: rgba(255, 193, 7, .15);
-        color: #997404;
-        border: 1px solid rgba(255, 193, 7, .35);
-    }
-
-    .clr-chip-pending {
-        background: rgba(108, 117, 125, .1);
-        color: var(--bs-secondary-color);
-        border: 1px solid rgba(108, 117, 125, .25);
-    }
-
-    .clr-chip-locked {
-        background: rgba(108, 117, 125, .15);
-        color: #6c757d;
-        border: 1px solid rgba(108, 117, 125, .3);
-    }
-
-    /* Sequential Unlocking & Locked Card Styles */
-    .office-card.office-card-locked {
-        opacity: 0.72;
-        border-color: #dee2e6 !important;
-        background-color: #f8f9fa;
-        transition: all 0.3s ease;
-    }
-
-    .office-card.office-card-locked .office-card-header {
-        background: #6c757d !important;
-        background-color: #6c757d !important;
-    }
-
-    .office-card.office-card-locked .office-card-header .rounded-circle {
-        background-color: #e9ecef !important;
-        color: #6c757d !important;
-    }
-
-    .office-card.office-card-locked .office-card-header .rounded-circle i {
-        color: #6c757d !important;
-    }
-
-    .office-card.office-card-locked .office-upload-zone {
-        background-color: #f1f3f5 !important;
-        border-color: #ced4da !important;
-        cursor: not-allowed !important;
-        pointer-events: none;
-    }
-
-    .office-card.office-card-locked .office-checklist {
-        opacity: 0.65;
-    }
-
-    [data-theme="dark"] .office-card.office-card-locked {
-        opacity: 0.65;
-        background: rgba(18, 28, 52, 0.45) !important;
-        border-color: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    [data-theme="dark"] .office-card.office-card-locked .office-card-header {
-        background: rgba(71, 85, 105, 0.4) !important;
-        background-color: rgba(71, 85, 105, 0.4) !important;
-    }
-
-    [data-theme="dark"] .office-card.office-card-locked .office-card-header .rounded-circle {
-        background-color: rgba(30, 41, 59, 0.8) !important;
-        color: #94a3b8 !important;
-    }
-
-    [data-theme="dark"] .office-card.office-card-locked .office-card-header .rounded-circle i {
-        color: #94a3b8 !important;
-    }
-
-    [data-theme="dark"] .office-card.office-card-locked .office-upload-zone {
-        background-color: rgba(15, 23, 42, 0.35) !important;
-        border-color: rgba(255, 255, 255, 0.06) !important;
-    }
-
-    /* â”€â”€ Remarks & Deficiency Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .office-deficiency-box {
-        padding: .75rem .9rem;
-        border-radius: .5rem;
-        background: rgba(220, 53, 69, .08);
-        border: 1px solid rgba(220, 53, 69, .25);
-        color: #842029;
-        font-size: .78rem;
-    }
-
-    .office-onhold-box {
-        padding: .75rem .9rem;
-        border-radius: .5rem;
-        background: rgba(255, 193, 7, .1);
-        border: 1px solid rgba(255, 193, 7, .3);
-        color: #664d03;
-        font-size: .78rem;
-    }
-
-    /* â”€â”€ Declaration & Action Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .clr-declaration {
-        padding: 1.25rem 1.4rem;
-        background: rgba(var(--bs-primary-rgb), .02);
-        border-top: 1px solid var(--bs-border-color);
-    }
-
-    .clr-form-footer {
-        padding: 1rem 1.4rem;
-        border-top: 1px solid var(--bs-border-color);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: .75rem;
-        background: var(--bs-tertiary-bg, rgba(0, 0, 0, .02));
-    }
-
-    /* Dark mode: suppress bright Bootstrap alert-success & body-tertiary panels */
-    [data-bs-theme="dark"] .clr-form-footer,
-    [data-theme="dark"] .clr-form-footer {
-        background: rgba(255, 255, 255, 0.04) !important;
-        border-top-color: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    [data-bs-theme="dark"] .alert.alert-success,
-    [data-theme="dark"] .alert.alert-success {
-        background-color: rgba(34, 197, 94, 0.12) !important;
-        border-color: rgba(34, 197, 94, 0.25) !important;
-        color: #86efac !important;
-    }
-
-    [data-bs-theme="dark"] .alert.alert-success strong,
-    [data-theme="dark"] .alert.alert-success strong {
-        color: #bbf7d0 !important;
-    }
-
-    [data-bs-theme="dark"] .p-3.bg-body-tertiary.rounded-3.border,
-    [data-theme="dark"] .p-3.bg-body-tertiary.rounded-3.border {
-        background-color: rgba(255, 255, 255, 0.04) !important;
-        border-color: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    .btn-clr-primary {
-        background: linear-gradient(135deg, #1a2e5a, #0d6efd);
-        color: #fff;
-        border: none;
-        border-radius: .5rem;
-        padding: .6rem 1.5rem;
-        font-size: .88rem;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        transition: all .2s ease;
-        box-shadow: 0 3px 10px rgba(13, 110, 253, .25);
-    }
-
-    .btn-clr-primary:hover:not(:disabled) {
-        opacity: .92;
-        transform: translateY(-1px);
-        box-shadow: 0 5px 15px rgba(13, 110, 253, .35);
-        color: #fff;
-    }
-
-    .btn-clr-primary:disabled {
-        opacity: .45;
-        cursor: not-allowed;
-    }
-
-    @media print {
-
-        .btn-clr-primary,
-        .clr-flow-stepper,
-        .office-upload-zone,
-        #facultyAlert,
-        .btn-close {
-            display: none !important;
-        }
-    }
-
-    /* â”€â”€ Upload Zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .office-upload-zone {
-        border: 2px dashed var(--bs-border-color);
-        border-radius: .65rem;
-        padding: 1rem;
-        text-align: center;
-        background: rgba(var(--bs-primary-rgb), .015);
-        transition: border-color .2s ease, background .2s ease;
-        cursor: default;
-        position: relative;
-    }
-
-    .office-upload-zone:not(.upload-blocked):hover {
-        border-color: rgba(13, 110, 253, .5);
-        background: rgba(13, 110, 253, .03);
-    }
-
-    .office-upload-zone.dragover {
-        border-color: #0d6efd;
-        background: rgba(13, 110, 253, .07);
-        box-shadow: 0 0 0 3px rgba(13, 110, 253, .12);
-    }
-
-    .office-upload-zone.upload-blocked {
-        border-style: solid;
-        cursor: not-allowed;
-    }
-
-    .upload-zone-inner {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .35rem;
-    }
-
-    .upload-hint-text {
-        font-size: .72rem;
-        color: var(--bs-secondary-color);
-        line-height: 1.35;
-    }
-
-    .btn-upload-choose {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        padding: .3rem .85rem;
-        border-radius: .4rem;
-        font-size: .76rem;
-        font-weight: 600;
-        background: rgba(13, 110, 253, .08);
-        color: #0d6efd;
-        border: 1px solid rgba(13, 110, 253, .3);
-        cursor: pointer;
-        transition: all .18s ease;
-        margin-top: .3rem;
-        white-space: nowrap;
-    }
-
-    .btn-upload-choose:hover {
-        background: rgba(13, 110, 253, .15);
-        border-color: #0d6efd;
-    }
-
-    .upload-file-preview {
-        display: flex;
-        align-items: center;
-        gap: .35rem;
-        font-size: .74rem;
-        color: var(--bs-body-color);
-        background: rgba(220, 53, 69, .05);
-        border: 1px solid rgba(220, 53, 69, .18);
-        border-radius: .4rem;
-        padding: .3rem .65rem;
-        margin-bottom: .6rem;
-        text-align: left;
-        overflow: hidden;
-    }
-
-    .upload-file-name {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        max-width: 160px;
-    }
-
-    .upload-actions {
-        margin-top: .6rem;
-        padding-top: .6rem;
-        border-top: 1px solid var(--bs-border-color);
-    }
-
-    .upload-selected-name {
-        font-size: .74rem;
-        font-weight: 600;
-        color: #0d6efd;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .upload-progress-wrap {
-        height: 5px;
-        border-radius: 50px;
-        background: var(--bs-border-color);
-        overflow: hidden;
-        margin-top: .65rem;
-    }
-
-    .upload-progress-bar {
-        height: 100%;
-        border-radius: 50px;
-        background: linear-gradient(90deg, #1a2e5a, #0d6efd);
-        width: 0%;
-        transition: width .4s ease;
-        animation: uploadPulse 1.2s ease-in-out infinite;
-    }
-
-    @keyframes uploadPulse {
-
-        0%,
-        100% {
-            opacity: 1;
-        }
-
-        50% {
-            opacity: .7;
-        }
-    }
-
-    /* â”€â”€ Digital Signature & Declaration Box â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .signature-pad-container {
-        border: 2px dashed var(--bs-border-color);
-        border-radius: .75rem;
-        background: #ffffff;
-        position: relative;
-        overflow: hidden;
-        cursor: crosshair;
-        width: 100%;
-        max-width: 100%;
-    }
-
-    [data-bs-theme="dark"] .signature-pad-container,
-    [data-theme="dark"] .signature-pad-container {
-        background: #1e293b !important;
-        border-color: rgba(255, 255, 255, 0.15) !important;
-    }
-
-    .signature-pad-canvas {
-        display: block;
-        width: 100%;
-        height: 140px;
-        touch-action: none;
-        background: transparent;
-    }
-
-    .signature-baseline {
-        position: absolute;
-        bottom: 30px;
-        left: 20px;
-        right: 20px;
-        border-bottom: 1px dashed var(--bs-border-color);
-        pointer-events: none;
-    }
-
-    .signature-hint {
-        position: absolute;
-        bottom: 6px;
-        left: 20px;
-        font-size: 0.7rem;
-        color: var(--bs-secondary-color);
-        pointer-events: none;
-    }
-
-    .signature-preview-img {
-        max-height: 75px;
-        max-width: 260px;
-        object-fit: contain;
-        display: block;
-    }
-
-    /* â”€â”€ Clearance Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-    .clr-conduct-doc {
-        background: var(--bs-body-bg);
-        border: 1px solid var(--bs-border-color);
-        border-radius: 0.85rem;
-        padding: 2.25rem 2.5rem;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-    }
-
-    .clr-conduct-header {
-        text-align: center;
-        border-bottom: 2px solid rgba(var(--bs-primary-rgb), 0.35);
-        padding-bottom: 1.25rem;
-        margin-bottom: 1.75rem;
-    }
-
-    .clr-conduct-title {
-        font-size: 1.35rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--bs-body-color);
-        margin-bottom: 0.35rem;
-    }
-
-    .clr-conduct-subheading {
-        font-size: 0.82rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #0d6efd;
-    }
-
-    .clr-conduct-section-label {
-        font-size: 0.92rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--bs-body-color);
-        padding-bottom: 0.4rem;
-        border-bottom: 1px solid var(--bs-border-color);
-        margin-top: 1.75rem;
-        margin-bottom: 1.2rem;
-    }
-
-    .clr-conduct-field-row {
-        display: flex;
-        align-items: baseline;
-        gap: 0.5rem;
-        margin-bottom: 0.65rem;
-        font-size: 0.92rem;
-    }
-
-    .clr-conduct-label {
-        font-weight: 700;
-        color: var(--bs-body-color);
-        white-space: nowrap;
-        min-width: 175px;
-    }
-
-    .clr-conduct-underline {
-        display: inline-block;
-        min-width: 320px;
-        max-width: 100%;
-        border-bottom: 1.5px solid var(--bs-body-color);
-        padding: 0 0.35rem 2px;
-        font-weight: 700;
-        color: #0d6efd;
-    }
-
-    .clr-conduct-inline-underline {
-        display: inline;
-        border-bottom: 1.5px solid var(--bs-body-color);
-        padding: 0 0.15rem 1px;
-        font-weight: 700;
-        color: #0d6efd;
-    }
-
-    .clr-conduct-para {
-        font-size: 0.95rem;
-        line-height: 1.8;
-        color: var(--bs-body-color);
-        margin-bottom: 1.15rem;
-    }
-
-    .clr-conduct-list {
-        list-style: none;
-        padding-left: 0;
-        margin-bottom: 1.5rem;
-    }
-
-    .clr-conduct-list li {
-        position: relative;
-        padding-left: 1.6rem;
-        margin-bottom: 0.65rem;
-        font-size: 0.92rem;
-        line-height: 1.55;
-        color: var(--bs-body-color);
-    }
-
-    .clr-conduct-list li::before {
-        content: "";
-        position: absolute;
-        left: 0.5rem;
-        top: -0.1rem;
-        color: #0d6efd;
-        font-size: 1.25rem;
-        font-weight: bold;
-    }
-
-    .clr-conduct-ack-box {
-        background: rgba(13, 110, 253, 0.04);
-        border: 1px solid rgba(13, 110, 253, 0.25);
-        border-radius: 0.65rem;
-        padding: 1rem 1.25rem;
-    }
+    /* ... Keep all your existing CSS styles here ... */
+    .clr-page { padding: 1.5rem 1.75rem; width: 100%; max-width: 100%; margin: 0; }
+    .clr-flow-stepper { display: flex; align-items: center; justify-content: space-between; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 1.25rem 1.75rem; margin-bottom: 1.5rem; box-shadow: 0 2px 10px rgba(0, 0, 0, .04); position: relative; overflow-x: auto; }
+    .clr-flow-step { display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; z-index: 2; min-width: 110px; }
+    .clr-flow-circle { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .85rem; font-weight: 700; margin-bottom: .45rem; border: 2.5px solid var(--bs-border-color); background: var(--bs-body-bg); color: var(--bs-secondary-color); transition: all .25s ease; }
+    .clr-flow-step.active .clr-flow-circle { border-color: #0d6efd; background: #0d6efd; color: #fff; box-shadow: 0 0 0 4px rgba(13, 110, 253, .18); }
+    .clr-flow-step.completed .clr-flow-circle { border-color: #198754; background: #198754; color: #fff; }
+    .clr-flow-step.deficiency .clr-flow-circle { border-color: #dc3545; background: #dc3545; color: #fff; }
+    .clr-flow-title { font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); line-height: 1.2; }
+    .clr-flow-step.active .clr-flow-title { color: #0d6efd; }
+    .clr-flow-step.completed .clr-flow-title { color: #198754; }
+    .clr-flow-step.deficiency .clr-flow-title { color: #dc3545; }
+    .clr-flow-divider { flex: 1; height: 2px; background: var(--bs-border-color); margin: 0 .5rem 1.2rem; position: relative; z-index: 1; }
+    .clr-flow-divider.completed { background: #198754; }
+    .clr-card { background: var(--bs-card-bg, var(--bs-body-bg)); border: 0 !important; border-radius: 1rem; box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important; margin-bottom: 1.5rem; overflow: hidden; }
+    .clr-card-header { padding: 1rem 1.4rem; background-color: var(--bs-primary, #0d6efd); color: #ffffff; border-bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+    .clr-card-header .fw-bold, .clr-card-header h5, .clr-card-header h6, .clr-card-header .card-title { color: #ffffff !important; }
+    .clr-card-header .text-body-secondary, .clr-card-header .small { color: rgba(255, 255, 255, 0.78) !important; }
+    .card-header .rounded-circle.bg-white, .office-card-header .rounded-circle.bg-white, .clr-card-header .rounded-circle.bg-white, .clr-card-icon-wrap, .office-icon-wrap { width: 42px; height: 42px; border-radius: 50%; background-color: #ffffff !important; color: var(--bs-primary, #0d6efd) !important; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex-shrink: 0; box-shadow: 0 2px 5px rgba(0, 0, 0, .12); }
+    .card-header .rounded-circle.bg-white i, .office-card-header .rounded-circle.bg-white i, .clr-card-header .rounded-circle.bg-white i, .clr-card-icon-wrap i, .office-icon-wrap i { color: var(--bs-primary, #0d6efd) !important; }
+    .clr-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1.1rem 1.4rem; padding: 1.25rem 1.4rem; }
+    .clr-info-label { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .2rem; }
+    .clr-info-value { font-size: .88rem; font-weight: 600; color: var(--bs-body-color); }
+    .clr-progress-bar-wrap { height: 10px; border-radius: 50px; background: var(--bs-border-color); overflow: hidden; }
+    .clr-progress-fill { height: 100%; border-radius: 50px; background: linear-gradient(90deg, #1a2e5a, #0d6efd); transition: width .5s ease; }
+    .clr-progress-fill.full { background: linear-gradient(90deg, #198754, #20c997); }
+    .office-card { background: var(--bs-card-bg, var(--bs-body-bg)); border: 0 !important; border-radius: 1rem; box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important; overflow: hidden; transition: transform .2s ease, box-shadow .2s ease; display: flex; flex-direction: column; height: 100%; position: relative; }
+    .office-card:hover { transform: translateY(-2px); box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .1) !important; }
+    .office-card-header { padding: 1rem 1.25rem; background-color: var(--bs-primary, #0d6efd); color: #ffffff; border-bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+    .office-card-header .fw-bold { color: #ffffff !important; }
+    .office-card-header .text-body-secondary { color: rgba(255, 255, 255, 0.78) !important; }
+    .office-card-header .clr-chip, .card-header .clr-chip { background: #ffffff !important; border: none !important; box-shadow: 0 1px 4px rgba(0, 0, 0, .15); }
+    .office-card-header .clr-chip-cleared { color: #198754 !important; }
+    .office-card-header .clr-chip-ready { color: #0d6efd !important; }
+    .office-card-header .clr-chip-review { color: #0d6efd !important; }
+    .office-card-header .clr-chip-deficiency { color: #dc3545 !important; }
+    .office-card-header .clr-chip-onhold { color: #997404 !important; }
+    .office-card-header .clr-chip-pending { color: #6c757d !important; }
+    .office-card-header .clr-chip-locked { color: #6c757d !important; background: #f1f3f5 !important; }
+    .office-card-body { padding: 1.15rem 1.25rem; flex-grow: 1; display: flex; flex-direction: column; gap: .85rem; }
+    .office-checklist { list-style: none; padding-left: 0; margin-bottom: 0; font-size: .8rem; }
+    .office-checklist li { padding: .25rem 0; display: flex; align-items: flex-start; gap: .5rem; color: var(--bs-body-color); line-height: 1.35; }
+    .office-checklist li i { font-size: .75rem; margin-top: .2rem; color: var(--bs-secondary-color); opacity: .7; }
+    .office-checklist li i.text-danger { color: #dc3545 !important; opacity: 1 !important; }
+    .office-checklist li i.text-success { color: #198754 !important; opacity: 1 !important; }
+    .clr-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .75rem; border-radius: 50px; font-size: .74rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+    .clr-chip-cleared { background: rgba(25, 135, 84, .12); color: #198754; border: 1px solid rgba(25, 135, 84, .3); }
+    .clr-chip-ready { background: rgba(13, 110, 253, .12); color: #0d6efd; border: 1px solid rgba(13, 110, 253, .3); }
+    .clr-chip-review { background: rgba(13, 202, 240, .12); color: #0aa2c0; border: 1px solid rgba(13, 202, 240, .3); }
+    .clr-chip-deficiency { background: rgba(220, 53, 69, .12); color: #dc3545; border: 1px solid rgba(220, 53, 69, .3); }
+    .clr-chip-onhold { background: rgba(255, 193, 7, .15); color: #997404; border: 1px solid rgba(255, 193, 7, .35); }
+    .clr-chip-pending { background: rgba(108, 117, 125, .1); color: var(--bs-secondary-color); border: 1px solid rgba(108, 117, 125, .25); }
+    .clr-chip-locked { background: rgba(108, 117, 125, .15); color: #6c757d; border: 1px solid rgba(108, 117, 125, .3); }
+    .office-card.office-card-locked { opacity: 0.72; border-color: #dee2e6 !important; background-color: #f8f9fa; transition: all 0.3s ease; }
+    .office-card.office-card-locked .office-card-header { background: #6c757d !important; background-color: #6c757d !important; }
+    .office-card.office-card-locked .office-card-header .rounded-circle { background-color: #e9ecef !important; color: #6c757d !important; }
+    .office-card.office-card-locked .office-card-header .rounded-circle i { color: #6c757d !important; }
+    .office-card.office-card-locked .office-upload-zone { background-color: #f1f3f5 !important; border-color: #ced4da !important; cursor: not-allowed !important; pointer-events: none; }
+    .office-card.office-card-locked .office-checklist { opacity: 0.65; }
+    .office-deficiency-box { padding: .75rem .9rem; border-radius: .5rem; background: rgba(220, 53, 69, .08); border: 1px solid rgba(220, 53, 69, .25); color: #842029; font-size: .78rem; }
+    .office-onhold-box { padding: .75rem .9rem; border-radius: .5rem; background: rgba(255, 193, 7, .1); border: 1px solid rgba(255, 193, 7, .3); color: #664d03; font-size: .78rem; }
+    .clr-declaration { padding: 1.25rem 1.4rem; background: rgba(var(--bs-primary-rgb), .02); border-top: 1px solid var(--bs-border-color); }
+    .clr-form-footer { padding: 1rem 1.4rem; border-top: 1px solid var(--bs-border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; background: var(--bs-tertiary-bg, rgba(0, 0, 0, .02)); }
+    .btn-clr-primary { background: linear-gradient(135deg, #1a2e5a, #0d6efd); color: #fff; border: none; border-radius: .5rem; padding: .6rem 1.5rem; font-size: .88rem; font-weight: 600; display: inline-flex; align-items: center; gap: .5rem; transition: all .2s ease; box-shadow: 0 3px 10px rgba(13, 110, 253, .25); }
+    .btn-clr-primary:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); box-shadow: 0 5px 15px rgba(13, 110, 253, .35); color: #fff; }
+    .btn-clr-primary:disabled { opacity: .45; cursor: not-allowed; }
+    .office-upload-zone { border: 2px dashed var(--bs-border-color); border-radius: .65rem; padding: 1rem; text-align: center; background: rgba(var(--bs-primary-rgb), .015); transition: border-color .2s ease, background .2s ease; cursor: default; position: relative; }
+    .office-upload-zone:not(.upload-blocked):hover { border-color: rgba(13, 110, 253, .5); background: rgba(13, 110, 253, .03); }
+    .office-upload-zone.dragover { border-color: #0d6efd; background: rgba(13, 110, 253, .07); box-shadow: 0 0 0 3px rgba(13, 110, 253, .12); }
+    .office-upload-zone.upload-blocked { border-style: solid; cursor: not-allowed; }
+    .upload-zone-inner { display: flex; flex-direction: column; align-items: center; gap: .35rem; }
+    .upload-hint-text { font-size: .72rem; color: var(--bs-secondary-color); line-height: 1.35; }
+    .btn-upload-choose { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .85rem; border-radius: .4rem; font-size: .76rem; font-weight: 600; background: rgba(13, 110, 253, .08); color: #0d6efd; border: 1px solid rgba(13, 110, 253, .3); cursor: pointer; transition: all .18s ease; margin-top: .3rem; white-space: nowrap; }
+    .btn-upload-choose:hover { background: rgba(13, 110, 253, .15); border-color: #0d6efd; }
+    .upload-file-preview { display: flex; align-items: center; gap: .35rem; font-size: .74rem; color: var(--bs-body-color); background: rgba(220, 53, 69, .05); border: 1px solid rgba(220, 53, 69, .18); border-radius: .4rem; padding: .3rem .65rem; margin-bottom: .6rem; text-align: left; overflow: hidden; }
+    .upload-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+    .upload-actions { margin-top: .6rem; padding-top: .6rem; border-top: 1px solid var(--bs-border-color); }
+    .upload-selected-name { font-size: .74rem; font-weight: 600; color: #0d6efd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .upload-progress-wrap { height: 5px; border-radius: 50px; background: var(--bs-border-color); overflow: hidden; margin-top: .65rem; }
+    .upload-progress-bar { height: 100%; border-radius: 50px; background: linear-gradient(90deg, #1a2e5a, #0d6efd); width: 0%; transition: width .4s ease; animation: uploadPulse 1.2s ease-in-out infinite; }
+    @keyframes uploadPulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+    .signature-pad-container { border: 2px dashed var(--bs-border-color); border-radius: .75rem; background: #ffffff; position: relative; overflow: hidden; cursor: crosshair; width: 100%; max-width: 100%; }
+    .signature-pad-canvas { display: block; width: 100%; height: 140px; touch-action: none; background: transparent; }
+    .signature-baseline { position: absolute; bottom: 30px; left: 20px; right: 20px; border-bottom: 1px dashed var(--bs-border-color); pointer-events: none; }
+    .signature-hint { position: absolute; bottom: 6px; left: 20px; font-size: 0.7rem; color: var(--bs-secondary-color); pointer-events: none; }
+    .signature-preview-img { max-height: 75px; max-width: 260px; object-fit: contain; display: block; }
+    .clr-conduct-doc { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 0.85rem; padding: 2.25rem 2.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); }
+    .clr-conduct-header { text-align: center; border-bottom: 2px solid rgba(var(--bs-primary-rgb), 0.35); padding-bottom: 1.25rem; margin-bottom: 1.75rem; }
+    .clr-conduct-title { font-size: 1.35rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bs-body-color); margin-bottom: 0.35rem; }
+    .clr-conduct-subheading { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #0d6efd; }
+    .clr-conduct-section-label { font-size: 0.92rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bs-body-color); padding-bottom: 0.4rem; border-bottom: 1px solid var(--bs-border-color); margin-top: 1.75rem; margin-bottom: 1.2rem; }
+    .clr-conduct-field-row { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.65rem; font-size: 0.92rem; }
+    .clr-conduct-label { font-weight: 700; color: var(--bs-body-color); white-space: nowrap; min-width: 175px; }
+    .clr-conduct-underline { display: inline-block; min-width: 320px; max-width: 100%; border-bottom: 1.5px solid var(--bs-body-color); padding: 0 0.35rem 2px; font-weight: 700; color: #0d6efd; }
+    .clr-conduct-inline-underline { display: inline; border-bottom: 1.5px solid var(--bs-body-color); padding: 0 0.15rem 1px; font-weight: 700; color: #0d6efd; }
+    .clr-conduct-para { font-size: 0.95rem; line-height: 1.8; color: var(--bs-body-color); margin-bottom: 1.15rem; }
+    .clr-conduct-list { list-style: none; padding-left: 0; margin-bottom: 1.5rem; }
+    .clr-conduct-list li { position: relative; padding-left: 1.6rem; margin-bottom: 0.65rem; font-size: 0.92rem; line-height: 1.55; color: var(--bs-body-color); }
+    .clr-conduct-list li::before { content: ""; position: absolute; left: 0.5rem; top: -0.1rem; color: #0d6efd; font-size: 1.25rem; font-weight: bold; }
+    .clr-conduct-ack-box { background: rgba(13, 110, 253, 0.04); border: 1px solid rgba(13, 110, 253, 0.25); border-radius: 0.65rem; padding: 1rem 1.25rem; }
 </style>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <div class="clr-page">
 
-    <!-- Global Alert -->
-    <div id="facultyAlert" class="alert alert-success alert-dismissible fade show d-none mb-3 shadow-sm" role="alert">
-        <i class="fas fa-check-circle me-2"></i><span id="facultyAlertMessage"></span>
-        <button type="button" class="btn-close" onclick="dismissFacultyAlert()" aria-label="Close"></button>
+    <!-- Toast Notification Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+        <!-- Global Alert Toast -->
+        <div id="facultyAlertToast" class="toast align-items-center text-bg-success border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center gap-2" id="facultyAlertMessage">
+                    <!-- Message injected here -->
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+        
+        <!-- No Profile Error Toast -->
+        <?php if (!$profile): ?>
+        <div id="noProfileToast" class="toast align-items-center text-bg-warning border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="10000">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center gap-2">
+                    <i class="fas fa-exclamation-triangle fs-5"></i>
+                    <span>No faculty profile is linked to this account. Please contact the Faculty Administrator.</span>
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 
-    <!-- â”€â”€ Page Title Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ── Page Title Row ────────────────────────────────────────── -->
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <div>
             <h4 class="fw-bold mb-0"><i class="fas fa-clipboard-check text-primary me-2"></i>Faculty Clearance Portal
@@ -1181,14 +339,9 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
         </div>
     </div>
 
-    <?php if (!$profile): ?>
-        <div class="alert alert-warning shadow-sm">
-            <i class="fas fa-exclamation-triangle me-2"></i>No faculty profile is linked to this account. Please contact the
-            Faculty Administrator.
-        </div>
-    <?php else: ?>
+    <?php if ($profile): ?>
 
-        <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• VIEW 1: CLEARANCE OF CONDUCT AGREEMENT â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+        <!-- ══════════════════ VIEW 1: CLEARANCE OF CONDUCT AGREEMENT ══════════════════ -->
         <div id="viewAgreementSection" class="d-none mb-4">
             <div class="card border-0 shadow-sm overflow-hidden mb-3" id="facultyClearanceFormCard">
                 <div
@@ -1374,10 +527,10 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
             </div>
         </div><!-- /viewAgreementSection -->
 
-        <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• VIEW 2: FACULTY CLEARANCE PORTAL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+        <!-- ══════════════════ VIEW 2: FACULTY CLEARANCE PORTAL ══════════════════ -->
         <div id="viewPortalSection">
 
-            <!-- â”€â”€ Workflow Lifecycle Stepper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+            <!-- ── Workflow Lifecycle Stepper ────────────────────────────── -->
             <div class="clr-flow-stepper mb-4">
                 <!-- 1. Faculty Submission -->
                 <div
@@ -1427,7 +580,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
                 </div>
             </div>
 
-            <!-- â”€â”€ Clearance Form Gate Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+            <!-- ── Clearance Form Gate Banner ─────────────────────── -->
             <?php if (!$cfFormApproved): ?>
                 <?php if ($cfFormSubmitted && $cfFormStatus === 'Pending Review'): ?>
                     <div class="card border-0 shadow-sm overflow-hidden mb-4">
@@ -1477,7 +630,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
                 <?php endif; ?>
             <?php endif; ?>
 
-            <!-- â”€â”€ Faculty Information Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+            <!-- ── Faculty Information Card ─────────────────────────────── -->
             <div class="card border-0 shadow-sm overflow-hidden mb-4">
                 <div
                     class="card-header bg-primary text-white py-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -1571,7 +724,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
                 </div>
             </div>
 
-            <!-- â”€â”€ The 6 Main Clearance Sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+            <!-- ── The 6 Main Clearance Sections ────────────────────────── -->
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <h5 class="fw-bold mb-0"><i class="fas fa-building-circle-check text-primary me-2"></i>Clearance
@@ -2140,7 +1293,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
             </div>
 
             <?php if ($cfFormSubmitted): ?>
-                <!-- â”€â”€ Clearance Requirements Unified Submission Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+                <!-- ── Clearance Requirements Unified Submission Bar ──────────── -->
                 <div class="clr-card">
                     <!-- Footer Bar -->
                     <div class="clr-form-footer">
@@ -2167,7 +1320,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
     <?php endif; ?>
 </div><!-- /clr-page -->
 
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• MODALS â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- ══════════════ MODALS ══════════════ -->
 
 <!-- Confirm Submit Clearance Form Modal -->
 <div class="modal fade" id="confirmClearanceFormModal" tabindex="-1" aria-hidden="true">
@@ -2354,7 +1507,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
     </div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• SCRIPTS â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<!-- ══════════════ SCRIPTS ══════════════ -->
 <script>
     const clearanceApi = '<?= BASE_URL ?>/modules/faculty/controllers/ClearanceController.php';
 
@@ -2475,7 +1628,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
         }
     }
 
-    // â”€â”€ Dropdown Section View Switcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Dropdown Section View Switcher ──────────────────────────────────────
     function switchClearanceView(view) {
         const agreementSection = document.getElementById('viewAgreementSection');
         const portalSection = document.getElementById('viewPortalSection');
@@ -2535,6 +1688,12 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
 
     document.addEventListener('DOMContentLoaded', function () {
         switchClearanceView(getInitialClearanceView());
+        
+        // Initialize No Profile Toast if it exists
+        const noProfToast = document.getElementById('noProfileToast');
+        if (noProfToast && typeof bootstrap !== 'undefined') {
+            bootstrap.Toast.getOrCreateInstance(noProfToast).show();
+        }
     });
 
     window.addEventListener('hashchange', function () {
@@ -2544,7 +1703,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
         }
     });
 
-    // â”€â”€ Live Refresh & Reset Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Live Refresh & Reset Controls ───────────────────────────────────────
     async function refreshClearanceStatus() {
         const ico = document.getElementById('refreshIcon');
         if (ico) ico.classList.add('fa-spin');
@@ -2646,19 +1805,29 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
         }
     }
 
-    // â”€â”€ Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Alerts ──────────────────────────────────────────────────────────────
     function showFacultyAlert(message, tone = 'success') {
-        const box = document.getElementById('facultyAlert');
-        if (!box) return;
-        box.className = `alert alert-${tone} alert-dismissible fade show mb-3 shadow-sm`;
-        document.getElementById('facultyAlertMessage').textContent = message;
-        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const toastEl = document.getElementById('facultyAlertToast');
+        const toastMsg = document.getElementById('facultyAlertMessage');
+        if (!toastEl || !toastMsg) return;
+        
+        // Set the color class based on the tone
+        toastEl.className = `toast align-items-center text-bg-${tone} border-0 shadow-lg`;
+        
+        // Set the icon and message
+        const icon = tone === 'danger' ? 'fa-exclamation-circle' : (tone === 'warning' ? 'fa-triangle-exclamation' : 'fa-check-circle');
+        toastMsg.innerHTML = `<i class="fas ${icon} fs-5"></i> <span>${message}</span>`;
+        
+        // Show the toast
+        bootstrap.Toast.getOrCreateInstance(toastEl).show();
     }
+    
     function dismissFacultyAlert() {
-        document.getElementById('facultyAlert')?.classList.add('d-none');
+        const toastEl = document.getElementById('facultyAlertToast');
+        if (toastEl) bootstrap.Toast.getInstance(toastEl)?.hide();
     }
 
-    // â”€â”€ Helper Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Helper Utilities ────────────────────────────────────────────────────
     function escapeHtml(value) {
         return String(value || '').replace(/[&<>'"]/g, character => ({
             '&': '&amp;',
@@ -2669,7 +1838,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
         }[character]));
     }
 
-    // â”€â”€ Digital Signature Canvas Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Digital Signature Canvas Handler ────────────────────────────────────
     let isDrawing = false;
     let hasDrawnSignature = false;
     const canvas = document.getElementById('signatureCanvas');
@@ -2765,7 +1934,6 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
     document.getElementById('cfFormAgreeCheck')?.addEventListener('change', function () {
         updateFormSubmitButtonState();
     });
-
 
     function updateFormSubmitButtonState() {
         const isAgreed = !!document.getElementById('cfFormAgreeCheck')?.checked;
@@ -2976,9 +2144,7 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
         }
     });
 
-
-
-    // â”€â”€ Workflow Stepper Dynamic Updater (4 steps â€” HR Final Approval removed) â”€â”€â”€â”€
+    // ── Workflow Stepper Dynamic Updater (4 steps) ────────────────────
     function updateLifecycleStepper(status, approvedItems = 0, totalItems = 6) {
         let step = 1;
         if (status === 'Cleared') {
@@ -3318,9 +2484,9 @@ foreach ($signatoryOfficesDef as $sKey => $sDef) {
     setInterval(pollFacultyClearanceStatus, 5000);
     pollFacultyClearanceStatus();
 
-    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    /* ══════════════════════════════════════════════════════════════
        Per-Office File Selection & Staging
-     â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+     ══════════════════════════════════════════════════════════════ */
     function handleDragOver(e, zone) {
         e.preventDefault();
         zone.classList.add('dragover');

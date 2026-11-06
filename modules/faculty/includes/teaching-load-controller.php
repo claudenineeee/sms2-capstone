@@ -54,18 +54,11 @@ function smsTeachingLoadRedirect(string $notice): never {
 }
 
 try {
-    // PATCHED CONNECTION: Bypass getFacultyDatabaseConnection() and use HostForge env vars
-    $host = getenv('DB_HOST')     ?: 'localhost';
-    $user = getenv('DB_USERNAME') ?: 'root';
-    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
-    $name = getenv('DB_DATABASE') ?: 'faculty_db';
-    $port = (int) (getenv('DB_PORT') ?: 3306);
-    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
-    
-    $pdo = new PDO($dsn, $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
+    // FIX: Use safe facultyDb() instead of manual PDO instantiation
+    $pdo = function_exists('facultyDb') ? facultyDb() : null;
+    if (!$pdo) {
+        throw new RuntimeException('Database connection failed.');
+    }
     
     smsTeachingLoadEnsureSchema($pdo);
 } catch (Throwable $exception) {
@@ -226,7 +219,6 @@ if ($pdo instanceof PDO) {
         $terms = $pdo->query('SELECT term_id, academic_year, semester, is_current FROM academic_terms ORDER BY is_current DESC, academic_year DESC, semester ASC')->fetchAll(PDO::FETCH_ASSOC);
         if (in_array($roleKey, $chairRoles, true)) {
             if ($chairDepartment !== '') {
-                // CHANGED: Added employment_status to the SELECT query
                 $facultyStmt = $pdo->prepare("SELECT f.faculty_id, f.faculty_no, f.first_name, f.last_name, f.employment_status, fp.user_id, COALESCE(NULLIF(fp.designated_department, ''), 'Department not set') AS department FROM faculty f JOIN departments d ON d.department_id = f.department_id JOIN faculty_profiles fp ON fp.id = (SELECT fp2.id FROM faculty_profiles fp2 WHERE fp2.user_id IS NOT NULL AND LOWER(TRIM(fp2.request_status)) = 'approved' AND ((f.email IS NOT NULL AND f.email <> '' AND LOWER(fp2.email) = LOWER(f.email)) OR fp2.faculty_id = f.faculty_no) ORDER BY (f.email IS NOT NULL AND f.email <> '' AND LOWER(fp2.email) = LOWER(f.email)) DESC LIMIT 1) WHERE f.profile_status = 'Active' AND f.position = 'Faculty Professor' AND (LOWER(TRIM(d.code)) = LOWER(?) OR LOWER(TRIM(d.name)) = LOWER(?)) ORDER BY f.last_name, f.first_name");
                 $facultyStmt->execute([$chairDepartment, $chairDepartment]);
                 $facultyOptions = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);

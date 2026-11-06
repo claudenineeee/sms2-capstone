@@ -4,52 +4,16 @@
  * Purpose: View and submit peer evaluations dynamically based on user department
  */
 require_once __DIR__ . '/../../../../config/config.php';
-
-// This page reads $_SESSION (to identify the current faculty member) before
-// includes/layout-start.php runs later in the file. config.php alone does
-// NOT start the session - that only happens inside config/session.php,
-// which is pulled in by includes/authentication.php. Without this require,
-// PHP never starts the app's named "SMS2SESSID" session on this page, so
-// every $_SESSION read below comes back empty even when the user is
-// properly logged in elsewhere on the site.
 require_once ROOT_PATH . '/includes/authentication.php';
-
-// 1. Establish Database Connection
-//
-// facultyDb() lives in modules/faculty/config/database.php - a SEPARATE
-// file from the root config/database.php that authentication.php loads
-// (which only connects to sms2_db). Nothing was requiring this file, so
-// facultyDb() was always undefined here and the page silently fell through
-// to the sms2_db connection via the "$conn ?? $db" guess below.
 require_once __DIR__ . '/../../config/database.php';
 
-// CHANGED: facultyDb() doesn't exist anywhere in this codebase (same bug found
-// in AttendanceController/AttendanceModel) — the real helper defined in
-// modules/faculty/config/database.php is getFacultyDatabaseConnection().
-if (function_exists('getFacultyDatabaseConnection')) {
-    $pdo = getFacultyDatabaseConnection();
-}
-
-if (!isset($pdo) || !$pdo) {
-    $pdo = $conn ?? $db ?? null;
-}
+// FIX: Use safe facultyDb() instead of the broken getFacultyDatabaseConnection()
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
 
 if (!$pdo) {
-    try {
-        $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
-        $dbName = defined('DB_NAME') ? DB_NAME : 'faculty_db'; 
-        $dbUser = defined('DB_USER') ? DB_USER : 'root';
-        $dbPass = defined('DB_PASS') ? DB_PASS : '';
-
-        $pdo = new PDO("mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4", $dbUser, $dbPass, [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-    } catch (PDOException $e) {
-        die('<div style="padding: 20px; color: #721c24; background-color: #f8d7da; margin: 20px; border-radius: 5px;">
-            <strong>Database Connection Failed:</strong> ' . htmlspecialchars($e->getMessage()) . '
-        </div>');
-    }
+    die('<div style="padding: 20px; color: #721c24; background-color: #f8d7da; margin: 20px; border-radius: 5px;">
+        <strong>Database Connection Failed:</strong> The faculty database is currently unavailable.
+    </div>');
 }
 
 $pageTitle    = 'Peer Evaluation';
@@ -62,18 +26,6 @@ $breadcrumbs  = [
 ];
 
 // 2. Identify Current User & Department
-//
-// NOTE: faculty_profiles.id is NOT the same identifier as faculty.faculty_id.
-// The evaluations table's foreign keys (evaluator_id, faculty_id) point at
-// faculty.faculty_id, so we bridge the two tables here via faculty_no/email
-// and resolve the REAL faculty_id up front. Everything downstream (peer list,
-// modal submission) uses that real id, never faculty_profiles.id.
-//
-// CONFIRMED against includes/authentication.php -> smsCompleteLoginSession():
-// login sets $_SESSION['user_id']    = users.id
-//            $_SESSION['user_email'] = users.email
-// These are the two keys we bridge on. (faculty_id / id / uid were earlier
-// guesses that turned out not to exist in this codebase - removed.)
 $currentUserId = (int)($_SESSION['user_id'] ?? 0);
 $sessionEmail  = $_SESSION['user_email'] ?? null;
 
@@ -130,8 +82,6 @@ if (empty($userDept)) {
 $peers = [];
 
 if (!empty($userDept)) {
-    // Primary query: match department ignoring status case/whitespace.
-    // Unevaluated peers first, completed ones pushed down, unlinked ones last.
     $stmt = $pdo->prepare("
         SELECT 
             fp.id AS profile_id,
@@ -180,9 +130,7 @@ if (!empty($userDept)) {
     $peers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Fallback Query: only runs if the department is unknown/empty or matched
-// nobody. This intentionally has NO department filter - keep it that way,
-// it's meant to show everyone as a last resort, not a department list.
+// Fallback Query
 if (empty($peers)) {
     $stmt = $pdo->prepare("
         SELECT 
@@ -227,12 +175,6 @@ if (empty($peers)) {
 }
 
 // 4. Auto-link any profiles that don't yet have a matching `faculty` row.
-// "NOT LINKED" appears because faculty_profiles and faculty are bridged only
-// by email/faculty_no in the query above; profiles that never got a faculty
-// row (e.g. never logged attendance) fall through as unlinked. Reuse
-// AttendanceModel's getOrCreateFacultyRecord() — the same linking logic this
-// module already uses elsewhere — to create the missing faculty row on the
-// fly instead of just showing a "NOT LINKED" badge.
 require_once __DIR__ . '/../../models/AttendanceModel.php';
 $attendanceModel = new AttendanceModel($pdo);
 
@@ -250,8 +192,7 @@ foreach ($peers as &$peer) {
 }
 unset($peer);
 
-// Also auto-link the current user's own profile if it wasn't linked, so
-// evaluation submissions aren't blocked by the same issue.
+// Also auto-link the current user's own profile if it wasn't linked
 if (empty($evaluatorFacultyId) && !empty($evaluatorProfileId)) {
     try {
         $linkedSelfId = $attendanceModel->getOrCreateFacultyRecord($evaluatorProfileId);
@@ -263,7 +204,7 @@ if (empty($evaluatorFacultyId) && !empty($evaluatorProfileId)) {
     }
 }
 
-// Calculate Statistics (only faculty records that are actually linked & evaluable count toward "peers")
+// Calculate Statistics
 $totalPeers = count($peers);
 $evaluatedCount = 0;
 foreach ($peers as $p) {

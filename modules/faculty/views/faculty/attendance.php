@@ -4,6 +4,8 @@
  * Purpose: Manage personal attendance
  */
 require_once __DIR__ . '/../../../../config/config.php';
+require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../config/database.php';
 
 $pageTitle    = 'Attendance';
 $activeModule = 'faculty';
@@ -25,6 +27,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 // =====================================================================
 require_once __DIR__ . '/../../models/AttendanceModel.php';
 
+$pdo = function_exists('facultyDb') ? facultyDb() : null;
+if (!$pdo) {
+    die('Database connection failed.');
+}
+
 $currentFacultyId = null;
 
 // 1. Check if session already has faculty_profile_id (most direct)
@@ -40,9 +47,8 @@ else {
     $systemUserId = $_SESSION['user_id'] ?? $_SESSION['user']['id'] ?? null;
     if ($systemUserId) {
         try {
-            // We assume there is a connection to the database available
-            // We query faculty_profiles to find the matching profile ID using the system user_id
-            $stmt = db()->prepare("SELECT id FROM faculty_profiles WHERE user_id = :user_id LIMIT 1");
+            // FIX: Use $pdo (facultyDb) instead of db() (sms2_db)
+            $stmt = $pdo->prepare("SELECT id FROM faculty_profiles WHERE user_id = :user_id LIMIT 1");
             $stmt->execute([':user_id' => $systemUserId]);
             $currentFacultyId = $stmt->fetchColumn();
         } catch (Throwable $e) {
@@ -59,7 +65,8 @@ $myStats = [
 ];
 
 if ($currentFacultyId) {
-    $attendanceModel = new AttendanceModel(db());
+    // FIX: Pass $pdo (facultyDb) instead of db()
+    $attendanceModel = new AttendanceModel($pdo);
     
     try {
         // Fetch the actual records saved by the Monitoring Officer
