@@ -9,25 +9,30 @@ require_once __DIR__ . '/../../../../includes/authentication.php';
 requireAuth();
 
 // ==========================================
-// 1. FORCE MANUAL DATABASE CONNECTIONS
+// 1. DATABASE CONNECTION — PATCHED FOR HOSTFORGE
 // ==========================================
 $corePdo = null;
 $facultyPdo = null;
 
-if (function_exists('db')) $corePdo = db();
-if (function_exists('facultyDb')) $facultyPdo = facultyDb();
-
-if (!$corePdo || !$facultyPdo) {
-    $host = '127.0.0.1';
-    $user = 'root';
-    $pass = ''; 
-
-    try {
-        if (!$corePdo) $corePdo = new PDO("mysql:host=$host;dbname=sms2_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        if (!$facultyPdo) $facultyPdo = new PDO("mysql:host=$host;dbname=faculty_db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    } catch (PDOException $e) {
-        die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
-    }
+try {
+    $host = getenv('DB_HOST')     ?: 'localhost';
+    $user = getenv('DB_USERNAME') ?: 'root';
+    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
+    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $port = (int) (getenv('DB_PORT') ?: 3306);
+    
+    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+    
+    $corePdo = new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+    
+    // On HostForge, there is only one database. Point both variables to it.
+    $facultyPdo = $corePdo;
+    
+} catch (PDOException $e) {
+    die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
 }
 
 $pageTitle    = 'Faculty Profile';
@@ -93,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
         
         $profileId = (int) ($_POST['profile_id'] ?? 0);
         
-        // Update directly in faculty_db
+        // Update directly in faculty_profiles
         $stmtUpdate = $facultyPdo->prepare("
             UPDATE faculty_profiles SET 
                 first_name = ?, middle_name = ?, last_name = ?, suffix = ?, 
