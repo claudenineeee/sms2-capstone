@@ -492,15 +492,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-between flex-wrap gap-2">
                 <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">Close</button>
-                <div class="d-inline-flex gap-2 w-100 w-sm-auto justify-content-end">
-                    <input type="hidden" id="modalUserId" value="">
-                    <button type="button" class="btn btn-outline-danger btn-sm rounded-3 fw-bold flex-fill flex-sm-grow-0" onclick="openActionModal('reject_account', document.getElementById('modalUserId').value, document.getElementById('viewFullName').textContent)">
-                        <i class="fas fa-times me-1"></i> Reject Request
-                    </button>
-                    <button type="button" class="btn btn-success btn-sm rounded-3 fw-bold px-3 flex-fill flex-sm-grow-0" onclick="openActionModal('approve_account', document.getElementById('modalUserId').value, document.getElementById('viewFullName').textContent)">
-                        <i class="fas fa-check me-1"></i> Approve & Activate
-                    </button>
-                </div>
+                <!-- REMOVED: Approve & Activate / Reject Request buttons -->
             </div>
         </div>
     </div>

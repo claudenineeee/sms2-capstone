@@ -33,9 +33,37 @@ $flash          = $controller->handleAddDepartmentHead();
 $deanFlash      = $controller->handleAddDean();
 $facultyList    = $controller->getDirectoryList();
 
-// CHANGED: department list for the Dean multi-assignment checkboxes.
-// Falls back to a static list (matching faculty_db.departments seed data)
-// if the controller doesn't yet expose a getAllDepartments()-style method.
+// Sync profile_status with the real users.status table
+if (!empty($facultyList)) {
+    $userIds = array_values(array_filter(array_map(
+        fn($p) => (int)($p['user_id'] ?? 0),
+        $facultyList
+    )));
+
+    if (!empty($userIds)) {
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+        $statusStmt = $pdo->prepare("SELECT id, status FROM users WHERE id IN ($placeholders)");
+        $statusStmt->execute($userIds);
+        $realStatuses = $statusStmt->fetchAll(PDO::FETCH_KEY_PAIR); 
+
+        foreach ($facultyList as &$f) {
+            $uid = (int)($f['user_id'] ?? 0);
+            if (isset($realStatuses[$uid])) {
+                // If the user status in DB is 'active', map to 'Active'. If suspended/inactive, map accordingly.
+                $dbStatus = strtolower($realStatuses[$uid]);
+                if ($dbStatus === 'active') {
+                    $f['profile_status'] = 'Active';
+                } elseif (in_array($dbStatus, ['inactive', 'suspended', 'locked'])) {
+                    $f['profile_status'] = 'Inactive';
+                } else {
+                    $f['profile_status'] = ucwords($dbStatus);
+                }
+            }
+        }
+        unset($f);
+    }
+}
+
 $departments = method_exists($controller, 'getAllDepartments')
     ? $controller->getAllDepartments()
     : [
@@ -103,7 +131,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <span class="input-group-text bg-body-tertiary border-secondary-subtle text-muted">
                     <i class="fas fa-search"></i>
                 </span>
-                <input type="text" id="directorySearch" class="form-control bg-body border-secondary-subtle text-body" placeholder="Search departments, names, positions...">
+                <input type="text" id="directorySearch" class="form-control bg-body border-secondary-subtle text-body" placeholder="Search departments, names, positions, or IDs...">
             </div>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
@@ -118,9 +146,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <div class="col-6 col-md-3 col-lg-2">
             <select id="statusFilter" class="form-select bg-body border-secondary-subtle text-body">
                 <option value="All" selected>All Statuses</option>
-                <option value="Regular">Regular</option>
-                <option value="Probationary">Probationary</option>
-                <option value="Part-Time">Part-Time</option>
+                <option value="Active">Active (Profile)</option>
+                <option value="Inactive">Inactive (Profile)</option>
+                <option value="Regular">Regular (Employment)</option>
+                <option value="Probationary">Probationary (Employment)</option>
+                <option value="Part-Time">Part-Time (Employment)</option>
             </select>
         </div>
     </div>
@@ -145,17 +175,23 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 $fullName = trim("{$firstName} " . ($f['middle_name'] ?? '') . " {$lastName}");
                 $deptName = $f['designated_department'] ?? $f['designated_dept'] ?? 'N/A';
                 $empStatus = ucwords(strtolower($f['employment_status'] ?? 'Regular'));
-                $profStatus = ucwords(strtolower($f['profile_status'] ?? 'Active'));
+                
+                // FIXED: Only default to 'Active' if the column is truly missing, otherwise use the synced status
+                $profStatus = ucwords(strtolower((string)($f['profile_status'] ?? 'Unknown')));
+                if ($profStatus === '') $profStatus = 'Unknown';
+
                 $contractEnd = !empty($f['contractual_end']) ? $f['contractual_end'] : '—';
                 $hiredDate = !empty($f['hired_date']) ? $f['hired_date'] : '—';
                 $phone = $f['phone'] ?? '—';
                 $email = $f['email'] ?? '—';
                 $academicRank = trim((string) ($f['academic_rank'] ?? ''));
                 $tier = trim((string) ($f['tier'] ?? ''));
+                $facultyId = trim((string) ($f['faculty_id'] ?? 'N/A'));
             ?>
             <div class="col-12 col-md-6 col-lg-4 faculty-card-item"
                  data-dept="<?= htmlspecialchars($deptName) ?>"
-                 data-status="<?= htmlspecialchars($empStatus) ?>">
+                 data-status="<?= htmlspecialchars($empStatus) ?>"
+                 data-profile-status="<?= htmlspecialchars($profStatus) ?>">
                 <div class="card h-100 border-0 shadow-sm rounded-3 overflow-hidden">
                     <div class="card-header bg-primary text-white p-3 border-0 d-flex align-items-center justify-content-between">
                         <div class="d-flex align-items-center gap-3 overflow-hidden me-2">
@@ -176,7 +212,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <span class="badge bg-white text-primary rounded-2 px-2 py-1" style="font-size: 0.7rem;">
                                 <?= htmlspecialchars($empStatus) ?>
                             </span>
-                            <span class="badge bg-white text-dark rounded-2 px-2 py-1" style="font-size: 0.7rem;">
+                            <span class="badge <?= $profStatus === 'Active' ? 'bg-white text-success' : 'bg-white text-danger' ?> rounded-2 px-2 py-1" style="font-size: 0.7rem;">
                                 <?= htmlspecialchars($profStatus) ?>
                             </span>
                         </div>
@@ -186,7 +222,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <div class="row g-2 mb-3">
                             <div class="col-8">
                                 <span class="text-muted small d-block" style="font-size: 0.75rem;">Faculty ID</span>
-                                <strong class="text-dark d-block text-truncate"><?= htmlspecialchars($f['faculty_id'] ?? 'N/A') ?></strong>
+                                <strong class="text-dark d-block text-truncate"><?= htmlspecialchars($facultyId) ?></strong>
                             </div>
                             <div class="col-4 text-end">
                                 <span class="text-muted small d-block" style="font-size: 0.75rem;">Age</span>
@@ -226,7 +262,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 data-bs-toggle="modal" 
                                 data-bs-target="#viewProfileModal"
                                 data-full-name="<?= htmlspecialchars($fullName) ?>"
-                                data-faculty-id="<?= htmlspecialchars($f['faculty_id'] ?? '—') ?>"
+                                data-faculty-id="<?= htmlspecialchars($facultyId) ?>"
                                 data-email="<?= htmlspecialchars($email) ?>"
                                 data-phone="<?= htmlspecialchars($phone) ?>"
                                 data-position="<?= htmlspecialchars($f['position'] ?? '—') ?>"
@@ -350,7 +386,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <input type="text" name="suffix" class="form-control bg-body border-secondary-subtle text-body" placeholder="Suffix">
                         </div>
                     </div>
-                               <div class="row g-3 mb-3 align-items-end">
+                    <div class="row g-3 mb-3 align-items-end">
                         <div class="col-12 col-md-6">
                             <label for="birthMonthSelect" class="form-label text-muted small fw-bold mb-1">
                                 <i class="fas fa-calendar-day text-primary me-1"></i> Birthdate
@@ -442,7 +478,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         </div>
                     </div>
 
-                                        <div class="row g-3 mb-3">
+                    <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
                             <label for="hiredMonthSelect" class="form-label text-muted small fw-bold mb-1">
                                 <i class="fas fa-calendar-check text-primary me-1"></i> Hired Date
@@ -723,6 +759,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const deptFilter = document.getElementById("deptFilter");
     const statusFilter = document.getElementById("statusFilter");
     const paginationUl = document.getElementById("directoryPagination");
+    
     // Dean modal — Birthdate
     const birthdateInput = document.getElementById("birthdate");
     const birthMonthSel  = document.getElementById("birthMonthSelect");
@@ -881,8 +918,6 @@ document.addEventListener("DOMContentLoaded", function () {
         updateContractualEndVisibility();
     }
 
-    // NEW: same age-calc + contractual-end toggle, wired to the
-    // Add Department Head form's separately-namespaced fields.
     const deptHeadEmploymentStatusSelect = document.getElementById("deptHeadEmploymentStatus");
     const deptHeadContractualEndCol = document.getElementById("deptHeadContractualEndCol");
 
@@ -908,7 +943,6 @@ document.addEventListener("DOMContentLoaded", function () {
         updateDeptHeadContractualEndVisibility();
     }
 
-    // NEW: require at least one department checked before the Add Dean form submits.
     const addDeanForm = document.getElementById('addDeanForm');
     const deanDeptError = document.getElementById('deanDeptError');
     if (addDeanForm) {
@@ -957,12 +991,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
         let visibleCards = cards.filter(card => {
             const name = card.querySelector(".name-field").textContent.toLowerCase();
+            const facultyId = (card.querySelector(".card-body strong")?.textContent || "").toLowerCase();
             const cardDept = (card.getAttribute("data-dept") || "").toLowerCase();
-            const cardStatus = (card.getAttribute("data-status") || "").toLowerCase();
+            const cardEmpStatus = (card.getAttribute("data-status") || "").toLowerCase();
+            const cardProfStatus = (card.getAttribute("data-profile-status") || "").toLowerCase();
 
-            const matchesSearch = name.includes(searchText) || cardDept.includes(searchText);
+            const matchesSearch = name.includes(searchText) || cardDept.includes(searchText) || facultyId.includes(searchText);
             const matchesDept = (activeDept === "all" || cardDept.includes(activeDept) || activeDept.includes(cardDept));
-            const matchesStatus = (activeStatus === "all" || cardStatus === activeStatus);
+            
+            // Check both employment status and profile status in the filter
+            const matchesStatus = (activeStatus === "all" || cardEmpStatus === activeStatus || cardProfStatus === activeStatus);
 
             return matchesSearch && matchesDept && matchesStatus;
         });
