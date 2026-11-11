@@ -49,7 +49,6 @@ if (!empty($facultyList)) {
         foreach ($facultyList as &$f) {
             $uid = (int)($f['user_id'] ?? 0);
             if (isset($realStatuses[$uid])) {
-                // If the user status in DB is 'active', map to 'Active'. If suspended/inactive, map accordingly.
                 $dbStatus = strtolower($realStatuses[$uid]);
                 if ($dbStatus === 'active') {
                     $f['profile_status'] = 'Active';
@@ -64,14 +63,32 @@ if (!empty($facultyList)) {
     }
 }
 
-$departments = method_exists($controller, 'getAllDepartments')
-    ? $controller->getAllDepartments()
-    : [
+// ==========================================
+// FIXED: DYNAMICALLY FETCH ALL DEPARTMENTS FROM DB
+// ==========================================
+try {
+    // This queries the database directly so any new department shows up immediately
+    $deptStmt = $pdo->query("SELECT department_id, code, name FROM departments ORDER BY code ASC");
+    $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // If database is empty, fallback to hardcoded to prevent crashes
+    if (empty($departments)) {
+        $departments = [
+            ['department_id' => 1, 'code' => 'BSIT',    'name' => 'Bachelor of Science in Information Technology'],
+            ['department_id' => 2, 'code' => 'BSED',    'name' => 'Bachelor of Secondary Education'],
+            ['department_id' => 3, 'code' => 'BS CRIM', 'name' => 'Bachelor of Science in Criminology'],
+            ['department_id' => 4, 'code' => 'BSBA',    'name' => 'Bachelor of Science in Business Administration'],
+        ];
+    }
+} catch (Throwable $e) {
+    // Fallback if the table doesn't exist yet
+    $departments = [
         ['department_id' => 1, 'code' => 'BSIT',    'name' => 'Bachelor of Science in Information Technology'],
         ['department_id' => 2, 'code' => 'BSED',    'name' => 'Bachelor of Secondary Education'],
         ['department_id' => 3, 'code' => 'BS CRIM', 'name' => 'Bachelor of Science in Criminology'],
         ['department_id' => 4, 'code' => 'BSBA',    'name' => 'Bachelor of Science in Business Administration'],
     ];
+}
 
 $message     = $flash['message'] ?? '';
 $messageType = $flash['type'] ?? 'success';
@@ -137,10 +154,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <div class="col-6 col-md-3 col-lg-2">
             <select id="deptFilter" class="form-select bg-body border-secondary-subtle text-body">
                 <option value="All" selected>All Departments</option>
-                <option value="BSIT">Information Technology</option>
-                <option value="BSCE">Computer Engineering</option>
-                <option value="Teacher Education">Teacher Education</option>
-                <option value="Business Administration">Business Administration</option>
+                <?php foreach ($departments as $dept): ?>
+                    <option value="<?= htmlspecialchars($dept['code']) ?>"><?= htmlspecialchars($dept['code']) ?></option>
+                <?php endforeach; ?>
             </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
@@ -156,7 +172,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<!-- Faculty Cards Grid (2 Columns x 3 Rows = 6 Cards Per Page) -->
+<!-- Faculty Cards Grid -->
 <div class="row g-3 mb-4" id="facultyGrid">
     <?php if (empty($facultyList)): ?>
         <div class="col-12">
@@ -176,7 +192,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 $deptName = $f['designated_department'] ?? $f['designated_dept'] ?? 'N/A';
                 $empStatus = ucwords(strtolower($f['employment_status'] ?? 'Regular'));
                 
-                // FIXED: Only default to 'Active' if the column is truly missing, otherwise use the synced status
                 $profStatus = ucwords(strtolower((string)($f['profile_status'] ?? 'Unknown')));
                 if ($profStatus === '') $profStatus = 'Unknown';
 
@@ -538,6 +553,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <select id="employmentStatus" name="employment_status" class="form-select bg-body border-secondary-subtle text-body" required>
                                 <option value="regular" selected>Regular / Permanent</option>
                                 <option value="probationary">Probationary</option>
+                                <option value="part-time">Part-Time</option> <!-- ADDED PART-TIME -->
                             </select>
                         </div>
                         <div class="col-6">
@@ -728,6 +744,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <select id="deptHeadEmploymentStatus" name="employment_status" class="form-select bg-body border-secondary-subtle text-body" required>
                                 <option value="regular" selected>Regular / Permanent</option>
                                 <option value="probationary">Probationary</option>
+                                <option value="part-time">Part-Time</option> <!-- ADDED PART-TIME -->
                             </select>
                         </div>
                         <div class="col-6">
@@ -800,9 +817,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const employmentStatusSelect = document.getElementById("employmentStatus");
     const contractualEndCol = document.getElementById("contractualEndCol");
 
-    // Academic Rank -> Tier cascading dropdowns (single source of truth
-    // comes from getAcademicRankTiers() in faculty-data.php, so the
-    // frontend options can never drift out of sync with server validation).
+    // Academic Rank -> Tier cascading dropdowns
     const RANK_TIERS = <?= json_encode(function_exists('getAcademicRankTiers') ? getAcademicRankTiers() : []) ?>;
 
     function bindAcademicRankTier(rankSelectId, tierSelectId) {
@@ -843,8 +858,6 @@ document.addEventListener("DOMContentLoaded", function () {
         return years >= 0 ? years : '';
     }
 
-    // Generic helper: syncs a Month/Day/Year group into a hidden YYYY-MM-DD input.
-    // Optionally updates an "age" field when a function is provided.
     function bindSegmentGroup(monthSel, dayInp, yearInp, hiddenInput, ageField, minYear, maxYear) {
         if (!monthSel || !dayInp || !yearInp || !hiddenInput) return;
 
@@ -876,22 +889,11 @@ document.addEventListener("DOMContentLoaded", function () {
         yearInp.addEventListener('input', sync);
     }
 
-    // Dean modal — Birthdate
     bindSegmentGroup(birthMonthSel, birthDayInp, birthYearInp, birthdateInput, ageInput, 1900, 2026);
-
-    // Dean modal — Hired Date (no age field)
     bindSegmentGroup(hiredMonthSel, hiredDayInp, hiredYearInp, hiredDateInput, null, 1900, 2030);
-
-    // Dean modal — Contractual End Date (no age field)
     bindSegmentGroup(contractMonthSel, contractDayInp, contractYearInp, contractDateInput, null, 1900, 2030);
-
-    // Dept Head modal — Birthdate
     bindSegmentGroup(deptHeadBirthMonthSel, deptHeadBirthDayInp, deptHeadBirthYearInp, deptHeadBirthdateInput, deptHeadAgeInput, 1900, 2026);
-
-    // Dept Head modal — Hired Date
     bindSegmentGroup(deptHeadHiredMonthSel, deptHeadHiredDayInp, deptHeadHiredYearInp, deptHeadHiredDateInput, null, 1900, 2030);
-
-    // Dept Head modal — Contractual End Date (no age field)
     bindSegmentGroup(deptHeadContractMonthSel, deptHeadContractDayInp, deptHeadContractYearInp, deptHeadContractDateInput, null, 1900, 2030);
 
     function updateContractualEndVisibility() {
@@ -899,12 +901,10 @@ document.addEventListener("DOMContentLoaded", function () {
         const isRegular = employmentStatusSelect.value === 'regular';
         contractualEndCol.style.display = isRegular ? 'none' : 'block';
 
-        // Toggle required on all inputs inside the group (Month/Day/Year)
         contractualEndCol.querySelectorAll('input, select').forEach(el => {
             el.required = !isRegular;
         });
 
-        // Clear the hidden value + segments when switching back to regular
         if (isRegular) {
             if (contractDateInput) contractDateInput.value = '';
             if (contractMonthSel) contractMonthSel.value = '';
@@ -958,7 +958,6 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Modal data populate handler
     function setupViewModal() {
         const viewModal = document.getElementById('viewProfileModal');
         if (!viewModal) return;

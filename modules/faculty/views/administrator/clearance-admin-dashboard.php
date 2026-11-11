@@ -1,14 +1,6 @@
 <?php
 /**
  * SMS 2 - Admin - Clearance Admin Dashboard
- *
- * Implements the Faculty Admin (Administrator) Clearance Workflow.
- * NO SCHEMA CHANGES. Writes to existing tables only:
- *   - clearance_approval_history (office = 'Admin')
- *   - clearance_signatures       (signatory_type = 'admin')
- *   - notifications              (high-priority notices)
- *
- * RBAC: admin / faculty_admin / superadmin. System-wide.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
@@ -112,7 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
 
         if ($clearanceId > 0) {
             try {
-                // REMOVED faculty_db. prefixes
                 $stmt = $pdo->prepare("
                     SELECT cr.*, f.faculty_no, f.first_name, f.middle_name, f.last_name, f.email,
                            f.department_id, d.name AS dept_name
@@ -131,7 +122,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                     $facultyId   = (int) $cl['faculty_id'];
                     $facultyName = caFullName($cl);
 
-                    // REMOVED faculty_db. prefixes
                     $officeStmt = $pdo->prepare("
                         SELECT ci.clearance_office_id, ci.status, co.name AS office_name
                         FROM clearance_items ci
@@ -183,7 +173,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                             $flashType = 'warning';
                         }
                     }
-
                     elseif ($action === 'compliance_notice') {
                         $message = trim((string) ($_POST['message'] ?? ''));
                         if ($message === '') {
@@ -211,7 +200,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         $flash = 'Compliance notice issued and faculty notified.';
                         $flashType = 'warning';
                     }
-
                     elseif ($action === 'expedite_notice') {
                         $targetOffice = trim((string) ($_POST['target_office'] ?? ''));
                         $message = trim((string) ($_POST['message'] ?? ''));
@@ -245,7 +233,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo instanceof PDO) {
                         $flash = 'Expedite notice recorded' . ($targetOffice ? ' for ' . $targetOffice : '') . '.';
                         $flashType = 'info';
                     }
-
                     elseif ($action === 'endorse_to_dean') {
                         if (!$allCleared || !$declared) {
                             $flash = 'Cannot endorse — all 6 offices must be cleared and the faculty declaration must be signed.';
@@ -489,7 +476,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
-<div class="container-fluid px-3 px-md-4 px-lg-5 py-4" id="caPage">
+<div class="container-fluid px-2 px-md-4 px-lg-5 py-3" id="caPage">
 
     <?php if ($loadError): ?>
         <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
@@ -505,12 +492,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
-
-    <div class="d-none d-print-block text-center mb-3">
-        <h4 class="mb-0 fw-bold">Clearance Admin Dashboard</h4>
-        <small>Generated <?= date('F j, Y g:i A') ?></small>
-        <p class="small mb-0 mt-1"><em>Confidential — internal administrative review.</em></p>
-    </div>
 
     <!-- ================= Page Header ================= -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 no-print">
@@ -538,67 +519,63 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 
     <!-- ================= KPI Cards ================= -->
-    <div class="row g-3 mb-4 no-print">
+    <div class="row g-2 mb-3 no-print">
         <div class="col-6 col-lg-3">
-            <section class="card stat-card info border shadow-sm position-relative overflow-hidden h-100">
+            <section class="card stat-card border shadow-sm h-100 position-relative overflow-hidden">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#0d6efd;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(13,110,253,0.12);color:#0d6efd;">
+                <div class="card-body d-flex align-items-center p-2 p-md-3 ps-3">
+                    <div class="me-2 me-md-3 d-inline-flex align-items-center justify-content-center rounded flex-shrink-0"
+                         style="width:40px;height:40px;font-size:1.1rem;background:rgba(13,110,253,0.12);color:#0d6efd;">
                         <i class="fas fa-inbox"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Pending Review</h6>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Pending Review</h6>
                         <h4 class="mb-0 fw-bold text-primary"><?= (int) $kpiPending ?></h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate text-primary" style="font-size:0.7rem;">Awaiting audit</small>
                     </div>
                 </div>
             </section>
         </div>
         <div class="col-6 col-lg-3">
-            <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
+            <section class="card stat-card border shadow-sm h-100 position-relative overflow-hidden">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#10b981;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(16,185,129,0.14);color:#10b981;">
+                <div class="card-body d-flex align-items-center p-2 p-md-3 ps-3">
+                    <div class="me-2 me-md-3 d-inline-flex align-items-center justify-content-center rounded flex-shrink-0"
+                         style="width:40px;height:40px;font-size:1.1rem;background:rgba(16,185,129,0.14);color:#10b981;">
                         <i class="fas fa-circle-check"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Passed Audit</h6>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Passed Audit</h6>
                         <h4 class="mb-0 fw-bold text-success"><?= (int) $kpiPassedAudit ?></h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate text-success" style="font-size:0.7rem;">Compliance audited</small>
                     </div>
                 </div>
             </section>
         </div>
         <div class="col-6 col-lg-3">
-            <section class="card stat-card warning border shadow-sm position-relative overflow-hidden h-100">
+            <section class="card stat-card border shadow-sm h-100 position-relative overflow-hidden">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#f59e0b;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(245,158,11,0.14);color:#f59e0b;">
+                <div class="card-body d-flex align-items-center p-2 p-md-3 ps-3">
+                    <div class="me-2 me-md-3 d-inline-flex align-items-center justify-content-center rounded flex-shrink-0"
+                         style="width:40px;height:40px;font-size:1.1rem;background:rgba(245,158,11,0.14);color:#f59e0b;">
                         <i class="fas fa-triangle-exclamation"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Notices Issued</h6>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Notices Issued</h6>
                         <h4 class="mb-0 fw-bold text-warning"><?= (int) $kpiNotices ?></h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate text-warning" style="font-size:0.7rem;">Compliance / expedite</small>
                     </div>
                 </div>
             </section>
         </div>
         <div class="col-6 col-lg-3">
-            <section class="card stat-card danger border shadow-sm position-relative overflow-hidden h-100">
+            <section class="card stat-card border shadow-sm h-100 position-relative overflow-hidden">
                 <div class="position-absolute top-0 start-0 h-100" style="width:4px;background:#ff4d4d;z-index:1;"></div>
-                <div class="card-body d-flex align-items-center ps-4 pe-4 py-3">
-                    <div class="me-3 d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                         style="width:42px;height:42px;font-size:1.2rem;background:rgba(255,77,77,0.14);color:#ff4d4d;">
+                <div class="card-body d-flex align-items-center p-2 p-md-3 ps-3">
+                    <div class="me-2 me-md-3 d-inline-flex align-items-center justify-content-center rounded flex-shrink-0"
+                         style="width:40px;height:40px;font-size:1.1rem;background:rgba(255,77,77,0.14);color:#ff4d4d;">
                         <i class="fas fa-paper-plane"></i>
                     </div>
                     <div class="min-w-0">
-                        <h6 class="text-muted mb-1 small text-uppercase fw-bold">Awaiting Endorsement</h6>
+                        <h6 class="text-muted mb-0 small text-uppercase fw-bold">Awaiting Endorse</h6>
                         <h4 class="mb-0 fw-bold" style="color:#ff4d4d;"><?= (int) $kpiAwaitingEnd ?></h4>
-                        <small class="fw-semibold d-block mt-1 text-truncate" style="color:#ff4d4d;font-size:0.7rem;">Ready for Dean</small>
                     </div>
                 </div>
             </section>
@@ -606,16 +583,16 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 
     <!-- ================= Two-Column Layout ================= -->
-    <div class="row g-3 align-items-start">
+    <div class="row g-3 align-items-start no-print">
 
         <!-- LEFT: Queue -->
         <div class="col-12 col-lg-5 col-xl-4">
             <div class="card border shadow-sm">
-                <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center py-3">
-                    <h5 class="card-title mb-0 fw-bold">Clearance Queue</h5>
+                <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center py-2 py-md-3">
+                    <h5 class="card-title mb-0 fw-bold fs-6 fs-md-5">Clearance Queue</h5>
                     <span class="badge text-bg-light border" id="queueCountBadge"><?= count($queue) ?></span>
                 </div>
-                <div class="card-body py-3 border-bottom">
+                <div class="card-body py-2 border-bottom">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-body text-body-secondary border-light-subtle">
                             <i class="fas fa-search"></i>
@@ -624,7 +601,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                placeholder="Search faculty or clearance no…" autocomplete="off">
                     </div>
                 </div>
-                <div class="card-body p-2 ca-scroll" style="max-height:600px;overflow-y:auto;">
+                <div class="card-body p-2 ca-scroll" style="max-height:500px;overflow-y:auto;">
                     <div id="queueList" class="d-flex flex-column gap-2">
                         <?php if (empty($queue)): ?>
                             <div class="text-center py-5 text-body-secondary">
@@ -638,20 +615,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     $name        = caFullName($row);
                                     $init        = caInitials($row);
                                     $dept        = $row['dept_name'] ?: ($row['dept_code'] ?: '—');
-                                    $terms       = ($row['academic_year'] ?? '—') . ' · ' . ($row['semester'] ?? '—');
                                     $gateCleared = (int) $row['_gate_cleared'];
                                     $gateTotal   = (int) $row['_gate_total'];
-                                    $allCleared  = (bool) $row['_all_cleared'];
-                                    $declared    = (bool) $row['_declared'];
-                                                                        $hasAudit    = (bool) $row['_has_audit'];
+                                    $hasAudit    = (bool) $row['_has_audit'];
                                     $hasEndorse  = (bool) $row['_has_endorse'];
 
                                     $stateLbl = 'Pending';
-                                    $stateCls = 'bg-warning-subtle text-warning border-warning-subtle';
-                                    if ($hasEndorse) { $stateLbl = 'Endorsed'; $stateCls = 'bg-primary-subtle text-primary border-primary-subtle'; }
-                                    elseif ($hasAudit) { $stateLbl = 'Audited'; $stateCls = 'bg-success-subtle text-success border-success-subtle'; }
+                                    $stateCls = 'bg-light text-secondary border';
+                                    if ($hasEndorse) { $stateLbl = 'Endorsed'; $stateCls = 'bg-dark text-white border-dark'; }
+                                    elseif ($hasAudit) { $stateLbl = 'Audited'; $stateCls = 'bg-success text-white border-success'; }
                                 ?>
-                                <div class="ca-queue-item d-flex align-items-start gap-2 p-2 rounded-3 border bg-body-tertiary"
+                                <div class="ca-queue-item d-flex align-items-start gap-2 p-2 rounded-3 border bg-body"
                                      data-clearance-id="<?= $cid ?>"
                                      data-name="<?= eh(strtolower($name)) ?>"
                                      data-no="<?= eh(strtolower($row['clearance_no'] ?? '')) ?>"
@@ -660,10 +634,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     <div class="flex-grow-1 min-w-0">
                                         <div class="fw-bold small text-body-emphasis text-truncate ca-privacy-target" title="<?= eh($name) ?>"><?= eh($name) ?></div>
                                         <div class="text-body-secondary text-truncate" style="font-size:.7rem;">
-                                            <?= eh($row['faculty_no'] ?? '—') ?> · <?= eh($dept) ?>
+                                            <?= eh($row['faculty_no'] ?? '—') ?>
                                         </div>
                                         <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
-                                            <span class="d-inline-block px-2 py-1 rounded-2 border fw-semibold <?= $stateCls ?>" style="font-size:.62rem;"><?= eh($stateLbl) ?></span>
+                                            <span class="d-inline-block px-2 py-0.5 rounded border fw-semibold <?= $stateCls ?>" style="font-size:.62rem;"><?= eh($stateLbl) ?></span>
                                             <span class="text-body-secondary" style="font-size:.62rem;">
                                                 <?= $gateCleared ?>/<?= $gateTotal ?> offices
                                             </span>
@@ -683,25 +657,23 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 <div class="card-body text-center py-5 text-body-secondary">
                     <i class="fas fa-hand-pointer d-block mb-2" style="font-size:2rem;opacity:.35;"></i>
                     <h5 class="fw-bold mb-1 text-body-emphasis">Select a clearance</h5>
-                    <p class="mb-0 small">Choose a faculty member on the left to examine their clearance, audit compliance, and issue notices.</p>
+                    <p class="mb-0 small">Choose a faculty member on the left to examine their clearance.</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ================= Recent Admin Activity ================= -->
-    <div class="card border shadow-sm mt-4 no-print">
-        <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center py-3">
-            <div>
-                <h5 class="card-title mb-1 fw-bold">Recent Admin Activity</h5>
-                <p class="text-body-secondary small mb-0">Latest 20 actions you performed on clearances</p>
-            </div>
-            <span class="badge text-bg-light border"><?= count($auditLog) ?></span>
+    <!-- ================= Recent Admin Activity (Print Target) ================= -->
+    <div class="card border shadow-sm mt-4">
+        <div class="card-header bg-transparent border-bottom py-2 py-md-3">
+            <h5 class="card-title mb-1 fw-bold fs-6 fs-md-5">Recent Admin Activity</h5>
+            <p class="text-body-secondary small mb-0 no-print">Latest 20 actions you performed on clearances</p>
+            <p class="d-none d-print-block small mb-0">Confidential Administrative Audit Log</p>
         </div>
         <div class="ca-scroll" style="max-height:360px;overflow-y:auto;">
             <div class="table-responsive">
-                <table class="table align-middle mb-0" style="min-width:720px;">
-                    <thead class="sticky-top">
+                <table class="table align-middle mb-0" style="min-width:600px;">
+                    <thead class="sticky-top bg-body">
                         <tr>
                             <th class="text-uppercase small fw-bold text-body-secondary">When</th>
                             <th class="text-uppercase small fw-bold text-body-secondary">Faculty</th>
@@ -718,11 +690,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                 <?php
                                     $hName = trim(($h['first_name'] ?? '') . ' ' . ($h['last_name'] ?? '')) ?: '—';
                                     $act   = (string) $h['action'];
-                                    $badge = 'bg-secondary-subtle text-secondary border-secondary-subtle';
-                                    if ($act === 'Audit Passed')      $badge = 'bg-success-subtle text-success border-success-subtle';
-                                    if ($act === 'Endorsed to Dean')  $badge = 'bg-primary-subtle text-primary border-primary-subtle';
-                                    if ($act === 'Compliance Notice') $badge = 'bg-danger-subtle text-danger border-danger-subtle';
-                                    if ($act === 'Expedite Notice')   $badge = 'bg-warning-subtle text-warning border-warning-subtle';
                                 ?>
                                 <tr>
                                     <td class="small text-nowrap"><?= eh(caFmtDt($h['created_at'])) ?></td>
@@ -730,7 +697,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                         <div class="fw-semibold small"><?= eh($hName) ?></div>
                                         <div class="small text-body-secondary"><?= eh($h['faculty_no'] ?? '—') ?></div>
                                     </td>
-                                    <td><span class="d-inline-block px-2 py-1 rounded-2 border fw-semibold <?= $badge ?>" style="font-size:.7rem;"><?= eh($act) ?></span></td>
+                                    <td><span class="d-inline-block px-2 py-1 rounded-2 border bg-light text-secondary fw-semibold" style="font-size:.7rem;"><?= eh($act) ?></span></td>
                                     <td class="small text-body-secondary d-none d-md-table-cell"><?= eh($h['performed_by_name'] ?? '—') ?></td>
                                     <td class="small text-body-secondary d-none d-lg-table-cell" style="max-width:280px;">
                                         <div class="text-truncate" title="<?= eh($h['remarks'] ?? '') ?>"><?= eh($h['remarks'] ?? '—') ?></div>
@@ -747,12 +714,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <!-- Detail template (rendered client-side) -->
 <template id="detailTemplate">
-    <div class="card-body">
+    <div class="card-body p-3 p-md-4">
         <!-- Header -->
-        <div class="d-flex align-items-start gap-3 mb-3 flex-wrap">
+        <div class="d-flex align-items-start gap-2 gap-md-3 mb-3 flex-wrap">
             <div class="ca-avatar-lg" id="dt-avatar">--</div>
             <div class="flex-grow-1 min-w-0">
-                <h5 class="mb-1 fw-bold ca-privacy-target" id="dt-name">—</h5>
+                <h5 class="mb-1 fw-bold ca-privacy-target fs-6 fs-md-5" id="dt-name">—</h5>
                 <div class="text-body-secondary small mb-1">
                     <span id="dt-faculty-no">—</span> · <span id="dt-dept">—</span>
                 </div>
@@ -764,70 +731,70 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="text-end">
                 <div class="d-flex flex-column gap-1 align-items-end">
-                    <span id="dt-audit-state" class="d-inline-block px-2 py-1 rounded-2 border fw-semibold" style="font-size:.7rem;">—</span>
-                    <span id="dt-endorse-state" class="d-inline-block px-2 py-1 rounded-2 border fw-semibold" style="font-size:.7rem;">—</span>
+                    <span id="dt-audit-state" class="d-inline-block px-2 py-1 rounded-2 border fw-semibold bg-light text-secondary" style="font-size:.7rem;">—</span>
+                    <span id="dt-endorse-state" class="d-inline-block px-2 py-1 rounded-2 border fw-semibold bg-light text-secondary" style="font-size:.7rem;">—</span>
                 </div>
             </div>
         </div>
 
         <!-- Gate status -->
-        <div class="alert d-flex align-items-center gap-2 mb-3" id="dt-gate-alert" role="alert">
+        <div class="alert d-flex align-items-center gap-2 mb-3 py-2 px-3" id="dt-gate-alert" role="alert">
             <i class="fas fa-hourglass-half"></i>
-            <div id="dt-gate-text">Checking office progress…</div>
+            <div id="dt-gate-text" class="small">Checking office progress…</div>
         </div>
 
         <!-- Office progress grid -->
         <h6 class="text-uppercase fw-bold text-body-secondary mb-2" style="font-size:.72rem;letter-spacing:.04em;">6-Office Progress</h6>
-        <div class="row g-2 mb-3" id="dt-offices"></div>
+        <div class="row g-2 mb-4" id="dt-offices"></div>
 
         <!-- Actions -->
         <h6 class="text-uppercase fw-bold text-body-secondary mb-2" style="font-size:.72rem;letter-spacing:.04em;">Actions</h6>
-        <div class="d-flex flex-wrap gap-2 mb-3">
+        <div class="d-flex flex-wrap gap-2 mb-4 no-print">
             <form method="POST" class="d-inline" id="form-audit">
                 <input type="hidden" name="action" value="audit_passed">
                 <input type="hidden" name="clearance_id" value="">
-                <button type="submit" class="btn btn-success btn-sm d-inline-flex align-items-center gap-2" id="btn-audit">
-                    <i class="fas fa-stamp"></i>Approve Audit
+                <button type="submit" class="btn btn-dark btn-sm d-inline-flex align-items-center gap-2" id="btn-audit">
+                    <i class="fas fa-stamp"></i><span class="d-none d-sm-inline">Approve Audit</span><span class="d-sm-none">Approve</span>
                 </button>
             </form>
-            <button type="button" class="btn btn-warning btn-sm d-inline-flex align-items-center gap-2" id="btn-notice"
+            <button type="button" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" id="btn-notice"
                     data-bs-toggle="modal" data-bs-target="#noticeModal">
-                <i class="fas fa-triangle-exclamation"></i>Issue Compliance Notice
+                <i class="fas fa-triangle-exclamation"></i><span class="d-none d-sm-inline">Issue Compliance Notice</span><span class="d-sm-none">Notice</span>
             </button>
-            <button type="button" class="btn btn-info btn-sm d-inline-flex align-items-center gap-2 text-white" id="btn-expedite"
+            <button type="button" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" id="btn-expedite"
                     data-bs-toggle="modal" data-bs-target="#expediteModal">
-                <i class="fas fa-paper-plane"></i>Expedite Office
+                <i class="fas fa-paper-plane"></i><span class="d-none d-sm-inline">Expedite Office</span><span class="d-sm-none">Expedite</span>
             </button>
-            <button type="button" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-2" id="btn-endorse"
+            <button type="button" class="btn btn-outline-dark btn-sm d-inline-flex align-items-center gap-2" id="btn-endorse"
                     data-bs-toggle="modal" data-bs-target="#endorseModal">
-                <i class="fas fa-arrow-up-right-from-square"></i>Endorse to Dean
+                <i class="fas fa-arrow-up-right-from-square"></i><span class="d-none d-sm-inline">Endorse to Dean</span><span class="d-sm-none">Endorse</span>
             </button>
         </div>
 
         <!-- Audit history -->
         <h6 class="text-uppercase fw-bold text-body-secondary mb-2" style="font-size:.72rem;letter-spacing:.04em;">Admin Action History</h6>
-        <div id="dt-history" class="d-flex flex-column gap-2"></div>
+        <div id="dt-history" class="d-flex flex-column gap-2 no-print"></div>
     </div>
 </template>
 
 <!-- Notice Modal -->
 <div class="modal fade" id="noticeModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <form method="POST" class="modal-content">
+    <div class="modal-dialog modal-dialog-centered px-2">
+        <form method="POST" class="modal-content border-0 shadow">
             <input type="hidden" name="action" value="compliance_notice">
             <input type="hidden" name="clearance_id" id="notice-clearance-id" value="">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-triangle-exclamation text-warning me-2"></i>Issue Compliance Notice</h5>
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fs-6 fw-bold"><i class="fas fa-triangle-exclamation text-secondary me-2"></i>Issue Compliance Notice</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body pb-0">
                 <p class="small text-body-secondary">This will send a <strong>high-priority</strong> notice to the faculty. Use it when an administrative discrepancy has been found.</p>
-                <label class="form-label small fw-bold text-uppercase">Message</label>
+                <label class="form-label small fw-bold text-uppercase text-secondary">Message</label>
                 <textarea name="message" class="form-control" rows="4" placeholder="Describe the discrepancy and what action is required."></textarea>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-warning"><i class="fas fa-paper-plane me-2"></i>Send Notice</button>
+            <div class="modal-footer border-top-0 pt-3">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-dark btn-sm"><i class="fas fa-paper-plane me-2"></i>Send Notice</button>
             </div>
         </form>
     </div>
@@ -835,17 +802,17 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <!-- Expedite Modal -->
 <div class="modal fade" id="expediteModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <form method="POST" class="modal-content">
+    <div class="modal-dialog modal-dialog-centered px-2">
+        <form method="POST" class="modal-content border-0 shadow">
             <input type="hidden" name="action" value="expedite_notice">
             <input type="hidden" name="clearance_id" id="expedite-clearance-id" value="">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-paper-plane text-info me-2"></i>Send Office Expedite Notice</h5>
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fs-6 fw-bold"><i class="fas fa-paper-plane text-secondary me-2"></i>Send Office Expedite Notice</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body pb-0">
                 <p class="small text-body-secondary">Use when an office has stalled. The reviewing office will be notified to expedite the clearance.</p>
-                <label class="form-label small fw-bold text-uppercase">Target Office</label>
+                <label class="form-label small fw-bold text-uppercase text-secondary">Target Office</label>
                 <select name="target_office" class="form-select mb-3">
                     <option value="">— Choose office —</option>
                     <option>Academic Clearance</option>
@@ -855,12 +822,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <option>Financial Clearance</option>
                     <option>HR Clearance</option>
                 </select>
-                <label class="form-label small fw-bold text-uppercase">Message</label>
+                <label class="form-label small fw-bold text-uppercase text-secondary">Message</label>
                 <textarea name="message" class="form-control" rows="3" placeholder="Explain the delay and request expedited action."></textarea>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-info text-white"><i class="fas fa-paper-plane me-2"></i>Send Expedite</button>
+            <div class="modal-footer border-top-0 pt-3">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-dark btn-sm"><i class="fas fa-paper-plane me-2"></i>Send Expedite</button>
             </div>
         </form>
     </div>
@@ -868,52 +835,53 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <!-- Endorse Modal -->
 <div class="modal fade" id="endorseModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <form method="POST" class="modal-content">
+    <div class="modal-dialog modal-dialog-centered px-2">
+        <form method="POST" class="modal-content border-0 shadow">
             <input type="hidden" name="action" value="endorse_to_dean">
             <input type="hidden" name="clearance_id" id="endorse-clearance-id" value="">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-arrow-up-right-from-square text-primary me-2"></i>Endorse to Dean / VPAA</h5>
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fs-6 fw-bold"><i class="fas fa-arrow-up-right-from-square text-secondary me-2"></i>Endorse to Dean / VPAA</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body pb-0">
                 <p class="small text-body-secondary">All 6 offices must be cleared and the faculty declaration signed before endorsement. This action attaches your endorsement note and forwards the clearance to the Dean/VPAA.</p>
-                <label class="form-label small fw-bold text-uppercase">Endorsement Note</label>
+                <label class="form-label small fw-bold text-uppercase text-secondary">Endorsement Note</label>
                 <textarea name="endorsement_note" class="form-control" rows="3" placeholder="Optional — a short note to accompany the endorsement."></textarea>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary"><i class="fas fa-check me-2"></i>Endorse to Dean</button>
+            <div class="modal-footer border-top-0 pt-3">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-dark btn-sm"><i class="fas fa-check me-2"></i>Endorse to Dean</button>
             </div>
         </form>
     </div>
 </div>
 
 <style>
-    .ca-scroll { scrollbar-width: thin; scrollbar-color: rgba(13,110,253,.3) transparent; }
+    .ca-scroll { scrollbar-width: thin; scrollbar-color: rgba(100,116,139,.3) transparent; }
     .ca-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
     .ca-scroll::-webkit-scrollbar-track { background: transparent; }
-    .ca-scroll::-webkit-scrollbar-thumb { background-color: rgba(13,110,253,.3); border-radius: 10px; }
-    .ca-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(13,110,253,.6); }
+    .ca-scroll::-webkit-scrollbar-thumb { background-color: rgba(100,116,139,.3); border-radius: 10px; }
 
     .ca-avatar {
-        width: 36px; height: 36px; border-radius: 8px;
+        width: 36px; height: 36px; border-radius: 50%;
         display: inline-flex; align-items: center; justify-content: center;
-        font-weight: 700; font-size: .72rem;
-        background: rgba(59,130,246,.14); color: #3b82f6;
+        font-weight: 600; font-size: .75rem;
+        background: var(--bs-secondary-bg); color: var(--bs-secondary-color);
+        border: 1px solid var(--bs-border-color);
         flex-shrink: 0;
     }
     .ca-avatar-lg {
-        width: 52px; height: 52px; border-radius: 12px;
+        width: 52px; height: 52px; border-radius: 50%;
         display: inline-flex; align-items: center; justify-content: center;
-        font-weight: 800; font-size: 1rem;
-        background: rgba(59,130,246,.14); color: #3b82f6;
+        font-weight: 700; font-size: 1rem;
+        background: var(--bs-secondary-bg); color: var(--bs-secondary-color);
+        border: 1px solid var(--bs-border-color);
         flex-shrink: 0;
     }
 
-    .ca-queue-item { transition: border-color .15s ease, background .15s ease, transform .15s ease; }
-    .ca-queue-item:hover { border-color: rgba(59,130,246,.35) !important; transform: translateY(-1px); }
-    .ca-queue-item.ca-active { border-color: #3b82f6 !important; background: rgba(59,130,246,.08); }
+    .ca-queue-item { transition: all .15s ease; }
+    .ca-queue-item:hover { border-color: #6c757d !important; background: var(--bs-tertiary-bg) !important; }
+    .ca-queue-item.ca-active { border-color: #212529 !important; background: var(--bs-tertiary-bg) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 
     .privacy-mode .ca-privacy-target {
         filter: blur(5px); -webkit-filter: blur(5px);
@@ -921,19 +889,29 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
     .privacy-mode .ca-privacy-target:hover { filter: blur(0); -webkit-filter: blur(0); }
 
-    @media (max-width: 400px) {
-        #caPage { padding-left: .5rem !important; padding-right: .5rem !important; }
-        #caPage h1.h4 { font-size: 1.15rem; }
-        .stat-card .card-body { padding: .7rem .6rem .7rem .9rem !important; }
-        .stat-card h4 { font-size: 1.2rem !important; }
-        .stat-card h6 { font-size: .62rem !important; letter-spacing: .03em !important; }
-        .stat-card small { font-size: .65rem !important; }
-        .ca-avatar { width: 32px; height: 32px; font-size: .68rem; }
-        .ca-avatar-lg { width: 44px; height: 44px; font-size: .85rem; }
+    /* Mobile Adjustments to 344px */
+    @media (max-width: 350px) {
+        #caPage { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+        #caPage h1.h4 { font-size: 1.1rem; }
+        .stat-card .card-body { padding: .5rem !important; padding-left: 0.75rem !important; }
+        .stat-card h4 { font-size: 1.1rem !important; }
+        .stat-card h6 { font-size: .6rem !important; }
+        .stat-card .rounded { width: 30px !important; height: 30px !important; font-size: .9rem !important; margin-right: .5rem !important; }
+        .ca-avatar { width: 30px; height: 30px; font-size: .65rem; }
+        .ca-avatar-lg { width: 40px; height: 40px; font-size: .85rem; }
+        .d-flex.gap-2.mb-3.flex-wrap button, .d-flex.gap-2.mb-3.flex-wrap label { width: 100%; justify-content: center; }
     }
 
+    /* Print Styles - Data Only */
     @media print {
-        .no-print, .breadcrumb, nav, header, footer, .btn, button, .modal, .ca-scroll { display: none !important; }
+        @page { margin: 1cm; }
+        body { background: white !important; font-size: 10pt; }
+        .no-print, .breadcrumb, nav, header, footer, .btn, button, .modal, .ca-scroll, #detailPanel, .col-lg-5 { display: none !important; }
+        .card { border: none !important; box-shadow: none !important; margin: 0 !important; }
+        .table-responsive { overflow: visible !important; }
+        table { width: 100% !important; border-collapse: collapse !important; }
+        th, td { border: 1px solid #dee2e6 !important; padding: 6px !important; }
+        .privacy-mode .ca-privacy-target { filter: blur(5px) !important; -webkit-filter: blur(5px) !important; }
     }
 </style>
 
@@ -986,7 +964,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             'missing':  ['bg-secondary-subtle text-secondary border-secondary-subtle', 'Missing'],
             'pending':  ['bg-warning-subtle text-warning border-warning-subtle', 'Pending']
         };
-        const v = map[s] || ['bg-secondary-subtle text-secondary border-secondary-subtle', status || 'Unknown'];
+        const v = map[s] || ['bg-light text-secondary border', status || 'Unknown'];
         return '<span class="d-inline-block px-2 py-1 rounded-2 border fw-semibold text-nowrap ' + v[0] + '" style="font-size:.68rem;">' + escapeHtml(v[1]) + '</span>';
     }
 
@@ -1014,21 +992,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         // State badges
         const auditState = document.getElementById('dt-audit-state');
         auditState.textContent = data.has_audit ? 'Audit Passed' : 'Awaiting Audit';
-        auditState.className = 'd-inline-block px-2 py-1 rounded-2 border fw-semibold ' + (data.has_audit ? 'bg-success-subtle text-success border-success-subtle' : 'bg-warning-subtle text-warning border-warning-subtle') + '" style="font-size:.7rem;"';
+        auditState.className = 'd-inline-block px-2 py-1 rounded-2 border fw-semibold ' + (data.has_audit ? 'bg-success text-white border-success' : 'bg-light text-secondary border') + '" style="font-size:.7rem;"';
 
         const endState = document.getElementById('dt-endorse-state');
         endState.textContent = data.has_endorse ? 'Endorsed to Dean' : 'Not Endorsed';
-        endState.className = 'd-inline-block px-2 py-1 rounded-2 border fw-semibold ' + (data.has_endorse ? 'bg-primary-subtle text-primary border-primary-subtle' : 'bg-secondary-subtle text-secondary border-secondary-subtle') + '" style="font-size:.7rem;"';
+        endState.className = 'd-inline-block px-2 py-1 rounded-2 border fw-semibold ' + (data.has_endorse ? 'bg-dark text-white border-dark' : 'bg-light text-secondary border') + '" style="font-size:.7rem;"';
 
         // Gate alert
         const gateAlert = document.getElementById('dt-gate-alert');
         const gateText  = document.getElementById('dt-gate-text');
         const gateOk    = data.all_cleared && data.declared;
         if (gateOk) {
-            gateAlert.className = 'alert alert-success d-flex align-items-center gap-2 mb-3';
+            gateAlert.className = 'alert alert-success d-flex align-items-center gap-2 mb-3 py-2 px-3 border-success-subtle';
             gateText.innerHTML = '<strong>Ready to endorse.</strong> All ' + data.gate_total + ' offices cleared and the faculty declaration is signed.';
         } else {
-            gateAlert.className = 'alert alert-warning d-flex align-items-center gap-2 mb-3';
+            gateAlert.className = 'alert alert-warning d-flex align-items-center gap-2 mb-3 py-2 px-3 border-warning-subtle';
             const missing = [];
             if (!data.all_cleared) missing.push(data.gate_cleared + '/' + data.gate_total + ' offices cleared');
             if (!data.declared)    missing.push('faculty declaration not signed');
@@ -1039,11 +1017,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const officeGrid = document.getElementById('dt-offices');
         officeGrid.innerHTML = data.offices.map(o => {
             const fileLink = o.file_path
-                ? '<a href="' + escapeHtml(o.file_path) + '" target="_blank" rel="noopener" class="small"><i class="fas fa-paperclip me-1"></i>' + escapeHtml(o.original_name || 'file') + '</a>'
+                ? '<a href="' + escapeHtml(o.file_path) + '" target="_blank" rel="noopener" class="small text-decoration-none"><i class="fas fa-paperclip me-1"></i>' + escapeHtml(o.original_name || 'file') + '</a>'
                 : '<span class="small text-body-secondary">No file</span>';
             return `
-                <div class="col-12 col-md-6">
-                    <div class="p-2 rounded-3 border bg-body-tertiary">
+                <div class="col-12 col-sm-6">
+                    <div class="p-2 rounded-3 border bg-body h-100">
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
                             <div class="fw-bold small text-body-emphasis">${escapeHtml(o.office_name)}</div>
                             ${statusPill(o.status)}
@@ -1070,26 +1048,19 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         // Admin history
         const histEl = document.getElementById('dt-history');
         if (!data.admin_actions.length) {
-            histEl.innerHTML = '<div class="text-center py-3 text-body-secondary small">No admin actions yet.</div>';
+            histEl.innerHTML = '<div class="text-center py-3 text-body-secondary small border rounded-3 bg-body">No admin actions yet.</div>';
         } else {
             histEl.innerHTML = data.admin_actions.map(h => {
-                const badgeMap = {
-                    'Audit Passed':      'bg-success-subtle text-success border-success-subtle',
-                    'Endorsed to Dean':  'bg-primary-subtle text-primary border-primary-subtle',
-                    'Compliance Notice': 'bg-danger-subtle text-danger border-danger-subtle',
-                    'Expedite Notice':   'bg-warning-subtle text-warning border-warning-subtle'
-                };
-                const cls = badgeMap[h.action] || 'bg-secondary-subtle text-secondary border-secondary-subtle';
                 return `
-                    <div class="p-2 rounded-3 border bg-body-tertiary">
+                    <div class="p-2 rounded-3 border bg-body">
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-1 flex-wrap">
-                            <span class="d-inline-block px-2 py-1 rounded-2 border fw-semibold ${cls}" style="font-size:.68rem;">${escapeHtml(h.action)}</span>
+                            <span class="d-inline-block px-2 py-1 rounded-2 border bg-light text-secondary fw-semibold" style="font-size:.68rem;">${escapeHtml(h.action)}</span>
                             <small class="text-body-secondary">${escapeHtml(h.created_at)}</small>
                         </div>
                         <div class="small text-body-secondary mb-1">
                             <i class="fas fa-user me-1"></i>${escapeHtml(h.performed_by_name || '—')}
                         </div>
-                        ${h.remarks ? '<div class="small">' + escapeHtml(h.remarks) + '</div>' : ''}
+                        ${h.remarks ? '<div class="small text-body">' + escapeHtml(h.remarks) + '</div>' : ''}
                     </div>
                 `;
             }).join('');

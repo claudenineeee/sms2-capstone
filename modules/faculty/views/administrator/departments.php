@@ -19,28 +19,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $description = trim($_POST['description'] ?? '');
 
         if (!empty($code) && !empty($name)) {
-            try {
-                $stmt = $pdo->prepare("INSERT INTO departments (code, name, description) VALUES (:code, :name, :desc)");
-                $stmt->execute([
-                    ':code' => $code,
-                    ':name' => $name,
-                    ':desc' => $description
-                ]);
-                $message = "Department '{$code}' created successfully!";
-            } catch (PDOException $e) {
-                $message = "Error adding department: Department code may already exist.";
+            // ==========================================
+            // NEW: CHECK FOR DUPLICATE CODE BEFORE INSERTING
+            // ==========================================
+            $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM departments WHERE code = :code");
+            $checkStmt->execute([':code' => $code]);
+            
+            if ($checkStmt->fetchColumn() > 0) {
+                $message = "Department code '{$code}' already exists. Please use a unique code.";
                 $messageType = "danger";
+            } else {
+                try {
+                    $stmt = $pdo->prepare("INSERT INTO departments (code, name, description) VALUES (:code, :name, :desc)");
+                    $stmt->execute([
+                        ':code' => $code,
+                        ':name' => $name,
+                        ':desc' => $description
+                    ]);
+                    $message = "Department '{$code}' created successfully!";
+                } catch (PDOException $e) {
+                    $message = "Error adding department: " . $e->getMessage();
+                    $messageType = "danger";
+                }
             }
+        } else {
+            $message = "Department code and full name are required.";
+            $messageType = "danger";
         }
     }
 }
 
+// Fetch departments (added GROUP BY to hide duplicates you already created)
 $stmt = $pdo->query("
     SELECT d.*, 
            (SELECT COUNT(*) 
             FROM faculty_profiles fp 
             WHERE fp.designated_department = d.code) AS faculty_count
     FROM departments d
+    GROUP BY d.code
     ORDER BY d.created_at DESC
 ");
 $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -75,15 +91,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             <i class="fas fa-plus me-1"></i> Add New Department
         </button>
     </div>
-
-    <!-- Alert Messages -->
-    <?php if ($message !== ''): ?>
-        <div class="alert alert-<?= $messageType ?> alert-dismissible fade show rounded-3 shadow-sm small" role="alert">
-            <i class="fas <?= $messageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle' ?> me-2"></i>
-            <?= htmlspecialchars($message) ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    <?php endif; ?>
 
     <!-- Table Container Card -->
     <div class="card bg-body-tertiary border border-light-subtle shadow-sm rounded-4">
@@ -141,6 +148,21 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
+<!-- Toast Notification Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="liveToast" class="toast align-items-center border shadow-lg rounded-3 bg-body text-body" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex align-items-center p-2">
+            <div id="toastIconContainer" class="me-2 fs-5 px-1">
+                <i id="toastIcon" class="fas fa-check-circle"></i>
+            </div>
+            <div class="toast-body d-flex align-items-center fs-7 fw-semibold p-1 text-body" id="toastMessageText">
+                <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
+            </div>
+            <button type="button" class="btn-close ms-auto me-1 shadow-none" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Add New Department -->
 <div class="modal fade" id="addDeptModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -178,10 +200,39 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+
+    // ==========================================
+    // TOAST ALERT LOGIC
+    // ==========================================
+    const phpMessage = <?= json_encode($message) ?>;
+    const messageType = <?= json_encode($messageType) ?>;
+
+    if (phpMessage && phpMessage.trim() !== '') {
+        const toastEl = document.getElementById('liveToast');
+        const toastIcon = document.getElementById('toastIcon');
+
+        // Customize toast color based on PHP message type
+        if (messageType === 'success') {
+            toastEl.classList.add('border-success');
+            toastIcon.className = 'fas fa-check-circle text-success';
+        } else if (messageType === 'warning' || messageType === 'danger') {
+            toastEl.classList.add('border-danger');
+            toastIcon.className = 'fas fa-exclamation-circle text-danger';
+        } else {
+            toastEl.classList.add('border-primary');
+            toastIcon.className = 'fas fa-info-circle text-primary';
+        }
+
+        if (toastEl && window.bootstrap && window.bootstrap.Toast) {
+            const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+            toast.show();
+        }
+    }
 });
 </script>
 

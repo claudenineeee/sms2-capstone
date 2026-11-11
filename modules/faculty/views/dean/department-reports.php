@@ -57,7 +57,6 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $deptList   = implode(',', array_map('intval', $deanDepartments));
         $positionIn = implode(',', array_fill(0, count($teachingPositions), '?'));
 
-        // REMOVED faculty_db. prefixes
         $facStmt = $pdo->prepare("
             SELECT f.faculty_id, f.faculty_no, f.first_name, f.last_name,
                    f.department_id, f.position, f.profile_status,
@@ -84,7 +83,6 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $evalAvgByFaculty = [];
         if (!empty($allFacultyIds)) {
             $facultyIdList = implode(',', $allFacultyIds);
-            // REMOVED faculty_db. prefixes
             $evalStmt = $pdo->query("
                 SELECT faculty_id, AVG(composite_score) AS avg_score, COUNT(*) AS eval_rows
                 FROM evaluations
@@ -104,7 +102,6 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $clearanceByFaculty = [];
         if (!empty($allFacultyIds)) {
             $facultyIdList = implode(',', $allFacultyIds);
-            // REMOVED faculty_db. prefixes
             $clStmt = $pdo->query("
                 SELECT a.faculty_id, a.items_json
                 FROM faculty_clearance_archives a
@@ -137,7 +134,6 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $docsExpiringByFaculty = [];
         if (!empty($allFacultyIds)) {
             $facultyIdList = implode(',', $allFacultyIds);
-            // REMOVED faculty_db. prefixes
             $docStmt = $pdo->query("
                 SELECT faculty_id, COUNT(*) AS expiring_count
                 FROM documents
@@ -154,7 +150,6 @@ if ($hasDeanDepartments && $pdo instanceof PDO) {
         $leaveByFaculty = [];
         if (!empty($allFacultyIds)) {
             $facultyIdList = implode(',', $allFacultyIds);
-            // REMOVED faculty_db. prefixes
             $lvStmt = $pdo->query("
                 SELECT faculty_id,
                        SUM(sick_leave_used)      AS sick_used,
@@ -291,16 +286,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <label class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-3 border bg-body-tertiary mb-0 small fw-semibold"
-                   for="privacyModeToggle" style="cursor:pointer;">
-                <input type="checkbox" class="form-check-input mt-0" id="privacyModeToggle" role="switch">
-                <i class="fas fa-eye-slash"></i>
-                <span class="d-none d-sm-inline">Privacy</span>
-            </label>
-            <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" id="exportCsvBtn">
-                <i class="fas fa-file-csv"></i>
-                <span class="d-none d-sm-inline">CSV</span>
-            </button>
+            <!-- Removed Privacy and CSV buttons -->
             <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2" id="printBtn">
                 <i class="fas fa-print"></i>
                 <span class="d-none d-sm-inline">Print</span>
@@ -381,7 +367,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <div class="card-body py-3">
             <div class="row g-3 align-items-end">
                 <?php if (count($deanDepartments) > 1): ?>
-                <div class="col-6 col-md-3 col-lg-3">
+                <div class="col-12 col-md-4">
                     <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_dept">Department</label>
                     <select class="form-select form-select-sm" id="f_dept" data-filter="dept">
                         <option value="all">All my departments</option>
@@ -394,7 +380,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                 </div>
                 <?php endif; ?>
 
-                <div class="col-6 col-md-3 col-lg-3">
+                <div class="<?= count($deanDepartments) > 1 ? 'col-12 col-md-4' : 'col-12 col-md-6' ?>">
                     <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_focus">Focus Metric</label>
                     <select class="form-select form-select-sm" id="f_focus" data-filter="focus">
                         <option value="clearance">Clearance Completion</option>
@@ -404,18 +390,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     </select>
                 </div>
 
-                <div class="col-6 col-md-3 col-lg-3">
-                    <label class="form-label small text-uppercase fw-bold text-body-secondary mb-1" for="f_sort">Sort By</label>
-                    <select class="form-select form-select-sm" id="f_sort" data-filter="sort">
-                        <option value="focus_desc">Focus — High to Low</option>
-                        <option value="focus_asc">Focus — Low to High</option>
-                        <option value="name_asc">Department Name (A–Z)</option>
-                    </select>
-                </div>
+                <!-- Removed Sort By dropdown -->
 
-                <div class="col-6 col-md-3 col-lg-3">
+                <div class="<?= count($deanDepartments) > 1 ? 'col-12 col-md-4' : 'col-12 col-md-6' ?>">
                     <button type="button" class="btn btn-outline-secondary btn-sm w-100 d-inline-flex align-items-center justify-content-center gap-2" id="resetFilters">
-                        <i class="fas fa-rotate-left"></i><span>Reset</span>
+                        <i class="fas fa-rotate-left"></i><span>Reset Filters</span>
                     </button>
                 </div>
             </div>
@@ -573,13 +552,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     .dr-ring-track { stroke: rgba(148,163,184,.22); }
     .dr-ring-progress { stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
 
-    /* Privacy blur */
-    .privacy-mode .dr-privacy-target {
-        filter: blur(5px); -webkit-filter: blur(5px);
-        user-select: none; transition: filter .15s ease;
-    }
-    .privacy-mode .dr-privacy-target:hover { filter: blur(0); -webkit-filter: blur(0); }
-
     /* Responsive tweaks Bootstrap doesn't cover */
     @media (max-width: 400px) {
         #drPage { padding-left: .5rem !important; padding-right: .5rem !important; }
@@ -599,7 +571,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         .no-print, .breadcrumb, nav, header, footer,
         .sidebar, .sms-sidebar, .sms-navbar,
         .card-header, .card-footer, .btn, button,
-        .modal, .pagination, #privacyModeToggle { display: none !important; }
+        .modal, .pagination { display: none !important; }
         #drPage { display: none !important; }
         .dr-print-only {
             display: block !important;
@@ -657,7 +629,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     const SNAPSHOT = <?= json_encode($departmentSnapshot, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const PAGE_SIZE = 10;
 
-    let filters = { dept: 'all', focus: 'clearance', sort: 'focus_desc' };
+    let filters = { dept: 'all', focus: 'clearance' };
     let filteredData = [];
     let currentPage = 1;
     let radarChart = null;
@@ -716,7 +688,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       Filter + sort
+       Filter
        ============================================================ */
     function applyFilters() {
         let rows = SNAPSHOT.slice();
@@ -725,14 +697,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             rows = rows.filter(r => String(r.department_id) === String(filters.dept));
         }
 
-        const key = filters.focus;
-        if (filters.sort === 'focus_desc') {
-            rows.sort((a, b) => focusValue(b, key) - focusValue(a, key));
-        } else if (filters.sort === 'focus_asc') {
-            rows.sort((a, b) => focusValue(a, key) - focusValue(b, key));
-        } else if (filters.sort === 'name_asc') {
-            rows.sort((a, b) => a.department_name.localeCompare(b.department_name));
-        }
+        // Default sort by name to keep it stable
+        rows.sort((a, b) => a.department_name.localeCompare(b.department_name));
+
         return rows;
     }
 
@@ -877,11 +844,18 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         }
         emptyEl.classList.add('d-none');
 
+        // Sort for ranking (highest focus value first, except docs/leave where lower is better)
         const invert = filters.focus === 'docs' || filters.focus === 'leave';
-        const values = rows.map(r => focusValue(r, filters.focus));
+        const sortedRows = [...rows].sort((a, b) => {
+            const valA = focusValue(a, filters.focus);
+            const valB = focusValue(b, filters.focus);
+            return invert ? valA - valB : valB - valA;
+        });
+
+        const values = sortedRows.map(r => focusValue(r, filters.focus));
         const maxV   = Math.max(...values, 1);
 
-        container.innerHTML = rows.map((dept, idx) => {
+        container.innerHTML = sortedRows.map((dept, idx) => {
             const v   = focusValue(dept, filters.focus);
             const pct = invert
                 ? Math.max(2, 100 - (v / maxV) * 100)
@@ -964,7 +938,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             <div class="text-uppercase fw-bold text-body-secondary" style="font-size:.68rem;letter-spacing:.06em;">${meta.unit || 'value'}</div>
                         </div>
                     </div>
-                    <div class="fw-bold small text-body-emphasis text-truncate w-100 text-center dr-privacy-target"
+                    <div class="fw-bold small text-body-emphasis text-truncate w-100 text-center"
                          title="${escapeHtml(dept.department_name)}">${escapeHtml(dept.department_name)}</div>
                     <div class="text-body-secondary" style="font-size:.68rem;">${dept.faculty_count} facult${dept.faculty_count === 1 ? 'y' : 'ies'}</div>
                 </div>
@@ -1015,7 +989,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             const leaveCls = pctTextClass(r.leave_pct, true);
 
             return '<tr>' +
-                '<td><span class="fw-bold text-body-emphasis dr-privacy-target">' + escapeHtml(r.department_name) + '</span></td>' +
+                '<td><span class="fw-bold text-body-emphasis">' + escapeHtml(r.department_name) + '</span></td>' +
                 '<td class="text-center fw-bold">' + r.faculty_count + '</td>' +
                 '<td class="text-center d-none d-md-table-cell">' + evalDisplay + '</td>' +
                 '<td class="text-center"><span class="fw-bold ' + clearCls + '">' + r.clearance_pct.toFixed(1) + '%</span></td>' +
@@ -1125,37 +1099,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     /* ============================================================
-       CSV
-       ============================================================ */
-    function exportCsv(rows) {
-        const headers = ['Department', 'Faculty Count', 'Avg Evaluation', 'Clearance %', 'Docs Expiring', 'Leave Utilization %', 'Leave Used', 'Leave Total'];
-        const lines = rows.map(r => [
-            r.department_name,
-            r.faculty_count,
-            r.avg_eval > 0 ? r.avg_eval.toFixed(2) : '',
-            r.clearance_pct.toFixed(1),
-            r.docs_expiring,
-            r.leave_pct.toFixed(1),
-            r.leave_used,
-            r.leave_total
-        ]);
-
-        let csv = '\uFEFF' + headers.join(',') + '\n';
-        lines.forEach(e => {
-            csv += e.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',') + '\n';
-        });
-
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'department_reports_' + new Date().toISOString().slice(0, 10) + '.csv';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-    }
-
-    /* ============================================================
        Render pipeline
        ============================================================ */
     function render() {
@@ -1179,9 +1122,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     }
 
     function resetAllFilters() {
-        filters = { dept: 'all', focus: 'clearance', sort: 'focus_desc' };
+        filters = { dept: 'all', focus: 'clearance' };
         document.getElementById('f_focus').value = 'clearance';
-        document.getElementById('f_sort').value  = 'focus_desc';
         const deptSel = document.getElementById('f_dept');
         if (deptSel) deptSel.value = 'all';
         render();
@@ -1193,22 +1135,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     function init() {
         bindFilters();
         document.getElementById('resetFilters').addEventListener('click', resetAllFilters);
-        document.getElementById('exportCsvBtn').addEventListener('click', () => exportCsv(filteredData));
         document.getElementById('printBtn').addEventListener('click', () => window.print());
-
-        const pt = document.getElementById('privacyModeToggle');
-        const KEY = 'smsDeanDepartmentReportsPrivacy';
-        if (pt) {
-            const apply = on => document.body.classList.toggle('privacy-mode', on);
-            try {
-                const saved = localStorage.getItem(KEY) === '1';
-                pt.checked = saved; apply(saved);
-            } catch (e) { /* ignore */ }
-            pt.addEventListener('change', () => {
-                apply(pt.checked);
-                try { localStorage.setItem(KEY, pt.checked ? '1' : '0'); } catch (e) { /* ignore */ }
-            });
-        }
 
         const obs = new MutationObserver(() => { renderRadar(filteredData); });
         obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });

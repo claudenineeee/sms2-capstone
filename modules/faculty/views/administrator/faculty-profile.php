@@ -492,7 +492,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
             </div>
             <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-between flex-wrap gap-2">
                 <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">Close</button>
-                <!-- REMOVED: Approve & Activate / Reject Request buttons -->
+                <!-- Hidden input restored so the JS doesn't crash -->
+                <input type="hidden" id="modalUserId" value="">
             </div>
         </div>
     </div>
@@ -830,7 +831,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const modal = getModalInstance('facultyModal');
         document.getElementById('viewInitials').textContent = getInitials(button.dataset.fullName || 'NA');
         document.getElementById('viewFullName').textContent = button.dataset.fullName || 'Unknown';
+        
+        // This line caused the crash previously because #modalUserId was missing
         document.getElementById('modalUserId').value = button.dataset.userId || '';
+        
         const statusBadge = document.getElementById('viewStatusBadge');
         const currentStatus = button.dataset.profileStatus || button.dataset.status || 'Active';
         statusBadge.textContent = currentStatus;

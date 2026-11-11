@@ -22,7 +22,7 @@ try {
     $host = getenv('DB_HOST')     ?: 'localhost';
     $user = getenv('DB_USERNAME') ?: 'root';
     $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
-    $name = getenv('DB_DATABASE') ?: 'faculty_db';
+    $name = getenv('DB_DATABASE') ?: 'sms2_db';
     $port = (int) (getenv('DB_PORT') ?: 3306);
     $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
     
@@ -169,6 +169,54 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <?php renderBreadcrumbs($breadcrumbs); ?>
 <script src="<?= BASE_URL ?>/../../../../assets/js/loader.js"></script>
 
+<style>
+    /* ============================================================
+       CUSTOM THIN SCROLLBAR FOR MODALS (LIGHT & DARK MODE)
+       ============================================================ */
+    #facultyFormModal .modal-body {
+        /* Force a max height to trigger scrolling */
+        max-height: calc(100vh - 210px); 
+        overflow-y: auto !important;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+        padding-right: 1.25rem !important; 
+    }
+
+    #facultyFormModal .modal-body::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    #facultyFormModal .modal-body::-webkit-scrollbar-track {
+        background: transparent;
+        margin: 4px 0;
+    }
+
+    #facultyFormModal .modal-body::-webkit-scrollbar-thumb {
+        background-color: rgba(156, 163, 175, 0.5);
+        border-radius: 10px;
+    }
+
+    #facultyFormModal .modal-body::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(156, 163, 175, 0.8);
+    }
+
+    /* Dark Mode Overrides */
+    [data-bs-theme="dark"] #facultyFormModal .modal-body::-webkit-scrollbar-thumb,
+    [data-theme="dark"] #facultyFormModal .modal-body::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    [data-bs-theme="dark"] #facultyFormModal .modal-body::-webkit-scrollbar-thumb:hover,
+    [data-theme="dark"] #facultyFormModal .modal-body::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(255, 255, 255, 0.4);
+    }
+
+    [data-bs-theme="dark"] #facultyFormModal .modal-body,
+    [data-theme="dark"] #facultyFormModal .modal-body {
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+</style>
+
 <div class="container-fluid py-3 px-2 px-md-3">
     <!-- 1. Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -266,6 +314,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     $sex = trim((string) ($profile['sex'] ?? ''));
                                     $hiredDate = trim((string) ($profile['hired_date'] ?? ''));
                                     $contractualEnd = trim((string) ($profile['contractual_end'] ?? ''));
+                                    
+                                    $academicRank = trim((string) ($profile['academic_rank'] ?? ''));
+                                    $specialization = trim((string) ($profile['specialization'] ?? $profile['specialization_assignment'] ?? ''));
+                                    $coordinatorType = trim((string) ($profile['coordinator_type'] ?? ''));
+                                    
                                     $userId = (int)($profile['user_id'] ?? 0);
 
                                     $isPending = str_contains(strtolower($profileStatus), 'pending');
@@ -309,6 +362,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     </td>
                                     <td class="text-end">
                                         <div class="d-inline-flex gap-1 justify-content-end" role="group">
+                                            <!-- View Action Button -->
                                             <button type="button" class="btn btn-sm btn-outline-primary rounded-3 px-2 py-1 fs-7" onclick="viewFaculty(this)"
                                                 data-profile-id="<?= (int) ($profile['id'] ?? 0) ?>"
                                                 data-user-id="<?= $userId ?>"
@@ -320,8 +374,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                                 data-department="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-profile-status="<?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?>"
-                                                data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                                data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                data-academic-rank="<?= htmlspecialchars($academicRank, ENT_QUOTES, 'UTF-8') ?>"
+                                                data-specialization="<?= htmlspecialchars($specialization, ENT_QUOTES, 'UTF-8') ?>"
+                                                data-coordinator-type="<?= htmlspecialchars($coordinatorType, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-hired-date="<?= htmlspecialchars($hiredDate, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-contractual-end="<?= htmlspecialchars($contractualEnd, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-sex="<?= htmlspecialchars($sex, ENT_QUOTES, 'UTF-8') ?>"
@@ -330,6 +385,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                                 <i class="fas fa-eye"></i>
                                             </button>
 
+                                            <!-- Edit Action Button -->
                                             <button type="button" class="btn btn-sm btn-outline-warning rounded-3 px-2 py-1 fs-7" onclick="editFaculty(this)"
                                                 data-profile-id="<?= (int) ($profile['id'] ?? 0) ?>"
                                                 data-first-name="<?= htmlspecialchars(trim((string) ($profile['first_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
@@ -343,8 +399,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                                 data-department-code="<?= htmlspecialchars((string) ($profile['designated_dept'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                                 data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-profile-status="<?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?>"
-                                                data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                                data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                data-academic-rank="<?= htmlspecialchars($academicRank, ENT_QUOTES, 'UTF-8') ?>"
+                                                data-specialization="<?= htmlspecialchars($specialization, ENT_QUOTES, 'UTF-8') ?>"
+                                                data-coordinator-type="<?= htmlspecialchars($coordinatorType, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-hired-date="<?= htmlspecialchars($hiredDate, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-contractual-end="<?= htmlspecialchars($contractualEnd, ENT_QUOTES, 'UTF-8') ?>"
                                                 data-sex="<?= htmlspecialchars($sex, ENT_QUOTES, 'UTF-8') ?>"
@@ -451,45 +508,52 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                         <dl class="row mb-0 g-2">
                             <dt class="col-sm-4 text-body-secondary">Faculty ID</dt>
                             <dd class="col-sm-8 text-body fw-bold" id="viewFacultyId">FAC-2026-001</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Department</dt>
                             <dd class="col-sm-8 text-body" id="viewDepartmentLabel">Information Technology</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Position</dt>
                             <dd class="col-sm-8 text-body" id="viewPositionLabel">Head</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Employment Status</dt>
                             <dd class="col-sm-8 text-body" id="viewEmploymentStatus">Active</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Profile Status</dt>
                             <dd class="col-sm-8 text-body" id="viewProfileStatus">Active</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Academic Rank</dt>
                             <dd class="col-sm-8 text-body" id="viewAcademicRank">Assistant Professor</dd>
-                            <dt class="col-sm-4 text-body-secondary">Tier</dt>
-                            <dd class="col-sm-8 text-body" id="viewTier">Assistant Professor I</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Specialization</dt>
+                            <dd class="col-sm-8 text-body" id="viewSpecialization">Software Engineering</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Coordinator Type</dt>
+                            <dd class="col-sm-8 text-body" id="viewCoordinatorType">—</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Hired Date</dt>
                             <dd class="col-sm-8 text-body" id="viewHiredDate">2026-01-10</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Contractual End</dt>
                             <dd class="col-sm-8 text-body" id="viewContractualEnd">2026-12-31</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Birthdate</dt>
                             <dd class="col-sm-8 text-body" id="viewBirthdate">1990-07-28</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Sex</dt>
                             <dd class="col-sm-8 text-body" id="viewSex">Male</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Email</dt>
                             <dd class="col-sm-8 text-body" id="viewEmail">johndoe@university.edu</dd>
+                            
                             <dt class="col-sm-4 text-body-secondary">Phone</dt>
                             <dd class="col-sm-8 text-body" id="viewPhone">+63 912 345 6789</dd>
                         </dl>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-between flex-wrap gap-2">
+            <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-end flex-wrap gap-2">
+                <input type="hidden" id="modalUserId" value="">
                 <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">Close</button>
-                <div class="d-inline-flex gap-2 w-100 w-sm-auto justify-content-end">
-                    <input type="hidden" id="modalUserId" value="">
-                    <button type="button" class="btn btn-outline-danger btn-sm rounded-3 fw-bold flex-fill flex-sm-grow-0" onclick="openActionModal('reject_account', document.getElementById('modalUserId').value, document.getElementById('viewFullName').textContent)">
-                        <i class="fas fa-times me-1"></i> Reject Request
-                    </button>
-                    <button type="button" class="btn btn-success btn-sm rounded-3 fw-bold px-3 flex-fill flex-sm-grow-0" onclick="openActionModal('approve_account', document.getElementById('modalUserId').value, document.getElementById('viewFullName').textContent)">
-                        <i class="fas fa-check me-1"></i> Approve & Activate
-                    </button>
-                </div>
             </div>
         </div>
     </div>
@@ -562,6 +626,24 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                     <div class="mb-4">
                         <h6 class="text-primary border-bottom border-light-subtle pb-2 fw-bold fs-7 mb-3">Role & Status</h6>
                         <div class="row g-3">
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="academicRank" class="form-label text-body-secondary small fw-bold">Academic Rank</label>
+                                <select id="academicRank" name="academic_rank" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
+                                    <option value="" disabled selected>Select Rank</option>
+                                    <option value="Instructor">Instructor</option>
+                                    <option value="Assistant Professor">Assistant Professor</option>
+                                    <option value="Associate Professor">Associate Professor</option>
+                                    <option value="Professor">Professor</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="specialization" class="form-label text-body-secondary small fw-bold">Specialization</label>
+                                <input type="text" id="specialization" name="specialization" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none" placeholder="e.g. Software Engineering">
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="coordinatorType" class="form-label text-body-secondary small fw-bold">Coordinator Type</label>
+                                <input type="text" id="coordinatorType" name="coordinator_type" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none" placeholder="e.g. OJT Coordinator">
+                            </div>
                             <div class="col-12 col-sm-6 col-md-6">
                                 <label for="hiredDate" class="form-label text-body-secondary small fw-bold">Hired Date</label>
                                 <input type="date" id="hiredDate" name="hired_date" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none">
@@ -755,20 +837,26 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     function viewFaculty(button) {
         if (!button || !button.dataset) return;
         const modal = getModalInstance('facultyModal');
+        
         document.getElementById('viewInitials').textContent = getInitials(button.dataset.fullName || 'NA');
         document.getElementById('viewFullName').textContent = button.dataset.fullName || 'Unknown';
         document.getElementById('modalUserId').value = button.dataset.userId || '';
+        
         const statusBadge = document.getElementById('viewStatusBadge');
         const currentStatus = button.dataset.profileStatus || button.dataset.status || 'Active';
         statusBadge.textContent = currentStatus;
         statusBadge.className = 'badge ' + badgeColorClass(currentStatus);
+        
         document.getElementById('viewPosition').textContent = button.dataset.position || '—';
         document.getElementById('viewDepartment').textContent = button.dataset.department || '—';
         document.getElementById('viewFacultyId').textContent = button.dataset.facultyId || '—';
         document.getElementById('viewDepartmentLabel').textContent = button.dataset.department || '—';
         document.getElementById('viewPositionLabel').textContent = button.dataset.position || '—';
         document.getElementById('viewAcademicRank').textContent = button.dataset.academicRank || '—';
-        document.getElementById('viewTier').textContent = button.dataset.tier || '—';
+        
+        document.getElementById('viewSpecialization').textContent = button.dataset.specialization || '—';
+        document.getElementById('viewCoordinatorType').textContent = button.dataset.coordinatorType || '—';
+        
         document.getElementById('viewEmploymentStatus').textContent = button.dataset.status || '—';
         document.getElementById('viewProfileStatus').textContent = button.dataset.profileStatus || '—';
         document.getElementById('viewHiredDate').textContent = button.dataset.hiredDate || '—';
@@ -777,6 +865,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         document.getElementById('viewSex').textContent = button.dataset.sex || '—';
         document.getElementById('viewEmail').textContent = button.dataset.email || '—';
         document.getElementById('viewPhone').textContent = button.dataset.phone || '—';
+        
         modal?.show();
     }
 
@@ -809,10 +898,14 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         document.getElementById('phone').value = button.dataset.phone || '';
         document.getElementById('hiredDate').value = button.dataset.hiredDate || '';
         document.getElementById('contractualEnd').value = button.dataset.contractualEnd || '';
+        
+        document.getElementById('specialization').value = button.dataset.specialization || '';
+        document.getElementById('coordinatorType').value = button.dataset.coordinatorType || '';
 
         setSelectValueCI(document.getElementById('sex'), button.dataset.sex);
         setSelectValueCI(document.getElementById('employmentStatus'), button.dataset.status);
         setSelectValueCI(document.getElementById('profileStatus'), button.dataset.profileStatus);
+        setSelectValueCI(document.getElementById('academicRank'), button.dataset.academicRank);
 
         getModalInstance('facultyFormModal')?.show();
     }
