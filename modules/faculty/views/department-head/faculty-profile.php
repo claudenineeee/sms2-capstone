@@ -6,33 +6,21 @@
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../config/database.php'; // Ensure facultyDb() is loaded
 requireAuth();
 
 // ==========================================
-// 1. DATABASE CONNECTION — PATCHED FOR HOSTFORGE
+// 1. DATABASE CONNECTION
 // ==========================================
-$corePdo = null;
-$facultyPdo = null;
+$corePdo = function_exists('db') ? db() : null;
 
-try {
-    $host = getenv('DB_HOST')     ?: 'localhost';
-    $user = getenv('DB_USERNAME') ?: 'root';
-    $pass = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '';
-    $name = getenv('DB_DATABASE') ?: 'faculty_db';
-    $port = (int) (getenv('DB_PORT') ?: 3306);
-    
-    $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
-    
-    $corePdo = new PDO($dsn, $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
-    
-    // On HostForge, there is only one database. Point both variables to it.
+if (!$corePdo) {
+    die("<div style='padding:20px;color:red;'><strong>Database connection failed.</strong> Check DB_HOST / DB_USERNAME / DB_PASSWORD / DB_DATABASE environment variables.</div>");
+}
+
+$facultyPdo = function_exists('facultyDb') ? facultyDb() : null;
+if (!$facultyPdo) {
     $facultyPdo = $corePdo;
-    
-} catch (PDOException $e) {
-    die("<div style='padding:20px; color:red;'><strong>Database connection failed.</strong> Error: " . $e->getMessage() . "</div>");
 }
 
 $pageTitle    = 'Faculty Profile';
@@ -82,7 +70,7 @@ try {
 } catch (Throwable $e) {}
 
 if (empty($headDepartmentCode)) {
-    $headDepartmentCode = 'BSIT';
+    $headDepartmentCode = 'BSIT'; // Fallback
     $headDepartment = getDepartmentLabel($headDepartmentCode);
 }
 
@@ -103,7 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             UPDATE faculty_profiles SET 
                 first_name = ?, middle_name = ?, last_name = ?, suffix = ?, 
                 sex = ?, birthdate = ?, age = ?, phone = ?, email = ?, 
-                hired_date = ?, contractual_end = ?, employment_status = ?
+                hired_date = ?, contractual_end = ?, employment_status = ?,
+                academic_rank = ?, tier = ?, specialization_assignment = ?, coordinator_type = ?
             WHERE id = ?
         ");
         
@@ -120,6 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             trim((string) ($_POST['hired_date'] ?? '')),
             trim((string) ($_POST['contractual_end_date'] ?? '')),
             trim((string) ($_POST['employment_status'] ?? '')),
+            trim((string) ($_POST['academic_rank'] ?? '')),
+            trim((string) ($_POST['tier'] ?? '')),
+            trim((string) ($_POST['specialization_assignment'] ?? '')),
+            trim((string) ($_POST['coordinator_type'] ?? '')),
             $profileId
         ]);
         
@@ -134,14 +127,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
 // 3. FETCH PROFILES DIRECTLY FROM FACULTY_DB
 // ==========================================
 $facultyProfiles = [];
+$currentUserId = getCurrentUserId();
+$currentUserEmail = strtolower(trim((string) ($_SESSION['user_email'] ?? '')));
 
 try {
+    $headDepartmentLabel = getDepartmentLabel($headDepartmentCode);
+    
+    // Match BOTH the code (BSIT) and the label (Information Technology)
     $stmt = $facultyPdo->prepare("
         SELECT * FROM faculty_profiles 
-        WHERE LOWER(TRIM(designated_department)) = LOWER(?)
+        WHERE LOWER(TRIM(designated_department)) = LOWER(?) 
+           OR LOWER(TRIM(designated_department)) = LOWER(?)
         ORDER BY id DESC
     ");
-    $stmt->execute([$headDepartmentCode]);
+    $stmt->execute([$headDepartmentCode, $headDepartmentLabel]);
     $allProfiles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($allProfiles as $profile) {
@@ -150,14 +149,10 @@ try {
         $profilePosition = strtolower(trim((string) ($profile['position'] ?? '')));
         $rawProfileStatus = strtolower(trim((string) ($profile['profile_status'] ?? '')));
 
-        // Exclude inactive
+        // EXACT SAME FILTER LOGIC AS FACULTY-DIRECTORY.PHP
         if (strpos($rawProfileStatus, 'inactive') !== false) continue;
-        
-        // Exclude the logged-in user (Department Head)
         if ($currentUserId && $profileUserId === (int) $currentUserId) continue;
         if ($currentUserEmail && $profileEmail === $currentUserEmail) continue;
-        
-        // Exclude Deans
         if (strpos($profilePosition, 'dean') !== false) continue;
 
         $facultyProfiles[] = $profile;
@@ -184,8 +179,55 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
+<style>
+    /* ============================================================
+       CUSTOM THIN SCROLLBAR FOR MODALS (LIGHT & DARK MODE)
+       ============================================================ */
+    #facultyFormModal .modal-body {
+        max-height: calc(100vh - 210px); 
+        overflow-y: auto !important;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+        padding-right: 1.25rem !important; 
+    }
+
+    #facultyFormModal .modal-body::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    #facultyFormModal .modal-body::-webkit-scrollbar-track {
+        background: transparent;
+        margin: 4px 0;
+    }
+
+    #facultyFormModal .modal-body::-webkit-scrollbar-thumb {
+        background-color: rgba(156, 163, 175, 0.5);
+        border-radius: 10px;
+    }
+
+    #facultyFormModal .modal-body::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(156, 163, 175, 0.8);
+    }
+
+    /* Dark Mode Overrides */
+    [data-bs-theme="dark"] #facultyFormModal .modal-body::-webkit-scrollbar-thumb,
+    [data-theme="dark"] #facultyFormModal .modal-body::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    [data-bs-theme="dark"] #facultyFormModal .modal-body::-webkit-scrollbar-thumb:hover,
+    [data-theme="dark"] #facultyFormModal .modal-body::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(255, 255, 255, 0.4);
+    }
+
+    [data-bs-theme="dark"] #facultyFormModal .modal-body,
+    [data-theme="dark"] #facultyFormModal .modal-body {
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+</style>
+
 <!-- Page Header -->
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
     <div>
         <h1>
             <i class="fas fa-chalkboard-teacher text-sms-primary me-2"></i>
@@ -194,7 +236,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
-<div class="container-fluid py-4">
+<div class="container-fluid py-2">
     <!-- Top Stats Bar -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-sm-6 col-xl-3">
@@ -304,6 +346,12 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     $hiredDate = trim((string) ($profile['hired_date'] ?? ''));
                                     $contractualEnd = trim((string) ($profile['contractual_end'] ?? ''));
                                     $initials = strtoupper(substr($fullName, 0, 1));
+
+                                    // Badge styling for accurate status
+                                    $statusBadgeClass = 'bg-secondary';
+                                    if (strpos(strtolower($profileStatus), 'pending') !== false) $statusBadgeClass = 'bg-warning text-dark';
+                                    elseif (strpos(strtolower($profileStatus), 'active') !== false) $statusBadgeClass = 'bg-success';
+                                    elseif (strpos(strtolower($profileStatus), 'probation') !== false) $statusBadgeClass = 'bg-info text-dark';
                                 ?>
                                 <tr class="faculty-row" 
                                     data-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>" 
@@ -320,7 +368,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                     <td><?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?></td>
                                     <td><span class="badge border border-primary text-primary fw-medium px-2 py-1"><?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?></span></td>
                                     <td class="text-capitalize"><?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td class="text-capitalize"><?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><span class="badge <?= $statusBadgeClass ?> px-2 py-1 fw-bold"><?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?></span></td>
                                     <td class="text-end pe-3">
                                         <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="viewFaculty(this)"
                                             data-full-name="<?= htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') ?>"
@@ -329,6 +377,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                             data-position="<?= htmlspecialchars($position, ENT_QUOTES, 'UTF-8') ?>"
                                             data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                             data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-specialization="<?= htmlspecialchars((string) ($profile['specialization_assignment'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-coordinator-type="<?= htmlspecialchars((string) ($profile['coordinator_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                             data-department-label="<?= htmlspecialchars($departmentLabel, ENT_QUOTES, 'UTF-8') ?>"
                                             data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
                                             data-profile-status="<?= htmlspecialchars($profileStatus, ENT_QUOTES, 'UTF-8') ?>"
@@ -351,7 +401,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                             data-phone="<?= htmlspecialchars((string) ($profile['phone'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                             data-hired-date="<?= htmlspecialchars($hiredDate, ENT_QUOTES, 'UTF-8') ?>"
                                             data-contractual-end="<?= htmlspecialchars($contractualEnd, ENT_QUOTES, 'UTF-8') ?>"
-                                            data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>">
+                                            data-status="<?= htmlspecialchars($employmentStatus, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-academic-rank="<?= htmlspecialchars((string) ($profile['academic_rank'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-tier="<?= htmlspecialchars((string) ($profile['tier'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-specialization="<?= htmlspecialchars((string) ($profile['specialization_assignment'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                            data-coordinator-type="<?= htmlspecialchars((string) ($profile['coordinator_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
                                             <i class="fas fa-edit"></i>
                                         </button>
                                     </td>
@@ -374,60 +428,93 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     </div>
 </div>
 
+<!-- Toast Notification Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="liveToast" class="toast align-items-center border shadow-lg rounded-3 bg-body text-body" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex align-items-center p-2">
+            <div id="toastIconContainer" class="me-2 fs-5 px-1">
+                <i id="toastIcon" class="fas fa-check-circle"></i>
+            </div>
+            <div class="toast-body d-flex align-items-center fs-7 fw-semibold p-1 text-body" id="toastMessageText">
+                <?= htmlspecialchars($updateMessage, ENT_QUOTES, 'UTF-8') ?>
+            </div>
+            <button type="button" class="btn-close ms-auto me-1 shadow-none" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <!-- View Faculty Modal -->
 <div class="modal fade" id="facultyModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-width: 900px !important; width: 100%;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold">Faculty Profile Details</h5>
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header border-bottom border-light-subtle py-3 px-4">
+                <h5 class="modal-title fw-bold fs-6 text-body"><i class="fas fa-user-circle text-primary me-2"></i>Faculty Profile Details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body p-4 fs-7">
                 <div class="row g-4">
-                    <div class="col-md-4 text-center border-end">
-                        <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center shadow-sm mb-3" style="width: 150px; height: 150px; font-size: 32px;">
+                    <div class="col-md-4 text-center border-md-end border-light-subtle pb-3 pb-md-0">
+                        <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center shadow-sm mb-3 fs-2" style="width: 120px; height: 120px;">
                             <span id="viewInitials">JD</span>
                         </div>
-                        <h4 class="h5 fw-bold mb-1" id="viewFullName">John Doe</h4>
-                        <span class="badge" id="viewStatusBadge">Active</span>
-                        <div class="mt-3 text-muted small" id="viewPosition">Head</div>
-                        <div class="text-muted small" id="viewDepartment">BSIT</div>
+                        <h5 class="fw-bold mb-1 text-body fs-6" id="viewFullName">John Doe</h5>
+                        <span class="badge mb-2 fs-7" id="viewStatusBadge">Active</span>
+                        <div class="text-body-secondary small" id="viewPosition">Head</div>
+                        <div class="text-body-secondary small" id="viewDepartment">BSIT</div>
                     </div>
                     <div class="col-md-8">
-                        <h6 class="text-primary border-bottom pb-2 fw-bold">Profile Summary</h6>
-                        <dl class="row mb-3">
-                            <dt class="col-sm-4 text-muted small">Faculty ID</dt>
-                            <dd class="col-sm-8" id="viewFacultyId">FAC-2026-001</dd>
-                            <dt class="col-sm-4 text-muted small">Department</dt>
-                            <dd class="col-sm-8" id="viewDepartmentLabel">Information Technology</dd>
-                            <dt class="col-sm-4 text-muted small">Position</dt>
-                            <dd class="col-sm-8" id="viewPositionLabel">Head</dd>
-                            <dt class="col-sm-4 text-muted small">Academic Rank</dt>
-                            <dd class="col-sm-8" id="viewAcademicRank">Assistant Professor</dd>
-                            <dt class="col-sm-4 text-muted small">Tier</dt>
-                            <dd class="col-sm-8" id="viewTier">Assistant Professor I</dd>
-                            <dt class="col-sm-4 text-muted small">Status</dt>
-                            <dd class="col-sm-8" id="viewEmploymentStatus">Active</dd>
-                            <dt class="col-sm-4 text-muted small">Profile Status</dt>
-                            <dd class="col-sm-8" id="viewProfileStatus">Active</dd>
-                            <dt class="col-sm-4 text-muted small">Hired Date</dt>
-                            <dd class="col-sm-8" id="viewHiredDate">2026-01-10</dd>
-                            <dt class="col-sm-4 text-muted small">Contractual End</dt>
-                            <dd class="col-sm-8" id="viewContractualEnd">2026-12-31</dd>
-                            <dt class="col-sm-4 text-muted small">Birthdate</dt>
-                            <dd class="col-sm-8" id="viewBirthdate">1990-07-28</dd>
-                            <dt class="col-sm-4 text-muted small">Sex</dt>
-                            <dd class="col-sm-8" id="viewSex">Male</dd>
-                            <dt class="col-sm-4 text-muted small">Email</dt>
-                            <dd class="col-sm-8" id="viewEmail">johndoe@university.edu</dd>
-                            <dt class="col-sm-4 text-muted small">Phone</dt>
-                            <dd class="col-sm-8" id="viewPhone">+63 912 345 6789</dd>
+                        <h6 class="text-primary border-bottom border-light-subtle pb-2 fw-bold fs-7">Profile Summary</h6>
+                        <dl class="row mb-0 g-2">
+                            <dt class="col-sm-4 text-body-secondary">Faculty ID</dt>
+                            <dd class="col-sm-8 text-body fw-bold" id="viewFacultyId">FAC-2026-001</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Department</dt>
+                            <dd class="col-sm-8 text-body" id="viewDepartmentLabel">Information Technology</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Position</dt>
+                            <dd class="col-sm-8 text-body" id="viewPositionLabel">Head</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Employment Status</dt>
+                            <dd class="col-sm-8 text-body" id="viewEmploymentStatus">Active</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Profile Status</dt>
+                            <dd class="col-sm-8 text-body" id="viewProfileStatus">Active</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Academic Rank</dt>
+                            <dd class="col-sm-8 text-body" id="viewAcademicRank">Assistant Professor</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Specialization</dt>
+                            <dd class="col-sm-8 text-body" id="viewSpecialization">Software Engineering</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Coordinator Type</dt>
+                            <dd class="col-sm-8 text-body" id="viewCoordinatorType">—</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Tier</dt>
+                            <dd class="col-sm-8 text-body" id="viewTier">Assistant Professor I</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Hired Date</dt>
+                            <dd class="col-sm-8 text-body" id="viewHiredDate">2026-01-10</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Contractual End</dt>
+                            <dd class="col-sm-8 text-body" id="viewContractualEnd">2026-12-31</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Birthdate</dt>
+                            <dd class="col-sm-8 text-body" id="viewBirthdate">1990-07-28</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Sex</dt>
+                            <dd class="col-sm-8 text-body" id="viewSex">Male</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Email</dt>
+                            <dd class="col-sm-8 text-body" id="viewEmail">johndoe@university.edu</dd>
+                            
+                            <dt class="col-sm-4 text-body-secondary">Phone</dt>
+                            <dd class="col-sm-8 text-body" id="viewPhone">+63 912 345 6789</dd>
                         </dl>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-end">
+                <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -436,75 +523,115 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <!-- Edit Faculty Modal -->
 <div id="facultyFormModal" class="modal fade" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-width: 860px;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold">Update Faculty Member</h5>
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header border-bottom border-light-subtle py-3 px-4">
+                <h5 class="modal-title fw-bold fs-6 text-body"><i class="fas fa-edit text-warning me-2"></i>Update Faculty Member</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="facultyForm" method="post" action="">
                 <?= csrfField() ?>
                 <input type="hidden" name="action" value="update_faculty">
                 <input type="hidden" name="profile_id" id="profileId" value="">
-                <div class="modal-body">
+                <div class="modal-body p-4 fs-7">
+                    
                     <div class="mb-4">
-                        <h6 class="text-primary border-bottom pb-2 fw-bold mb-3">Basic Information</h6>
+                        <h6 class="text-primary border-bottom border-light-subtle pb-2 fw-bold fs-7 mb-3">Basic Information</h6>
                         <div class="row g-3">
-                            <div class="col-md-4">
-                                <label for="firstname" class="form-label">First Name</label>
-                                <input type="text" id="firstname" name="first_name" class="form-control" placeholder="e.g. Juan" required>
+                            <div class="col-12 col-md-4">
+                                <label for="firstname" class="form-label text-body-secondary small fw-bold">First Name <span class="text-danger">*</span></label>
+                                <input type="text" id="firstname" name="first_name" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none" placeholder="e.g. John" required>
                             </div>
-                            <div class="col-md-4">
-                                <label for="middlename" class="form-label">Middle Name</label>
-                                <input type="text" id="middlename" name="middle_name" class="form-control" placeholder="e.g. H.">
+                            <div class="col-12 col-md-4">
+                                <label for="middlename" class="form-label text-body-secondary small fw-bold">Middle Name</label>
+                                <input type="text" id="middlename" name="middle_name" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none" placeholder="e.g. Santos">
                             </div>
-                            <div class="col-md-4">
-                                <label for="lastname" class="form-label">Last Name</label>
-                                <input type="text" id="lastname" name="last_name" class="form-control" placeholder="e.g. Cruz" required>
+                            <div class="col-12 col-md-4">
+                                <label for="lastname" class="form-label text-body-secondary small fw-bold">Last Name <span class="text-danger">*</span></label>
+                                <input type="text" id="lastname" name="last_name" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none" placeholder="e.g. Doe" required>
                             </div>
-                            <div class="col-md-4">
-                                <label for="suffix" class="form-label">Suffix</label>
-                                <input type="text" id="suffix" name="suffix" class="form-control" placeholder="e.g. Jr.">
+                            <div class="col-12 col-md-4">
+                                <label for="suffix" class="form-label text-body-secondary small fw-bold">Suffix</label>
+                                <input type="text" id="suffix" name="suffix" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none" placeholder="e.g. Jr.">
                             </div>
-                            <div class="col-md-4">
-                                <label for="sex" class="form-label">Sex</label>
-                                <select id="sex" name="sex" class="form-select">
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
+                            <div class="col-12 col-md-4">
+                                <label for="sex" class="form-label text-body-secondary small fw-bold">Sex</label>
+                                <select id="sex" name="sex" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
+                                    <option value="MALE">Male</option>
+                                    <option value="FEMALE">Female</option>
                                 </select>
                             </div>
-                            <div class="col-md-4">
-                                <label for="birthdate" class="form-label">Birthdate</label>
-                                <input type="date" id="birthdate" name="birthdate" class="form-control">
+                            <div class="col-12 col-md-4">
+                                <label for="birthdate" class="form-label text-body-secondary small fw-bold">Birthdate</label>
+                                <input type="date" id="birthdate" name="birthdate" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none">
                             </div>
                         </div>
                     </div>
+
                     <div class="mb-4">
-                        <h6 class="text-primary border-bottom pb-2 fw-bold mb-3">Contact Information</h6>
+                        <h6 class="text-primary border-bottom border-light-subtle pb-2 fw-bold fs-7 mb-3">Contact Information</h6>
                         <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="email" class="form-label">Email Address</label>
-                                <input type="email" id="email" name="email" class="form-control" placeholder="name@university.edu">
+                            <div class="col-12 col-md-6">
+                                <label for="email" class="form-label text-body-secondary small fw-bold">Email Address</label>
+                                <input type="email" id="email" name="email" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none" placeholder="name@university.edu">
                             </div>
-                            <div class="col-md-6">
-                                <label for="phone" class="form-label">Phone Number</label>
-                                <input type="text" id="phone" name="phone" class="form-control" placeholder="e.g. 09123456789">
+                            <div class="col-12 col-md-6">
+                                <label for="phone" class="form-label text-body-secondary small fw-bold">Phone Number</label>
+                                <input type="text" id="phone" name="phone" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none" placeholder="e.g. 09123456789">
                             </div>
                         </div>
                     </div>
+
                     <div class="mb-4">
-                        <h6 class="text-primary border-bottom pb-2 fw-bold mb-3">Role & Status</h6>
+                        <h6 class="text-primary border-bottom border-light-subtle pb-2 fw-bold fs-7 mb-3">Role & Status</h6>
                         <div class="row g-3">
-                            <div class="col-md-4">
-                                <label for="hiredDate" class="form-label">Hired Date</label>
-                                <input type="date" id="hiredDate" name="hired_date" class="form-control">
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="academicRank" class="form-label text-body-secondary small fw-bold">Academic Rank</label>
+                                <select id="academicRank" name="academic_rank" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
+                                    <option value="" disabled selected>Select Rank</option>
+                                    <option value="Instructor">Instructor</option>
+                                    <option value="Assistant Professor">Assistant Professor</option>
+                                    <option value="Associate Professor">Associate Professor</option>
+                                    <option value="Professor">Professor</option>
+                                </select>
                             </div>
-                            <div class="col-md-4">
-                                <label for="contractualEnd" class="form-label">Contractual End</label>
-                                <input type="date" id="contractualEnd" name="contractual_end_date" class="form-control">
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="academicTier" class="form-label text-body-secondary small fw-bold">Tier</label>
+                                <select id="academicTier" name="tier" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
+                                    <option value="" disabled selected>Select Academic Rank first</option>
+                                </select>
                             </div>
-                            <div class="col-md-4">
-                                <label for="employmentStatus" class="form-label">Employment Status</label>
-                                <select id="employmentStatus" name="employment_status" class="form-select">
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="specialization" class="form-label text-body-secondary small fw-bold">Specialization Assignment</label>
+                                <select id="specialization" name="specialization_assignment" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
+                                    <option value="" selected>-- No Special Assignment --</option>
+                                    <optgroup label="Technical Support Track (Advisors)">
+                                        <option value="Capstone Advisor / Panelist">Capstone Advisor</option>
+                                        <option value="OJT Academic Advisor">Practicum / OJT Academic Advisor</option>
+                                        <option value="Systems Advisor">Systems Advisor</option>
+                                        <option value="Technical Advisor">Technical Advisor</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="coordinatorType" class="form-label text-body-secondary small fw-bold">Coordinator Type</label>
+                                <select id="coordinatorType" name="coordinator_type" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
+                                    <option value="" selected>-- No Coordinator Type --</option>
+                                    <option value="NSTP">NSTP</option>
+                                    <option value="OJT">OJT</option>
+                                    <option value="RESEARCH">RESEARCH & CAPSTONE</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="hiredDate" class="form-label text-body-secondary small fw-bold">Hired Date</label>
+                                <input type="date" id="hiredDate" name="hired_date" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none">
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-6">
+                                <label for="contractualEnd" class="form-label text-body-secondary small fw-bold">Contractual End</label>
+                                <input type="date" id="contractualEnd" name="contractual_end_date" class="form-control bg-body text-body border-light-subtle fs-7 shadow-none">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="employmentStatus" class="form-label text-body-secondary small fw-bold">Employment Status</label>
+                                <select id="employmentStatus" name="employment_status" class="form-select bg-body text-body border-light-subtle fs-7 shadow-none">
                                     <option value="Regular">Regular</option>
                                     <option value="Probationary">Probationary</option>
                                     <option value="Part-Time">Part-Time</option>
@@ -512,10 +639,11 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                             </div>
                         </div>
                     </div>
+
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <div class="modal-footer border-top border-light-subtle py-2 px-4 justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary btn-sm rounded-3 fs-7" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm rounded-bold fs-7 px-4">Save Changes</button>
                 </div>
             </form>
         </div>
@@ -523,6 +651,73 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 </div>
 
 <script>
+    // ==========================================
+    // 1. TOAST NOTIFICATION LOGIC
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', () => {
+        const phpMessage = <?= json_encode($updateMessage) ?>;
+        const messageType = <?= json_encode($updateMessageType) ?>;
+
+        if (phpMessage && phpMessage.trim() !== '') {
+            const toastEl = document.getElementById('liveToast');
+            const toastIcon = document.getElementById('toastIcon');
+
+            if (messageType === 'success') {
+                toastEl.classList.add('border-success');
+                toastIcon.className = 'fas fa-check-circle text-success';
+            } else {
+                toastEl.classList.add('border-danger');
+                toastIcon.className = 'fas fa-exclamation-circle text-danger';
+            }
+
+            if (toastEl && window.bootstrap && window.bootstrap.Toast) {
+                const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+                toast.show();
+            }
+        }
+    });
+
+    // ==========================================
+    // 2. FORM DROPDOWN LOGIC (Academic Rank -> Tier)
+    // ==========================================
+    const RANK_TIERS = {
+        "Instructor": ["Instructor I", "Instructor II", "Instructor III"],
+        "Assistant Professor": ["Assistant Professor I", "Assistant Professor II", "Assistant Professor III", "Assistant Professor IV"],
+        "Associate Professor": ["Associate Professor I", "Associate Professor II", "Associate Professor III", "Associate Professor IV"],
+        "Professor": ["Professor I", "Professor II", "Professor III", "Professor IV", "Professor V", "Professor VI"]
+    };
+
+    const academicRankSelect = document.getElementById('academicRank');
+    const academicTierSelect = document.getElementById('academicTier');
+
+    function populateTiers(selectedTier = '') {
+        if (!academicRankSelect || !academicTierSelect) return;
+        const selectedRank = academicRankSelect.value || 'Instructor';
+        const tiers = RANK_TIERS[selectedRank] || [];
+
+        academicTierSelect.innerHTML = '<option value="" disabled selected>Select Tier</option>';
+        tiers.forEach(tier => {
+            const opt = document.createElement('option');
+            opt.value = tier;
+            opt.textContent = tier;
+            academicTierSelect.appendChild(opt);
+        });
+
+        if (selectedTier && tiers.includes(selectedTier)) {
+            academicTierSelect.value = selectedTier;
+        } else if (tiers.length > 0) {
+            academicTierSelect.value = tiers[0];
+        }
+    }
+
+    if (academicRankSelect) {
+        academicRankSelect.addEventListener('change', () => populateTiers(''));
+        populateTiers();
+    }
+
+    // ==========================================
+    // 3. MODAL CONTROLS
+    // ==========================================
     function getModalInstance(id) {
         if (!window.bootstrap || !bootstrap.Modal) return null;
         const modalEl = document.getElementById(id);
@@ -538,46 +733,68 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         const statusBadge = document.getElementById('viewStatusBadge');
         statusBadge.textContent = button.dataset.profileStatus || button.dataset.status || 'Unknown';
         statusBadge.className = 'badge ' + badgeColorClass(button.dataset.profileStatus || button.dataset.status || 'Active');
-        document.getElementById('viewPosition').textContent = button.dataset.position || '';
-        document.getElementById('viewDepartment').textContent = button.dataset.departmentLabel || '';
-        document.getElementById('viewFacultyId').textContent = button.dataset.facultyId || '';
-        document.getElementById('viewDepartmentLabel').textContent = button.dataset.departmentLabel || '';
-        document.getElementById('viewPositionLabel').textContent = button.dataset.position || '';
-        document.getElementById('viewAcademicRank').textContent = button.dataset.academicRank || '';
-        document.getElementById('viewTier').textContent = button.dataset.tier || '';
-        document.getElementById('viewEmploymentStatus').textContent = button.dataset.status || '';
-        document.getElementById('viewProfileStatus').textContent = button.dataset.profileStatus || '';
-        document.getElementById('viewHiredDate').textContent = button.dataset.hiredDate || '';
-        document.getElementById('viewContractualEnd').textContent = button.dataset.contractualEnd || '';
-        document.getElementById('viewBirthdate').textContent = button.dataset.birthdate || '';
-        document.getElementById('viewSex').textContent = button.dataset.sex || '';
-        document.getElementById('viewEmail').textContent = button.dataset.email || '';
-        document.getElementById('viewPhone').textContent = button.dataset.phone || '';
+        
+        document.getElementById('viewPosition').textContent = button.dataset.position || '—';
+        document.getElementById('viewDepartment').textContent = button.dataset.departmentLabel || '—';
+        document.getElementById('viewFacultyId').textContent = button.dataset.facultyId || '—';
+        document.getElementById('viewDepartmentLabel').textContent = button.dataset.departmentLabel || '—';
+        document.getElementById('viewPositionLabel').textContent = button.dataset.position || '—';
+        document.getElementById('viewAcademicRank').textContent = button.dataset.academicRank || '—';
+        document.getElementById('viewSpecialization').textContent = button.dataset.specialization || '—';
+        document.getElementById('viewCoordinatorType').textContent = button.dataset.coordinatorType || '—';
+        document.getElementById('viewTier').textContent = button.dataset.tier || '—';
+        document.getElementById('viewEmploymentStatus').textContent = button.dataset.status || '—';
+        document.getElementById('viewProfileStatus').textContent = button.dataset.profileStatus || '—';
+        document.getElementById('viewHiredDate').textContent = button.dataset.hiredDate || '—';
+        document.getElementById('viewContractualEnd').textContent = button.dataset.contractualEnd || '—';
+        document.getElementById('viewBirthdate').textContent = button.dataset.birthdate || '—';
+        document.getElementById('viewSex').textContent = button.dataset.sex || '—';
+        document.getElementById('viewEmail').textContent = button.dataset.email || '—';
+        document.getElementById('viewPhone').textContent = button.dataset.phone || '—';
         modal?.show();
     }
 
     function editFaculty(button) {
         if (!button || !button.dataset) return;
+        
         document.getElementById('profileId').value = button.dataset.profileId || '';
         document.getElementById('firstname').value = button.dataset.firstName || '';
         document.getElementById('middlename').value = button.dataset.middleName || '';
         document.getElementById('lastname').value = button.dataset.lastName || '';
         document.getElementById('suffix').value = button.dataset.suffix || '';
-        document.getElementById('sex').value = button.dataset.sex || 'Male';
+        document.getElementById('sex').value = button.dataset.sex || 'MALE';
         document.getElementById('birthdate').value = button.dataset.birthdate || '';
         document.getElementById('email').value = button.dataset.email || '';
         document.getElementById('phone').value = button.dataset.phone || '';
         document.getElementById('hiredDate').value = button.dataset.hiredDate || '';
         document.getElementById('contractualEnd').value = button.dataset.contractualEnd || '';
         document.getElementById('employmentStatus').value = button.dataset.status || 'Regular';
+        
+        document.getElementById('specialization').value = button.dataset.specialization || '';
+        document.getElementById('coordinatorType').value = button.dataset.coordinatorType || '';
+
+        // Populate Academic Rank and Tier safely
+        const rankValue = button.dataset.academicRank || '';
+        if (academicRankSelect) {
+            let hasOption = Array.from(academicRankSelect.options).some(opt => opt.value === rankValue);
+            if (!hasOption && rankValue) {
+                const opt = document.createElement('option');
+                opt.value = rankValue;
+                opt.textContent = rankValue;
+                academicRankSelect.appendChild(opt);
+            }
+            academicRankSelect.value = rankValue;
+            populateTiers(button.dataset.tier || '');
+        }
+
         getModalInstance('facultyFormModal')?.show();
     }
 
     function badgeColorClass(status) {
         const value = (status || '').toLowerCase();
         if (value.includes('active')) return 'bg-success';
-        if (value.includes('probationary')) return 'bg-warning text-dark';
-        if (value.includes('part-time')) return 'bg-info text-dark';
+        if (value.includes('pending')) return 'bg-warning text-dark';
+        if (value.includes('probationary')) return 'bg-info text-dark';
         if (value.includes('inactive') || value.includes('resigned')) return 'bg-secondary';
         return 'bg-primary';
     }
@@ -586,6 +803,9 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         return (fullName || '').split(' ').filter(Boolean).slice(0, 2).map(name => name.charAt(0).toUpperCase()).join('') || 'NA';
     }
 
+    // ==========================================
+    // 4. SEARCH & PAGINATION
+    // ==========================================
     document.addEventListener('DOMContentLoaded', function () {
         const rowsPerPage = 10;
         let currentPage = 1;

@@ -133,3 +133,6 @@
   "error": {
     "code": 429,
     "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota ex
+[2026-11-13 01:35:56] curl_error: Operation timed out after 45014 milliseconds with 0 bytes received
+[2026-11-13 01:36:41] curl_error: Operation timed out after 45013 milliseconds with 0 bytes received
+[2026-11-13 01:37:26] curl_error: Operation timed out after 45014 milliseconds with 0 bytes received

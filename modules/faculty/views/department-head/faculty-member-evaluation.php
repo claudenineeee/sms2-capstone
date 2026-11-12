@@ -2,9 +2,7 @@
 /**
  * Department Head Evaluation Directory
  * Purpose: Let a Department Head evaluate the faculty members in their own
- * department. Access is restricted to accounts whose position is
- * "Department Head" - both here (to hide the UI) and in
- * ProcessDeptHeadEvaluationController.php (to reject the POST).
+ * department.
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once ROOT_PATH . '/includes/authentication.php';
@@ -37,7 +35,7 @@ $sessionEmail  = trim((string) ($_SESSION['user_email'] ?? $_SESSION['email'] ??
 $currentFaculty     = null;
 $userDept           = '';
 $evaluatorProfileId = 0;
-$evaluatorFacultyId = null;
+$evaluatorFacultyId = 0;
 $evaluatorPosition  = '';
 
 if ($currentUserId > 0 || $sessionEmail !== '') {
@@ -78,8 +76,20 @@ if ($currentUserId > 0 || $sessionEmail !== '') {
         $evaluatorProfileId = (int) $currentFaculty['id'];
         $evaluatorPosition  = trim((string) ($currentFaculty['position'] ?? ''));
         
-        // FIX: Directly use the faculty_id from the profile, not the joined faculty table ID
-        $evaluatorFacultyId = !empty($currentFaculty['real_faculty_id']) ? (string) $currentFaculty['real_faculty_id'] : null;
+        // FIXED: Resolve the true Integer ID from the faculty table for correct matching
+        $stmtEvalId = $pdo->prepare("
+            SELECT f.faculty_id 
+            FROM faculty f 
+            LEFT JOIN faculty_profiles fp ON f.email = fp.email OR f.faculty_no = fp.faculty_id
+            WHERE fp.id = :profile_id
+            LIMIT 1
+        ");
+        $stmtEvalId->execute([':profile_id' => $evaluatorProfileId]);
+        $resolvedEvalId = $stmtEvalId->fetchColumn();
+        
+        if ($resolvedEvalId) {
+            $evaluatorFacultyId = (int) $resolvedEvalId;
+        }
     }
 }
 
@@ -95,7 +105,7 @@ $isDeptHead = $evaluatorPosition !== '' && strcasecmp($evaluatorPosition, 'Depar
 $faculty = [];
 
 if ($isDeptHead && $userDept !== '') {
-    // Query ONLY faculty_profiles. No joins to the 'faculty' table required.
+    // FIXED SQL: Use a subquery to ensure we are comparing Integer IDs correctly
     $stmt = $pdo->prepare("
         SELECT
             fp.id                              AS profile_id,
@@ -109,7 +119,12 @@ if ($isDeptHead && $userDept !== '') {
                 SELECT COUNT(*)
                 FROM evaluations e
                 WHERE e.evaluator_id = :evaluator_id
-                  AND e.faculty_id = fp.faculty_id
+                  AND e.faculty_id = (
+                      SELECT f.faculty_id 
+                      FROM faculty f 
+                      WHERE f.faculty_no = fp.faculty_id OR f.email = fp.email 
+                      LIMIT 1
+                  )
                   AND e.source_type = 'DeptHead'
             ) AS evaluation_count
         FROM faculty_profiles fp
@@ -122,7 +137,12 @@ if ($isDeptHead && $userDept !== '') {
                 WHEN (
                     SELECT COUNT(*) FROM evaluations e2
                     WHERE e2.evaluator_id = :evaluator_id_2
-                      AND e2.faculty_id = fp.faculty_id
+                      AND e2.faculty_id = (
+                          SELECT f2.faculty_id 
+                          FROM faculty f2 
+                          WHERE f2.faculty_no = fp.faculty_id OR f2.email = fp.email 
+                          LIMIT 1
+                      )
                       AND e2.source_type = 'DeptHead'
                 ) > 0 THEN 1
                 ELSE 0
@@ -135,8 +155,8 @@ if ($isDeptHead && $userDept !== '') {
         'department'        => $userDept,
         'current_user_id'   => $currentUserId,
         'profile_id'        => $evaluatorProfileId,
-        'evaluator_id'      => $evaluatorFacultyId ?? 0,
-        'evaluator_id_2'    => $evaluatorFacultyId ?? 0,
+        'evaluator_id'      => $evaluatorFacultyId,
+        'evaluator_id_2'    => $evaluatorFacultyId,
     ]);
 
     $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -157,6 +177,48 @@ foreach ($faculty as $p) {
 require_once __DIR__ . '/../../../../includes/breadcrumbs.php';
 require_once __DIR__ . '/../../../../includes/layout-start.php';
 ?>
+
+<style>
+    /* ============================================================
+       FIXED: RADIO BUTTON VISIBILITY & CURSOR STYLING
+       ============================================================ */
+    #evaluateFacultyModal .form-check-input {
+        width: 1.5rem;
+        height: 1.5rem;
+        cursor: pointer;
+        border: 2px solid #6c757d;
+        background-color: transparent;
+        transition: all 0.2s ease;
+    }
+    
+    #evaluateFacultyModal .form-check-input:hover {
+        border-color: var(--bs-primary);
+        box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+    }
+
+    #evaluateFacultyModal .form-check-input:checked {
+        background-color: var(--bs-primary);
+        border-color: var(--bs-primary);
+    }
+
+    /* Dark Mode Overrides for Radio Buttons */
+    [data-bs-theme="dark"] #evaluateFacultyModal .form-check-input,
+    [data-theme="dark"] #evaluateFacultyModal .form-check-input {
+        border-color: #adb5bd;
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    [data-bs-theme="dark"] #evaluateFacultyModal .form-check-input:checked,
+    [data-theme="dark"] #evaluateFacultyModal .form-check-input:checked {
+        background-color: var(--bs-primary);
+        border-color: var(--bs-primary);
+    }
+
+    /* Make sure the evaluate button is clickable */
+    .btn-evaluate {
+        cursor: pointer !important;
+    }
+</style>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
@@ -314,8 +376,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
                                         <?php if ($isDone): ?>
                                             <span class="badge bg-success-subtle text-success-emphasis rounded-pill px-3 py-2 fw-bold text-uppercase border-0">DONE</span>
                                         <?php else: ?>
-                                            <button class="btn btn-primary rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center justify-content-center"
-                                                    onclick="openEvaluationModal('<?= (int) $member['id'] ?>', '<?= addslashes($fullName) ?>', '<?= htmlspecialchars($member['department']) ?>')"
+                                            <button class="btn btn-primary rounded-pill px-3 py-1 shadow-sm d-inline-flex align-items-center justify-content-center btn-evaluate"
+                                                    onclick="openEvaluationModal('<?= htmlspecialchars($member['id'], ENT_QUOTES, 'UTF-8') ?>', '<?= htmlspecialchars($member['profile_id'], ENT_QUOTES, 'UTF-8') ?>', '<?= addslashes($fullName) ?>', '<?= htmlspecialchars($member['department'], ENT_QUOTES, 'UTF-8') ?>')"
                                                     title="Evaluate Now" aria-label="Evaluate Now"
                                                     <?= empty($evaluatorFacultyId) ? 'disabled' : '' ?>>
                                                 <i class="fas fa-star text-white"></i>
@@ -363,7 +425,10 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content bg-body text-body border-secondary-subtle shadow-lg">
                 <form action="../../controllers/ProcessDeptHeadEvaluationController.php" method="POST" id="deptHeadEvaluationForm" class="d-flex flex-column">
+                    
                     <input type="hidden" name="faculty_id" id="modalFacultyId">
+                    <input type="hidden" name="profile_id" id="modalProfileId">
+
                     <div class="modal-header bg-body-tertiary border-bottom border-secondary-subtle py-3">
                         <div>
                             <h5 class="modal-title fw-bold text-primary fs-6 fs-md-5 mb-0" id="evaluateFacultyModalLabel">
@@ -531,8 +596,9 @@ function filterFaculty() {
     renderFacultyTable();
 }
 
-function openEvaluationModal(id, name, dept) {
+function openEvaluationModal(id, profileId, name, dept) {
     document.getElementById('modalFacultyId').value = id;
+    document.getElementById('modalProfileId').value = profileId;
     document.getElementById('modalFacultyName').textContent = name;
     document.getElementById('modalFacultyDept').textContent = dept;
     document.getElementById('deptHeadEvaluationForm').reset();

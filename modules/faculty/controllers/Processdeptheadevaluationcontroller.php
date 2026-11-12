@@ -2,22 +2,8 @@
 /**
  * ProcessDeptHeadEvaluationController
  * Action controller to handle Department Head -> Faculty evaluation submissions.
- *
- * Mirrors ProcessPeerEvaluationController.php's session/database/term
- * handling, with two extra rules specific to this evaluation type:
- *   1. Only accounts whose position is "Department Head" may submit.
- *   2. The target faculty member must be in the SAME department as the
- *      evaluating Department Head.
- * Both are enforced here, not just hidden in the UI - the view page only
- * hides the form for non-department-heads, it doesn't stop someone from
- * POSTing directly to this controller.
  */
 require_once __DIR__ . '/../../../config/config.php';
-
-// NOTE: a bare session_start() here (without session_name('SMS2SESSID') set
-// first, which config/session.php does) would create/join PHP's default
-// session instead of the app's real one. authentication.php pulls in
-// config/session.php, which starts the correctly-named session for us.
 require_once ROOT_PATH . '/includes/authentication.php';
 
 // 1. Enforce POST Request
@@ -40,7 +26,7 @@ if (!isset($pdo) || !$pdo) {
 if (!$pdo) {
     try {
         $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
-        $dbName = defined('DB_NAME') ? DB_NAME : 'faculty_db';
+        $dbName = defined('DB_NAME') ? DB_NAME : 'sms2_db';
         $dbUser = defined('DB_USER') ? DB_USER : 'root';
         $dbPass = defined('DB_PASS') ? DB_PASS : '';
 
@@ -112,23 +98,19 @@ if (strcasecmp($evaluatorPosition, 'Department Head') !== 0) {
 }
 
 // 4. Input Validation
-$targetFacultyId = filter_input(INPUT_POST, 'faculty_id', FILTER_VALIDATE_INT);
-$remarks         = trim($_POST['remarks'] ?? '');
+// FIXED: Accept string (e.g., "FAC-2026-6469") instead of strictly validating as INT
+$rawTargetFacultyId = trim($_POST['faculty_id'] ?? '');
+$remarks            = trim($_POST['remarks'] ?? '');
 
-if (!$targetFacultyId) {
+if (empty($rawTargetFacultyId)) {
     $_SESSION['flash_error'] = 'Invalid faculty member selected.';
-    header('Location: ' . BASE_URL . '/modules/faculty/views/department-head/faculty-member-evaluation.php');
-    exit;
-}
-
-if ($targetFacultyId === $evaluatorId) {
-    $_SESSION['flash_error'] = 'You cannot evaluate yourself.';
     header('Location: ' . BASE_URL . '/modules/faculty/views/department-head/faculty-member-evaluation.php');
     exit;
 }
 
 // Defensive check: confirm target faculty exists and belongs to the SAME department
 try {
+    // FIXED: Look up the integer ID using the string ID, faculty_no, or profile ID
     $checkFaculty = $pdo->prepare("
         SELECT f.faculty_id, f.department_id, fp.designated_department 
         FROM faculty f
@@ -136,14 +118,29 @@ try {
             (fp.email IS NOT NULL AND fp.email <> '' AND fp.email = f.email)
             OR fp.faculty_id = f.faculty_no
         )
-        WHERE f.faculty_id = :fid 
+        WHERE f.faculty_id = :fid_int 
+           OR f.faculty_no = :fid_str 
+           OR fp.faculty_id = :fid_str2
         LIMIT 1
     ");
-    $checkFaculty->execute(['fid' => $targetFacultyId]);
+    $checkFaculty->execute([
+        'fid_int'  => (int)$rawTargetFacultyId,
+        'fid_str'  => $rawTargetFacultyId,
+        'fid_str2' => $rawTargetFacultyId
+    ]);
     $targetFaculty = $checkFaculty->fetch();
 
     if (!$targetFaculty) {
         $_SESSION['flash_error'] = 'This faculty member is not linked to an official faculty record and cannot be evaluated yet.';
+        header('Location: ' . BASE_URL . '/modules/faculty/views/department-head/faculty-member-evaluation.php');
+        exit;
+    }
+
+    // Overwrite the variable with the correct INTEGER ID for the database insert
+    $targetFacultyId = (int)$targetFaculty['faculty_id'];
+
+    if ($targetFacultyId === $evaluatorId) {
+        $_SESSION['flash_error'] = 'You cannot evaluate yourself.';
         header('Location: ' . BASE_URL . '/modules/faculty/views/department-head/faculty-member-evaluation.php');
         exit;
     }

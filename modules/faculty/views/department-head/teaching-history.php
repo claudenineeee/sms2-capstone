@@ -5,16 +5,28 @@
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../../../config/database.php'; // Ensure DB functions are loaded
 requireAuth();
 
-// Establish Database Connection (env-aware)
-$pdo = function_exists('facultyDb') ? facultyDb() : null;
+// ==========================================
+// 1. DATABASE CONNECTION WITH FALLBACK
+// ==========================================
+$corePdo = function_exists('db') ? db() : null;
+$facultyPdo = function_exists('facultyDb') ? facultyDb() : null;
 
-if (!$pdo) {
-    die("<div style='padding:20px;color:red;'><strong>Database connection failed.</strong></div>");
+// Since the databases are merged, fallback to corePdo if facultyDb fails
+if (!$facultyPdo) {
+    $facultyPdo = $corePdo;
 }
 
-// 1. Identify Dept Head's Department
+if (!$facultyPdo) {
+    die("<div style='padding:20px;color:red;'><strong>Database connection failed.</strong> Check DB_HOST / DB_USERNAME / DB_PASSWORD / DB_DATABASE environment variables.</div>");
+}
+
+// Alias $pdo to $facultyPdo so the rest of the script works
+$pdo = $facultyPdo;
+
+// 2. Identify Dept Head's Department
 $currentUserId = $_SESSION['user_id'] ?? $_SESSION['id'] ?? 0;
 $deptHeadDept  = null;
 
@@ -35,10 +47,9 @@ if (empty($deptHeadDept)) {
     $deptHeadDept = trim($_SESSION['department'] ?? $_SESSION['designated_department'] ?? '');
 }
 
-// 2. Fetch Faculty Members from the SAME Department Only
+// 3. Fetch Faculty Members from the SAME Department Only
 $facultyMembers = [];
 
-// MODIFIED: Added condition to only show actual teaching faculty (excluding admin/heads/deans)
 $facultyQuerySql = "
     SELECT fp.id, fp.faculty_id AS profile_faculty_no, fp.first_name, fp.last_name,
            fp.designated_department, fp.position, fp.email,
@@ -60,7 +71,7 @@ if (!empty($deptHeadDept)) {
     $facultyMembers = $stmt->fetchAll();
 }
 
-// 3. Build Pure Database-Driven Teaching History Records per Faculty
+// 4. Build Pure Database-Driven Teaching History Records per Faculty
 $teachingHistoryDB = [];
 $allAcademicYears = [];
 $allSemesters = [];

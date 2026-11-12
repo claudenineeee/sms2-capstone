@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
+require_once __DIR__ . '/../../config/database.php'; // Ensure facultyDb() is loaded
+
 requireAuth();
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -17,13 +19,18 @@ $breadcrumbs = [
 ];
 
 // ==========================================
-// 1. DATABASE CONNECTIONS (env-aware, handled by config.php)
+// 1. DATABASE CONNECTIONS
 // ==========================================
 $corePdo = function_exists('db') ? db() : null;
-$facultyPdo = function_exists('facultyDb') ? facultyDb() : null;
 
-if (!$corePdo || !$facultyPdo) {
+if (!$corePdo) {
     die("<div style='padding:20px;color:red;'><strong>Database connection failed.</strong> Check DB_HOST / DB_USERNAME / DB_PASSWORD / DB_DATABASE environment variables.</div>");
+}
+
+// Since the databases are merged, fallback to corePdo if facultyDb fails or isn't defined
+$facultyPdo = function_exists('facultyDb') ? facultyDb() : null;
+if (!$facultyPdo) {
+    $facultyPdo = $corePdo;
 }
 
 $departmentOptions = [
