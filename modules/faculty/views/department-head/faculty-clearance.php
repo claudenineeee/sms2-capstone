@@ -360,7 +360,18 @@ require_once ROOT_PATH . '/includes/layout-start.php';
         </div>
     </div>
 
-    <div id="trackingAlert" class="alert d-none" role="status"></div>
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+        <div id="statusToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center gap-2">
+                    <i id="statusToastIcon" class="fas fa-check-circle fs-5"></i>
+                    <span id="statusToastMessage"></span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
 
     <!-- Metric Overview Cards -->
     <div class="row g-3 mb-4">
@@ -1918,7 +1929,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     function exportArchiveCsv() {
         const filtered = getFilteredArchives();
         if (!filtered.length) {
-            alert('No archived clearance records available to export.');
+            showTrackingAlert('No archived clearance records available to export.', 'warning');
             return;
         }
         const headers = ['Clearance ID', 'Faculty Name', 'Faculty ID', 'Department', 'Employment Status', 'Academic Term', 'Contract Expiry Date', 'Date Completed'];
@@ -2073,8 +2084,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 if (step4Circle) { step4Circle.className = 'stepper-circle bg-body-secondary text-body-secondary'; step4Circle.textContent = '3'; }
                 if (step4Sub) step4Sub.textContent = 'Not yet';
             }
-
-
 
             // 5. Success Status Banner (Sequential lock aware)
             const banner = document.getElementById('reviewSuccessBanner');
@@ -2337,10 +2346,6 @@ require_once ROOT_PATH . '/includes/layout-start.php';
                 }
             }
 
-
-
-
-
             reviewModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal'));
             reviewModal.show();
         } catch (error) {
@@ -2579,7 +2584,7 @@ require_once ROOT_PATH . '/includes/layout-start.php';
             loadTracking();
             switchToArchiveTab();
         } catch (error) {
-            alert(error.message);
+            showTrackingAlert(error.message, 'danger');
             if (btn) {
                 btn.disabled = false;
                 btn.style.opacity = '1';
@@ -3631,10 +3636,34 @@ require_once ROOT_PATH . '/includes/layout-start.php';
     }
 
     function showTrackingAlert(message, tone) {
-        const alert = document.getElementById('trackingAlert');
-        if (!alert) return;
-        alert.className = `alert alert-${tone} alert-dismissible fade show mb-4`;
-        alert.innerHTML = `<i class="fas fa-${tone === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>${escapeHtml(message)}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+        const toastEl = document.getElementById('statusToast');
+        if (!toastEl) return;
+        const toastIcon = document.getElementById('statusToastIcon');
+        const toastMsg = document.getElementById('statusToastMessage');
+
+        // Reset background classes
+        toastEl.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
+
+        if (tone === 'success') {
+            toastEl.classList.add('bg-success');
+            toastIcon.className = 'fas fa-check-circle fs-5';
+        } else if (tone === 'danger') {
+            toastEl.classList.add('bg-danger');
+            toastIcon.className = 'fas fa-exclamation-triangle fs-5';
+        } else if (tone === 'warning') {
+            toastEl.classList.add('bg-warning', 'text-dark');
+            toastIcon.className = 'fas fa-exclamation-circle fs-5 text-dark';
+        } else {
+            toastEl.classList.add('bg-info');
+            toastIcon.className = 'fas fa-info-circle fs-5';
+        }
+
+        toastMsg.textContent = message;
+        
+        if (window.bootstrap && bootstrap.Toast) {
+            const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
+            toast.show();
+        }
     }
 
     // Initial load

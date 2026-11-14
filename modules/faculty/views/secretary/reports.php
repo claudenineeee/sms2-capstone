@@ -1,19 +1,11 @@
 <?php
 /**
  * Reports (Secretary View)
- * // FIXED: Academic Term selector redesigned as an inline pill control.
- * // FIXED: printSection() rewritten to produce a properly-styled print
- * view — injects Bootstrap + page CSS, converts <canvas> charts to
- * <img> so they actually render, strips interactive controls, adds a
- * print header with title/scope/timestamp.
- * // FIXED: Leave Request Report uses facultyDb() + positional (?) params
- * to avoid SQLSTATE[HY093]. Stat cards removed — only "Latest Requests".
- * // ADDED: CSV export for Leave Request Report (?export=leave_csv).
  */
 require_once __DIR__ . '/../../../../config/config.php';
 require_once __DIR__ . '/../../../../includes/authentication.php';
 require_once __DIR__ . '/../../config/database.php';
-require_once __DIR__ . '/../../controllers/faculty-data.php';  // facultyDb() helper
+require_once __DIR__ . '/../../controllers/faculty-data.php';
 
 requireAuth();
 
@@ -23,10 +15,6 @@ if (!$pdo) {
         . '<h3>Database Connection Error</h3><p>The faculty database is currently unavailable.</p></div>');
 }
 
-/* ============================================================
-   Separate PDO for leave-request queries — mirrors the exact
-   connection used by leave-request-screening.php.
-   ============================================================ */
 $leavePdo = null;
 try {
     if (function_exists('facultyDb')) {
@@ -118,20 +106,22 @@ $slFullyLoadedCount = 0;
 $slTotalUnassignedUnits = 0.0;
 $slDeptTotals = [];
 
+$loadStatusCondition = " AND (LOWER(status) = 'approved' OR LOWER(status) = 'active' OR status IS NULL OR status = '')";
+
 foreach ($facultyMembers as $fac) {
     $realFacultyId = $fac['real_faculty_id'] !== null ? (int) $fac['real_faculty_id'] : null;
     $maxUnitsLimit = getMaxUnitsForEmploymentStatus($fac['employment_status'] ?? '');
     $assignedSubjects = [];
     if ($realFacultyId !== null) {
         try {
-            $stmtLoad = $pdo->prepare("SELECT units FROM teaching_load_history WHERE faculty_id = :fac_id AND academic_year = :ay AND semester = :sem");
+            $stmtLoad = $pdo->prepare("SELECT units FROM teaching_load_history WHERE faculty_id = :fac_id AND academic_year = :ay AND semester = :sem $loadStatusCondition");
             $stmtLoad->execute(['fac_id' => $realFacultyId, 'ay' => $selectedAY, 'sem' => $selectedSem]);
             $assignedSubjects = $stmtLoad->fetchAll();
         } catch (PDOException $e) {}
     }
     if (empty($assignedSubjects)) {
         try {
-            $stmtLoadAlt = $pdo->prepare("SELECT units FROM teaching_load_history WHERE (faculty_id = :f1 OR faculty_no = :f2) AND academic_year = :ay AND semester = :sem");
+            $stmtLoadAlt = $pdo->prepare("SELECT units FROM teaching_load_history WHERE (faculty_id = :f1 OR faculty_no = :f2) AND academic_year = :ay AND semester = :sem $loadStatusCondition");
             $stmtLoadAlt->execute(['f1' => $fac['id'], 'f2' => $fac['profile_faculty_no'] ?? '', 'ay' => $selectedAY, 'sem' => $selectedSem]);
             $assignedSubjects = $stmtLoadAlt->fetchAll();
         } catch (PDOException $e) {}
@@ -141,8 +131,10 @@ foreach ($facultyMembers as $fac) {
     $isFullyLoaded = ($totalAssignedUnits >= $maxUnitsLimit);
     if ($isFullyLoaded) $slFullyLoadedCount++;
     else $slTotalUnassignedUnits += max(0, $maxUnitsLimit - $totalAssignedUnits);
+    
     $deptKey = $fac['designated_department'] ?? 'N/A';
     $slDeptTotals[$deptKey] = ($slDeptTotals[$deptKey] ?? 0) + $totalAssignedUnits;
+    
     $subjectLoadRows[] = [
         'name' => 'Prof. ' . $fac['first_name'] . ' ' . $fac['last_name'],
         'department' => $deptKey,
@@ -158,6 +150,7 @@ $slUnderLoadedCount = $slTotalFaculty - $slFullyLoadedCount;
 $slEmploymentOptions = array_values(array_unique(array_filter(array_map(fn($r) => $r['employment'], $subjectLoadRows))));
 sort($slEmploymentOptions);
 $slDeptHasData = array_sum($slDeptTotals) > 0;
+
 
 // 4. ASSIGNMENT MONITORING REPORT
 $assignmentRows = [];
@@ -295,96 +288,6 @@ try {
     error_log('[reports.php][leave-report] ' . $e->getMessage());
 }
 
-/* ============================================================
-   CSV EXPORT — Leave Request Report
-   ============================================================ */
-if (isset($_GET['export']) && $_GET['export'] === 'leave_csv') {
-    try {
-        $exportPdo = $leavePdo;
-
-        $restrictedDeptCode = null;
-        if (function_exists('getRestrictedDepartmentId')) {
-            $restrictedDeptId = getRestrictedDepartmentId();
-            if ($restrictedDeptId !== null && $restrictedDeptId > 0) {
-                $stDept = $exportPdo->prepare("SELECT code FROM departments WHERE department_id = ? LIMIT 1");
-                $stDept->execute([$restrictedDeptId]);
-                $restrictedDeptCode = $stDept->fetchColumn() ?: null;
-            }
-        }
-        if ($restrictedDeptCode === null && !empty($deptScope)) {
-            $restrictedDeptCode = $deptScope;
-        }
-
-        $fromJoins = "
-            FROM leave_requests lr
-            LEFT JOIN faculty f            ON f.faculty_id = lr.faculty_id
-            LEFT JOIN faculty_profiles fp  ON fp.email = f.email
-            LEFT JOIN faculty_profiles fp2 ON fp2.id = lr.faculty_id
-        ";
-        $whereClause = '';
-        $params = [];
-        if ($restrictedDeptCode !== null) {
-            $whereClause = " WHERE (fp.designated_department = ? OR fp2.designated_department = ?)";
-            $params = [$restrictedDeptCode, $restrictedDeptCode];
-        }
-
-        $stExport = $exportPdo->prepare("
-            SELECT
-                lr.id,
-                COALESCE(
-                    NULLIF(CONCAT_WS(' ', fp.first_name, fp.last_name), ' '),
-                    NULLIF(CONCAT_WS(' ', fp2.first_name, fp2.last_name), ' ')
-                ) AS faculty_name,
-                COALESCE(fp.designated_department, fp2.designated_department) AS department,
-                lr.leave_type,
-                lr.start_date,
-                lr.end_date,
-                DATEDIFF(lr.end_date, lr.start_date) + 1 AS days,
-                lr.screening_status,
-                lr.created_at
-            $fromJoins
-            $whereClause
-            ORDER BY CASE WHEN lr.screening_status = 'Pending' THEN 0 ELSE 1 END,
-                     lr.created_at DESC
-            LIMIT 200
-        ");
-        $stExport->execute($params);
-        $exportRows = $stExport->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        $filename = 'leave-requests-' . date('Y-m-d_His') . '.csv';
-
-        while (ob_get_level() > 0) { ob_end_clean(); }
-
-        header('Content-Type: text/csv; charset=UTF-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Cache-Control: no-cache, no-store, must-revalidate');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-
-        $out = fopen('php://output', 'w');
-        fwrite($out, "\xEF\xBB\xBF");
-        fputcsv($out, ['Request ID', 'Faculty', 'Department', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Screening Status', 'Filed At']);
-        foreach ($exportRows as $r) {
-            fputcsv($out, [
-                (int) ($r['id'] ?? 0),
-                (string) ($r['faculty_name'] ?? ''),
-                (string) ($r['department'] ?? ''),
-                (string) ($r['leave_type'] ?? ''),
-                (string) ($r['start_date'] ?? ''),
-                (string) ($r['end_date'] ?? ''),
-                (int) ($r['days'] ?? 0),
-                (string) ($r['screening_status'] ?? ''),
-                (string) ($r['created_at'] ?? ''),
-            ]);
-        }
-        fclose($out);
-        exit;
-    } catch (Throwable $e) {
-        error_log('[reports.php][leave-csv] ' . $e->getMessage());
-        $lrDebugError = 'CSV export failed: ' . $e->getMessage();
-    }
-}
-
 $pageTitle    = 'Reports';
 $activeModule = 'faculty';
 $activePage   = 'reports';
@@ -437,13 +340,8 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     .compact-filter .form-label { font-size: 0.7rem; }
 
 /* ============================================================
-   Academic Term pill — theme-aware (uses explicit selectors
-   instead of --bs-* fallbacks, so it works with any theme
-   mechanism the layout uses: data-bs-theme, data-theme, or
-   .dark-mode class).
+   Academic Term pill
    ============================================================ */
-
-/* ---------- LIGHT (default) ---------- */
 .term-pill {
     background-color: #f1f5f9;
     border: 1px solid #e2e8f0;
@@ -485,8 +383,6 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
     border-color: #0d6efd;
     box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
 }
-
-/* ---------- DARK — matches leave-request-screening palette ---------- */
 [data-bs-theme="dark"] .term-pill,
 [data-theme="dark"] .term-pill,
 body.dark-mode .term-pill {
@@ -512,7 +408,6 @@ body.dark-mode .term-pill-select option {
     background-color: #0d1526;
     color: #e2e8f0;
 }
-
 @media (max-width: 575.98px) {
     .term-pill {
         flex-direction: column;
@@ -562,9 +457,11 @@ body.dark-mode .term-pill-select option {
 <div class="mb-4" id="subject-load-report">
     <div class="d-flex justify-content-between align-items-center report-section-header">
         <h6 class="mb-0 fw-bold text-body"><i class="fas fa-chalkboard-teacher text-primary me-2"></i>Subject Load Report</h6>
-        <button class="btn btn-sm btn-outline-primary" onclick="printSection('subject-load-report')">
-            <i class="fas fa-file-pdf me-1"></i>Export / Print
-        </button>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-primary" onclick="printSection('subject-load-report')">
+                <i class="fas fa-file-pdf me-1"></i>Export / Print
+            </button>
+        </div>
     </div>
 
     <div class="row g-2 mb-3">
@@ -606,7 +503,8 @@ body.dark-mode .term-pill-select option {
         </div>
     </div>
 
-    <div class="row g-2 mb-3">
+    <!-- ADDED d-print-none TO REMOVE CHARTS FROM PRINT -->
+    <div class="row g-2 mb-3 d-print-none">
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
@@ -723,7 +621,8 @@ body.dark-mode .term-pill-select option {
     <?php endif; ?>
 
     <?php if ($lrTotalCount > 0): ?>
-    <div class="row g-2 mb-3">
+    <!-- ADDED d-print-none TO REMOVE CHARTS FROM PRINT -->
+    <div class="row g-2 mb-3 d-print-none">
         <div class="col-lg-5">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
@@ -751,9 +650,9 @@ body.dark-mode .term-pill-select option {
         <h6 class="text-muted mb-0 small text-uppercase fw-bold">Latest Requests</h6>
         <div class="d-flex align-items-center gap-2">
             <span class="text-muted small">Total on file: <strong><?= (int) $lrTotalCount ?></strong></span>
-            <a href="?export=leave_csv" class="btn btn-sm btn-outline-success" title="Download all leave requests as CSV">
-                <i class="fas fa-file-csv me-1"></i>Export CSV
-            </a>
+            <button class="btn btn-sm btn-outline-primary" onclick="printSection('leave-request-report')">
+                <i class="fas fa-file-pdf me-1"></i>Export / Print
+            </button>
         </div>
     </div>
     <div class="table-responsive">
@@ -861,7 +760,8 @@ body.dark-mode .term-pill-select option {
             </div>
         </div>
 
-        <div class="row g-2 mb-3">
+        <!-- ADDED d-print-none TO REMOVE CHARTS FROM PRINT -->
+        <div class="row g-2 mb-3 d-print-none">
             <div class="col-lg-4">
                 <div class="card border-0 shadow-sm h-100">
                     <div class="card-body">
@@ -951,26 +851,14 @@ body.dark-mode .term-pill-select option {
         window.location.href = u.toString();
     }
 
-    /**
-     * printSection()
-     * Opens a new window with a fully-styled printable version of the
-     * given section:
-     *   - Clones the section so the original DOM isn't modified.
-     *   - Converts every <canvas> chart to a static <img> using its
-     *     current PNG data (so charts actually show up in print).
-     *   - Strips form controls and interactive buttons.
-     *   - Injects Bootstrap + the page's own <style> so all classes
-     *     render correctly.
-     *   - Adds a proper print header (title + scope + timestamp).
-     */
     function printSection(sectionId) {
         const section = document.getElementById(sectionId);
         if (!section) return;
 
-        // --- Clone and prepare the section ---
+        // Clone and prepare the section
         const clone = section.cloneNode(true);
 
-        // 1. Convert every canvas (chart) to an image
+        // Convert every canvas (chart) to an image (though they will be removed next)
         const originalCanvases = section.querySelectorAll('canvas');
         const clonedCanvases = clone.querySelectorAll('canvas');
         clonedCanvases.forEach((canvas, idx) => {
@@ -984,24 +872,15 @@ body.dark-mode .term-pill-select option {
                 img.style.height = 'auto';
                 img.style.display = 'block';
                 img.style.margin = '0 auto';
+                img.style.backgroundColor = '#ffffff';
                 canvas.parentNode.replaceChild(img, canvas);
-            } catch (e) {
-                const ph = document.createElement('div');
-                ph.textContent = '[Chart]';
-                ph.style.textAlign = 'center';
-                ph.style.color = '#999';
-                ph.style.padding = '2rem';
-                canvas.parentNode.replaceChild(ph, canvas);
-            }
+            } catch (e) {}
         });
 
-        // 2. Remove interactive-only elements
-        clone.querySelectorAll('.btn, .compact-filter, select, input[type="text"]').forEach(el => el.remove());
-
-        // 3. Remove inline "corner link" icons on stat cards
+        // Remove interactive-only elements AND chart rows
+        clone.querySelectorAll('.btn, .compact-filter, select, input[type="text"], a.btn, .d-print-none').forEach(el => el.remove());
         clone.querySelectorAll('.position-absolute.top-0.end-0').forEach(el => el.remove());
 
-        // --- Collect CSS from the host page ---
         const stylesheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
             .map(l => `<link rel="stylesheet" href="${l.href}">`)
             .join('\n');
@@ -1010,7 +889,6 @@ body.dark-mode .term-pill-select option {
             .map(s => s.outerHTML)
             .join('\n');
 
-        // --- Compose the print HTML ---
         const docTitle = 'Reports — ' + (
             document.querySelector('.page-header small strong')?.textContent?.trim() || 'All Departments'
         );
@@ -1025,44 +903,58 @@ body.dark-mode .term-pill-select option {
                 ${stylesheets}
                 ${inlineStyles}
                 <style>
-                    @page { size: A4; margin: 12mm; }
+                    @page { size: A4 landscape; margin: 10mm; }
                     body {
                         background: #ffffff !important;
                         color: #111111 !important;
                         padding: 0 !important;
-                        font-size: 11px;
+                        font-size: 12px;
+                        font-family: Arial, sans-serif;
                     }
-                    .report-chart-wrap { height: 220px !important; }
 
                     .print-header {
                         border-bottom: 2px solid #0d6efd;
                         padding-bottom: 0.5rem;
-                        margin-bottom: 1rem;
+                        margin-bottom: 1.5rem;
+                        text-align: center;
                     }
                     .print-header h1 {
-                        font-size: 16px;
+                        font-size: 18px;
                         font-weight: 700;
                         color: #0d6efd;
-                        margin: 0 0 0.15rem 0;
+                        margin: 0 0 0.25rem 0;
                     }
                     .print-header .meta {
-                        font-size: 10px;
+                        font-size: 11px;
                         color: #555;
                         margin: 0;
                     }
 
-                    .report-section-header { margin-bottom: 0.5rem !important; }
-                    .stat-card { page-break-inside: avoid; }
-                    .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+                    .report-section-header { display: none !important; }
+                    .stat-card { page-break-inside: avoid; border: 1px solid #ddd !important; }
+                    .card { box-shadow: none !important; border: 1px solid #ddd !important; margin-bottom: 20px !important; }
 
+                    /* Force light mode */
                     [data-bs-theme="dark"] body,
                     [data-theme="dark"] body,
                     body.dark-mode { background: #ffffff !important; color: #111111 !important; }
                     .card, .stat-card { background: #ffffff !important; color: #111111 !important; }
-                    .text-muted { color: #666 !important; }
-                    .table thead th { background: #f0f0f0 !important; color: #111 !important; }
+                    
+                    /* Tables */
+                    .table { width: 100% !important; border-collapse: collapse !important; }
+                    .table th, .table td { border: 1px solid #ccc !important; padding: 8px !important; color: #000 !important; background-color: transparent !important; }
+                    .table thead th { background-color: #f0f0f0 !important; color: #000 !important; font-weight: bold !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-                    a.btn, button.btn { display: none !important; }
+                    .badge, .status-badge { border: 1px solid #999 !important; background: transparent !important; color: #000 !important; font-weight: normal !important; padding: 2px 6px !important; border-radius: 4px !important; }
+                    
+                    .text-muted { color: #555 !important; }
+                    .text-primary { color: #0d6efd !important; }
+                    .text-success { color: #198754 !important; }
+                    .text-danger { color: #dc3545 !important; }
+                    .text-warning { color: #d97706 !important; }
+
+                    a.btn, button.btn, .compact-filter, select, input { display: none !important; }
+                    .d-print-none { display: none !important; }
                 </style>
             </head>
             <body>
@@ -1078,7 +970,7 @@ body.dark-mode .term-pill-select option {
             </html>
         `;
 
-        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        const printWindow = window.open('', '_blank', 'width=1000,height=800');
         printWindow.document.open();
         printWindow.document.write(html);
         printWindow.document.close();

@@ -22,38 +22,37 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 <?php renderBreadcrumbs($breadcrumbs); ?>
 
 <?php
-// =====================================================================
-// CRITICAL FIX: Resolve the correct faculty_profiles.id for the logged-in user
-// =====================================================================
-require_once __DIR__ . '/../../models/AttendanceModel.php';
-
-// FIX: Use the safe facultyDb() function instead of db()
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 if (!$pdo) {
     die('Database connection failed.');
 }
 
-$currentFacultyId = null;
+$currentFacultyProfileId = $_SESSION['user']['faculty_profile_id'] ?? null;
+$currentFacultyStringId  = $_SESSION['user']['faculty_id'] ?? null;
+$systemUserId            = $_SESSION['user_id'] ?? $_SESSION['user']['id'] ?? null;
+$sessionEmail            = $_SESSION['user_email'] ?? $_SESSION['email'] ?? '';
 
-// 1. Check if session already has faculty_profile_id (most direct)
-if (!empty($_SESSION['user']['faculty_profile_id'])) {
-    $currentFacultyId = $_SESSION['user']['faculty_profile_id'];
-} 
-// 2. Check if session has faculty_id
-elseif (!empty($_SESSION['user']['faculty_id'])) {
-    $currentFacultyId = $_SESSION['user']['faculty_id'];
-}
-// 3. If not found, look it up using the system user ID from the session
-else {
-    $systemUserId = $_SESSION['user_id'] ?? $_SESSION['user']['id'] ?? null;
+// Resolve IDs if not in session
+if (!$currentFacultyProfileId || !$currentFacultyStringId) {
+    $query = "SELECT id, faculty_id FROM faculty_profiles WHERE 1=1";
+    $params = [];
+    
     if ($systemUserId) {
-        try {
-            // FIX: Use $pdo (facultyDb) instead of db() (sms2_db)
-            $stmt = $pdo->prepare("SELECT id FROM faculty_profiles WHERE user_id = :user_id LIMIT 1");
-            $stmt->execute([':user_id' => $systemUserId]);
-            $currentFacultyId = $stmt->fetchColumn();
-        } catch (Throwable $e) {
-            error_log('Failed to fetch faculty profile ID: ' . $e->getMessage());
+        $query .= " AND user_id = :uid";
+        $params['uid'] = $systemUserId;
+    } elseif ($sessionEmail) {
+        $query .= " AND LOWER(TRIM(email)) = LOWER(TRIM(:email))";
+        $params['email'] = $sessionEmail;
+    }
+
+    if (!empty($params)) {
+        $query .= " LIMIT 1";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+        $prof = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($prof) {
+            $currentFacultyProfileId = $prof['id'];
+            $currentFacultyStringId = $prof['faculty_id'];
         }
     }
 }
@@ -65,20 +64,32 @@ $myStats = [
     'total_logs' => 0
 ];
 
-if ($currentFacultyId) {
-    // FIX: Pass $pdo (facultyDb) instead of db()
-    $attendanceModel = new AttendanceModel($pdo);
-    
+// Fetch records using BOTH IDs
+if ($currentFacultyProfileId || $currentFacultyStringId) {
     try {
-        // Fetch the actual records saved by the Monitoring Officer
-        $myAttendanceRecords = $attendanceModel->getFacultyAttendanceRecords($currentFacultyId, 15);
-        
-        // Calculate simple stats based on the fetched records
+        $sql = "
+            SELECT s.*, r.room_code, sub.code AS subject_code 
+            FROM class_attendance_sessions s 
+            LEFT JOIN rooms r ON s.room_id = r.room_id
+            LEFT JOIN subjects sub ON s.subject_id = sub.subject_id
+            WHERE s.faculty_id = :pid OR s.faculty_id = :sid
+            ORDER BY s.session_date DESC, s.session_id DESC 
+            LIMIT 50
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':pid' => $currentFacultyProfileId ?: 0,
+            ':sid' => $currentFacultyStringId ?: ''
+        ]);
+        $myAttendanceRecords = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
         foreach ($myAttendanceRecords as $rec) {
             $myStats['total_logs']++;
-            if ($rec['status'] === 'Present') {
+            $st = strtolower(trim((string)($rec['status'] ?? '')));
+            
+            if ($st === 'present' || $st === 'pending' || $st === '') {
                 $myStats['days_present']++;
-            } elseif ($rec['status'] === 'Absent') {
+            } elseif ($st === 'absent') {
                 $myStats['days_absent']++;
             }
         }
@@ -87,7 +98,6 @@ if ($currentFacultyId) {
     }
 }
 
-// Compute attendance rate (if there are any logs)
 $attendanceRate = ($myStats['total_logs'] > 0) 
     ? round(($myStats['days_present'] / $myStats['total_logs']) * 100) 
     : 0;
@@ -99,15 +109,23 @@ foreach ($myAttendanceRecords as $rec) {
     if (!isset($uniqueDates[$dateKey])) {
         $dateObj = new DateTime($dateKey);
         $uniqueDates[$dateKey] = [
+            'raw_date' => $dateKey,
             'date' => $dateObj->format('M d, Y'),
             'day' => $dateObj->format('l'),
-            'active' => false
+            'timestamp' => $dateObj->getTimestamp()
         ];
     }
 }
 $uniqueDates = array_values($uniqueDates);
+usort($uniqueDates, function($a, $b) { return $b['timestamp'] - $a['timestamp']; });
+
 if (empty($uniqueDates)) {
-    $uniqueDates[] = ['date' => date('M d, Y'), 'day' => date('l'), 'active' => true];
+    $uniqueDates[] = [
+        'raw_date' => date('Y-m-d'), 
+        'date' => date('M d, Y'), 
+        'day' => date('l'), 
+        'timestamp' => time()
+    ];
 }
 ?>
 
@@ -121,7 +139,7 @@ if (empty($uniqueDates)) {
     </div>    
 </div>
 
-<!-- Summary Cards (4-Column Grid with styled indicator bars) -->
+<!-- Summary Cards -->
 <div class="row g-3 mb-4">
     <div class="col-12 col-sm-6 col-xl-3">
         <section class="card stat-card success border shadow-sm position-relative overflow-hidden h-100">
@@ -131,7 +149,6 @@ if (empty($uniqueDates)) {
                     <i class="fas fa-percentage"></i>
                 </div>
                 <div>
-                    <!-- Dynamic attendance rate -->
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Attendance Rate</h6>
                     <h4 class="mb-0 fw-bold" style="color: #28a745;"><?= $attendanceRate ?>% <small class="text-muted fs-6">overall</small></h4>
                 </div>
@@ -147,7 +164,6 @@ if (empty($uniqueDates)) {
                     <i class="fas fa-calendar-check"></i>
                 </div>
                 <div>
-                    <!-- Dynamic days present -->
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Days Present</h6>
                     <h4 class="mb-0 fw-bold" style="color: #0d6efd;"><?= $myStats['days_present'] ?> <small class="text-muted fs-6">days</small></h4>
                 </div>
@@ -163,7 +179,6 @@ if (empty($uniqueDates)) {
                     <i class="fas fa-clock"></i>
                 </div>
                 <div>
-                    <!-- Dynamic days absent -->
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Absences</h6>
                     <h4 class="mb-0 fw-bold" style="color: #ffc107;"><?= $myStats['days_absent'] ?> <small class="text-muted fs-6">days</small></h4>
                 </div>
@@ -179,7 +194,6 @@ if (empty($uniqueDates)) {
                     <i class="fas fa-user-times"></i>
                 </div>
                 <div>
-                    <!-- Dynamic total records -->
                     <h6 class="text-muted mb-0 small text-uppercase fw-bold">Total Logs</h6>
                     <h4 class="mb-0 fw-bold" style="color: #ff4d4d;"><?= $myStats['total_logs'] ?> <small class="text-muted fs-6">entries</small></h4>
                 </div>
@@ -198,7 +212,7 @@ if (empty($uniqueDates)) {
                     <i class="fas fa-calendar-alt me-2"></i>Attendance Dates
                 </h6>
                 <div class="d-flex align-items-center">
-                    <select class="form-select form-select-sm" style="width: auto;">
+                    <select id="dateFilterSelect" class="form-select form-select-sm" style="width: auto;">
                         <option value="week">This Week</option>
                         <option value="month" selected>This Month</option>
                     </select>
@@ -214,19 +228,13 @@ if (empty($uniqueDates)) {
                                 <th class="text-end pe-3 text-body-secondary fw-semibold small text-nowrap">Action</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php foreach ($uniqueDates as $index => $d): 
-                                $activeClass = $index === 0 ? 'table-active' : '';
-                            ?>
-                                <tr class="<?= $activeClass ?>" style="cursor: pointer;">
+                        <tbody id="attendanceDatesBody">
+                            <?php foreach ($uniqueDates as $index => $d): ?>
+                                <tr data-date="<?= $d['raw_date'] ?>" data-timestamp="<?= $d['timestamp'] ?>" style="cursor: pointer;" class="date-row">
                                     <td class="ps-3 fw-medium small text-nowrap"><?= $d['date'] ?></td>
                                     <td class="small text-body-secondary text-nowrap"><?= $d['day'] ?></td>
-                                    <td class="text-end pe-3 text-nowrap">
-                                        <?php if ($index === 0): ?>
-                                            <span class="badge bg-primary rounded-pill">Selected</span>
-                                        <?php else: ?>
-                                            <button class="btn btn-xs btn-outline-secondary py-0 px-2 style-tiny" style="font-size:0.75rem;">View</button>
-                                        <?php endif; ?>
+                                    <td class="text-end pe-3 text-nowrap action-cell">
+                                        <button class="btn btn-xs btn-outline-secondary py-0 px-2 style-tiny" style="font-size:0.75rem;">View</button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -237,7 +245,7 @@ if (empty($uniqueDates)) {
         </div>
     </div>
 
-    <!-- Right Table: My Attendance Logs (Saved by Monitoring Officer) -->
+    <!-- Right Table: My Attendance Logs -->
     <div class="col-12 col-lg-7 col-xl-8">
         <div class="card border-0 shadow-sm rounded-3 h-100">
             <div class="card-header bg-transparent py-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -259,23 +267,27 @@ if (empty($uniqueDates)) {
                                 <th class="pe-3 text-body-secondary fw-semibold small text-end text-nowrap">Status</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="attendanceLogsBody">
                             <?php if (empty($myAttendanceRecords)): ?>
                                 <tr>
                                     <td colspan="4" class="text-center text-muted py-4">No attendance records found yet. Please check back after your Monitoring Officer logs your first session.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($myAttendanceRecords as $c): 
-                                    $timeDisplay = $c['time_slot']; 
+                                    $timeDisplay = $c['time_slot'] ?? ''; 
                                     $dateDisplay = date('M d, Y', strtotime($c['session_date']));
                                     
-                                    $statusBadge = match($c['status']) {
+                                    $statusText = ucfirst(trim((string)($c['status'] ?? 'Present')));
+                                    if ($statusText === '' || $statusText === 'Pending') $statusText = 'Present';
+
+                                    $statusBadge = match($statusText) {
                                         'Present' => 'bg-success bg-opacity-10 text-success border-success',
+                                        'Late'    => 'bg-warning bg-opacity-10 text-warning border-warning',
                                         'Absent'  => 'bg-danger bg-opacity-10 text-danger border-danger',
                                         default   => 'bg-secondary bg-opacity-10 text-secondary border-secondary'
                                     };
                                 ?>
-                                    <tr>
+                                    <tr class="log-row" data-session-date="<?= $c['session_date'] ?>">
                                         <td class="ps-3 font-monospace small fw-medium text-body-secondary text-nowrap">
                                             <?= htmlspecialchars($dateDisplay) ?>
                                             <small class="d-block text-muted"><?= htmlspecialchars($timeDisplay) ?></small>
@@ -288,7 +300,7 @@ if (empty($uniqueDates)) {
                                         </td>
                                         <td class="pe-3 text-end text-nowrap">
                                             <span class="badge border border-opacity-25 rounded-pill px-2 px-sm-3 py-1 <?= $statusBadge ?>">
-                                                <?= htmlspecialchars($c['status']) ?>
+                                                <?= htmlspecialchars($statusText) ?>
                                             </span>
                                         </td>
                                     </tr>
@@ -303,35 +315,111 @@ if (empty($uniqueDates)) {
 </div>
 
 <style>
-    /* Custom Scrollbar Styles (Chrome, Safari, Edge, Firefox) */
     .custom-scrollbar {
         scrollbar-width: thin;
         scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
     }
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background-color: rgba(255, 255, 255, 0.25);
-        border-radius: 10px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(13, 110, 253, 0.6);
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.25); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(13, 110, 253, 0.6); }
+    [data-bs-theme="light"] .custom-scrollbar, body:not([data-bs-theme="dark"]) .custom-scrollbar { scrollbar-color: rgba(13, 110, 253, 0.3) transparent; }
+    [data-bs-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb, body:not([data-bs-theme="dark"]) .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(13, 110, 253, 0.3); }
+    
+    .date-row.table-active { background-color: rgba(13, 110, 253, 0.1) !important; }
+    .date-row.table-active td { font-weight: 600; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dateRows = document.querySelectorAll('.date-row');
+    const logRows = document.querySelectorAll('.log-row');
+    const filterSelect = document.getElementById('dateFilterSelect');
+    const logsBody = document.getElementById('attendanceLogsBody');
+
+    // 1. Function to filter the right table based on selected date
+    function filterLogsByDate(selectedDate) {
+        let visibleCount = 0;
+        
+        logRows.forEach(row => {
+            if (row.dataset.sessionDate === selectedDate) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Handle empty state
+        let emptyRow = document.getElementById('dynamicEmptyLogs');
+        if (visibleCount === 0) {
+            if (!emptyRow) {
+                emptyRow = document.createElement('tr');
+                emptyRow.id = 'dynamicEmptyLogs';
+                emptyRow.innerHTML = '<td colspan="4" class="text-center text-muted py-4"><i class="fas fa-folder-open d-block fs-4 mb-2 opacity-50"></i>No attendance logs found for this specific date.</td>';
+                logsBody.appendChild(emptyRow);
+            }
+            emptyRow.style.display = '';
+        } else {
+            if (emptyRow) emptyRow.style.display = 'none';
+        }
     }
 
-    /* Light Theme Scrollbar Adjustments */
-    [data-bs-theme="light"] .custom-scrollbar,
-    body:not([data-bs-theme="dark"]) .custom-scrollbar {
-        scrollbar-color: rgba(13, 110, 253, 0.3) transparent;
+    // 2. Function to select a date row visually
+    function selectDateRow(targetRow) {
+        dateRows.forEach(r => {
+            r.classList.remove('table-active');
+            const actionCell = r.querySelector('.action-cell');
+            actionCell.innerHTML = '<button class="btn btn-xs btn-outline-secondary py-0 px-2 style-tiny" style="font-size:0.75rem;">View</button>';
+        });
+
+        targetRow.classList.add('table-active');
+        const actionCell = targetRow.querySelector('.action-cell');
+        actionCell.innerHTML = '<span class="badge bg-primary rounded-pill">Selected</span>';
+
+        filterLogsByDate(targetRow.dataset.date);
     }
-    [data-bs-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb,
-    body:not([data-bs-theme="dark"]) .custom-scrollbar::-webkit-scrollbar-thumb {
-        background-color: rgba(13, 110, 253, 0.3);
+
+    // 3. Handle row clicks
+    dateRows.forEach(row => {
+        row.addEventListener('click', function() {
+            selectDateRow(this);
+        });
+    });
+
+    // 4. Handle Dropdown Filter (This Week vs This Month)
+    filterSelect.addEventListener('change', function() {
+        const range = this.value;
+        const now = new Date();
+        const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        
+        let firstVisible = null;
+
+        dateRows.forEach(row => {
+            const rowDate = new Date(row.dataset.timestamp * 1000); // Convert PHP timestamp to JS Date
+            
+            if (range === 'week' && rowDate < oneWeekAgo) {
+                row.style.display = 'none';
+            } else {
+                row.style.display = '';
+                if (!firstVisible) firstVisible = row;
+            }
+        });
+
+        // Auto-select the first visible date
+        if (firstVisible) {
+            selectDateRow(firstVisible);
+        } else {
+            // If no dates fit the filter, just clear the right table
+            filterLogsByDate('none');
+        }
+    });
+
+    // 5. Initial state on load (Select the first date)
+    if (dateRows.length > 0) {
+        selectDateRow(dateRows[0]);
     }
-</style>
+});
+</script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

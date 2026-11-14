@@ -9,7 +9,7 @@ require_once __DIR__ . '/../../config/database.php';
 
 requireAuth();
 
-// Use the safe facultyDb() function we already fixed, instead of getFacultyDatabaseConnection()
+// Use the safe facultyDb() function we already fixed
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 if (!$pdo) {
     die('<div style="padding: 20px; font-family: sans-serif; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; margin: 20px; border-radius: 4px;">'
@@ -82,6 +82,7 @@ if (empty($selectedTerm) && !empty($academicTerms)) {
 $termParts = explode('-', $selectedTerm);
 $selectedAY = (count($termParts) >= 2) ? $termParts[0] . '-' . $termParts[1] : '2025-2026';
 $selectedSem = $termParts[2] ?? '2';
+$termDisplay = 'A.Y. ' . $selectedAY . ' | ' . $selectedSem . ' Semester';
 
 // 3. Fetch Faculty Members strictly restricted by Secretary's Department Scope
 $nonTeachingPositions = [
@@ -156,9 +157,12 @@ foreach ($facultyMembers as $fac) {
     $isLinked = $realFacultyId !== null;
 
     $maxUnitsLimit = getMaxUnitsForEmploymentStatus($fac['employment_status'] ?? '');
-    $assignedSubjects = [];
+    $allSubjects = [];
     $totalAssignedUnits = 0.0;
+    $approvedSubjects = [];
+    $pendingSubjects = [];
 
+    // Fetch teaching loads for the selected term
     if ($isLinked) {
         try {
             $stmtLoad = $pdo->prepare("
@@ -167,13 +171,13 @@ foreach ($facultyMembers as $fac) {
                 WHERE faculty_id = :fac_id AND academic_year = :ay AND semester = :sem
             ");
             $stmtLoad->execute(['fac_id' => $realFacultyId, 'ay' => $selectedAY, 'sem' => $selectedSem]);
-            $assignedSubjects = $stmtLoad->fetchAll();
+            $allSubjects = $stmtLoad->fetchAll();
         } catch (PDOException $e) {
-            $assignedSubjects = [];
+            $allSubjects = [];
         }
     }
 
-    if (empty($assignedSubjects)) {
+    if (empty($allSubjects)) {
         try {
             $stmtLoadAlt = $pdo->prepare("
                 SELECT subject_code, subject_title, units, section, status 
@@ -186,14 +190,22 @@ foreach ($facultyMembers as $fac) {
                 'ay'         => $selectedAY,
                 'sem'        => $selectedSem
             ]);
-            $assignedSubjects = $stmtLoadAlt->fetchAll();
+            $allSubjects = $stmtLoadAlt->fetchAll();
         } catch (PDOException $e) {
-            $assignedSubjects = [];
+            $allSubjects = [];
         }
     }
 
-    foreach ($assignedSubjects as $subj) {
-        $totalAssignedUnits += floatval($subj['units'] ?? 0);
+    // Separate approved vs pending requests
+    foreach ($allSubjects as $subj) {
+        $status = strtolower(trim($subj['status'] ?? ''));
+        // Treat empty or 'approved'/'active' as approved for backwards compatibility
+        if ($status === 'approved' || $status === 'active' || $status === '') {
+            $approvedSubjects[] = $subj;
+            $totalAssignedUnits += floatval($subj['units'] ?? 0);
+        } elseif ($status === 'pending' || $status === 'submitted') {
+            $pendingSubjects[] = $subj;
+        }
     }
 
     $isFullyLoaded = ($totalAssignedUnits >= $maxUnitsLimit);
@@ -216,7 +228,9 @@ foreach ($facultyMembers as $fac) {
         'total_units'    => $totalAssignedUnits,
         'max_units'      => $maxUnitsLimit,
         'is_fully_loaded'=> $isFullyLoaded,
-        'subjects'       => $assignedSubjects
+        'subjects'       => $approvedSubjects,
+        'has_pending'    => count($pendingSubjects) > 0,
+        'has_any_request'=> count($allSubjects) > 0
     ];
 }
 
@@ -244,9 +258,70 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
     .faculty-avatar { width: 32px !important; height: 32px !important; font-size: 11px !important; }
     .page-header h1 { font-size: 1.25rem !important; }
 }
+
+/* ============================================================
+   PRINT SPECIFIC STYLES - Only print the selected matrix
+   ============================================================ */
+@media print {
+    /* Hide all standard UI elements */
+    body * {
+        visibility: hidden;
+    }
+    
+    /* Make the selected faculty matrix area visible and expand it */
+    #printable-matrix-area, #printable-matrix-area * {
+        visibility: visible;
+    }
+    
+    #printable-matrix-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+
+    /* Hide specific elements inside the matrix that shouldn't be printed */
+    .no-print, .card-footer, .btn, .page-header, .dashboard-stats, .col-xl-5 {
+        display: none !important;
+    }
+
+    /* Force light mode backgrounds for paper */
+    body, .card, .card-header, .card-body, .table {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border-color: #dee2e6 !important;
+    }
+
+    /* Style the table for print */
+    .table th, .table td {
+        border: 1px solid #000000 !important;
+        color: #000000 !important;
+    }
+    .table thead {
+        background-color: #f8f9fa !important;
+    }
+
+    /* Show print-only headers */
+    .d-print-block {
+        display: block !important;
+    }
+}
 </style>
 
 <?php renderBreadcrumbs($breadcrumbs); ?>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="statusToast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2">
+                <i id="statusToastIcon" class="fas fa-check-circle fs-5"></i>
+                <span id="statusToastMessage"></span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
 
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
     <div>
@@ -349,9 +424,28 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                     <?php if (!empty($facultyLoadData)): ?>
                         <?php $index = 0; foreach ($facultyLoadData as $fId => $fac): ?>
                             <?php 
-                                $unitsText = $fac['total_units'] . ' / ' . $fac['max_units'] . ' Units';
+                                // FIXED LOGIC: Only show the denominator (max units) if they actually have approved units or a pending request
+                                if ($fac['total_units'] > 0) {
+                                    $unitsText = $fac['total_units'] . ' / ' . $fac['max_units'] . ' Units';
+                                } elseif ($fac['has_pending']) {
+                                    $unitsText = 'Pending';
+                                } else {
+                                    $unitsText = '0 Units';
+                                }
+
                                 $searchString = strtolower($fac['name'] . ' ' . $fac['profile_no'] . ' ' . $fac['department']);
                                 $progressWidth = min(100, round(($fac['total_units'] / $fac['max_units']) * 100));
+
+                                // Badge styling based on state
+                                if ($fac['is_fully_loaded']) {
+                                    $badgeClass = 'bg-success text-white';
+                                } elseif ($fac['total_units'] > 0) {
+                                    $badgeClass = 'bg-warning text-dark';
+                                } elseif ($fac['has_pending']) {
+                                    $badgeClass = 'bg-info text-dark border border-info-subtle';
+                                } else {
+                                    $badgeClass = 'bg-secondary text-white';
+                                }
                             ?>
                             <a href="javascript:void(0);" 
                                class="list-group-item list-group-item-action faculty-item bg-transparent text-body px-3 py-2 border-0 border-bottom border-secondary-subtle" 
@@ -370,11 +464,24 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                                         </div>
                                     </div>
                                     <div class="text-end flex-shrink-0 ms-2">
-                                        <span class="badge <?= $fac['is_fully_loaded'] ? 'bg-success text-white' : 'bg-warning text-dark' ?> fw-bold px-2 py-1" style="font-size: 0.7rem;"><?= $unitsText ?></span>
-                                        <div class="progress mt-1 bg-body-tertiary" style="height: 4px; width: 80px;">
-                                            <div class="progress-bar <?= $fac['is_fully_loaded'] ? 'bg-success' : 'bg-warning' ?>" role="progressbar" style="width: <?= $progressWidth ?>%;"></div>
-                                        </div>
-                                        <small class="<?= $fac['is_fully_loaded'] ? 'text-success' : 'text-warning' ?> fw-semibold mt-1 d-block" style="font-size: 0.65rem;"><?= $fac['is_fully_loaded'] ? 'Full Load' : ($fac['max_units'] - $fac['total_units']) . ' Units Rem.' ?></small>
+                                        <span class="badge <?= $badgeClass ?> fw-bold px-2 py-1" style="font-size: 0.7rem;">
+                                            <?php if ($fac['has_pending'] && $fac['total_units'] == 0): ?>
+                                                <i class="fas fa-clock me-1"></i> Pending
+                                            <?php else: ?>
+                                                <?= $unitsText ?>
+                                            <?php endif; ?>
+                                        </span>
+
+                                        <?php if ($fac['total_units'] > 0): ?>
+                                            <div class="progress mt-1 bg-body-tertiary" style="height: 4px; width: 80px;">
+                                                <div class="progress-bar <?= $fac['is_fully_loaded'] ? 'bg-success' : 'bg-warning' ?>" role="progressbar" style="width: <?= $progressWidth ?>%;"></div>
+                                            </div>
+                                            <small class="<?= $fac['is_fully_loaded'] ? 'text-success' : 'text-warning' ?> fw-semibold mt-1 d-block" style="font-size: 0.65rem;"><?= $fac['is_fully_loaded'] ? 'Full Load' : ($fac['max_units'] - $fac['total_units']) . ' Units Rem.' ?></small>
+                                        <?php else: ?>
+                                            <small class="text-muted fw-semibold mt-1 d-block" style="font-size: 0.65rem;">
+                                                <?= $fac['has_pending'] ? 'Awaiting Approval' : 'No Request' ?>
+                                            </small>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </a>
@@ -405,7 +512,16 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
     </div>
 
     <div class="col-xl-7 col-lg-6">
-        <div class="card bg-body text-body border-secondary-subtle shadow-sm h-100">
+        <!-- ADDED ID HERE FOR PRINTING -->
+        <div class="card bg-body text-body border-secondary-subtle shadow-sm h-100" id="printable-matrix-area">
+            
+            <!-- PRINT ONLY HEADER -->
+            <div class="d-none d-print-block p-4 text-center border-bottom mb-3">
+                <h3 class="fw-bold mb-1" style="font-family: Arial, sans-serif;">Subject Loading Matrix</h3>
+                <p class="mb-1" style="font-size: 14px;"><strong>Faculty:</strong> <span id="printFacultyName">-</span> (ID: <span id="printFacultyId">-</span>)</p>
+                <p class="mb-0" style="font-size: 14px;"><strong>Term:</strong> <?= htmlspecialchars($termDisplay) ?></p>
+            </div>
+
             <div class="card-header bg-body-tertiary border-bottom border-secondary-subtle d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 py-3">
                 <div>
                     <h6 class="mb-0 text-primary fw-bold small" id="target-faculty-name">
@@ -413,7 +529,7 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                     </h6>
                     <small class="text-body-secondary" id="target-faculty-meta" style="font-size: 0.75rem;">Max Allowed: 21 Units | Assigned: 0 Units | Remaining: 21 Units</small>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 no-print">
                     <button class="btn btn-sm btn-outline-secondary border-secondary-subtle" title="Export Schedule PDF" onclick="window.print()">
                         <i class="fas fa-file-pdf text-danger"></i>
                     </button>
@@ -436,7 +552,7 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                 </div>
             </div>
 
-            <div class="card-footer bg-body-tertiary border-top border-secondary-subtle d-flex justify-content-between align-items-center py-2">
+            <div class="card-footer bg-body-tertiary border-top border-secondary-subtle d-flex justify-content-between align-items-center py-2 no-print">
                 <div class="d-flex align-items-center gap-3">
                     <small class="text-body-secondary" style="font-size: 0.75rem;">Total Classes: <strong class="text-body" id="footerTotalClasses">0 Sections</strong></small>
                     <small class="text-body-secondary" style="font-size: 0.75rem;">Total Units: <strong class="text-primary" id="footerTotalUnits">0.0 Units</strong></small>
@@ -554,6 +670,8 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
         if (!fac) return;
 
         document.getElementById('activeFacultyName').textContent = fac.name;
+        document.getElementById('printFacultyName').textContent = fac.name;
+        document.getElementById('printFacultyId').textContent = fac.profile_no;
         
         const remainingUnits = Math.max(0, fac.max_units - fac.total_units);
         document.getElementById('target-faculty-meta').textContent = `Max Allowed: ${fac.max_units} Units | Assigned: ${fac.total_units} Units | Remaining: ${remainingUnits} Units`;
@@ -562,7 +680,11 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
         tbody.innerHTML = '';
 
         if (!fac.subjects || fac.subjects.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-4"><i class="fas fa-folder-open d-block fs-4 mb-2 opacity-50"></i>No subject loads assigned for this academic term.</td></tr>`;
+            if (fac.has_pending) {
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4"><div class="text-warning mb-2"><i class="fas fa-clock fs-3"></i></div><div class="fw-bold text-body">Pending Approval</div><small class="text-body-secondary">The subject load request is waiting for Department Head approval.</small></td></tr>`;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4"><div class="text-muted mb-2"><i class="fas fa-folder-open fs-3 opacity-50"></i></div><div class="fw-bold text-body">No Request or No Approved Load</div><small class="text-body-secondary">There is no teaching load request submitted or approved for this term.</small></td></tr>`;
+            }
         } else {
             fac.subjects.forEach(subj => {
                 tbody.innerHTML += `
@@ -573,7 +695,7 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
                         </td>
                         <td>
                             <div class="fw-bold text-body" style="font-size: 0.825rem;">${escapeHtml(subj.subject_title)}</div>
-                            <small class="text-body-secondary" style="font-size: 0.7rem;"><i class="fas fa-layer-group me-1"></i>Status: ${escapeHtml(subj.status || 'Active')}</small>
+                            <small class="text-success fw-bold" style="font-size: 0.7rem;"><i class="fas fa-check-circle me-1"></i>Approved</small>
                         </td>
                         <td class="text-center">
                             <span class="fw-bold text-body" style="font-size: 0.825rem;">${parseFloat(subj.units).toFixed(1)}</span>
@@ -588,7 +710,18 @@ echo '<link rel="stylesheet" href="' . BASE_URL . '/modules/faculty/assets/css/f
     }
 
     function commitLoadingUpdates() {
-        alert("Faculty teaching load successfully committed.");
+        const toastEl = document.getElementById('statusToast');
+        const toastMsg = document.getElementById('statusToastMessage');
+        const toastIcon = document.getElementById('statusToastIcon');
+        
+        if (toastEl && toastMsg) {
+            toastMsg.textContent = "Faculty teaching load successfully committed.";
+            toastEl.classList.add('bg-success');
+            toastIcon.className = 'fas fa-check-circle fs-5';
+            if (window.bootstrap && bootstrap.Toast) {
+                bootstrap.Toast.getOrCreateInstance(toastEl).show();
+            }
+        }
     }
 
     function escapeHtml(str) {

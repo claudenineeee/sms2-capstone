@@ -17,7 +17,7 @@ require_once __DIR__ . '/../../../../includes/layout-start.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/AttendanceModel.php';
 
-// Use the safe facultyDb() function we fixed earlier
+// Use the safe facultyDb() function
 $pdo = function_exists('facultyDb') ? facultyDb() : null;
 if (!$pdo) {
     die('Database connection failed.');
@@ -25,34 +25,56 @@ if (!$pdo) {
 
 $today = date('Y-m-d');
 
+// --- 1. KPI STATS ---
 $stmtToday = $pdo->prepare("
-    SELECT s.*, f.first_name, f.last_name, r.room_code, sub.code AS subject_code 
+    SELECT s.* 
     FROM class_attendance_sessions s 
-    LEFT JOIN faculty_profiles f ON s.faculty_id = f.id 
-    LEFT JOIN rooms r ON s.room_id = r.room_id
-    LEFT JOIN subjects sub ON s.subject_id = sub.subject_id
     WHERE s.session_date = ? 
-    ORDER BY s.session_id DESC
 ");
 $stmtToday->execute([$today]);
 $todaySessions = $stmtToday->fetchAll(PDO::FETCH_ASSOC);
 
 $totalChecks    = count($todaySessions);
-$presentFaculty = count(array_filter($todaySessions, fn($r) => strtolower($r['status']) === 'present'));
-$absentFaculty  = count(array_filter($todaySessions, fn($r) => strtolower($r['status']) === 'absent'));
-$presenceRate   = $totalChecks > 0 ? round(($presentFaculty / $totalChecks) * 100) : 0;
+$presentFaculty = 0;
+$absentFaculty  = 0;
+foreach ($todaySessions as $s) {
+    $st = strtolower(trim((string)($s['status'] ?? '')));
+    if ($st === 'present' || $st === '' || $st === 'pending') $presentFaculty++;
+    if ($st === 'absent') $absentFaculty++;
+}
+$presenceRate = $totalChecks > 0 ? round(($presentFaculty / $totalChecks) * 100) : 0;
 
-$totalStudents  = array_sum(array_column($todaySessions, 'attending_students'));
+// --- 2. CHART STATS ---
+$chartData = ['present' => 0, 'late' => 0, 'absent' => 0];
+$stmtChart = $pdo->query("SELECT status, COUNT(*) as cnt FROM class_attendance_sessions GROUP BY status");
+while ($row = $stmtChart->fetch(PDO::FETCH_ASSOC)) {
+    $st = strtolower(trim((string)$row['status']));
+    if ($st === 'present' || $st === '' || $st === 'pending') $chartData['present'] += (int)$row['cnt'];
+    elseif ($st === 'late') $chartData['late'] += (int)$row['cnt'];
+    elseif ($st === 'absent') $chartData['absent'] += (int)$row['cnt'];
+}
 
+// --- 3. PAGINATION & RECENT LOGS ---
+$limit = 10;
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$offset = ($page - 1) * $limit;
+
+$totalRowsStmt = $pdo->query("SELECT COUNT(*) FROM class_attendance_sessions");
+$totalRows = (int)$totalRowsStmt->fetchColumn();
+$totalPages = ceil($totalRows / $limit);
+
+// FIXED: The JOIN uses OR to catch both integer and string ID variations
 $stmtRecent = $pdo->prepare("
     SELECT s.*, f.first_name, f.last_name, r.room_code, sub.code AS subject_code 
     FROM class_attendance_sessions s 
-    LEFT JOIN faculty_profiles f ON s.faculty_id = f.id 
+    LEFT JOIN faculty_profiles f ON (s.faculty_id = f.id OR s.faculty_id = f.faculty_id)
     LEFT JOIN rooms r ON s.room_id = r.room_id
     LEFT JOIN subjects sub ON s.subject_id = sub.subject_id
     ORDER BY s.session_id DESC 
-    LIMIT 10
+    LIMIT :limit OFFSET :offset
 ");
+$stmtRecent->bindValue(':limit', $limit, PDO::PARAM_INT);
+$stmtRecent->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmtRecent->execute();
 $recentLogs = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -188,29 +210,7 @@ $recentLogs = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
         font-size: .95rem; font-weight: 700; color: var(--dash-text-strong) !important; margin: 0 0 1rem 0;
     }
 
-    .dash-filters {
-        display: grid; grid-template-columns: 2fr 1.2fr 1fr auto; gap: .9rem; align-items: end;
-    }
-    @media (max-width: 768px) { .dash-filters { grid-template-columns: 1fr 1fr; } }
-
-    .dash-filter-label {
-        text-transform: uppercase; letter-spacing: .06em;
-        font-size: .68rem; font-weight: 700; color: var(--dash-muted) !important; margin-bottom: .35rem; display: block;
-    }
-    .dash-input, .dash-select {
-        width: 100%;
-        background: var(--dash-input-bg) !important;
-        border: 1px solid var(--dash-border) !important;
-        color: var(--dash-text-strong) !important;
-        border-radius: .55rem; padding: .55rem .8rem; font-size: .875rem; outline: none;
-    }
-    .dash-refresh-btn {
-        width: 42px; height: 42px; border-radius: .55rem;
-        background: var(--dash-card-2) !important; border: 1px solid var(--dash-border) !important;
-        color: var(--dash-text-strong) !important; display: flex; align-items: center; justify-content: center;
-    }
-
-    .dash-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    .dash-table { width: 100%; border-collapse: collapse; font-size: .875rem; white-space: nowrap; }
     .dash-table thead th {
         text-transform: uppercase; letter-spacing: .06em;
         font-size: .7rem; font-weight: 700; color: var(--dash-muted) !important;
@@ -229,7 +229,6 @@ $recentLogs = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
     .dash-pill.present { background: rgba(34, 197, 94, 0.18) !important; color: #4ade80 !important; }
     .dash-pill.late    { background: rgba(234, 179, 8, 0.18) !important; color: #facc15 !important; }
     .dash-pill.absent  { background: rgba(239, 68, 68, 0.18) !important; color: #f87171 !important; }
-    .dash-pill.pending { background: rgba(148, 163, 184, 0.18) !important; color: #cbd5e1 !important; }
     .dash-pill.room    { background: var(--dash-card-2) !important; color: var(--dash-text) !important; border: 1px solid var(--dash-border); }
 
     .dash-action-btn {
@@ -239,6 +238,40 @@ $recentLogs = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
         color: var(--dash-text-strong) !important; font-size: .75rem; margin-right: .25rem; text-decoration: none;
     }
     .dash-action-btn:hover { border-color: #3b82f6 !important; color: #3b82f6 !important; }
+
+    .pagination .page-link {
+        background-color: var(--dash-card-2) !important;
+        border-color: var(--dash-border) !important;
+        color: var(--dash-text) !important;
+    }
+    .pagination .page-item.active .page-link {
+        background-color: #3b82f6 !important;
+        border-color: #3b82f6 !important;
+        color: #fff !important;
+    }
+
+    /* =========================================================
+       RESPONSIVE ADJUSTMENTS (DOWN TO 344px)
+       ========================================================= */
+    @media (max-width: 575.98px) {
+        .dash-wrap { padding: 1rem 0.5rem; }
+        .dash-page-title { font-size: 1.25rem; }
+        .dash-kpi { padding: 0.75rem; gap: 0.6rem; }
+        .dash-kpi-icon { width: 36px; height: 36px; font-size: 0.9rem; }
+        .dash-kpi-value { font-size: 1.25rem; }
+        .dash-kpi-label { font-size: 0.6rem; }
+        .dash-card { padding: 0.85rem; }
+        .dash-table thead th, .dash-table tbody td { padding: 0.6rem 0.5rem; font-size: 0.8rem; }
+    }
+
+    @media (max-width: 400px) {
+        .dash-page-title { font-size: 1.1rem; }
+        .dash-btn-outline { padding: 0.4rem 0.6rem; font-size: 0.75rem; }
+        .dash-kpi { flex-direction: column; align-items: flex-start; min-height: auto; }
+        .dash-kpi-icon { margin-bottom: 0.5rem; }
+        .dash-kpi-value { font-size: 1.15rem; }
+        .chart-container { height: 200px !important; }
+    }
 </style>
 
 <div class="dash-wrap">
@@ -247,16 +280,16 @@ $recentLogs = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
         <div>
             <h1 class="dash-page-title"><i class="fas fa-user-shield"></i> <span>Monitoring Officer</span></h1>
             <p class="dash-page-sub">Live room inspections &middot; <strong>Today: <?= htmlspecialchars(date('F j, Y')) ?></strong></p>
-            <p class="dash-meta">Track real-time faculty presence, student headcount, and unattended room incidents.</p>
+            <p class="dash-meta d-none d-sm-block">Track real-time faculty presence, student headcount, and unattended room incidents.</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="daily-attendance-log.php" class="dash-btn-outline"><i class="fas fa-clipboard-check"></i> Start Room Check</a>
-            <a href="reports.php" class="dash-btn-outline"><i class="fas fa-file-invoice"></i> View Reports</a>
+            <a href="daily-attendance-log.php" class="dash-btn-outline"><i class="fas fa-clipboard-check"></i> <span class="d-none d-sm-inline">Start Room Check</span><span class="d-sm-none">Check</span></a>
+            <a href="reports.php" class="dash-btn-outline"><i class="fas fa-file-invoice"></i> <span class="d-none d-sm-inline">View Reports</span><span class="d-sm-none">Reports</span></a>
         </div>
     </div>
 
     <!-- KPI CARDS -->
-    <div class="row g-3 mb-3">
+    <div class="row g-2 g-md-3 mb-3 mb-md-4">
         <div class="col-12 col-md-6 col-xl-4">
             <div class="dash-kpi kpi-blue">
                 <div class="dash-kpi-icon"><i class="fas fa-door-open"></i></div>
@@ -289,86 +322,159 @@ $recentLogs = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
-    <!-- FILTERS -->
-    <div class="dash-card mb-3">
-        <div class="dash-filters">
-            <div>
-                <label class="dash-filter-label" for="dashSearch">Faculty Name</label>
-                <input id="dashSearch" type="text" class="dash-input" placeholder="Search faculty...">
-            </div>
-            <div>
-                <label class="dash-filter-label" for="dashPeriod">Evaluation Period</label>
-                <select id="dashPeriod" class="dash-select">
-                    <option value="all">All Periods</option>
-                    <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                </select>
-            </div>
-            <div>
-                <label class="dash-filter-label" for="dashRange">Rating Range</label>
-                <select id="dashRange" class="dash-select">
-                    <option value="all">All</option>
-                    <option value="high">High (&ge; 4.5)</option>
-                    <option value="mid">Mid (3.5 &ndash; 4.4)</option>
-                    <option value="low">Low (&lt; 3.5)</option>
-                </select>
-            </div>
-            <div>
-                <button type="button" class="dash-refresh-btn" title="Reset filters"><i class="fas fa-rotate-right"></i></button>
+    <!-- CHART + RECENT INSPECTION LOG (SAME ROW) -->
+    <div class="row g-3">
+        <div class="col-12 col-xl-5">
+            <div class="dash-card h-100">
+                <h3 class="dash-section-title"><i class="fas fa-chart-pie"></i> Attendance Overview</h3>
+                <div class="chart-container" style="height: 250px; position: relative; width: 100%;">
+                    <canvas id="attendanceChart"></canvas>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- RECENT INSPECTION LOG TABLE -->
-    <div class="dash-card">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3 class="dash-section-title mb-0"><i class="fas fa-list-check"></i> Recent Inspection Log</h3>
-            <a href="reports.php" class="dash-btn-outline" style="padding:.35rem .8rem; font-size:.8rem;">View All</a>
-        </div>
+        <div class="col-12 col-xl-7">
+            <div class="dash-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="dash-section-title mb-0"><i class="fas fa-list-check"></i> Recent Inspection Log</h3>
+                    <a href="reports.php" class="dash-btn-outline" style="padding:.35rem .8rem; font-size:.8rem;">View All</a>
+                </div>
 
-        <div class="table-responsive">
-            <table class="dash-table" id="dashLogTable">
-                <thead>
-                    <tr>
-                        <th>Faculty</th>
-                        <th>Room</th>
-                        <th>Subject</th>
-                        <th>Status</th>
-                        <th>Date</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($recentLogs)): ?>
-                        <tr><td colspan="6" class="text-center text-muted py-4">No recent inspection logs found.</td></tr>
-                    <?php else: ?>
-                        <?php foreach ($recentLogs as $log): 
-                            $facName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
-                            $facName = $facName !== '' ? $facName : 'Unknown Faculty';
-                            $rawStatus = strtolower(trim((string)($log['status'] ?? '')));
-                            $statusLabel = $rawStatus !== '' ? ucfirst($rawStatus) : 'Pending';
-                            $statusClass = $rawStatus === 'present' ? 'present' : ($rawStatus === 'late' ? 'late' : ($rawStatus === 'absent' ? 'absent' : 'pending'));
-                            $roomDisp = !empty($log['room_code']) ? $log['room_code'] : ('Room #' . ($log['room_id'] ?? 'N/A'));
-                            $subjDisp = !empty($log['subject_code']) ? $log['subject_code'] : ('Subj #' . ($log['subject_id'] ?? 'N/A'));
-                        ?>
+                <div class="table-responsive">
+                    <table class="dash-table" id="dashLogTable">
+                        <thead>
                             <tr>
-                                <td><strong><?= htmlspecialchars($facName) ?></strong></td>
-                                <td><span class="dash-pill room"><?= htmlspecialchars($roomDisp) ?></span></td>
-                                <td><?= htmlspecialchars($subjDisp) ?></td>
-                                <td><span class="dash-pill <?= $statusClass ?>"><?= htmlspecialchars($statusLabel) ?></span></td>
-                                <td><?= htmlspecialchars($log['session_date'] ?? '') ?></td>
-                                <td>
-                                    <a href="daily-attendance-log.php?session_id=<?= (int)($log['session_id'] ?? 0) ?>" class="dash-action-btn" title="View details"><i class="fas fa-eye"></i></a>
-                                    <a href="reports.php?faculty_id=<?= (int)($log['faculty_id'] ?? 0) ?>" class="dash-action-btn" title="Analytics"><i class="fas fa-chart-simple"></i></a>
-                                </td>
+                                <th>Faculty</th>
+                                <th>Room</th>
+                                <th>Subject</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Actions</th>
                             </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($recentLogs)): ?>
+                                <tr><td colspan="6" class="text-center text-muted py-4">No recent inspection logs found.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($recentLogs as $log): 
+                                    $facName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
+                                    
+                                    if ($facName === '') {
+                                        $facName = !empty($log['faculty_id']) ? 'ID: ' . $log['faculty_id'] : 'Unknown Faculty';
+                                    }
+
+                                    $rawStatus = strtolower(trim((string)($log['status'] ?? '')));
+                                    if ($rawStatus === '' || $rawStatus === 'pending') $rawStatus = 'present';
+                                    
+                                    $statusLabel = ucfirst($rawStatus);
+                                    $statusClass = $rawStatus === 'present' ? 'present' : ($rawStatus === 'late' ? 'late' : ($rawStatus === 'absent' ? 'absent' : 'pending'));
+                                    $roomDisp = !empty($log['room_code']) ? $log['room_code'] : ('Room #' . ($log['room_id'] ?? 'N/A'));
+                                    $subjDisp = !empty($log['subject_code']) ? $log['subject_code'] : ('Subj #' . ($log['subject_id'] ?? 'N/A'));
+                                ?>
+                                    <tr>
+                                        <td><strong><?= htmlspecialchars($facName) ?></strong></td>
+                                        <td><span class="dash-pill room"><?= htmlspecialchars($roomDisp) ?></span></td>
+                                        <td><?= htmlspecialchars($subjDisp) ?></td>
+                                        <td><span class="dash-pill <?= $statusClass ?>"><?= htmlspecialchars($statusLabel) ?></span></td>
+                                        <td><?= htmlspecialchars($log['session_date'] ?? '') ?></td>
+                                        <td>
+                                            <a href="daily-attendance-log.php?session_id=<?= (int)($log['session_id'] ?? 0) ?>" class="dash-action-btn" title="View details"><i class="fas fa-eye"></i></a>
+                                            <a href="reports.php?faculty_id=<?= (int)($log['faculty_id'] ?? 0) ?>" class="dash-action-btn" title="Analytics"><i class="fas fa-chart-simple"></i></a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- PAGINATION -->
+                <?php if ($totalPages > 1): ?>
+                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-3 pt-3" style="border-top: 1px solid var(--dash-border); gap: 0.5rem;">
+                    <small class="text-muted text-center text-sm-start">Showing Page <?= $page ?> of <?= $totalPages ?> (<?= $totalRows ?> records)</small>
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                                <a class="page-link" href="?page=<?= $page - 1 ?>">Prev</a>
+                            </li>
+                            <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                                <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+                                    <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                                </li>
+                            <?php endfor; ?>
+                            <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                                <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('attendanceChart').getContext('2d');
+    
+    // Check for dark mode to adjust chart text colors
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark' 
+                || document.documentElement.getAttribute('data-theme') === 'dark'
+                || document.body.classList.contains('dark-mode');
+                
+    const textColor = isDark ? '#8492a6' : '#64748b';
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Present', 'Late', 'Absent'],
+            datasets: [{
+                label: 'Total Sessions',
+                data: [<?= $chartData['present'] ?>, <?= $chartData['late'] ?>, <?= $chartData['absent'] ?>],
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.7)',  // Present - Green
+                    'rgba(234, 179, 8, 0.7)',  // Late - Yellow
+                    'rgba(239, 68, 68, 0.7)'   // Absent - Red
+                ],
+                borderColor: [
+                    '#22c55e',
+                    '#eab308',
+                    '#ef4444'
+                ],
+                borderWidth: 1,
+                borderRadius: 6,
+                maxBarThickness: 60
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: isDark ? '#16223b' : '#ffffff',
+                    titleColor: isDark ? '#ffffff' : '#0f172a',
+                    bodyColor: isDark ? '#cbd5e1' : '#334155',
+                    borderColor: isDark ? '#1e2d4a' : '#e2e8f0',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: textColor, precision: 0 },
+                    grid: { color: gridColor, drawBorder: false }
+                },
+                x: {
+                    ticks: { color: textColor, font: { weight: '600' } },
+                    grid: { display: false, drawBorder: false }
+                }
+            }
+        }
+    });
+});
+</script>
 
 <?php require_once __DIR__ . '/../../../../includes/layout-end.php'; ?>

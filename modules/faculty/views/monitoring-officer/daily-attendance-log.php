@@ -751,9 +751,26 @@ function getStatusBadgeHtml(array $log): string {
         renderStepper();
     }
 
-    document.getElementById('btnNewRoomCheck')?.addEventListener('click', () => window.location.reload());
-    document.getElementById('btnResetWorkflow')?.addEventListener('click', () => window.location.reload());
-    document.getElementById('btnNextSession')?.addEventListener('click', () => window.location.reload());
+    function resetWorkflow() {
+        // Clear session data
+        sessionData = {};
+        
+        // Reset forms
+        document.getElementById('startRoomCheckForm').reset();
+        document.getElementById('faculty_search').value = '';
+        document.getElementById('faculty_select').value = '';
+        document.getElementById('form_time').value = '<?= date('h:i A') ?>';
+        document.getElementById('form_expected').value = '0';
+        
+        // Reset buttons and panels
+        document.getElementById('btnResetWorkflow').classList.add('d-none');
+        switchPanel('START_ROOM_CHECK');
+    }
+
+    // FIXED: Instead of window.location.reload(), just reset the form so the recent logs stay visible
+    document.getElementById('btnNewRoomCheck')?.addEventListener('click', resetWorkflow);
+    document.getElementById('btnResetWorkflow')?.addEventListener('click', resetWorkflow);
+    document.getElementById('btnNextSession')?.addEventListener('click', resetWorkflow);
 
     document.getElementById('startRoomCheckForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -871,6 +888,11 @@ function getStatusBadgeHtml(array $log): string {
         document.getElementById('sc_progress').style.width = `${Math.min(rate, 100)}%`;
     }
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
     document.getElementById('saveStudentCountBtn')?.addEventListener('click', async function(e) {
         e.preventDefault();
         const btn = this;
@@ -900,6 +922,36 @@ function getStatusBadgeHtml(array $log): string {
             }
             switchPanel('COMPLETE');
             document.getElementById('btnResetWorkflow').classList.remove('d-none');
+
+            // --- NEW CODE TO INSTANTLY UPDATE THE RIGHT SIDE TABLE ---
+            const tbody = document.getElementById('logsTableBody');
+            if (tbody) {
+                // Remove "No sessions recorded yet"
+                const emptyRow = tbody.querySelector('tr td[colspan="4"]');
+                if (emptyRow) emptyRow.closest('tr').remove();
+
+                // Generate status badge HTML
+                let statusHtml = '';
+                if (sessionData.status === 'Present') {
+                    statusHtml = '<span class="badge-status badge-present">Present</span>';
+                } else if (sessionData.status === 'Late') {
+                    statusHtml = '<span class="badge-status badge-late">Late</span>';
+                } else {
+                    statusHtml = '<span class="badge-status badge-absent">Absent</span>';
+                }
+
+                // Prepend the new row
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td class="fw-semibold">${escapeHtml(sessionData.faculty)}</td>
+                    <td><span class="badge" style="background-color: var(--dal-card-2); color: var(--dal-text); border: 1px solid var(--dal-border);">${escapeHtml(sessionData.room)}</span></td>
+                    <td>${escapeHtml(sessionData.subject)}</td>
+                    <td>${statusHtml}</td>
+                `;
+                tbody.prepend(newRow);
+            }
+            // -----------------------------------------------------
+
         } catch (err) {
             alert('API Communication Error: ' + err.message);
             btn.disabled = false;

@@ -312,9 +312,6 @@ require_once __DIR__ . '/../../../../includes/nav-icons.php';
         <p class="text-muted mb-0 small">Manage profile and contact information in your department directory</p>
     </div>
     <div>
-        <button class="btn btn-success btn-sm">
-            <i class="fas fa-file-excel me-1"></i> Export Directory
-        </button>
     </div>
 </div>
 
